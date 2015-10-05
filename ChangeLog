@@ -1,0 +1,12 @@
+2015-10-05  Oliver Lemke  <olemke@core-dump.info>
+
+	* ChangeLog: You are here.
+
+	* DESCRIPTION.rst, setup.py, setup.cfg, typhon/__init__.py:
+
+	Add basic project files.
+
+	* doc/Makefile, doc/_build, doc/_static, doc/_templates, doc/conf.py,
+	doc/index.rst, doc/make.bat:
+
+	Add sphinx documentation setup.
