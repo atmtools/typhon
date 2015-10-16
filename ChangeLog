@@ -1,5 +1,11 @@
 2015-10-16  Oliver Lemke  <olemke@core-dump.info>
 
+	* setup.py: Change version to 0.0.3 and upload to pypi.
+
+	* MANIFEST.in: Add to include extra files in sdist.
+
+2015-10-16  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/legacy/__init__.py, typhon/legacy/artsXML.py,
 	typhon/legacy/arts_math.py, typhon/legacy/arts_types.py:
 
