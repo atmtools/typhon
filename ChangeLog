@@ -1,3 +1,14 @@
+2015-10-19  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py: Define version number here. Set to 0.0.4.
+
+	Do not increase version number on commit! It will only be increased
+	after a release has been upload to pypi.
+	
+	* setup.py, doc/conf.py: Use __version__ from init file.
+
+	* doc/conf.py: Use RTD theme.
+
 2015-10-16  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py: Change version to 0.0.3 and upload to pypi.
