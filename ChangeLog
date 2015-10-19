@@ -1,5 +1,9 @@
 2015-10-19  Oliver Lemke  <olemke@core-dump.info>
 
+	* setup.py: Fix syntax error. Add numpy and scipy as requirements.
+
+2015-10-19  Oliver Lemke  <olemke@core-dump.info>
+
 	* doc/legacy.rst: Add docs for legacy module.
 
 	* doc/index.rst: Add link to legacy module docs.
