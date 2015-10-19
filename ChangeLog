@@ -1,5 +1,13 @@
 2015-10-19  Oliver Lemke  <olemke@core-dump.info>
 
+	* Docs are now available at http://typhon.readthedocs.org/
+
+	* typhon/legacy/arts_types.py:
+
+	Remove no longer existing data types from documentation.
+
+2015-10-19  Oliver Lemke  <olemke@core-dump.info>
+
 	* setup.py: Fix syntax error. Add numpy and scipy as requirements.
 
 2015-10-19  Oliver Lemke  <olemke@core-dump.info>

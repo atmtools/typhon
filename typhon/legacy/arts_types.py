@@ -9,9 +9,6 @@ of anything, and all gridded-fields are subclasses of GriddedField.
 
 Classes of special interest may be:
 
-- LatLonGriddedField3: Special case of GriddedField3 for lat/lon/pressure
-  data
-- AbsSpecies
 - SingleScatteringData
 - ScatteringMetaData
 
