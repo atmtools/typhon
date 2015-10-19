@@ -144,40 +144,6 @@ class SingleScatteringData(ArtsType):
     calculation of the single scattering properties, and the output of the
     SingleScatteringData structure in the ARTS XML format (see example file).
     The low-level calculations are performed in arts_scat.
-
-    Constructor input
-    ~~~~~~~~~~~~~~~~~
-    
-    ptype : integer
-        As for ARTS; see Arts User Guide
-
-    f_grid : 1-D np.array
-        np.array for frequency grid [Hz]
-
-    T_grid : 1-D np.array
-        np.array for temperature grid [K]
-
-    za_grid : 1-D np.array
-        np.array for zenith-angle grid [degree]
-
-    aa_grid : 1-D np.array
-        np.array for azimuth-angle grid [degree]
-
-    equiv_radius : number
-        equivalent volume radius [micrometer]
-
-    NP : integer or None
-        code for shape: -1 for spheroid, -2 for cylinder,
-        positive for chebyshev, None for arbitrary shape
-        (will not use tmatrix for calculations)
-
-    phase : string
-        ice, liquid
-
-    aspect_ratio : number
-        Aspect ratio [no unit]
-
-    Some inputs have default values, see SingleScatteringData.defaults.
     """
 
     defaults = {"ptype": PARTICLE_TYPE_MACROS_ISO,
@@ -197,7 +163,41 @@ class SingleScatteringData(ArtsType):
     mri = None
 
     def __init__(self, params={}, **kwargs):
-        """See class documentation for constructor info.
+        """ Constructor
+
+        Parameters
+        ----------
+
+        ptype : integer
+            As for ARTS; see Arts User Guide
+
+        f_grid : 1-D np.array
+            np.array for frequency grid [Hz]
+
+        T_grid : 1-D np.array
+            np.array for temperature grid [K]
+
+        za_grid : 1-D np.array
+            np.array for zenith-angle grid [degree]
+
+        aa_grid : 1-D np.array
+            np.array for azimuth-angle grid [degree]
+
+        equiv_radius : number
+            equivalent volume radius [micrometer]
+
+        NP : integer or None
+            code for shape: -1 for spheroid, -2 for cylinder,
+            positive for chebyshev, None for arbitrary shape
+            (will not use tmatrix for calculations)
+
+        phase : string
+            ice, liquid
+
+        aspect_ratio : number
+            Aspect ratio [no unit]
+
+        Some inputs have default values, see SingleScatteringData.defaults.
         """
 
         # enable keyword arguments

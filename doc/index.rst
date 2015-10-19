@@ -6,13 +6,14 @@
 Welcome to Typhon's documentation!
 ==================================
 
-Contents:
+API documentation
+=================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: typhon
-   :members:
+   legacy
+
 
 Indices and tables
 ==================

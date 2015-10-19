@@ -1,5 +1,17 @@
 2015-10-19  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/legacy.rst: Add docs for legacy module.
+
+	* doc/index.rst: Add link to legacy module docs.
+
+	* doc/conf.py: Load napoleon extension for numpy doc format.
+
+	* typhon/legacy/arts_types.py:
+
+	Fix some docstrings to avoid sphinx errors.
+
+2015-10-19  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py: Define version number here. Set to 0.0.4.
 
 	Do not increase version number on commit! It will only be increased
