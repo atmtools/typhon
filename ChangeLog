@@ -1,5 +1,9 @@
 2015-10-20  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/index.rst: Fix headings/title.
+
+2015-10-20  Oliver Lemke  <olemke@core-dump.info>
+
 	* doc/developer.rst, doc/example_google.py, doc/index.rst,
 	doc/modules.rst:
 
