@@ -6,19 +6,12 @@
 Welcome to Typhon's documentation!
 ==================================
 
-API documentation
-=================
+Developer documentation
+-----------------------
 
 .. toctree::
    :maxdepth: 2
 
-   legacy
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   developer
+   modules
 

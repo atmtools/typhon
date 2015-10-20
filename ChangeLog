@@ -1,3 +1,10 @@
+2015-10-20  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/developer.rst, doc/example_google.py, doc/index.rst,
+	doc/modules.rst:
+
+	Added docs on coding and docstring styles. Restructure the toctree.
+
 2015-10-19  Oliver Lemke  <olemke@core-dump.info>
 
 	* Docs are now available at http://typhon.readthedocs.org/
