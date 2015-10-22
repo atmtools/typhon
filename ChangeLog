@@ -1,3 +1,23 @@
+2015-10-22  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py, typhon/files/__init__.py, doc/files.rst,
+	doc/modules.rst:
+
+	Add 'files' module.
+
+	* typhon/files/utils.py:
+
+	Add convenience function 'decompress' for temporary unpacking of
+	compressed files.
+
+	* doc/developer.rst: Add section about default module short names.
+
+	* doc/conf.py:
+
+	Fix module sorting by using 'typhon.' as a common prefix.
+
+	* .gitignore: Ignore file for git-svn users.
+
 2015-10-20  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/index.rst: Fix headings/title.

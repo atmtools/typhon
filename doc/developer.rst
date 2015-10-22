@@ -23,3 +23,14 @@ Download: :download:`example_google.py <example_google.py>`
 .. literalinclude:: example_google.py
    :language: python
 
+Common module names
+-------------------
+
+This is a list of short names that should be used consistently for importing
+external modules::
+
+  import numpy as np
+  import scipy as sp
+  import matplotlib as mpl
+  import matplotlib.pyplot as plt
+
