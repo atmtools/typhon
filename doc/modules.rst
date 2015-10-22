@@ -4,6 +4,7 @@ API Documentation
 .. toctree::
    :maxdepth: 2
 
+   arts
    files
    legacy
 

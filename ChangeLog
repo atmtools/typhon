@@ -1,5 +1,13 @@
 2015-10-22  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/arts.rst, doc/modules.rst, typhon/__init__.py,
+	typhon/arts/__init__.py, typhon/arts/xml.py:
+
+	Started new xml implementation. Loosely based on the implementation in
+	pyatmlab. Thanks Gerrit.
+	
+2015-10-22  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py, typhon/files/__init__.py, doc/files.rst,
 	doc/modules.rst:
 
