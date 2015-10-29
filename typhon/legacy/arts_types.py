@@ -123,6 +123,13 @@ class ArrayOf(ArtsType, list):
         return obj
 
 
+_old_ptype_mapping = {
+    10: "general",
+    20: "macroscopically_isotropic",
+    30: "horizontally_aligned",
+}
+
+
 class SingleScatteringData(ArtsType):
     """The class representing the arts SingleScatteringData class.
     
@@ -143,7 +150,7 @@ class SingleScatteringData(ArtsType):
     The low-level calculations are performed in arts_scat.
     """
 
-    defaults = {"ptype": PARTICLE_TYPE_MACROS_ISO,
+    defaults = {"ptype": "macroscopically isotropic",
                 # as defined in optproperties.h
                 "T_grid": np.array([250]),
                 "za_grid": np.arange(0, 181, 10),
@@ -165,7 +172,7 @@ class SingleScatteringData(ArtsType):
         Parameters
         ----------
 
-        ptype : integer
+        ptype : string
             As for ARTS; see Arts User Guide
 
         f_grid : 1-D np.array
@@ -223,9 +230,9 @@ class SingleScatteringData(ArtsType):
 
     def to_xml(self):
         xml_obj = artsXML.XML_Obj('SingleScatteringData')
-        xml_obj.write(artsXML.number_to_xml("Index", self.ptype))
+        xml_obj.write(artsXML.text_to_xml("String", self.ptype))
         xml_obj.write(
-            artsXML.text_to_xml("String",
+            artsXML.text_to_xml("String 0",
                                 "\"" + general.convert_to_string(
                                     self.description) + "\""))
         xml_obj.write(artsXML.tensor_to_xml(np.array(self.f_grid)))
@@ -241,7 +248,7 @@ class SingleScatteringData(ArtsType):
     def __repr__(self):
         S = StringIO()
         S.write("<SingleScatteringData ")
-        S.write("ptype=%d " % self.ptype)
+        S.write("ptype={} ".format(self.ptype))
         S.write("phase=%s " % self.phase)
         S.write("equiv_radius=%4e" % self.equiv_radius)
         for nm in ("f_grid", "T_grid", "za_grid", "aa_grid"):
@@ -346,8 +353,6 @@ class SingleScatteringData(ArtsType):
         """
 
         params = {
-            "description": artsXML_object['String'][1:-1],
-            "ptype": artsXML_object['Index'],
             "f_grid": artsXML_object['Vector'],
             "T_grid": artsXML_object['Vector 0'],
             "za_grid": artsXML_object['Vector 1'],
@@ -355,6 +360,15 @@ class SingleScatteringData(ArtsType):
         }
 
         obj = cls(**params)
+        if 'String 0' in artsXML_object:
+            obj.description = artsXML_object['String 0'][1:-1],
+            obj.ptype = artsXML_object['String'][1:-1]
+            if obj.ptype not in _old_ptype_mapping.values():
+                raise RuntimeError("Illegal ptype: {}".format(obj.ptype))
+        else:
+            obj.description = artsXML_object['String'][1:-1],
+            obj.ptype = _old_ptype_mapping[artsXML_object['Index']]
+
         obj.pha_mat_data = artsXML_object['Tensor7']
         obj.ext_mat_data = artsXML_object['Tensor5']
         obj.abs_vec_data = artsXML_object['Tensor5 0']
@@ -434,6 +448,7 @@ class ScatteringMetaData(ArtsType):
     def to_xml(self):
         xml_obj = artsXML.XML_Obj('ScatteringMetaData',
                                   attributes={'version': 3})
+
         xml_obj.write(
             artsXML.text_to_xml("String",
                                 "\"" + general.convert_to_string(
@@ -513,10 +528,12 @@ class ArrayOfSingleScatteringData(ArrayOf):
         for (i, size) in enumerate(sizes):
             # add SSD/SMD, one by one
             obj.append(
-                cls.dispatcher_SSD[name](size, shapestr, frequencies, angles,
+                cls.dispatcher_SSD[name](size, shapestr, frequencies,
+                                         angles,
                                          data[:, i]))
             obj.smd.append(
-                cls.dispatcher_SMD[name](size, shapestr, frequencies, angles,
+                cls.dispatcher_SMD[name](size, shapestr, frequencies,
+                                         angles,
                                          data[:, i]))
         return obj
 

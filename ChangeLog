@@ -1,3 +1,9 @@
+2015-10-29  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/legacy/arts_types.py:
+
+	Add support for both SingleScatteringData versions.
+
 2015-10-22  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/arts.rst, doc/modules.rst, typhon/__init__.py,
