@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-"""Read and write Arts XML types
+"""Read and write ARTS XML types
 
-This module contains classes for reading and writing Arts XML types.
+This module provides functionality for reading and writing ARTS XML files.
 Most users will only need the `load` function.
 """
 
@@ -17,8 +17,9 @@ _dim_names = ['ncols', 'nrows', 'npages', 'nbooks', 'nshelves',
               'nvitrines', 'nlibraries']
 
 
-class ARTSTypesLoadMultiplexer:
-    def arts(self, elem):
+class _ARTSTypesLoadMultiplexer:
+    @staticmethod
+    def arts(elem):
         if (elem.attrib['format'] == 'binary'):
             raise RuntimeError(
                 'Reading binary ARTS XML files is not yet supported')
@@ -28,7 +29,8 @@ class ARTSTypesLoadMultiplexer:
 
         return elem[0].value()
 
-    def Array(self, elem):
+    @staticmethod
+    def Array(elem):
         arr = [t.value() for t in elem]
         if len(arr) != int(elem.attrib['nelem']):
             raise RuntimeError('Expected {:s} elements in Array, found {:d}'
@@ -36,18 +38,22 @@ class ARTSTypesLoadMultiplexer:
                                                    len(arr)))
         return arr
 
-    def String(self, elem):
+    @staticmethod
+    def String(elem):
         return elem.text
 
     SpeciesTag = String
 
-    def Index(self, elem):
+    @staticmethod
+    def Index(elem):
         return int(elem.text)
 
-    def Numeric(self, elem):
+    @staticmethod
+    def Numeric(elem):
         return float(elem.text)
 
-    def Vector(self, elem):
+    @staticmethod
+    def Vector(elem):
         # sep=' ' seems to work even when separated by newlines, see
         # http://stackoverflow.com/q/31882167/974555
         arr = np.fromstring(elem.text, sep=' ')
@@ -57,7 +63,8 @@ class ARTSTypesLoadMultiplexer:
                                                    arr.size))
         return arr
 
-    def Matrix(self, elem):
+    @staticmethod
+    def Matrix(elem):
         flatarr = np.fromstring(elem.text, sep=' ')
         # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
         dims = [dim for dim in _dim_names if dim in elem.attrib.keys()][::-1]
@@ -66,28 +73,27 @@ class ARTSTypesLoadMultiplexer:
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix
 
 
-_load_multiplexer = ARTSTypesLoadMultiplexer()
-
-
-class ArtsElement(xml.etree.ElementTree.Element):
+class _ARTSElement(xml.etree.ElementTree.Element):
     """Element with value interpretation.
     """
 
     def value(self):
-        return getattr(_load_multiplexer, self.tag)(self)
+        try:
+            return getattr(_ARTSTypesLoadMultiplexer, self.tag)(self)
+        except AttributeError:
+            raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
 
 
 def load(file):
     """Load data from an ARTS XML file.
 
-    The input file can be either a plain or gzipped XML file.
+    The input file can be either a plain or gzipped XML file (not yet supported)
 
     Args:
         file (str): Name of ARTS XML file.
 
     Returns:
-        Data from the XML file.
-
+        Data from the XML file. Type depends on data in file.
     """
     # TODO(OLE): Add support for gzipped files.
     return parse(file).getroot().value()
@@ -105,4 +111,4 @@ def parse(source):
     return xml.etree.ElementTree.parse(source,
                                        parser=xml.etree.ElementTree.XMLParser(
                                            target=xml.etree.ElementTree.TreeBuilder(
-                                               element_factory=ArtsElement)))
+                                               element_factory=_ARTSElement)))

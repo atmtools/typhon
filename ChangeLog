@@ -1,3 +1,19 @@
+2015-11-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* setup.py: Remove Python 2.7 from language list.
+
+	* typhon/arts/xml.py:
+
+	Add _ to ARTSTypesLoadMultiplexer and ARTSElement because they're only
+	used internally.
+
+	Make all methods in _ARTSTypesLoadMultiplexer static. Removes the need
+	of unnecessarily instantiating an object.
+
+	* DESCRIPTION.rst: Updated.
+
+	* .gitignore: Updated.
+
 2015-10-29  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/legacy/arts_types.py:

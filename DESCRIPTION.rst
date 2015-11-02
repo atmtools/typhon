@@ -1,10 +1,9 @@
 Typhon
 ======
 
-The glue between Python and ARTS[1].
+A collection of tools for atmospheric research.
 
-Planned to be extended to contain a collection of tools for atmospheric
-research.
+Currently only provides reading and writing routines for ARTS[1] XML files.
 
 [1] http://arts.mi.uni-hamburg.de/
 
