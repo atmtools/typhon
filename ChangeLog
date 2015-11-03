@@ -1,3 +1,15 @@
+2015-11-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/tests/reference:
+
+	Added directory which includes several test XML files.
+
+	* typhon/arts/tests/test_matpack_types.py:
+
+	Added module which provides basic test functions for reading XML files.
+
+	* typhon/__init__.py: Added test() to run all tests.
+
 2015-11-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py: Remove Python 2.7 from language list.
