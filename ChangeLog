@@ -1,5 +1,12 @@
 2015-11-03  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/__init__.py (test):
+
+	Fix bug that broke function if invoked in other directories than typhon/.
+	The needed path is now determined using the __file__ variable.
+
+2015-11-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/tests/reference:
 
 	Added directory which includes several test XML files.
