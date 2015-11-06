@@ -14,6 +14,13 @@ _known_compressions = {
     '.zip': zipfile.ZipFile,
 }
 
+try:
+    import lzma
+except ImportError: # no lzma
+    pass
+else:
+    _known_compressions['.xz'] = lzma.LZMAFile
+
 
 @contextmanager
 def decompress(filename, tmpdir):
@@ -22,7 +29,8 @@ def decompress(filename, tmpdir):
     Returns the full path to the uncompressed temporary file or the original
     filename if it was not compressed.
 
-    Supported compression formats are: gzip, bzip2 and zip.
+    Supported compression formats are: gzip, bzip2, zip, and lzma (Python
+    3.3 or newer only).
 
     This function is tailored for use in a with statement. It uses a context
     manager to automatically remove the decompressed file after use.
