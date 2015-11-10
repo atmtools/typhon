@@ -347,6 +347,80 @@ class SingleScatteringData(ArtsType):
                  self.ext_mat_data.shape, self.pha_mat_data.shape,
                  self.abs_vec_data.shape))
 
+    def assp2backcoef(self):
+        """The function returns the radar backscattering coeffcient. This is the
+        phase function times 4pi, following the standard definition in the radar
+        community.
+
+        Returns:
+            Backscattering coefficients, one value for each frequency and
+            temperature in S. [m2]
+        """
+
+        back_coef = np.multiply(4*np.pi, self.pha_mat_data[:, :, -1, 0, 0, 0,
+                                                           0])
+        return back_coef
+
+    def assp2g(self):
+        """For a normalised phase function (p), g equals the 4pi integral of
+        p*cos(th), where th is the scattering angle. For pure isotropic
+        scattering g = 0, while pure forward scattering has g=1.
+
+        Warning, this function does not handle the extreme cases of
+        delta-function type of forward or backward scattering lobes. A g of
+        zero is returned for these cases.
+
+        Returns:
+            Backscattering coefficients, one value for each frequency and
+            temperature in S. [m2]
+        """
+
+        g = np.zeros((len(self.f_grid), len(self.T_grid)))
+        # ARTS uses pure phase matrix values, and not a normalised phase
+        # function, and we need to include a normalisation.
+
+        za_rad_grid = np.radians([self.za_grid])
+
+        aziWeight = abs(np.sin(za_rad_grid))
+        cosTerm = np.cos(za_rad_grid)
+
+        for j in range(0, len(self.f_grid)):
+            for i in range(0, len(self.T_grid)):
+                phase_grid = self.pha_mat_data[j, i, :, 0, 0, 0, 0]
+
+                normFac = np.trapz(np.multiply(
+                    phase_grid, aziWeight), za_rad_grid)
+
+                if normFac == 0:
+                # If normFac is zero, this means that phase_grid==0 and
+                # should indicate very small particles that have g=0.
+                    g[j, i] = 0
+                else:
+                    temp_cosPhase = np.multiply(cosTerm, phase_grid)
+
+                    temp = np.trapz(np.multiply(temp_cosPhase, aziWeight),
+                                    za_rad_grid)
+
+                    g[j, i] = np.divide(temp, normFac)
+        return g
+
+    def checkassp(self):
+        """Verfies properties of SSP.
+
+        Raises:
+            PyARTSError: If ptype is not macroscopically isotropic, or if first
+                and last value of za_grid does not equal exactly 0 and 180
+                respectively.
+        """
+
+        if self.ptype != "macroscopically_isotropic":
+            raise general.PyARTSError("So far just complete random"
+                                      " orientation is handled.")
+        if self.za_grid[0] != 0:
+            raise general.PyARTSError("First value of za_grid must be 0.")
+        if self.za_grid[-1] != 180:
+            raise general.PyARTSError("Last value of za_grid must be 180.")
+
     @classmethod
     def _load_from_artsXML_object(cls, artsXML_object):
         """Loads a SingleScatteringData object from an artsXML_object.

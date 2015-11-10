@@ -1,3 +1,11 @@
+2015-11-10  Robin Ekelund  <robin.ekelund@chalmers.se>
+
+	* typhon/legacy/arts_types.py:
+	
+	Added functions 'assp2backcoef', 'assp2g' and 'checkassp' to the 
+	SingleScatteringData class. The functions calculates backscattering,
+ 	assymmetry coefficient and performs a self-check respectively.
+
 2015-11-06  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/files/utils.py(decompress):
