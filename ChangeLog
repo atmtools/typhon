@@ -1,3 +1,9 @@
+2015-11-11  Oliver Lemke  <olemke@core-dump.info>
+
+	* Uploaded version 0.0.4 to pypi.
+
+	* typhon/__init__.py: Increased version number after pypi upload.
+
 2015-11-10  Robin Ekelund  <robin.ekelund@chalmers.se>
 
 	* typhon/legacy/arts_types.py:
