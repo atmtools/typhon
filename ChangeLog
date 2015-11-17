@@ -1,3 +1,21 @@
+2015-11-17  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml.py:
+
+	Add writing support for all basic and matpack types.
+
+	Add support for reading gzipped xml files.
+
+	* typhon/arts/tests/reference/array.xml: Renamed to vector.
+
+	* typhon/arts/tests/test_matpack_types.py:
+
+	Renamed array to vector.
+
+	Added tests for loading ArrayOf{Index,String}.
+
+	* setup.py: Add Python 3.5 to supported languages.
+
 2015-11-11  Oliver Lemke  <olemke@core-dump.info>
 
 	* Uploaded version 0.0.4 to pypi.
