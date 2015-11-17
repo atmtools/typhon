@@ -1,5 +1,20 @@
 2015-11-17  Oliver Lemke  <olemke@core-dump.info>
 
+	* DESCRIPTION.rst: Mention that this package is for Python 3.
+
+	* typhon/arts/xml.py:
+
+	Strings in ARTS XML files must be enclosed in double quotes.
+
+	Replaced double quotes with single quotes around strings in Python
+	source code for consistency.
+
+	Rename etree to ElementTree for clarity.
+
+	* typhon/arts/tests/reference/arrayofstring.xml: Updated.
+
+2015-11-17  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/xml.py:
 
 	Add writing support for all basic and matpack types.

@@ -7,7 +7,7 @@ Most users will only need the `load` function.
 """
 
 from __future__ import absolute_import
-import xml.etree.ElementTree as etree
+from xml.etree import ElementTree
 import gzip
 import numpy as np
 
@@ -33,6 +33,7 @@ class _ARTSTypesLoadMultiplexer:
     """Used by the xml.etree.ElementTree to parse ARTS variables.
 
     Tag names in the XML file are mapped to the corresponding parsing method.
+
     """
 
     @staticmethod
@@ -57,7 +58,9 @@ class _ARTSTypesLoadMultiplexer:
 
     @staticmethod
     def String(elem):
-        return elem.text
+        if elem.text is None:
+            return ''
+        return elem.text[1:-1]
 
     SpeciesTag = String
 
@@ -90,7 +93,7 @@ class _ARTSTypesLoadMultiplexer:
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix
 
 
-class _ARTSElement(etree.Element):
+class _ARTSElement(ElementTree.Element):
     """Element with value interpretation."""
 
     def value(self):
@@ -109,7 +112,7 @@ class ARTSTag:
     The attributes are passed to the constructor as a dictionary.
     """
 
-    def __init__(self, name="", attr=None):
+    def __init__(self, name='', attr=None):
         if attr is None:
             attr = {}
         self.name = name
@@ -130,7 +133,7 @@ class ARTSTag:
     @attributes.setter
     def attributes(self, attr):
         if attr is not None and type(attr) is not dict:
-            raise TypeError("Attributes must be a dictionary")
+            raise TypeError('Attributes must be a dictionary')
 
         self._attributes = attr
 
@@ -140,13 +143,13 @@ class ARTSTag:
                               ''.join([' {}="{}"'.format(a, v) for a, v in
                                        self.attributes.items()]))
         if newline:
-            ret += "\n"
+            ret += '\n'
 
         return ret
 
     def close(self):
         """Returns the closing tag as a string."""
-        return "</{}>\n".format(self.name)
+        return '</{}>\n'.format(self.name)
 
 
 def get_arts_typename(var):
@@ -175,6 +178,7 @@ def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
         fp: Text IO output stream.
         precision: Format string.
         binaryfp: Binary IO output stream.
+
     """
     if hasattr(var, 'write_as_arts_xml'):
         var.write_arts_xml(var, fp, precision, binaryfp)
@@ -186,7 +190,7 @@ def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
         write_basic_type(var, fp, 'Numeric', fmt='{:' + precision + '}',
                          binaryfp=binaryfp)
     elif type(var) is str:
-        write_basic_type(var, fp, 'String')
+        write_basic_type('"' + var + '"', fp, 'String')
     elif type(var) in (list, tuple):
         try:
             arraytype = get_arts_typename(var[0])
@@ -200,7 +204,7 @@ def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
         for i, v in enumerate(var):
             if get_arts_typename(v) != arraytype:
                 raise RuntimeError(
-                    "All array elements must have the same type. "
+                    'All array elements must have the same type. '
                     "Array type is '{}', but element {} has type '{}'".format(
                         arraytype, i, get_arts_typename(v)))
             write_arts_xml(v, fp, precision, binaryfp)
@@ -222,6 +226,7 @@ def write_ndarray(var, fp, precision, binaryfp):
     """Convert ndarray to ARTS XML representation.
 
     For arguments see `write_arts_xml`.
+
     """
     ndim = var.ndim
     if ndim < len(_dim_names):
@@ -238,15 +243,15 @@ def write_ndarray(var, fp, precision, binaryfp):
         if (ndim > 2):
             var = var.reshape(-1, var.shape[-1])
 
-        fmt = " ".join(["%" + precision, ] * var.shape[1])
+        fmt = ' '.join(['%' + precision, ] * var.shape[1])
         for i in var:
-            fp.write((fmt % tuple(i) + "\n"))
+            fp.write((fmt % tuple(i) + '\n'))
         fp.write(artstag.close())
 
     else:
         raise RuntimeError(
-            "Dimensionality ({}) of ndarray too large for "
-            "conversion to ARTS XML".format(ndim))
+            'Dimensionality ({}) of ndarray too large for '
+            'conversion to ARTS XML'.format(ndim))
 
 
 def save(var, filename, precision='.7e'):
@@ -256,6 +261,7 @@ def save(var, filename, precision='.7e'):
         var: Variable to be stored.
         filename (str): Name of output XML file.
         precision (str): Format for output precision.
+
     """
     with open(filename, mode='w', encoding='UTF-8') as fp:
         fp.write('<?xml version="1.0"?>\n')
@@ -275,8 +281,9 @@ def load(filename):
 
     Returns:
         Data from the XML file. Type depends on data in file.
+
     """
-    if filename[-3:] == ".gz":
+    if filename[-3:] == '.gz':
         xmlopen = gzip.open
     else:
         xmlopen = open
@@ -293,8 +300,9 @@ def parse(source):
 
     Returns:
         xml.etree.ElementTree: XML Tree of the ARTS data file.
+
     """
-    return etree.parse(source,
-                       parser=etree.XMLParser(
-                           target=etree.TreeBuilder(
-                               element_factory=_ARTSElement)))
+    return ElementTree.parse(source,
+                             parser=ElementTree.XMLParser(
+                                 target=ElementTree.TreeBuilder(
+                                     element_factory=_ARTSElement)))
