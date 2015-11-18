@@ -229,13 +229,19 @@ def write_ndarray(var, fp, precision, binaryfp):
 
     """
     ndim = var.ndim
-    if ndim < len(_dim_names):
-        artstag = ARTSTag(_tensor_names[ndim - 1])
-        if ndim == 1:
-            artstag.attributes['nelem'] = var.shape[0]
-        else:
-            for i in range(0, ndim):
-                artstag.attributes[_dim_names[i]] = var.shape[ndim - 1 - i]
+    artstag = ARTSTag(_tensor_names[ndim - 1])
+    # Vector
+    if ndim == 1:
+        artstag.attributes['nelem'] = var.shape[0]
+        fp.write(artstag.open())
+        fmt = "%" + precision
+        for i in var:
+            fp.write(fmt % i + '\n')
+        fp.write(artstag.close())
+    # Matrix and Tensors
+    elif ndim < len(_dim_names):
+        for i in range(0, ndim):
+            artstag.attributes[_dim_names[i]] = var.shape[ndim - 1 - i]
 
         fp.write(artstag.open())
 
@@ -244,10 +250,10 @@ def write_ndarray(var, fp, precision, binaryfp):
             var = var.reshape(-1, var.shape[-1])
 
         fmt = ' '.join(['%' + precision, ] * var.shape[1])
+
         for i in var:
             fp.write((fmt % tuple(i) + '\n'))
         fp.write(artstag.close())
-
     else:
         raise RuntimeError(
             'Dimensionality ({}) of ndarray too large for '

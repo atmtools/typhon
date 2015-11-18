@@ -1,3 +1,7 @@
+2015-11-18  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml.py: Fixed writing of Vectors.
+
 2015-11-17  Oliver Lemke  <olemke@core-dump.info>
 
 	* DESCRIPTION.rst: Mention that this package is for Python 3.
