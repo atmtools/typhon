@@ -1,6 +1,10 @@
 2015-11-18  Oliver Lemke  <olemke@core-dump.info>
 
-	* typhon/arts/xml.py: Fixed writing of Vectors.
+	* typhon/arts/xml.py (write_ndarray): We have 7 Tensors not just 6...
+
+2015-11-18  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml.py (write_ndarray): Fixed writing of Vectors.
 
 2015-11-17  Oliver Lemke  <olemke@core-dump.info>
 

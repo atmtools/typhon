@@ -239,7 +239,7 @@ def write_ndarray(var, fp, precision, binaryfp):
             fp.write(fmt % i + '\n')
         fp.write(artstag.close())
     # Matrix and Tensors
-    elif ndim < len(_dim_names):
+    elif ndim <= len(_dim_names):
         for i in range(0, ndim):
             artstag.attributes[_dim_names[i]] = var.shape[ndim - 1 - i]
 
