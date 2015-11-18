@@ -1,3 +1,13 @@
+2015-11-18 Lukas Kluft <lukas.kluft@gmail.com>
+
+	* typhon/arts/tests/test_matpack_types.py:
+
+	Added functions to test the writing of XML files.
+
+	Divided the test functions into two classes TestLoad and TestSave.
+
+	_create_tensor is now a module level function as it is used by all classes.
+
 2015-11-18  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml.py (write_ndarray): We have 7 Tensors not just 6...
