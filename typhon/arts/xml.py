@@ -7,11 +7,15 @@ Most users will only need the `load` function.
 """
 
 from __future__ import absolute_import
-from xml.etree import ElementTree
+
 import gzip
+from xml.etree import ElementTree
+
 import numpy as np
 
-__all__ = ['load', 'save', 'parse', 'write_arts_xml', 'ARTSTag']
+from . import types
+
+__all__ = ['load', 'save', 'parse', 'write_xml', 'ARTSTag']
 
 # Source: ARTS developer guide, section 3.4
 _dim_names = [
@@ -20,7 +24,7 @@ _dim_names = [
 _tensor_names = [
     'Vector', 'Matrix', 'Tensor3', 'Tensor4', 'Tensor5', 'Tensor6', 'Tensor7']
 
-_arts_types = {
+_basic_types = {
     'tuple': 'Array',
     'list': 'Array',
     'int': 'Index',
@@ -97,10 +101,17 @@ class _ARTSElement(ElementTree.Element):
     """Element with value interpretation."""
 
     def value(self):
-        try:
-            return getattr(_ARTSTypesLoadMultiplexer, self.tag)(self)
-        except AttributeError:
-            raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
+        if hasattr(types, self.tag):
+            try:
+                return types.classes[self.tag].from_xml(self)
+            except AttributeError:
+                raise RuntimeError('Type {} exists, but has no XML parsing '
+                                   'support.'.format(self.tag))
+        else:
+            try:
+                return getattr(_ARTSTypesLoadMultiplexer, self.tag)(self)
+            except AttributeError:
+                raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
 
 
 class ARTSTag:
@@ -161,15 +172,15 @@ def get_arts_typename(var):
     Returns:
         str: ARTS type name.
     """
-    return _arts_types[type(var).__name__]
+    return _basic_types[type(var).__name__]
 
 
-def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
+def write_xml(var, fp, precision='.7e', binaryfp=None):
     """Write a variable as XML.
 
     Writing basic matpack types is implemented here. Custom types (e.g.
     GriddedFields) must implement a class member function called
-    'write_arts_xml'.
+    'write_xml'.
 
     Tuples and list are mapped to ARTS Array types.
 
@@ -180,7 +191,7 @@ def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
         binaryfp: Binary IO output stream.
 
     """
-    if hasattr(var, 'write_as_arts_xml'):
+    if hasattr(var, '_write_xml'):
         var.write_arts_xml(var, fp, precision, binaryfp)
     elif type(var) is np.ndarray:
         write_ndarray(var, fp, precision, binaryfp)
@@ -207,7 +218,7 @@ def write_arts_xml(var, fp, precision='.7e', binaryfp=None):
                     'All array elements must have the same type. '
                     "Array type is '{}', but element {} has type '{}'".format(
                         arraytype, i, get_arts_typename(v)))
-            write_arts_xml(v, fp, precision, binaryfp)
+            write_xml(v, fp, precision, binaryfp)
         fp.write(at.close())
     else:
         raise TypeError(
@@ -225,7 +236,7 @@ def write_basic_type(var, fp, name, fmt='{}', binaryfp=None):
 def write_ndarray(var, fp, precision, binaryfp):
     """Convert ndarray to ARTS XML representation.
 
-    For arguments see `write_arts_xml`.
+    For arguments see `write_xml`.
 
     """
     ndim = var.ndim
@@ -273,7 +284,7 @@ def save(var, filename, precision='.7e'):
         fp.write('<?xml version="1.0"?>\n')
         artstag = ARTSTag('arts', {'version': 1, 'format': 'ascii'})
         fp.write(artstag.open())
-        write_arts_xml(var, fp, precision=precision)
+        write_xml(var, fp, precision=precision)
         fp.write(artstag.close())
 
 

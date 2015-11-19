@@ -141,8 +141,7 @@ class TestSave(object):
 
 
     def test_save_tensor(self):
-        """Save different Tensor types to file, read it and compare the
-        results."""
+        """Save different Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_tensor, n
 
