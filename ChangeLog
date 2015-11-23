@@ -1,3 +1,9 @@
+2015-11-23  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml.py (write_xml, write_basic_type, write_ndarray):
+
+	Add attr parameter to pass optional XML tag attributes.
+
 2015-11-19  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml.py

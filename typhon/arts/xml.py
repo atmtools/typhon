@@ -171,11 +171,12 @@ def get_arts_typename(var):
 
     Returns:
         str: ARTS type name.
+
     """
     return _basic_types[type(var).__name__]
 
 
-def write_xml(var, fp, precision='.7e', binaryfp=None):
+def write_xml(var, fp, precision='.7e', attr=None, binaryfp=None):
     """Write a variable as XML.
 
     Writing basic matpack types is implemented here. Custom types (e.g.
@@ -189,27 +190,33 @@ def write_xml(var, fp, precision='.7e', binaryfp=None):
         fp: Text IO output stream.
         precision: Format string.
         binaryfp: Binary IO output stream.
+        attr (dict): Additional attributes of the variable.
 
     """
     if hasattr(var, '_write_xml'):
-        var.write_arts_xml(var, fp, precision, binaryfp)
+        var.write_arts_xml(var, fp, precision, attr, binaryfp)
     elif type(var) is np.ndarray:
-        write_ndarray(var, fp, precision, binaryfp)
+        write_ndarray(var, fp, precision, attr, binaryfp)
     elif type(var) is int:
-        write_basic_type(var, fp, 'Index', binaryfp=binaryfp)
+        write_basic_type(var, fp, 'Index', attr=attr, binaryfp=binaryfp)
     elif type(var) is float:
         write_basic_type(var, fp, 'Numeric', fmt='{:' + precision + '}',
-                         binaryfp=binaryfp)
+                         attr=attr, binaryfp=binaryfp)
     elif type(var) is str:
-        write_basic_type('"' + var + '"', fp, 'String')
+        write_basic_type('"' + var + '"', fp, 'String', attr=attr)
     elif type(var) in (list, tuple):
         try:
             arraytype = get_arts_typename(var[0])
         except IndexError:
             raise RuntimeError('Array must have at least one element.')
 
-        at = ARTSTag('Array', attr={'nelem': len(var),
-                                    'type': arraytype})
+        if attr is None:
+            attr = {}
+        else:
+            attr = attr.copy()
+        attr['nelem'] = len(var)
+        attr['type'] = arraytype
+        at = ARTSTag('Array', attr=attr)
 
         fp.write(at.open())
         for i, v in enumerate(var):
@@ -218,29 +225,39 @@ def write_xml(var, fp, precision='.7e', binaryfp=None):
                     'All array elements must have the same type. '
                     "Array type is '{}', but element {} has type '{}'".format(
                         arraytype, i, get_arts_typename(v)))
-            write_xml(v, fp, precision, binaryfp)
+            write_xml(v, fp, precision, attr=None, binaryfp=binaryfp)
         fp.write(at.close())
     else:
         raise TypeError(
             "Can't map '{}' to any ARTS type.".format(type(var).__name__))
 
 
-def write_basic_type(var, fp, name, fmt='{}', binaryfp=None):
-    """Write a basic ARTS type as XML."""
-    at = ARTSTag(name)
+def write_basic_type(var, fp, name, fmt='{}', attr=None, binaryfp=None):
+    """Write a basic ARTS type as XML.
+
+    Args:
+        var: See `write_xml`.
+        fp: See `write_xml`.
+        name: Variable type name.
+        fmt (str): Output format string.
+        attr: See `write_xml`.
+        binaryfp: See `write_xml`.
+
+    """
+    at = ARTSTag(name, attr)
     fp.write(at.open(False))
     fp.write(fmt.format(var))
     fp.write(at.close())
 
 
-def write_ndarray(var, fp, precision, binaryfp):
+def write_ndarray(var, fp, precision, attr=None, binaryfp=None):
     """Convert ndarray to ARTS XML representation.
 
     For arguments see `write_xml`.
 
     """
     ndim = var.ndim
-    artstag = ARTSTag(_tensor_names[ndim - 1])
+    artstag = ARTSTag(_tensor_names[ndim - 1], attr)
     # Vector
     if ndim == 1:
         artstag.attributes['nelem'] = var.shape[0]
