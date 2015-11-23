@@ -1,3 +1,16 @@
+2015-11-23  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py: Provide a GriddedField class to match the
+	behaviour of the equally named ARTS type. Technically every dimension is
+	possible but there are pre-defined subclasses for the GriddedFields used in
+	ARTS (dimension 1 to 7).
+
+	* typhon/arts/tests/test_griddedfield.py: Test the usage of the GriddedField
+	class.
+
+	* typhon/arts/tests/load_arts_xml_data: Special test case that tries to load
+	every XML file found in ARTS_DATA_PATH.
+
 2015-11-23  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml.py (write_xml, write_basic_type, write_ndarray):
