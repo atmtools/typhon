@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-"""Read and write ARTS XML types
+"""Write ARTS XML types
 
-This module provides functionality for reading and writing ARTS XML files.
-Most users will only need the `load` function.
+This package contains the internal implementation for writing ARTS XML files.
 """
 
 from __future__ import absolute_import
@@ -25,6 +24,13 @@ class ARTSTag:
     """
 
     def __init__(self, name='', attr=None):
+        """Construct an ARTSTag
+
+        Args:
+            name (str): Tag name corresponding to the ARTS type.
+            attr (dict): XML tag attributes.
+
+        """
         if attr is None:
             attr = {}
         self.name = name
@@ -32,6 +38,7 @@ class ARTSTag:
 
     @property
     def name(self):
+        """str: XML tag name."""
         return self._name
 
     @name.setter
@@ -40,6 +47,7 @@ class ARTSTag:
 
     @property
     def attributes(self):
+        """dict: XML tag attributes."""
         return self._attributes
 
     @attributes.setter
@@ -50,7 +58,14 @@ class ARTSTag:
         self._attributes = attr
 
     def open(self, newline=True):
-        """Returns the opening tag as a string."""
+        """Returns the opening tag as a string.
+
+        Args:
+            newline (bool): Put newline after tag.
+
+        Returns:
+            str: XML opening tag.
+        """
         ret = '<{}{}>'.format(self.name,
                               ''.join([' {}="{}"'.format(a, v) for a, v in
                                        self.attributes.items()]))
@@ -60,7 +75,11 @@ class ARTSTag:
         return ret
 
     def close(self):
-        """Returns the closing tag as a string."""
+        """Returns the closing tag as a string.
+
+        Returns:
+            str: XML closing tag.
+        """
         return '</{}>\n'.format(self.name)
 
 

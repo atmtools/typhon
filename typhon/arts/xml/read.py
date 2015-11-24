@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-"""Read and write ARTS XML types
+"""Read ARTS XML types
 
-This module provides functionality for reading and writing ARTS XML files.
-Most users will only need the `load` function.
+This packages contains the internal implementation for reading ARTS XML files.
 """
 
 from __future__ import absolute_import
@@ -18,7 +17,7 @@ from .. import types
 __all__ = ['parse']
 
 
-class _ARTSTypesLoadMultiplexer:
+class ARTSTypesLoadMultiplexer:
     """Used by the xml.etree.ElementTree to parse ARTS variables.
 
     Tag names in the XML file are mapped to the corresponding parsing method.
@@ -83,7 +82,7 @@ class _ARTSTypesLoadMultiplexer:
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix
 
 
-class _ARTSElement(ElementTree.Element):
+class ARTSElement(ElementTree.Element):
     """Element with value interpretation."""
 
     def value(self):
@@ -95,7 +94,7 @@ class _ARTSElement(ElementTree.Element):
                                    'support.'.format(self.tag))
         else:
             try:
-                return getattr(_ARTSTypesLoadMultiplexer, self.tag)(self)
+                return getattr(ARTSTypesLoadMultiplexer, self.tag)(self)
             except AttributeError:
                 raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
 
@@ -113,4 +112,4 @@ def parse(source):
     return ElementTree.parse(source,
                              parser=ElementTree.XMLParser(
                                  target=ElementTree.TreeBuilder(
-                                     element_factory=_ARTSElement)))
+                                     element_factory=ARTSElement)))

@@ -5,7 +5,8 @@ import numpy as np
 from .xml.write import ARTSTag
 from .xml.write import write_xml
 
-__all__ = ['GriddedField1',
+__all__ = ['GriddedField',
+           'GriddedField1',
            'GriddedField2',
            'GriddedField3',
            'GriddedField4',
@@ -20,7 +21,10 @@ class GriddedField(object):
 
     This class provides the facility of storing gridded data. For this purpose
     the grid-axes as well as the data are stored. GriddedFields can be easily
-    written to XML-files as they define a clear datstructure.
+    written to XML-files as they define a clear datastructure.
+
+    :class:`GriddedField` should not be used directly. Use one of the derived
+    types such as :class:`GriddedField1` instead.
 
     """
     def __init__(self, dim, grids=None, data=None, gridnames=None,

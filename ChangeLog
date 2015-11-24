@@ -1,5 +1,29 @@
 2015-11-24  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/arts.rst:
+
+	Add GriddedField docs. Add additional subsection level.
+
+	Divide docs in user and developer sections. Needs to be split into
+	separate pages when more content is added.
+
+	* doc/modules.rst: Show up to level 3 in toc.
+
+
+	* typhon/arts/griddedfield.py:
+
+	Add GriddedField to __all__ for documentation purposes.
+
+	Test internal Sphinx references with :class:`CLASSNAME`.
+
+	* typhon/arts/xml/read.py:
+
+	Remove _ from _ARTSTypesLoadMultiplexer and _ARTSElement.
+
+	* typhon/arts/xml/write.py: Add more docstrings.
+
+2015-11-24  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/xml/__init__.py, typhon/arts/xml/names.py,
 	typhon/arts/xml/read.py, typhon/arts/xml/write.py:
 
@@ -37,7 +61,7 @@
 
 	* typhon/arts/xml.py
 
-	(_ARTSElement.value): Preparation for generic loading of non-basic types
+	(ARTSElement.value): Preparation for generic loading of non-basic types
 	Call classmethod 'from_xml' of custom classes to create an instance from
 	an xml element.
 
@@ -150,7 +174,7 @@
 	Add _ to ARTSTypesLoadMultiplexer and ARTSElement because they're only
 	used internally.
 
-	Make all methods in _ARTSTypesLoadMultiplexer static. Removes the need
+	Make all methods in ARTSTypesLoadMultiplexer static. Removes the need
 	of unnecessarily instantiating an object.
 
 	* DESCRIPTION.rst: Updated.
