@@ -1,5 +1,23 @@
 2015-11-24  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/xml/__init__.py, typhon/arts/xml/write.py:
+
+	(ARTSXMLWriter) Refactor write_* routines into a class. Use properties
+	to track filepointer, precision and binary filepointer.
+	Creates cleaner interface for the individual write_* methods.
+
+	Removed ARTSTag class. Functionality is now provided by ARTSXMLWriter.
+
+	* typhon/arts/griddedfield.py (GriddedField.write_xml):
+
+	Replace fp, precision and binaryfp argument with an ARTSXMLWriter.
+
+	Removed dependency on ARTSTag and xml.write_xml.
+
+	* typhon/arts/xml/__init__.py (save): Use ARTSXMLWriter.
+
+2015-11-24  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/xml/read.py (ARTSTypesLoadMultiplexer):
 
 	Fix reading of zero-sized matpack types.

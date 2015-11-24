@@ -22,15 +22,27 @@ def save(var, filename, precision='.7e'):
     Args:
         var: Variable to be stored.
         filename (str): Name of output XML file.
+            If the name ends in .gz, the file is compressed on the fly.
         precision (str): Format for output precision.
 
+    Note:
+        Python's gzip library is extremely slow in writing. Consider
+        compressing files manually after writing them normally.
+
+    Example:
+        >>> x = numpy.array([1.,2.,3.])
+        >>> typhon.arts.xml.save(x, 'myvector.xml')
+
     """
-    with open(filename, mode='w', encoding='UTF-8') as fp:
-        fp.write('<?xml version="1.0"?>\n')
-        artstag = write.ARTSTag('arts', {'version': 1, 'format': 'ascii'})
-        fp.write(artstag.open())
-        write.write_xml(var, fp, precision=precision)
-        fp.write(artstag.close())
+    if filename[:-3] == '.gz':
+        xmlopen = gzip.open
+    else:
+        xmlopen = open
+    with xmlopen(filename, mode='w', encoding='UTF-8') as fp:
+        axw = write.ARTSXMLWriter(fp, precision=precision)
+        axw.write_header()
+        axw.write_xml(var)
+        axw.write_footer()
 
 
 def load(filename):

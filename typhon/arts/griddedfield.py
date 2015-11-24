@@ -2,9 +2,6 @@
 
 import numpy as np
 
-from .xml.write import ARTSTag
-from .xml.write import write_xml
-
 __all__ = ['GriddedField',
            'GriddedField1',
            'GriddedField2',
@@ -206,18 +203,20 @@ class GriddedField(object):
         ret.gridnames = [x.attrib['name'] for x in xmlelement[:-1]]
         ret.data = xmlelement[-1].value()
 
+        ret.check_dimension()
         return ret
 
-    def write_xml(self, fp, precision, attr=None, binaryfp=None):
+    def write_xml(self, artsxmlwriter, attr=None):
         # TODO (OLE): Only for testing right now
-        at = ARTSTag('GriddedField{}'.format(self.dimension), attr)
-        fp.write(at.open())
+        ret.check_dimension()
+
+        artsxmlwriter.open_tag('GriddedField{}'.format(self.dimension), attr)
         for grid, name in zip(self.grids, self.gridnames):
-            write_xml(grid, fp, precision, {'name': name}, binaryfp)
+            artsxmlwriter.write_xml(grid, {'name': name})
 
-        write_xml(self.data, fp, precision, {'name': 'Data'}, binaryfp)
+        artsxmlwriter.write_xml(self.data, {'name': 'Data'})
 
-        fp.write(at.close())
+        artsxmlwriter.close_tag()
 
 
 class GriddedField1(GriddedField):
