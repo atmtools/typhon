@@ -194,13 +194,14 @@ def write_ndarray(var, fp, precision, attr=None, binaryfp=None):
         fp.write(artstag.open())
 
         # Reshape for row-based linebreaks in XML file
-        if (ndim > 2):
-            var = var.reshape(-1, var.shape[-1])
+        if np.prod(var.shape) != 0:
+            if (ndim > 2):
+                var = var.reshape(-1, var.shape[-1])
 
-        fmt = ' '.join(['%' + precision, ] * var.shape[1])
+            fmt = ' '.join(['%' + precision, ] * var.shape[1])
 
-        for i in var:
-            fp.write((fmt % tuple(i) + '\n'))
+            for i in var:
+                fp.write((fmt % tuple(i) + '\n'))
         fp.write(artstag.close())
     else:
         raise RuntimeError(

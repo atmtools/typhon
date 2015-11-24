@@ -62,22 +62,32 @@ class ARTSTypesLoadMultiplexer:
 
     @staticmethod
     def Vector(elem):
-        # sep=' ' seems to work even when separated by newlines, see
-        # http://stackoverflow.com/q/31882167/974555
-        arr = np.fromstring(elem.text, sep=' ')
-        if arr.size != int(elem.attrib['nelem']):
-            raise RuntimeError('Expected {:s} elements in Vector, found {:d}'
-                               ' elements!'.format(elem.attrib['nelem'],
-                                                   arr.size))
+        nelem = int(elem.attrib['nelem'])
+        if nelem == 0:
+            arr = np.ndarray((0,))
+        else:
+            # sep=' ' seems to work even when separated by newlines, see
+            # http://stackoverflow.com/q/31882167/974555
+            arr = np.fromstring(elem.text, sep=' ')
+            if arr.size != nelem:
+                raise RuntimeError(
+                    'Expected {:s} elements in Vector, found {:d}'
+                    ' elements!'.format(elem.attrib['nelem'],
+                                        arr.size))
         return arr
 
     @staticmethod
     def Matrix(elem):
-        flatarr = np.fromstring(elem.text, sep=' ')
         # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
-        dims = [dim for dim in dimension_names if dim in elem.attrib.keys()][
-               ::-1]
-        return flatarr.reshape([int(elem.attrib[dim]) for dim in dims])
+        dimnames = [dim for dim in dimension_names
+                    if dim in elem.attrib.keys()][::-1]
+        dims = [int(elem.attrib[dim]) for dim in dimnames]
+        if np.prod(dims) == 0:
+            flatarr = np.ndarray(dims)
+        else:
+            flatarr = np.fromstring(elem.text, sep=' ')
+            flatarr = flatarr.reshape(dims)
+        return flatarr
 
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix
 

@@ -1,5 +1,19 @@
 2015-11-24  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/xml/read.py (ARTSTypesLoadMultiplexer):
+
+	Fix reading of zero-sized matpack types.
+
+	* typhon/arts/xml/write.py (write_ndarray):
+
+	Fix writing of zero-sized matpack types.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Add tests for reading/writing empty matpack variables.
+
+2015-11-24  Oliver Lemke  <olemke@core-dump.info>
+
 	* doc/arts.rst:
 
 	Add GriddedField docs. Add additional subsection level.

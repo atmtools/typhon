@@ -6,8 +6,8 @@ This module provides basic functions to test the reading and writing
 of ARTS XML files.
 """
 
-from tempfile import mkstemp
 import os
+from tempfile import mkstemp
 
 import numpy as np
 
@@ -28,6 +28,21 @@ def _create_tensor(n):
 
     """
     return np.arange(2 ** n).reshape(2 * np.ones(n).astype(int))
+
+
+def _create_empty_tensor(n):
+    """Create an empty tensor of dimension n.
+
+    Create a tensor with n dimensions of size 0.
+
+    Args:
+        n (int): number of dimensions
+
+    Returns:
+        np.ndarray: n-dimensional tensor
+
+    """
+    return np.ndarray((0,) * n)
 
 
 class TestLoad(object):
@@ -132,12 +147,36 @@ class TestSave(object):
         assert np.array_equal(test_data, reference)
 
 
+    def test_save_empty_vector(self):
+        """Save empty Vector to file, read it and compare the results."""
+        reference = _create_empty_tensor(1)
+        print(reference)
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+
+    def test_save_empty_matrix(self):
+        """Save empty Matrix to file, read it and compare the results."""
+        reference = _create_empty_tensor(2)
+        print(reference)
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+
     def test_save_matrix(self):
         """Save Matrix to file, read it and compare the results."""
         reference = _create_tensor(2)
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
+
+
+    def test_save_empty_tensor(self):
+        """Save different empty Tensor types to file, read and verify."""
+        for n in range(3, 8):
+            yield self._save_empty_tensor, n
 
 
     def test_save_tensor(self):
@@ -171,6 +210,20 @@ class TestSave(object):
 
         """
         reference = _create_tensor(n)
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+
+    def _save_empty_tensor(self, n):
+        """Save empty tensor of dimension n to file, read it and compare data to
+        reference.
+
+        Args:
+            n (int): number of dimensions
+
+        """
+        reference = _create_empty_tensor(n)
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
