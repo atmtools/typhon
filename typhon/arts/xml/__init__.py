@@ -3,7 +3,7 @@
 """Read and write ARTS XML types
 
 This module provides functionality for reading and writing ARTS XML files.
-Most users will only need the `load` function.
+
 """
 
 from __future__ import absolute_import

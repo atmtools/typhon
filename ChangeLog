@@ -1,3 +1,14 @@
+2015-11-25  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Back were it belongs: Was accidentally moved into the xml directory
+	with the other tests.
+
+	* typhon/files/utils.py: Update example.
+
+	* typhon/arts/xml/__init__.py: Update docstring.
+
 2015-11-24  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml/__init__.py, typhon/arts/xml/write.py:

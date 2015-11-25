@@ -44,10 +44,10 @@ def decompress(filename, tmpdir):
         Generator containing the path to the input filename.
 
     Example:
-        >>> tmpdir = os.path.join('/tmp')
-        >>> with decompress('datafile.nc.gz', tmpdir) as file:
+        >>> tmpdir = '/tmp'
+        >>> with typhon.files.decompress('datafile.nc.gz', tmpdir) as file:
         >>>     f = netCDF4.Dataset(file)
-        >>>     ...
+        >>>     #...
     """
     filebase, fileext = os.path.splitext(filename)
     filebase = os.path.basename(filebase)
