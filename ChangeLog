@@ -1,3 +1,49 @@
+2016-01-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py:
+
+	Renamed variables to be consistent through with other modules.
+
+	Small improvements for checks in setter functions.
+
+	* typhon/arts/scattering.py:
+
+	Ported SingleScatteringData and ScatteringMetaData classes from PyARTS.
+
+	* typhon/arts/sensor.py:
+
+	Module to provide classes and functions that are related to sensor settings
+	in general.
+
+	Currently containing two functions to compute backend channel frequencies
+	and bandwidths.
+
+	* typhon/arts/tests/reference/GriddedField3.xml:
+
+	Reference file used for testing the GriddedField reading function.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Added functions two TestGriddedFieldLoad and TestGriddedFieldWrite classes.
+	Those functions test the basic read/write functionality of the different
+	GriddedField subclasses. The behaviour of GriddedField3 is checked against a
+	reference file.
+
+	* typhon/arts/types.py:
+
+	Added SingleScatteringData and ScatteringMetaData to the list of classes.
+
+	* typhon/arts/xml/read.py:
+
+	Whitespaces aroung Strings are now stripped after reading.
+
+	Comment tags are skipped while reading.
+
+	* typhon/arts/xml/write.py (get_arts_typename):
+
+	Use object name as default but check if an ARTS specific name is defined in
+	basic_types.
+
 2015-11-25  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/tests/test_griddedfield.py:

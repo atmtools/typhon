@@ -36,6 +36,10 @@ class ARTSTypesLoadMultiplexer:
         return elem[0].value()
 
     @staticmethod
+    def comment(elem):
+        return
+
+    @staticmethod
     def Array(elem):
         arr = [t.value() for t in elem]
         if len(arr) != int(elem.attrib['nelem']):
@@ -48,7 +52,7 @@ class ARTSTypesLoadMultiplexer:
     def String(elem):
         if elem.text is None:
             return ''
-        return elem.text[1:-1]
+        return elem.text.strip()[1:-1]
 
     SpeciesTag = String
 

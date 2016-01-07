@@ -24,7 +24,12 @@ def get_arts_typename(var):
         str: ARTS type name.
 
     """
-    return basic_types[type(var).__name__]
+    if type(var).__name__ in basic_types:
+        ret = basic_types[type(var).__name__]
+    else:
+        ret = type(var).__name__
+
+    return ret
 
 
 class ARTSXMLWriter:

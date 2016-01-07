@@ -3,6 +3,7 @@
 """Collection of all ARTS types."""
 
 from .griddedfield import *
+from .scattering import *
 
 __all__ = []
 
@@ -14,4 +15,6 @@ classes = {
     'GriddedField5': GriddedField5,
     'GriddedField6': GriddedField6,
     'GriddedField7': GriddedField7,
+    'SingleScatteringData': SingleScatteringData,
+    'ScatteringMetaData': ScatteringMetaData,
 }

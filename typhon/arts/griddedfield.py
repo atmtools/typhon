@@ -44,22 +44,33 @@ class GriddedField(object):
 
     @property
     def dimension(self):
+        """Dimension of the GriddedField.
+
+        The dimension has to be defined when creating the GriddedField object.
+        For the convenience subclasses (e.g. GriddedField1) this is done
+        automatically.
+
+        """
         return self._dimension
 
     @property
     def grids(self):
+        """List of grids defining the GriddedField."""
         return self._grids
 
     @property
     def gridnames(self):
+        """A list or tuple that includes a name for every grid."""
         return self._gridnames
 
     @property
     def data(self):
+        """The data matrix stored in the GriddedField."""
         return self._data
 
     @property
     def name(self):
+        """Name of the GriddedField."""
         return self._name
 
     @grids.setter
@@ -104,6 +115,9 @@ class GriddedField(object):
             gridnames (List[str]): list of gridnames
 
         """
+        if type(gridnames) not in (list, tuple):
+            raise TypeError('The array of grids must be type list or tuple.')
+
         if all(isinstance(entry, str) for entry in gridnames):
             self._gridnames = gridnames
         else:
@@ -169,11 +183,6 @@ class GriddedField(object):
                            'but {1} grids were passed.')
                            .format(self.dimension, len(self.grids)))
 
-        grid_name_error = (('The number of gridnames has to fit the '
-                            'dimension of the GriddedField.\nThe dimension'
-                            ' is {0} but {1} gridnames were passed.')
-                            .format(self.dimension, len(self.gridnames)))
-
         # number of grids has to match the GriddedField dimension
         if len(self.grids) != self.dimension:
             raise Exception(grid_dim_error)
@@ -181,9 +190,14 @@ class GriddedField(object):
         # if grids are named, each grid has to be named
         if self.gridnames is None:
             self.gridnames = [''] * self.dimension
-        else:
-            if len(self.gridnames) != self.dimension:
-                raise Exception(grid_name_error)
+
+        grid_name_error = (('The number of gridnames has to fit the '
+                            'dimension of the GriddedField.\nThe dimension'
+                            ' is {0} but {1} gridnames were passed.')
+                            .format(self.dimension, len(self.gridnames)))
+
+        if len(self.gridnames) != self.dimension:
+            raise Exception(grid_name_error)
 
         # grid and data dimension have to fit
         g_dim = [np.size(g) if np.size(g) > 0 else 1 for g in self.grids]
@@ -197,30 +211,39 @@ class GriddedField(object):
 
     @classmethod
     def from_xml(cls, xmlelement):
-        # TODO (OLE): Only for testing right now
-        ret = cls()
-        ret.grids = [x.value() for x in xmlelement[:-1]]
-        ret.gridnames = [x.attrib['name'] for x in xmlelement[:-1]]
-        ret.data = xmlelement[-1].value()
+        """Load a GriddedField from an ARTS XML file.
 
-        ret.check_dimension()
-        return ret
+        Returns:
+            GriddedField. Dimension depends on data in file.
 
-    def write_xml(self, artsxmlwriter, attr=None):
-        # TODO (OLE): Only for testing right now
-        ret.check_dimension()
 
-        artsxmlwriter.open_tag('GriddedField{}'.format(self.dimension), attr)
+        """
+        obj = cls()
+        obj.grids = [x.value() for x in xmlelement[:-1]]
+        obj.gridnames = [x.attrib['name']
+                         if 'name' in x.attrib else ''
+                         for x in xmlelement[:-1]]
+
+        obj.data = xmlelement[-1].value()
+
+        obj.check_dimension()
+        return obj
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Save a GriddedField to an ARTS XML file."""
+        self.check_dimension()
+
+        xmlwriter.open_tag('GriddedField{}'.format(self.dimension), attr)
         for grid, name in zip(self.grids, self.gridnames):
-            artsxmlwriter.write_xml(grid, {'name': name})
+            xmlwriter.write_xml(grid, {'name': name})
 
-        artsxmlwriter.write_xml(self.data, {'name': 'Data'})
+        xmlwriter.write_xml(self.data, {'name': 'Data'})
 
-        artsxmlwriter.close_tag()
+        xmlwriter.close_tag()
 
 
 class GriddedField1(GriddedField):
-    """GriddedField with 1 dimensions."""
+    """GriddedField with 1 dimension."""
     def __init__(self):
         super(GriddedField1, self).__init__(1)
 
