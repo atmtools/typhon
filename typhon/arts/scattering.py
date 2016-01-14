@@ -377,8 +377,10 @@ class ScatteringMetaData:
 
     """
 
-    def __init__(self, description, source, refr_index, mass, diameter_max,
-                 diameter_volume_equ, diameter_area_equ_aerodynamical):
+    def __init__(self, description=None, source=None, refr_index=None,
+            mass=None, diameter_max=None, diameter_volume_equ=None,
+            diameter_area_equ_aerodynamical=None):
+
         self.description = description
         self.source = source
         self.refr_index = refr_index
@@ -386,6 +388,126 @@ class ScatteringMetaData:
         self.diameter_max = diameter_max
         self.diameter_volume_equ = diameter_volume_equ
         self.diameter_area_equ_aerodynamical = diameter_area_equ_aerodynamical
+
+    @property
+    def description(self):
+        """Free-form description of the scattering element, holding information
+        deemed of interest by the user but not covered by other structure
+        members (and not used within ARTS)."""
+        return self._description
+
+    @property
+    def source(self):
+        """Free-form description of the source of the data, e.g., Mie, T-Matrix,
+        or DDA calculation or a database or a literature source."""
+        return self._source
+
+    @property
+    def refr_index(self):
+        """Free-form description of the underlying complex refractive index
+        data, e.g., a literature source."""
+        return self._refr_index
+
+    @property
+    def mass(self):
+        """The mass of the scattering element."""
+        return self._mass
+
+    @property
+    def diameter_max(self):
+        """The maximum diameter (or dimension) of the scattering element,
+        defined by the circumferential sphere diameter of the element. Note that
+        this parameter is only used by some size distributions; it does not have
+        a proper meaning if the scattering element represents an ensemble of
+        differently sized particles."""
+        return self._diameter_max
+
+    @property
+    def diameter_volume_equ(self):
+        """The volume equivalent sphere diameter of the scattering element,
+        i.e., the diameter of a sphere with the same volume. For nonspherical
+        particles, volume refers to the volume of the particle-forming
+        substance, not that of the circumferential sphere (which can be derived
+        from diameter_max). If the particle consists of a mixture of materials,
+        the substance encompasses the complete mixture. E.g., the substance of
+        'soft' ice particles includes both the ice and the air."""
+        return self._diameter_volume_equ
+
+    @property
+    def diameter_area_equ_aerodynamical(self):
+        """The area equivalent sphere diameter of the scattering element, i.e.,
+        the diameter of a sphere with the same cross-sectional area. Here, area
+        refers to the aerodynamically relevant area, i.e., the cross-sectional
+        area perpendicular to the direction of fall. Similarly to volume in the
+        definition of diameter_volume_equ, for non-spherical and mixed-material
+        particles, area refers to the area covered by the substance mixture of
+        the particle."""
+        return self._diameter_area_equ_aerodynamical
+
+    @description.setter
+    def description(self, description):
+        if description is None:
+            self._description = None
+            return
+
+        if type(description) is str:
+            self._description = description
+        else:
+            raise TypeError('description has to be str.')
+
+    @source.setter
+    def source(self, source):
+        if source is None:
+            self._source = None
+            return
+
+        if type(source) is str:
+            self._source = source
+        else:
+            raise TypeError('source has to be str.')
+
+    @refr_index.setter
+    def refr_index(self, refr_index):
+        if refr_index is None:
+            self._refr_index = None
+            return
+
+        if type(refr_index) is str:
+            self._refr_index = refr_index
+        else:
+            raise TypeError('refr_index has to be str.')
+
+    @mass.setter
+    def mass(self, mass):
+        if mass is None:
+            self._mass = None
+            return
+
+        self._mass = mass
+
+    @diameter_max.setter
+    def diameter_max(self, diameter_max):
+        if diameter_max is None:
+            self._diameter_max = None
+            return
+
+        self._diameter_max = diameter_max
+
+    @diameter_volume_equ.setter
+    def diameter_volume_equ(self, diameter_volume_equ):
+        if diameter_volume_equ is None:
+            self._diameter_volume_equ = None
+            return
+
+        self._diameter_volume_equ = diameter_volume_equ
+
+    @diameter_area_equ_aerodynamical.setter
+    def diameter_area_equ_aerodynamical(self, diameter_area_equ_aerodynamical):
+        if diameter_area_equ_aerodynamical is None:
+            self._diameter_area_equ_aerodynamical = None
+            return
+
+        self._diameter_area_equ_aerodynamical = diameter_area_equ_aerodynamical
 
     def __repr__(self):
         s = StringIO()
@@ -403,7 +525,6 @@ class ScatteringMetaData:
     @classmethod
     def from_xml(cls, xmlelement):
         """Loads a ScatteringMetaData object from an existing file.
-
         """
         if 'version' in xmlelement.attrib.keys():
             version = int(xmlelement.attrib['version'])
@@ -414,14 +535,14 @@ class ScatteringMetaData:
             raise Exception('Unsupported ScatteringMetaData version '
                     '{}. Version must be 3.'.format(version))
 
-        obj = cls(xmlelement[0].value(),
-                  xmlelement[1].value(),
-                  xmlelement[2].value(),
-                  xmlelement[3].value(),
-                  xmlelement[4].value(),
-                  xmlelement[5].value(),
-                  xmlelement[6].value(),
-                 )
+        obj = cls()
+        obj.description = xmlelement[0].value()
+        obj.source = xmlelement[1].value()
+        obj.refr_index = xmlelement[2].value()
+        obj.mass = xmlelement[3].value()
+        obj.diameter_max = xmlelement[4].value()
+        obj.diameter_volume_equ = xmlelement[5].value()
+        obj.diameter_area_equ_aerodynamical = xmlelement[6].value()
         return obj
 
     def write_xml(self, xmlwriter, attr=None):

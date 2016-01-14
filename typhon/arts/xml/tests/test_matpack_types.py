@@ -96,6 +96,13 @@ class TestLoad(object):
         assert np.array_equal(test_data, reference)
 
 
+    def test_load_arrayofvector(self):
+        """Load reference XML file for ARTS type ArrayOfVector."""
+        reference = [np.arange(1), np.arange(1)]
+        test_data = xml.load(self.ref_dir + 'arrayofvector.xml')
+        assert np.array_equal(test_data, reference)
+
+
     def _load_tensor(self, n):
         """Load tensor of dimension n and compare data to reference.
 
@@ -196,6 +203,14 @@ class TestSave(object):
     def test_save_arrayofstring(self):
         """Save ArrayOfString to file, read it and compare the results."""
         reference = ['a', 'bb', 'ccc']
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+
+    def test_save_arrayofvector(self):
+        """Save ArrayOfIndex to file, read it and compare the results."""
+        reference = [np.arange(1), np.arange(1)]
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)

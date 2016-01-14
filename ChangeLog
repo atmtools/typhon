@@ -1,3 +1,64 @@
+2016-01-14  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/{arts.rst,modules.rst,xml.rst}:
+
+	Included new modules and packages to Sphinx index. Also made the usage of
+	different heading styles consistent.
+
+	* typhon/__init__.py: Included utils to __all__.
+
+	* typhon/arts/catalogues.py:
+
+	Implementation of data types related to catalogues. Currently containing
+	ArrayOfLineRecord, CIARecord, SpeciesAuxData, GasAbsLookup, SpeciesTag and
+	Sparse.
+
+	* typhon/arts/griddedfield.py:
+
+	Small fixes:
+	GriddedField names are now read and stored.
+	It is now possibl to clear member variables.
+	Improvement of typechecks.
+
+	* typhon/arts/retrieval.py: Implementation of RetrievalQuantity class.
+
+	* typhon/arts/scattering.py:
+
+	Implementation of scattering related data types such as SingleScatteringData
+	and ScatteringMetaData.
+
+	* typhon/arts/sensor.py:
+
+	Reformatted function docstrings to handle two return values in a cleaner
+	way.
+
+	* typhon/arts/types.py: included new data types.
+
+	* typhon/arts/xml/read.py:
+
+	Removed SpeciesTag from ARTSTypesLoadMultiplexer as it is now an independent
+	class.
+
+	* typhon/arts/xml/tests/load_arts_xml_data.py:
+
+	Included zipped XML files to test run.
+
+	* typhon/arts/xml/tests/reference/arrayofvector.xml: Added reference file.
+
+	* typhon/arts/xml/tests/test_matpack_types.py: Added test for ArrayOfVector.
+
+	* typhon/arts/xml/write.py:
+
+	Fixed the type attribute when writing Arrays ("ArrayOf"-suffix).
+
+	* typhon/utils, typhon/utils/__init.py:
+
+	New package to provide additional utilities.
+
+	* typhon/utils/latex.py:
+
+	Module for LaTeX interaction. Currently containing texify_matrix.
+
 2016-01-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py:

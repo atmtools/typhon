@@ -26,6 +26,10 @@ def get_arts_typename(var):
     """
     if type(var).__name__ in basic_types:
         ret = basic_types[type(var).__name__]
+        if ret == 'Array':
+            ret = 'ArrayOf' + get_arts_typename(var[0])
+    elif type(var) is np.ndarray:
+        ret = tensor_names[var.ndim - 1]
     else:
         ret = type(var).__name__
 
@@ -180,7 +184,7 @@ class ARTSXMLWriter:
         if attr is None:
             attr = {}
         ndim = var.ndim
-        tag = tensor_names[ndim - 1]
+        tag = get_arts_typename(var)
         # Vector
         if ndim == 1:
             attr['nelem'] = var.shape[0]

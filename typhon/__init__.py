@@ -4,6 +4,7 @@ __version__ = '0.0.5'
 
 from . import arts
 from . import files
+from . import utils
 
 
 def _runtest():

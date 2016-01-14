@@ -3,40 +3,42 @@ typhon.arts
 
 This module contains functions to interact with ARTS.
 
-User functionality
-------------------
+typhon.arts.catalogues
+------------------------
 
-typhon.arts.xml module
-^^^^^^^^^^^^^^^^^^^^^^
-
-.. automodule:: typhon.arts.xml
+.. automodule:: typhon.arts.catalogues
     :members:
     :undoc-members:
     :show-inheritance:
 
 typhon.arts.griddedfield
-^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
 .. automodule:: typhon.arts.griddedfield
     :members:
     :undoc-members:
     :show-inheritance:
 
-For developers
---------------
+typhon.arts.retrieval
+----------------------
 
-typhon.arts.xml.read
-^^^^^^^^^^^^^^^^^^^^
-
-.. automodule:: typhon.arts.xml.read
+.. automodule:: typhon.arts.retrieval
     :members:
     :undoc-members:
     :show-inheritance:
 
-typhon.arts.xml.write
-^^^^^^^^^^^^^^^^^^^^^
+typhon.arts.scattering
+------------------------
 
-.. automodule:: typhon.arts.xml.write
+.. automodule:: typhon.arts.scattering
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+typhon.arts.sensor
+----------------------
+
+.. automodule:: typhon.arts.sensor
     :members:
     :undoc-members:
     :show-inheritance:

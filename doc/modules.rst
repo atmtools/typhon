@@ -5,6 +5,7 @@ API Documentation
    :maxdepth: 3
 
    arts
+   xml
    files
    legacy
 

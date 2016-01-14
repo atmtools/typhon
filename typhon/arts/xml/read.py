@@ -54,8 +54,6 @@ class ARTSTypesLoadMultiplexer:
             return ''
         return elem.text.strip()[1:-1]
 
-    SpeciesTag = String
-
     @staticmethod
     def Index(elem):
         return int(elem.text)

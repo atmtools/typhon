@@ -18,8 +18,7 @@ def get_f_backendRelWidth(f_start, f_end, bandwidth):
         bandwidth (float): relative bandwidth [dimensionless]
 
     Return:
-        1-D np.array: backend frequencies [Hz]
-        1-D np.array: channel widths [Hz]
+        np.array, np.array: backend frequencies [Hz], channel widths [Hz]
 
     """
     if f_start <= 0:
@@ -50,8 +49,7 @@ def get_f_backendConstWidth(f_start, f_end, bandwidth):
         bandwidth (float): bandwidth [Hz]
 
     Return:
-        1-D np.array: backend frequencies [Hz]
-        1-D np.array: channel width [Hz]
+        np.array, np.array: backend frequencies [Hz], channel widths [Hz]
 
     """
     if f_start <= 0:

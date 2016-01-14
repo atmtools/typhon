@@ -14,7 +14,7 @@ __all__ = ['GriddedField',
 
 
 class GriddedField(object):
-    """GriddedField simulates the behaviour of the same-named ARTS dataype.
+    """:class:`GriddedField` simulates the behaviour of the same-named ARTS dataype.
 
     This class provides the facility of storing gridded data. For this purpose
     the grid-axes as well as the data are stored. GriddedFields can be easily
@@ -36,11 +36,15 @@ class GriddedField(object):
             name (str): name of the GriddedField.
 
         """
-        self._dimension = dim
-        self._grids = grids
-        self._data = data
-        self._gridnames = gridnames
-        self._name = name
+        if np.mod(dim, 1) == 0:
+            self._dimension = int(dim)
+        else:
+            raise TypeError('Dimension has to be integer.')
+
+        self.grids = grids
+        self.data = data
+        self.gridnames = gridnames
+        self.name = name
 
     @property
     def dimension(self):
@@ -86,6 +90,10 @@ class GriddedField(object):
             grids (List[np.ndarray]): list of grids
 
         """
+        if grids is None:
+            self._grids = None
+            return
+
         if type(grids) not in (list, tuple):
             raise TypeError('The array of grids must be type list or tuple.')
 
@@ -115,8 +123,12 @@ class GriddedField(object):
             gridnames (List[str]): list of gridnames
 
         """
+        if gridnames is None:
+            self._gridnames = None
+            return
+
         if type(gridnames) not in (list, tuple):
-            raise TypeError('The array of grids must be type list or tuple.')
+            raise TypeError('The array of gridnames must be type list or tuple.')
 
         if all(isinstance(entry, str) for entry in gridnames):
             self._gridnames = gridnames
@@ -136,7 +148,14 @@ class GriddedField(object):
             data (np.ndarray): data array
 
         """
-        self._data = data
+        if data is None:
+            self._data = None
+            return
+
+        if type(data) is np.ndarray:
+            self._data = data
+        else:
+            raise TypeError('Data has to be np.ndarray.')
 
     @name.setter
     def name(self, name):
@@ -148,6 +167,10 @@ class GriddedField(object):
             name (str): name of the GriddedField
 
         """
+        if name is None:
+            self._name = None
+            return
+
         if type(name) is str:
             self._name = name
         else:
@@ -161,9 +184,8 @@ class GriddedField(object):
         Also check if the number of gridnames fits the number of grids.
 
         Note:
-            The check has to be done manually after the GriddedField is filled
-            completely. The check is not run automatically while setting the
-            data array.
+            This check is done automatically before storing and after loading
+            XML files.
 
         Returns:
             True if successful.
@@ -219,6 +241,10 @@ class GriddedField(object):
 
         """
         obj = cls()
+
+        if 'name' in xmlelement.attrib:
+            obj.name = xmlelement.attrib['name']
+
         obj.grids = [x.value() for x in xmlelement[:-1]]
         obj.gridnames = [x.attrib['name']
                          if 'name' in x.attrib else ''
@@ -232,6 +258,12 @@ class GriddedField(object):
     def write_xml(self, xmlwriter, attr=None):
         """Save a GriddedField to an ARTS XML file."""
         self.check_dimension()
+
+        if attr is None:
+            attr = {}
+
+        if self.name is not None:
+            attr['name'] = self.name
 
         xmlwriter.open_tag('GriddedField{}'.format(self.dimension), attr)
         for grid, name in zip(self.grids, self.gridnames):

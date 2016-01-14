@@ -16,8 +16,9 @@ from typhon.arts import xml
 def test_load_arts_xml_data():
     if os.environ.get('ARTS_DATA_PATH'):
         for root, _, filenames in os.walk(os.environ.get('ARTS_DATA_PATH')):
-            for filename in fnmatch.filter(filenames, '*.xml'):
-                yield _load_xml, os.path.join(root, filename)
+            for filename in filenames:
+                if filename.endswith(('.xml', '.xml.gz')):
+                    yield _load_xml, os.path.join(root, filename)
     else:
         raise Exception('ARTS_DATA_PATH is not set.')
 
