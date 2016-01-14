@@ -1,5 +1,9 @@
 2016-01-14  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/retrieval.py: fixed typecheck for grids in RetrievalQuantity.
+
+2016-01-14  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* doc/{arts.rst,modules.rst,xml.rst}:
 
 	Included new modules and packages to Sphinx index. Also made the usage of

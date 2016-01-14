@@ -129,10 +129,10 @@ class RetrievalQuantity:
             self._grids = None
             return
 
-        if type(grids) is np.ndarray:
+        if type(grids) is list and type(grids[0]) is np.ndarray:
             self._grids = grids
         else:
-            raise TypeError('grids has to be np.ndarray.')
+            raise TypeError('grids has to be list of np.ndarray.')
 
     @classmethod
     def from_xml(cls, xmlelement):
