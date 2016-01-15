@@ -1,5 +1,9 @@
 2016-01-15  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: With 0.1.0 out the door, moving on to 0.1.1.
+
+2016-01-15  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py: Increase version to 0.1.0.
 
 2016-01-14  Lukas Kluft  <lukas.kluft@gmail.com>
