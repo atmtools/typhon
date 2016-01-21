@@ -1,3 +1,13 @@
+2016-01-21  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/{modules.rst,utils.rst}: Included utils to documentation.
+
+	* typhon/utils/latex.py:
+
+	It is now possible to pass headings for table columns.
+
+	Fixed multi-line example in docstring.
+
 2016-01-15  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: With 0.1.0 out the door, moving on to 0.1.1.

@@ -7,6 +7,7 @@ API Documentation
    arts
    xml
    files
+   utils
    legacy
 
 Indices and tables
