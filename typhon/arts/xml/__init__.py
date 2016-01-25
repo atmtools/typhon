@@ -8,6 +8,7 @@ This module provides functionality for reading and writing ARTS XML files.
 
 from __future__ import absolute_import
 
+from os.path import isfile
 import gzip
 
 from . import read
@@ -62,5 +63,10 @@ def load(filename):
     else:
         xmlopen = open
 
+    binaryfilename = filename + '.bin'
     with xmlopen(filename, 'rb') as fp:
-        return read.parse(fp).getroot().value()
+        if isfile(binaryfilename):
+            with open(binaryfilename, 'rb',) as binaryfp:
+                return read.parse(fp, binaryfp).getroot().value()
+        else:
+            return read.parse(fp).getroot().value()

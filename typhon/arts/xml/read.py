@@ -25,22 +25,19 @@ class ARTSTypesLoadMultiplexer:
     """
 
     @staticmethod
-    def arts(elem):
-        if (elem.attrib['format'] == 'binary'):
-            raise RuntimeError(
-                'Reading binary ARTS XML files is not yet supported')
-        elif (elem.attrib['format'] != 'ascii'):
+    def arts(elem, binaryfp=None):
+        if (elem.attrib['format'] not in ('ascii', 'binary')):
             raise RuntimeError('Unknown format in <arts> tag: {}'.format(
                 elem.attrib['format']))
 
         return elem[0].value()
 
     @staticmethod
-    def comment(elem):
+    def comment(elem, binaryfp=None):
         return
 
     @staticmethod
-    def Array(elem):
+    def Array(elem, binaryfp=None):
         arr = [t.value() for t in elem]
         if len(arr) != int(elem.attrib['nelem']):
             raise RuntimeError('Expected {:s} elements in Array, found {:d}'
@@ -49,28 +46,37 @@ class ARTSTypesLoadMultiplexer:
         return arr
 
     @staticmethod
-    def String(elem):
+    def String(elem, binaryfp=None):
         if elem.text is None:
             return ''
         return elem.text.strip()[1:-1]
 
     @staticmethod
-    def Index(elem):
-        return int(elem.text)
+    def Index(elem, binaryfp=None):
+        if binaryfp is not None:
+            return np.fromfile(binaryfp, dtype='<i4', count=1)[0]
+        else:
+            return int(elem.text)
 
     @staticmethod
-    def Numeric(elem):
-        return float(elem.text)
+    def Numeric(elem, binaryfp=None):
+        if binaryfp is not None:
+            return np.fromfile(binaryfp, dtype='<d', count=1)[0]
+        else:
+            return float(elem.text)
 
     @staticmethod
-    def Vector(elem):
+    def Vector(elem, binaryfp=None):
         nelem = int(elem.attrib['nelem'])
         if nelem == 0:
             arr = np.ndarray((0,))
         else:
             # sep=' ' seems to work even when separated by newlines, see
             # http://stackoverflow.com/q/31882167/974555
-            arr = np.fromstring(elem.text, sep=' ')
+            if binaryfp is not None:
+                arr = np.fromfile(binaryfp, dtype='<d', count=nelem)
+            else:
+                arr = np.fromstring(elem.text, sep=' ')
             if arr.size != nelem:
                 raise RuntimeError(
                     'Expected {:s} elements in Vector, found {:d}'
@@ -79,13 +85,17 @@ class ARTSTypesLoadMultiplexer:
         return arr
 
     @staticmethod
-    def Matrix(elem):
+    def Matrix(elem, binaryfp=None):
         # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
         dimnames = [dim for dim in dimension_names
                     if dim in elem.attrib.keys()][::-1]
         dims = [int(elem.attrib[dim]) for dim in dimnames]
         if np.prod(dims) == 0:
             flatarr = np.ndarray(dims)
+        elif binaryfp is not None:
+            flatarr = np.fromfile(binaryfp, dtype='<d',
+                                  count=np.prod(np.array(dims)))
+            flatarr = flatarr.reshape(dims)
         else:
             flatarr = np.fromstring(elem.text, sep=' ')
             flatarr = flatarr.reshape(dims)
@@ -96,6 +106,7 @@ class ARTSTypesLoadMultiplexer:
 
 class ARTSElement(ElementTree.Element):
     """Element with value interpretation."""
+    binaryfp = None
 
     def value(self):
         if hasattr(types, self.tag):
@@ -106,12 +117,13 @@ class ARTSElement(ElementTree.Element):
                                    'support.'.format(self.tag))
         else:
             try:
-                return getattr(ARTSTypesLoadMultiplexer, self.tag)(self)
+                return getattr(ARTSTypesLoadMultiplexer, self.tag)(self,
+                                                                   self.binaryfp)
             except AttributeError:
                 raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
 
 
-def parse(source):
+def parse(source, binaryfp=None):
     """Parse ArtsXML file from source.
 
     Args:
@@ -121,7 +133,11 @@ def parse(source):
         xml.etree.ElementTree: XML Tree of the ARTS data file.
 
     """
+    arts_element = type('ARTSElementBinaryFP',
+                        ARTSElement.__bases__,
+                        dict(ARTSElement.__dict__))
+    arts_element.binaryfp = binaryfp
     return ElementTree.parse(source,
                              parser=ElementTree.XMLParser(
                                  target=ElementTree.TreeBuilder(
-                                     element_factory=ARTSElement)))
+                                     element_factory=arts_element)))

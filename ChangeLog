@@ -1,3 +1,22 @@
+2016-01-25  Oliver Lemke  <olemke@core-dump.info>
+
+	* Typhon now supports reading binary ARTS XML files. (Sparse and
+	SpeciesAuxData pending).
+
+	* typhon/arts/xml/__init__.py:
+
+	Open and pass binary file pointer to parse function if necessary.
+
+	* typhon/arts/xml/read.py:
+
+	(ARTSTypesLoadMultiplexer): Add keyword binaryfp. Implement reading
+	from binary file where applicable.
+
+	(ARTSElement): Add binaryfp attribute and pass it to
+	ARTSTypesLoadMultiplexer.
+
+	(parse): Create local copy of class ARTSElement and set binaryfp.
+
 2016-01-21  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/{modules.rst,utils.rst}: Included utils to documentation.
