@@ -8,8 +8,8 @@ This module provides functionality for reading and writing ARTS XML files.
 
 from __future__ import absolute_import
 
-from os.path import isfile
 import gzip
+from os.path import isfile
 
 from . import read
 from . import write
@@ -17,7 +17,7 @@ from . import write
 __all__ = ['load', 'save']
 
 
-def save(var, filename, precision='.7e'):
+def save(var, filename, precision='.7e', format='ascii'):
     """Save a variable to an ARTS XML file.
 
     Args:
@@ -25,6 +25,7 @@ def save(var, filename, precision='.7e'):
         filename (str): Name of output XML file.
             If the name ends in .gz, the file is compressed on the fly.
         precision (str): Format for output precision.
+        format (str): Output format: 'ascii' (default) or 'binary'.
 
     Note:
         Python's gzip library is extremely slow in writing. Consider
@@ -36,14 +37,27 @@ def save(var, filename, precision='.7e'):
 
     """
     if filename[:-3] == '.gz':
+        if format != 'ascii':
+            raise RuntimeError(
+                'For zipped files, the output format must be "ascii"')
         xmlopen = gzip.open
     else:
         xmlopen = open
     with xmlopen(filename, mode='w', encoding='UTF-8') as fp:
-        axw = write.ARTSXMLWriter(fp, precision=precision)
-        axw.write_header()
-        axw.write_xml(var)
-        axw.write_footer()
+        if format == 'binary':
+            with open(filename + '.bin', mode='wb') as binaryfp:
+                axw = write.ARTSXMLWriter(fp, precision=precision,
+                                          binaryfp=binaryfp)
+                axw.write_header()
+                axw.write_xml(var)
+                axw.write_footer()
+        elif format == 'ascii':
+            axw = write.ARTSXMLWriter(fp, precision=precision)
+            axw.write_header()
+            axw.write_xml(var)
+            axw.write_footer()
+        else:
+            raise RuntimeError('Unknown output format "{}".'.format(format))
 
 
 def load(filename):

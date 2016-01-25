@@ -1,5 +1,16 @@
 2016-01-25  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/xml/__init__.py (save),
+	typhon/arts/xml/write.py (ARTSXMLWriter):
+
+	Add support for writing ARTS binary files.
+
+	* KNOWN_ISSUES:
+
+	Added note that currently empty arrays can't be written.
+
+2016-01-25  Oliver Lemke  <olemke@core-dump.info>
+
 	* Typhon now supports reading binary ARTS XML files. (Sparse and
 	SpeciesAuxData pending).
 

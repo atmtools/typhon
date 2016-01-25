@@ -72,7 +72,7 @@ class ARTSXMLWriter:
     def binaryfilepointer(self, binaryfp):
         self._binaryfp = binaryfp
 
-    def write_header(self, version=1, filetype='ascii'):
+    def write_header(self, version=1):
         """Write XML file header.
 
         Writes the XML header and the opening arts tag.
@@ -82,6 +82,11 @@ class ARTSXMLWriter:
             filetype (str): ARTS XML file type (e.g. 'ascii', 'binary').
 
         """
+        if self.binaryfilepointer is not None:
+            filetype='binary'
+        else:
+            filetype='ascii'
+
         self.write('<?xml version="1.0"?>\n')
         self.open_tag('arts', {'version': version, 'format': filetype})
 
@@ -172,7 +177,12 @@ class ARTSXMLWriter:
 
         """
         self.open_tag(name, attr, newline=False)
-        self.write(('{:' + precision + '}').format(var))
+        if self.binaryfilepointer is not None and name == 'Index':
+            np.array(var, dtype='i4').tofile(self.binaryfilepointer)
+        elif self.binaryfilepointer is not None and name == 'Numeric':
+            np.array(var, dtype='d').tofile(self.binaryfilepointer)
+        else:
+            self.write(('{:' + precision + '}').format(var))
         self.close_tag()
 
     def write_ndarray(self, var, attr):
@@ -189,9 +199,12 @@ class ARTSXMLWriter:
         if ndim == 1:
             attr['nelem'] = var.shape[0]
             self.open_tag(tag, attr)
-            fmt = "%" + self.precision
-            for i in var:
-                self.write(fmt % i + '\n')
+            if self.binaryfilepointer is not None:
+                np.array(var, dtype='d').tofile(self.binaryfilepointer)
+            else:
+                fmt = "%" + self.precision
+                for i in var:
+                    self.write(fmt % i + '\n')
             self.close_tag()
         # Matrix and Tensors
         elif ndim <= len(dimension_names):
@@ -200,15 +213,18 @@ class ARTSXMLWriter:
 
             self.open_tag(tag, attr)
 
-            # Reshape for row-based linebreaks in XML file
-            if np.prod(var.shape) != 0:
-                if (ndim > 2):
-                    var = var.reshape(-1, var.shape[-1])
+            if self.binaryfilepointer is not None:
+                np.array(var, dtype='d').tofile(self.binaryfilepointer)
+            else:
+                # Reshape for row-based linebreaks in XML file
+                if np.prod(var.shape) != 0:
+                    if (ndim > 2):
+                        var = var.reshape(-1, var.shape[-1])
 
-                fmt = ' '.join(['%' + self.precision, ] * var.shape[1])
+                    fmt = ' '.join(['%' + self.precision, ] * var.shape[1])
 
-                for i in var:
-                    self.write((fmt % tuple(i) + '\n'))
+                    for i in var:
+                        self.write((fmt % tuple(i) + '\n'))
             self.close_tag()
         else:
             raise RuntimeError(
