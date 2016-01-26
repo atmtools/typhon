@@ -1,3 +1,17 @@
+2016-01-26  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml/write.py (ARTSXMLWriter.write_xml):
+
+	Add optional argument arraytype. Used for rare cases where an array can
+	be empty and thus the type can not be derived from the elements
+	automatically.
+
+	* typhon/arts/catalogues.py (GasAbsLookup):
+
+	Use explicit Array type Index for NonlinearSpecies.
+
+	* KNOWN_ISSUES: Remove empty array issue.
+
 2016-01-25  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml/__init__.py (save),

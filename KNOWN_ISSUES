@@ -1,4 +1,1 @@
 
-* Writing empty arrays currently throws an error because the type of the array
-is derived from its first element.
-

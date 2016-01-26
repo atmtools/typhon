@@ -121,7 +121,7 @@ class ARTSXMLWriter:
         """Write string to XML file."""
         self.filepointer.write(str)
 
-    def write_xml(self, var, attr=None):
+    def write_xml(self, var, attr=None, arraytype=None):
         """Write a variable as XML.
 
         Writing basic matpack types is implemented here. Custom types (e.g.
@@ -142,10 +142,11 @@ class ARTSXMLWriter:
         elif type(var) is str:
             self.write_basic_type('String', '"' + var + '"', attr)
         elif type(var) in (list, tuple):
-            try:
-                arraytype = get_arts_typename(var[0])
-            except IndexError:
-                raise RuntimeError('Array must have at least one element.')
+            if arraytype is None:
+                try:
+                    arraytype = get_arts_typename(var[0])
+                except IndexError:
+                    raise RuntimeError('Array must have at least one element.')
 
             if attr is None:
                 attr = {}

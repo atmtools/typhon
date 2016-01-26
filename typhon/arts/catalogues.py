@@ -417,7 +417,8 @@ class GasAbsLookup:
         xmlwriter.open_tag("GasAbsLookup", attr)
         xmlwriter.write_xml(self.speciestags)
         xmlwriter.write_xml(self.nonlinearspecies,
-                            {'name': 'NonlinearSpecies'})
+                            {'name': 'NonlinearSpecies'},
+                            arraytype='Index')
         xmlwriter.write_xml(self.frequencygrid,
                             {'name': 'FrequencyGrid'})
         xmlwriter.write_xml(self.pressuregrid,
