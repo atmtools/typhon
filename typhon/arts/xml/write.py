@@ -109,9 +109,14 @@ class ARTSXMLWriter:
         self._tag_stack.append(tag)
         self.write(tagstr)
 
-    def close_tag(self):
+    def close_tag(self, newline=True):
         """Close current XML tag."""
-        self.write('</{}>\n'.format(self._tag_stack.pop()))
+        tagstr = '</{}>'.format(self._tag_stack.pop())
+
+        if newline:
+            tagstr += '\n'
+
+        self.write(tagstr)
 
     def write_footer(self):
         """Write closing tag for ARTS XML file."""

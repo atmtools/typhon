@@ -69,6 +69,13 @@ class TestLoad(object):
         assert np.array_equal(test_data, reference)
 
 
+    def test_load_vector_binary(self):
+        """Load reference binary XML file for ARTS type Vector."""
+        reference = _create_tensor(1)
+        test_data = xml.load(self.ref_dir + 'vector-bin.xml')
+        assert np.array_equal(test_data, reference)
+
+
     def test_load_matrix(self):
         """Load reference XML file for ARTS type Matrix."""
         reference = _create_tensor(2)
@@ -86,6 +93,13 @@ class TestLoad(object):
         """Load reference XML file for ARTS type ArrayOfIndex."""
         reference = [1., 2., 3.]
         test_data = xml.load(self.ref_dir + 'arrayofindex.xml')
+        assert np.array_equal(test_data, reference)
+
+
+    def test_load_arrayofindex_binary(self):
+        """Load reference binary XML file for ARTS type ArrayOfIndex."""
+        reference = [1., 2., 3.]
+        test_data = xml.load(self.ref_dir + 'arrayofindex-bin.xml')
         assert np.array_equal(test_data, reference)
 
 
@@ -135,7 +149,9 @@ class TestSave(object):
 
     def tearDown(self):
         """Delete temporary file."""
-        os.remove(self.f)
+        for f in [self.f, self.f+'.bin']:
+            if os.path.isfile(f):
+                os.remove(f)
 
 
     def test_save_index(self):
@@ -152,6 +168,15 @@ class TestSave(object):
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
+
+
+    def test_save_vector_binary(self):
+        """Save Vector to binary file, read it and compare the results."""
+        reference = _create_tensor(1)
+        xml.save(reference, self.f, format='binary')
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
 
 
     def test_save_empty_vector(self):
@@ -196,6 +221,14 @@ class TestSave(object):
         """Save ArrayOfIndex to file, read it and compare the results."""
         reference = [1., 2., 3.]
         xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+
+    def test_save_arrayofindex_binary(self):
+        """Save ArrayOfIndex to binary file, read it and compare the results."""
+        reference = [1., 2., 3.]
+        xml.save(reference, self.f, format='binary')
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 

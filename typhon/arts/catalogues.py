@@ -8,10 +8,14 @@ import numpy as np
 
 __all__ = ['ArrayOfLineRecord',
            'CIARecord',
-           'SpeciesAuxData',
            'GasAbsLookup',
-           'SpeciesTag',
+           'LineMixingRecord',
+           'QuantumIdentifier',
+           'QuantumNumberRecord',
+           'QuantumNumbers',
            'Sparse',
+           'SpeciesAuxData',
+           'SpeciesTag',
            ]
 
 
@@ -246,7 +250,7 @@ class GasAbsLookup:
 
     @property
     def speciestags(self):
-        """List of SpeciesTags."""
+        """List of :class:`SpeciesTag`."""
         return self._speciestags
 
     @property
@@ -604,12 +608,21 @@ class Sparse():
         """Loads a Sparse object from an existing file.
         """
 
+        binaryfp = xmlelement.binaryfp
+        nelem = int(xmlelement[0].attrib['nelem'])
         obj = cls()
         obj.nrows = int(xmlelement.attrib['nrows'])
         obj.ncols = int(xmlelement.attrib['ncols'])
-        obj.rowindex = np.fromstring(xmlelement[0].text, sep=' ').astype(int)
-        obj.colindex = np.fromstring(xmlelement[1].text, sep=' ').astype(int)
-        obj.sparsedata = np.fromstring(xmlelement[2].text, sep=' ')
+
+        if binaryfp is None:
+            obj.rowindex = np.fromstring(xmlelement[0].text, sep=' ').astype(int)
+            obj.colindex = np.fromstring(xmlelement[1].text, sep=' ').astype(int)
+            obj.sparsedata = np.fromstring(xmlelement[2].text, sep=' ')
+        else:
+            obj.rowindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
+            obj.colindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
+            obj.sparsedata = np.fromfile(binaryfp, dtype='<d', count=nelem)
+
         obj.check_dimension()
 
         return obj
@@ -629,17 +642,270 @@ class Sparse():
         attr['ncols'] = self.ncols
 
         xmlwriter.open_tag('Sparse', attr)
-        xmlwriter.open_tag('RowIndex', {'nelem': self.rowindex.size})
-        for i in self.rowindex:
-            xmlwriter.write('%d' % i + '\n')
+
+        binaryfp = xmlwriter.binaryfilepointer
+
+        if binaryfp is None:
+            xmlwriter.open_tag('RowIndex', {'nelem': self.rowindex.size})
+            for i in self.rowindex:
+                xmlwriter.write('%d' % i + '\n')
+            xmlwriter.close_tag()
+            xmlwriter.open_tag('ColIndex', {'nelem': self.colindex.size})
+            for i in self.colindex:
+                xmlwriter.write('%d' % i + '\n')
+            xmlwriter.close_tag()
+            xmlwriter.open_tag('SparseData', {'nelem': self.sparsedata.size})
+            for i in self.sparsedata:
+                xmlwriter.write(('%' + precision) % i + '\n')
+            xmlwriter.close_tag()
+            xmlwriter.close_tag()
+        else:
+            xmlwriter.open_tag('RowIndex', {'nelem': self.rowindex.size})
+            np.array(self.rowindex, dtype='i4').tofile(binaryfp)
+            xmlwriter.close_tag()
+            xmlwriter.open_tag('ColIndex', {'nelem': self.colindex.size})
+            np.array(self.colindex, dtype='i4').tofile(binaryfp)
+            xmlwriter.close_tag()
+            xmlwriter.open_tag('SparseData', {'nelem': self.sparsedata.size})
+            np.array(self.sparsedata, dtype='d').tofile(binaryfp)
+            xmlwriter.close_tag()
+            xmlwriter.close_tag()
+
+
+class QuantumIdentifier(str):
+    """Represents a QuantumIdentifier object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a QuantumIdentifier object from an existing file.
+        """
+        if xmlelement.text is None:
+            raise Exception('QuantumIdentifier must not be empty.')
+        return cls(xmlelement.text.strip())
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a QuantumIdentifier object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag('QuantumIdentifier', attr, newline=False)
+        xmlwriter.write(self)
         xmlwriter.close_tag()
-        xmlwriter.open_tag('ColIndex', {'nelem': self.colindex.size})
-        for i in self.colindex:
-            xmlwriter.write('%d' % i + '\n')
+
+
+class QuantumNumberRecord():
+    """Represents a QuantumNumberRecord object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    def __init__(self, upper=None, lower=None):
+
+        self.lower = lower
+        self.upper = upper
+
+    @property
+    def upper(self):
+        """QuantumNumbers object representing the upper quantumnumber."""
+        return self._upper
+
+    @property
+    def lower(self):
+        """QuantumNumbers object representing the lower quantumnumber."""
+        return self._lower
+
+    @upper.setter
+    def upper(self, upper):
+        if upper is None:
+            self._upper = None
+            return
+
+        self._upper = upper
+
+    @lower.setter
+    def lower(self, lower):
+        if lower is None:
+            self._lower = None
+            return
+
+        self._lower = lower
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a QuantumNumberRecord object from an existing file.
+        """
+
+        obj = cls()
+        obj.upper = xmlelement[0][0].value()
+        obj.lower = xmlelement[1][0].value()
+
+        return obj
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a SpeciesTag object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag('QuantumNumberRecord', attr)
+        xmlwriter.open_tag('Upper', attr, newline=False)
+        xmlwriter.write_xml(self.upper)
         xmlwriter.close_tag()
-        xmlwriter.open_tag('SparseData', {'nelem': self.sparsedata.size})
-        for i in self.sparsedata:
-            xmlwriter.write(('%' + precision) % i + '\n')
+        xmlwriter.open_tag('Lower', attr, newline=False)
+        xmlwriter.write_xml(self.lower)
         xmlwriter.close_tag()
+        xmlwriter.close_tag()
+
+
+class QuantumNumbers():
+    """Represents a QuantumNumbers object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    def __init__(self, numbers=None, nelem=None):
+
+        self.numbers = numbers
+        self.nelem = nelem
+
+    @property
+    def numbers(self):
+        """String representing the quantumnumbers."""
+        return self._numbers
+
+    @property
+    def nelem(self):
+        """Number of quantumnumbers stored."""
+        return self._nelem
+
+    @numbers.setter
+    def numbers(self, numbers):
+        if numbers is None:
+            self._numbers = None
+            return
+
+        self._numbers = numbers
+
+    @nelem.setter
+    def nelem(self, nelem):
+        if nelem is None:
+            self._nelem = None
+            return
+
+        self._nelem = nelem
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a QuantumNumbers object from an existing file.
+        """
+
+        obj = cls()
+        obj.numbers = xmlelement.text
+        obj.nelem = int(xmlelement.attrib['nelem'])
+
+        return obj
+
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a SpeciesTag object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        attr['nelem'] = self.nelem
+
+        xmlwriter.open_tag('QuantumNumbers', attr, newline=False)
+        xmlwriter.write(self.numbers)
+        xmlwriter.close_tag(newline=False)
+
+
+class LineMixingRecord():
+    """Represents a LineMixingRecord object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    def __init__(self, tag=None, quantumnumberrecord=None, data=None):
+
+        self.tag = tag
+        self.quantumnumberrecord = quantumnumberrecord
+        self.data = data
+
+    @property
+    def tag(self):
+        """:class:`SpeciesTag`"""
+        return self._tag
+
+    @property
+    def quantumnumberrecord(self):
+        """:class:`QuantumNumberRecord`"""
+        return self._quantumnumberrecord
+
+    @property
+    def data(self):
+        """Lineshape parameters."""
+        return self._data
+
+    @tag.setter
+    def tag(self, tag):
+        if tag is None:
+            self._tag = None
+            return
+
+        self._tag = SpeciesTag(tag)
+
+    @quantumnumberrecord.setter
+    def quantumnumberrecord(self, quantumnumberrecord):
+        if quantumnumberrecord is None:
+            self._quantumnumberrecord = None
+            return
+
+        if type(quantumnumberrecord) is QuantumNumberRecord:
+            self._quantumnumberrecord = quantumnumberrecord
+        else:
+            raise TypeError('quantumnumberrecord has to be type \
+                    QuantumNumberRecord.')
+
+    @data.setter
+    def data(self, data):
+        if data is None:
+            self._data = None
+            return
+
+        if type(data) is np.ndarray:
+            self._data = data
+        else:
+            raise TypeError('data has to be np.ndarray.')
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a LineMixingRecord object from an existing file.
+        """
+
+        obj = cls()
+        obj.tag = xmlelement[0].value()
+        obj.quantumnumberrecord = xmlelement[1].value()
+        obj.data = xmlelement[2].value()
+
+        return obj
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a LineMixingRecord object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag("LineMixingRecord", attr)
+        xmlwriter.write_xml(self.tag)
+        xmlwriter.write_xml(self.quantumnumberrecord)
+        xmlwriter.write_xml(self.data)
         xmlwriter.close_tag()
 

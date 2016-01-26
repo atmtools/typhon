@@ -1,3 +1,30 @@
+2016-01-26  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/utils.rst: Added missing file to documentation.
+
+	* typhon/arts/catalogues.py:
+
+	All classes support reading and writing of binary XML files.
+
+	Implementation of new data types:
+	LineMixingRecord, QuantumIdentifier, QuantumNumberRecord, QuantumNumbers.
+
+	* typhon/arts/types.py: Included new implemented types to list.
+
+	* typhon/arts/xml/tests/reference/arrayofindex-bin.xml{,.bin},
+	typhon/arts/xml/tests/reference/vector-bin.xml{,.bin}:
+
+	Reference files to check reading of binary files.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Implemented tests to check reading and writing of binary ARTS XML files.
+
+	* typhon/arts/xml/write.py (ARTSXMLWriter.close_tag):
+
+	Add optional argument newline. Used for cases where an closing XML-tag
+	shouldn't be followed by a newline character (e.g. QuatnumNumbers).
+
 2016-01-26  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml/read.py (ARTSTypesLoadMultiplexer):
@@ -8,7 +35,7 @@
 2016-01-26  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/catalogues.py, typhon/arts/retrieval.py,
-        typhon/arts/scattering.py, typhon/arts/sensor.py:
+	typhon/arts/scattering.py, typhon/arts/sensor.py:
 
 	Convert files from DOS line endings to proper Unix format.
 	
