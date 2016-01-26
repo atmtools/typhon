@@ -1,5 +1,12 @@
 2016-01-26  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/xml/read.py (ARTSTypesLoadMultiplexer):
+
+	Cleanup implementation. Remove unnecessary argument binaryfp from all
+	member functions. Instead, use ARTSElement.binaryfp directly.
+
+2016-01-26  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/catalogues.py, typhon/arts/retrieval.py,
         typhon/arts/scattering.py, typhon/arts/sensor.py:
 

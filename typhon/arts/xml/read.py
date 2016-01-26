@@ -25,7 +25,7 @@ class ARTSTypesLoadMultiplexer:
     """
 
     @staticmethod
-    def arts(elem, binaryfp=None):
+    def arts(elem):
         if (elem.attrib['format'] not in ('ascii', 'binary')):
             raise RuntimeError('Unknown format in <arts> tag: {}'.format(
                 elem.attrib['format']))
@@ -33,11 +33,11 @@ class ARTSTypesLoadMultiplexer:
         return elem[0].value()
 
     @staticmethod
-    def comment(elem, binaryfp=None):
+    def comment(elem):
         return
 
     @staticmethod
-    def Array(elem, binaryfp=None):
+    def Array(elem):
         arr = [t.value() for t in elem]
         if len(arr) != int(elem.attrib['nelem']):
             raise RuntimeError('Expected {:s} elements in Array, found {:d}'
@@ -46,35 +46,35 @@ class ARTSTypesLoadMultiplexer:
         return arr
 
     @staticmethod
-    def String(elem, binaryfp=None):
+    def String(elem):
         if elem.text is None:
             return ''
         return elem.text.strip()[1:-1]
 
     @staticmethod
-    def Index(elem, binaryfp=None):
-        if binaryfp is not None:
-            return np.fromfile(binaryfp, dtype='<i4', count=1)[0]
+    def Index(elem):
+        if elem.binaryfp is not None:
+            return np.fromfile(elem.binaryfp, dtype='<i4', count=1)[0]
         else:
             return int(elem.text)
 
     @staticmethod
-    def Numeric(elem, binaryfp=None):
-        if binaryfp is not None:
-            return np.fromfile(binaryfp, dtype='<d', count=1)[0]
+    def Numeric(elem):
+        if elem.binaryfp is not None:
+            return np.fromfile(elem.binaryfp, dtype='<d', count=1)[0]
         else:
             return float(elem.text)
 
     @staticmethod
-    def Vector(elem, binaryfp=None):
+    def Vector(elem):
         nelem = int(elem.attrib['nelem'])
         if nelem == 0:
             arr = np.ndarray((0,))
         else:
             # sep=' ' seems to work even when separated by newlines, see
             # http://stackoverflow.com/q/31882167/974555
-            if binaryfp is not None:
-                arr = np.fromfile(binaryfp, dtype='<d', count=nelem)
+            if elem.binaryfp is not None:
+                arr = np.fromfile(elem.binaryfp, dtype='<d', count=nelem)
             else:
                 arr = np.fromstring(elem.text, sep=' ')
             if arr.size != nelem:
@@ -85,15 +85,15 @@ class ARTSTypesLoadMultiplexer:
         return arr
 
     @staticmethod
-    def Matrix(elem, binaryfp=None):
+    def Matrix(elem):
         # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
         dimnames = [dim for dim in dimension_names
                     if dim in elem.attrib.keys()][::-1]
         dims = [int(elem.attrib[dim]) for dim in dimnames]
         if np.prod(dims) == 0:
             flatarr = np.ndarray(dims)
-        elif binaryfp is not None:
-            flatarr = np.fromfile(binaryfp, dtype='<d',
+        elif elem.binaryfp is not None:
+            flatarr = np.fromfile(elem.binaryfp, dtype='<d',
                                   count=np.prod(np.array(dims)))
             flatarr = flatarr.reshape(dims)
         else:
@@ -117,8 +117,7 @@ class ARTSElement(ElementTree.Element):
                                    'support.'.format(self.tag))
         else:
             try:
-                return getattr(ARTSTypesLoadMultiplexer, self.tag)(self,
-                                                                   self.binaryfp)
+                return getattr(ARTSTypesLoadMultiplexer, self.tag)(self)
             except AttributeError:
                 raise RuntimeError('Unknown ARTS type {}'.format(self.tag))
 
