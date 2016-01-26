@@ -1,5 +1,12 @@
 2016-01-26  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/catalogues.py, typhon/arts/retrieval.py,
+        typhon/arts/scattering.py, typhon/arts/sensor.py:
+
+	Convert files from DOS line endings to proper Unix format.
+	
+2016-01-26  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/xml/write.py (ARTSXMLWriter.write_xml):
 
 	Add optional argument arraytype. Used for rare cases where an array can
