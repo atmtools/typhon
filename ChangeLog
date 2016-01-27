@@ -1,3 +1,11 @@
+2016-01-27  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/tests/load_arts_xml_data.py:
+
+	Now working with ARTS_DATA_PATH variables containing several separated
+	directories. Every directory stored in ARTS_DATA_PATH is searched for XML
+	files recursively.
+
 2016-01-26  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/utils.rst: Added missing file to documentation.
