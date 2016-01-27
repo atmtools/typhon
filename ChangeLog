@@ -1,5 +1,9 @@
 2016-01-27  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Increase version after release.
+
+2016-01-27  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py: 0.2 Release.
 
 2016-01-27  Lukas Kluft <lukas.kluft@gmail.com>
