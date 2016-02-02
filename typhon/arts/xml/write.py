@@ -5,35 +5,13 @@
 This package contains the internal implementation for writing ARTS XML files.
 """
 
-from __future__ import absolute_import
-
 import numpy as np
 
 from .names import *
+from ..utils import get_arts_typename
+
 
 __all__ = ['ARTSXMLWriter']
-
-
-def get_arts_typename(var):
-    """Returns the ARTS type name for this variable.
-
-    Args:
-        var: Variable to get the ARTS type name for.
-
-    Returns:
-        str: ARTS type name.
-
-    """
-    if type(var).__name__ in basic_types:
-        ret = basic_types[type(var).__name__]
-        if ret == 'Array':
-            ret = 'ArrayOf' + get_arts_typename(var[0])
-    elif type(var) is np.ndarray:
-        ret = tensor_names[var.ndim - 1]
-    else:
-        ret = type(var).__name__
-
-    return ret
 
 
 class ARTSXMLWriter:
@@ -164,7 +142,7 @@ class ARTSXMLWriter:
                 if get_arts_typename(v) != arraytype:
                     raise RuntimeError(
                         'All array elements must have the same type. '
-                        "Array type is '{}', but element {} has type '{}'".format(
+                        'Array type is {}, but element {} has type {}'.format(
                             arraytype, i, get_arts_typename(v)))
                 self.write_xml(v)
             self.close_tag()

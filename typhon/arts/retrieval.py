@@ -6,6 +6,8 @@ Implementation of RetrievalQuantity.
 
 import numpy as np
 
+from .utils import return_if_arts_type
+
 __all__ = ['RetrievalQuantity',
            ]
 
@@ -61,78 +63,35 @@ class RetrievalQuantity:
     @property
     def grids(self):
         """Pressure grid."""
-        return self._pertubation
+        return self._grids
 
     @maintag.setter
     def maintag(self, maintag):
-        if maintag is None:
-            self._maintag = None
-            return
-
-        if type(maintag) is str:
-            self._maintag = maintag
-        else:
-            raise TypeError('maintag has to be str.')
+        self._maintag = return_if_arts_type(maintag, 'String')
 
     @subtag.setter
     def subtag(self, subtag):
-        if subtag is None:
-            self._subtag = None
-            return
-
-        if type(subtag) is str:
-            self._subtag = subtag
-        else:
-            raise TypeError('subtag has to be str.')
+        self._subtag = return_if_arts_type(subtag, 'String')
 
     @subsubtag.setter
     def subsubtag(self, subsubtag):
-        if subsubtag is None:
-            self._subsubtag = None
-            return
-
-        if type(subsubtag) is str:
-            self._subsubtag = subsubtag
-        else:
-            raise TypeError('subsubtag has to be str.')
+        self._subsubtag = return_if_arts_type(subsubtag, 'String')
 
     @mode.setter
     def mode(self, mode):
-        if mode is None:
-            self._mode = None
-            return
-
-        if type(mode) is str:
-            self._mode = mode
-        else:
-            raise TypeError('mode has to be str.')
+        self._mode = return_if_arts_type(mode, 'String')
 
     @analytical.setter
     def analytical(self, analytical):
-        if analytical is None:
-            self._analytical = None
-            return
-
-        self._analytical = analytical
+        self._analytical = return_if_arts_type(analytical, 'Index')
 
     @pertubation.setter
     def pertubation(self, pertubation):
-        if pertubation is None:
-            self._pertubation = None
-            return
-
-        self._pertubation = pertubation
+        self._pertubation = return_if_arts_type(pertubation, 'Numeric')
 
     @grids.setter
     def grids(self, grids):
-        if grids is None:
-            self._grids = None
-            return
-
-        if type(grids) is list and type(grids[0]) is np.ndarray:
-            self._grids = grids
-        else:
-            raise TypeError('grids has to be list of np.ndarray.')
+        self._grids = return_if_arts_type(grids, 'ArrayOfVector')
 
     @classmethod
     def from_xml(cls, xmlelement):

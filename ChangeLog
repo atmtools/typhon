@@ -1,3 +1,29 @@
+2016-02-02  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* ./: Ignore tags file in top level directory.
+
+	* typhon/arts/{catalogues.py,griddedfield.py,retrieval.py,scattering.py}:
+
+	The setters for all member variables now use the return_if_arts_type()
+	function to perform proper type checks.
+
+	* typhon/arts/tests/test_griddedfield.py: Fixed a broken test case.
+
+	* typhon/arts/utils.py:
+
+	Utility functions to interact with ARTS specific tasks. Currently containing
+	get_arts_typename() and return_if_arts_type() which are mostly used to
+	properly check data types when creating objects.
+
+	* typhon/arts/xml/names.py:
+
+	The mapping of basic types is extended with additional numpy integer and
+	float types.
+
+	* typhon/arts/xml/write.py (get_arts_typename):
+
+	Moved to /typhon/arts/utils.py.
+
 2016-02-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py:

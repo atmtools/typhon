@@ -55,7 +55,7 @@ class TestGriddedFieldUsage():
 
     def test_data(self):
         """Test setting and getting of data. """
-        reference = np.random.randn(10, 10)
+        reference = np.random.randn(10, 10, 10)
         gf3 = griddedfield.GriddedField3()
         gf3.data = reference
         assert np.array_equal(gf3.data, reference)
@@ -71,7 +71,7 @@ class TestGriddedFieldUsage():
 
     def test_name_type(self):
         """Test if only names of type str are accepted."""
-        for false_type in [float(), int(), tuple()]:
+        for false_type in [float(), int()]:
             yield self._set_name_of_type, false_type
 
 

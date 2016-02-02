@@ -546,7 +546,7 @@ class ScatteringMetaData:
         return obj
 
     def write_xml(self, xmlwriter, attr=None):
-        """Write a ScatterinMetaData object to an ARTS XML file.
+        """Write a ScatteringMetaData object to an ARTS XML file.
         """
         if attr is None:
             attr = {}

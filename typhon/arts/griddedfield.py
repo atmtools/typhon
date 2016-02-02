@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import numbers
+
 import numpy as np
+
+from .utils import return_if_arts_type, get_arts_typename
 
 __all__ = ['GriddedField',
            'GriddedField1',
@@ -23,24 +27,24 @@ class GriddedField(object):
     :class:`GriddedField` should not be used directly. Use one of the derived
     types such as :class:`GriddedField1` instead.
 
+    Note:
+        For the special case of storing atmospheric profiles as GriddedField3
+        the latitude and longitude grids have to be initialised as empty np.array.
+
     """
-    def __init__(self, dim, grids=None, data=None, gridnames=None,
+    def __init__(self, dimension, grids=None, data=None, gridnames=None,
                  name=None):
         """Create a GriddedField object.
 
         Args:
-            dim (int): Dimension of the GriddedField.
+            dimension (int): Dimension of the GriddedField.
             grids (list, tuple, np.ndarray): grids.
             data (np.ndarray): data values.
             gridnames (List[str]): clear names for all grids.
             name (str): name of the GriddedField.
 
         """
-        if np.mod(dim, 1) == 0:
-            self._dimension = int(dim)
-        else:
-            raise TypeError('Dimension has to be integer.')
-
+        self._dimension = return_if_arts_type(dimension, 'Index')
         self.grids = grids
         self.data = data
         self.gridnames = gridnames
@@ -98,14 +102,12 @@ class GriddedField(object):
             raise TypeError('The array of grids must be type list or tuple.')
 
         for grid in grids:
-            if type(grid) not in (list, tuple, np.ndarray):
-                raise TypeError('Grid must be of type list, tuple or np.ndarray')
-            if (type(grid) in (list, tuple) and len(grid) > 0
-                    and type(grid[0]) not in (str, int)):
-                raise TypeError(('Grid must be of type list[int or str], '
-                                 'tuple[int or str] or np.ndarray'))
-
-        self._grids = grids
+            if (get_arts_typename(grid)
+                    in ['ArrayOfString', 'ArrayOfIndex', 'Vector', None]):
+                self._grids = grids
+            else:
+                raise TypeError(
+                    'grids have to be ArrayOfString, ArrayOfIndex or Vector.')
 
     @gridnames.setter
     def gridnames(self, gridnames):
@@ -123,17 +125,7 @@ class GriddedField(object):
             gridnames (List[str]): list of gridnames
 
         """
-        if gridnames is None:
-            self._gridnames = None
-            return
-
-        if type(gridnames) not in (list, tuple):
-            raise TypeError('The array of gridnames must be type list or tuple.')
-
-        if all(isinstance(entry, str) for entry in gridnames):
-            self._gridnames = gridnames
-        else:
-            raise TypeError('gridnames have to be type string')
+        self._gridnames = return_if_arts_type(gridnames, 'ArrayOfString')
 
     @data.setter
     def data(self, data):
@@ -148,14 +140,8 @@ class GriddedField(object):
             data (np.ndarray): data array
 
         """
-        if data is None:
-            self._data = None
-            return
-
-        if type(data) is np.ndarray:
-            self._data = data
-        else:
-            raise TypeError('Data has to be np.ndarray.')
+        data_type = get_arts_typename(np.ndarray([0] * self.dimension))
+        self._data = return_if_arts_type(data, data_type)
 
     @name.setter
     def name(self, name):
@@ -167,14 +153,7 @@ class GriddedField(object):
             name (str): name of the GriddedField
 
         """
-        if name is None:
-            self._name = None
-            return
-
-        if type(name) is str:
-            self._name = name
-        else:
-            raise TypeError('Name has to be type string')
+        self._name = return_if_arts_type(name, 'String')
 
     def check_dimension(self):
         """Checks the consistency of grids and data.

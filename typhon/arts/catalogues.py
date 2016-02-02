@@ -4,6 +4,9 @@ Implementation of classes to handle various catalogue information.
 
 """
 
+from .griddedfield import *
+from .utils import return_if_arts_type
+
 import numpy as np
 
 __all__ = ['ArrayOfLineRecord',
@@ -46,18 +49,14 @@ class ArrayOfLineRecord:
             self._version = None
             return
 
-        self._version = version
+        if type(version) is str:
+            self._version = version
+        else:
+            raise TypeError('version has to be String.')
 
     @data.setter
     def data(self, data):
-        if data is None:
-            self._data = None
-            return
-
-        if type(data) is list and type(data[0]) is str:
-            self._data = data
-        else:
-            raise TypeError('data has to be a list of strings.')
+        self._data = return_if_arts_type(data, 'ArrayOfString')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -106,38 +105,20 @@ class CIARecord:
 
     @property
     def data(self):
-        """Actual data stored in (list of) GriddedField2 objcts."""
+        """Actual data stored in (list of) GriddedField2 objects."""
         return self._data
 
     @molecule1.setter
     def molecule1(self, molecule1):
-        if molecule1 is None:
-            self._molecule1 = None
-            return
-
-        if type(molecule1) is str:
-            self._molecule1 = molecule1
-        else:
-            raise TypeError('molecule1 has to be str.')
+        self._molecule1 = return_if_arts_type(molecule1, 'String')
 
     @molecule2.setter
     def molecule2(self, molecule2):
-        if molecule2 is None:
-            self._molecule2 = None
-            return
-
-        if type(molecule2) is str:
-            self._molecule2 = molecule2
-        else:
-            raise TypeError('molecule2 has to be str.')
+        self._molecule2 = return_if_arts_type(molecule2, 'String')
 
     @data.setter
     def data(self, data):
-        if data is None:
-            self._data = None
-            return
-
-        self._data = data
+        self._data = return_if_arts_type(data, 'ArrayOfGriddedField2')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -295,104 +276,48 @@ class GasAbsLookup:
 
     @speciestags.setter
     def speciestags(self, speciestags):
-        if speciestags is None:
-            self._speciestags = None
-            return
-
-        if not type(speciestags) is list:
-            raise TypeError('speciestags has to be a list.')
-
-        if not (type(speciestags[0]) is list
-            and type(speciestags[0][0]) is SpeciesTag):
-            raise TypeError('speciestags entries have to be a ArrayOfSpeciesTag.')
-
-        self._speciestags = speciestags
+        self._speciestags = return_if_arts_type(
+                speciestags, 'ArrayOfArrayOfSpeciesTag')
 
     @nonlinearspecies.setter
     def nonlinearspecies(self, nonlinearspecies):
-        if nonlinearspecies is None:
-            self._nonlinearspecies = None
-            return
-
-        self._nonlinearspecies = nonlinearspecies
+        self._nonlinearspecies = return_if_arts_type(
+                nonlinearspecies, 'ArrayOfIndex')
 
     @frequencygrid.setter
     def frequencygrid(self, frequencygrid):
-        if frequencygrid is None:
-            self._frequencygrid = None
-            return
-
-        if type(frequencygrid) is np.ndarray:
-            self._frequencygrid = frequencygrid
-        else:
-            raise TypeError('frequencygrid has to be np.ndarray.')
+        self._frequencygrid = return_if_arts_type(
+                frequencygrid, 'Vector')
 
     @pressuregrid.setter
     def pressuregrid(self, pressuregrid):
-        if pressuregrid is None:
-            self._pressuregrid = None
-            return
-
-        if type(pressuregrid) is np.ndarray:
-            self._pressuregrid = pressuregrid
-        else:
-            raise TypeError('pressuregrid has to be np.ndarray.')
+        self._pressuregrid = return_if_arts_type(
+                pressuregrid, 'Vector')
 
     @referencevmrprofiles.setter
     def referencevmrprofiles(self, referencevmrprofiles):
-        if referencevmrprofiles is None:
-            self._referencevmrprofiles = None
-            return
-
-        if type(referencevmrprofiles) is np.ndarray:
-            self._referencevmrprofiles = referencevmrprofiles
-        else:
-            raise TypeError('referencevmrprofiles has to be np.ndarray.')
+        self._referencevmrprofiles = return_if_arts_type(
+                referencevmrprofiles, 'Matrix')
 
     @referencetemperatureprofile.setter
     def referencetemperatureprofile(self, referencetemperatureprofile):
-        if referencetemperatureprofile is None:
-            self._referencetemperatureprofile = None
-            return
-
-        if type(referencetemperatureprofile) is np.ndarray:
-            self._referencetemperatureprofile = referencetemperatureprofile
-        else:
-            raise TypeError('referencetemperatureprofile has to be np.ndarray.')
+        self._referencetemperatureprofile = return_if_arts_type(
+                referencetemperatureprofile, 'Vector')
 
     @temperaturepertubations.setter
     def temperaturepertubations(self, temperaturepertubations):
-        if temperaturepertubations is None:
-            self._temperaturepertubations = None
-            return
-
-        if type(temperaturepertubations) is np.ndarray:
-            self._temperaturepertubations = temperaturepertubations
-        else:
-            raise TypeError('temperaturepertubations has to be np.ndarray.')
+        self._temperaturepertubations = return_if_arts_type(
+                temperaturepertubations, 'Vector')
 
     @nonlinearspeciesvmrpertubations.setter
     def nonlinearspeciesvmrpertubations(self, nonlinearspeciesvmrpertubations):
-        if nonlinearspeciesvmrpertubations is None:
-            self._nonlinearspeciesvmrpertubations = None
-            return
-
-        if type(nonlinearspeciesvmrpertubations) is np.ndarray:
-            self._nonlinearspeciesvmrpertubations = nonlinearspeciesvmrpertubations
-        else:
-            raise TypeError('nonlinearspeciesvmrpertubations has to be np.ndarray.')
+        self._nonlinearspeciesvmrpertubations = return_if_arts_type(
+                nonlinearspeciesvmrpertubations, 'Vector')
 
     @absorptioncrosssection.setter
     def absorptioncrosssection(self, absorptioncrosssection):
-        if absorptioncrosssection is None:
-            self._absorptioncrosssection = None
-            return
-
-        self._absorptioncrosssection = absorptioncrosssection
-        if type(absorptioncrosssection) is np.ndarray:
-            self._absorptioncrosssection = absorptioncrosssection
-        else:
-            raise TypeError('absorptioncrosssection has to be np.ndarray.')
+        self._absorptioncrosssection = return_if_arts_type(
+                absorptioncrosssection, 'Tensor4')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -509,52 +434,23 @@ class Sparse():
 
     @nrows.setter
     def nrows(self, nrows):
-        if nrows is None:
-            self._nrows = None
-            return
-
-        self._nrows = nrows
+        self._nrows = return_if_arts_type(nrows, 'Index')
 
     @ncols.setter
     def ncols(self, ncols):
-        if ncols is None:
-            self._ncols = None
-            return
-
-        self._ncols = ncols
+        self._ncols = return_if_arts_type(ncols, 'Index')
 
     @rowindex.setter
     def rowindex(self, rowindex):
-        if rowindex is None:
-            self._rowindex = None
-            return
-
-        if type(rowindex) is np.ndarray:
-            self._rowindex = rowindex
-        else:
-            raise TypeError('rowindex has to be np.ndarray.')
+        self._rowindex = return_if_arts_type(rowindex, 'Vector')
 
     @colindex.setter
     def colindex(self, colindex):
-        if colindex is None:
-            self._colindex = None
-            return
-
-        if type(colindex) is np.ndarray:
-            self._colindex = colindex
-        else:
-            raise TypeError('colindex has to be np.ndarray.')
+        self._colindex = return_if_arts_type(colindex, 'Vector')
 
     @sparsedata.setter
     def sparsedata(self, sparsedata):
-        if sparsedata is None:
-            self._sparsedata = None
-            return
-
-        if type(sparsedata) is np.ndarray:
-            self._sparsedata = sparsedata
-        else:
-            raise TypeError('sparsedata has to be np.ndarray.')
+        self._sparsedata = return_if_arts_type(sparsedata, 'Vector')
 
     def to_csc_matrix(self):
         """ Returns a scipy sparse object """
@@ -722,19 +618,11 @@ class QuantumNumberRecord():
 
     @upper.setter
     def upper(self, upper):
-        if upper is None:
-            self._upper = None
-            return
-
-        self._upper = upper
+        self._upper = return_if_arts_type(upper, 'QuantumNumbers')
 
     @lower.setter
     def lower(self, lower):
-        if lower is None:
-            self._lower = None
-            return
-
-        self._lower = lower
+        self._lower = return_if_arts_type(lower, 'QuantumNumbers')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -787,11 +675,7 @@ class QuantumNumbers():
 
     @numbers.setter
     def numbers(self, numbers):
-        if numbers is None:
-            self._numbers = None
-            return
-
-        self._numbers = numbers
+        self._numbers = return_if_arts_type(numbers, 'String')
 
     @nelem.setter
     def nelem(self, nelem):
@@ -864,26 +748,12 @@ class LineMixingRecord():
 
     @quantumnumberrecord.setter
     def quantumnumberrecord(self, quantumnumberrecord):
-        if quantumnumberrecord is None:
-            self._quantumnumberrecord = None
-            return
-
-        if type(quantumnumberrecord) is QuantumNumberRecord:
-            self._quantumnumberrecord = quantumnumberrecord
-        else:
-            raise TypeError('quantumnumberrecord has to be type \
-                    QuantumNumberRecord.')
+        self._quantumnumberrecord = return_if_arts_type(
+                quantumnumberrecord, 'QuantumNumberRecord')
 
     @data.setter
     def data(self, data):
-        if data is None:
-            self._data = None
-            return
-
-        if type(data) is np.ndarray:
-            self._data = data
-        else:
-            raise TypeError('data has to be np.ndarray.')
+        self._data = return_if_arts_type( data, 'Vector')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -908,4 +778,3 @@ class LineMixingRecord():
         xmlwriter.write_xml(self.quantumnumberrecord)
         xmlwriter.write_xml(self.data)
         xmlwriter.close_tag()
-
