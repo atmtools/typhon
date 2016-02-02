@@ -1,3 +1,10 @@
+2016-02-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* setup.py:
+
+	Set include_package_data=True so test data files and scripts are not
+	skipped on install.
+
 2016-01-27  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Increase version after release.
