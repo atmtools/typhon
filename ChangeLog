@@ -1,3 +1,7 @@
+2016-02-03  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py: Increased version to 0.2.2 after upload to PyPi.
+
 2016-02-02  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* ./: Ignore tags file in top level directory.
