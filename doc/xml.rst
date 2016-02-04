@@ -28,10 +28,3 @@ typhon.arts.xml.write
     :undoc-members:
     :show-inheritance:
 
-.. Module contents
-.. ---------------
-.. 
-.. .. automodule:: typhon.legacy
-..    :members:
-..    :undoc-members:
-..   :show-inheritance:

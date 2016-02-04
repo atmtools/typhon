@@ -8,7 +8,6 @@ API Documentation
    xml
    files
    utils
-   legacy
 
 Indices and tables
 ------------------
