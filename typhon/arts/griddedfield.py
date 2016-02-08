@@ -2,6 +2,7 @@
 
 import numbers
 
+from netCDF4 import Dataset
 import numpy as np
 
 from .utils import return_if_arts_type, get_arts_typename
@@ -209,6 +210,73 @@ class GriddedField(object):
                              .format(tuple(g_dim), self.data.shape))
 
         return True
+
+    def to_dict(self):
+        """Convert GriddedField to dictionary.
+
+        Converts a GriddedField object into a classic Python dictionary. The
+        gridname is used as dictionary key. If the grid is unnamed the key is
+        generated automatically ('grid1', 'grid2', ...). The data can be
+        accessed through the 'data' key.
+
+            Returns:
+                Dictionary containing the grids and data.
+        """
+        grids, gridnames = self.grids, self.gridnames
+
+        if gridnames is None:
+            gridnames = [ 'grid%d' % n for n in range(1, self.dimension + 1) ]
+
+        for n, name in enumerate(gridnames):
+            if name == '':
+                gridnames[n] = 'grid%d' % (n + 1)
+
+        d = {}
+        for name, grid in zip(gridnames, grids):
+            d[name] = grid
+
+        d['data'] = self.data
+
+        return d
+
+    @classmethod
+    def from_nc(cls, inputfile, variable, fill_value=np.nan):
+        """Create GriddedField from variable in netCDF files.
+
+        Extract a given variable from a netCDF file. The data and its dimensions are
+        returned as a :class:`GriddedField` object.
+
+        Parameters:
+            inputfile (str): Path to netCDF file.
+            variable (str): Variable key of variable to extract.
+            fill_value (float): Value to fill masked areas with (default: np.nan).
+
+        Returns:
+            GriddedField object of sufficient dimension.
+
+        Raises:
+            Exception: If the variable key can't be found in the netCDF file.
+
+        """
+        nc = Dataset(inputfile)
+
+        if variable not in nc.variables:
+            raise Exception('netCDF file has no variable {}.'.format(variable))
+
+        data = nc.variables[variable]
+
+        obj = cls(data.ndim)
+        obj.grids = [ nc.variables[dim][:] for dim in data.dimensions ]
+        obj.gridnames = [ dim for dim in data.dimensions ]
+
+        if type(data[:]) is np.ma.MaskedArray:
+            obj.data = data[:].filled(fill_value=fill_value)
+        else:
+            obj.data = data[:]
+
+        obj.check_dimension()
+
+        return obj
 
     @classmethod
     def from_xml(cls, xmlelement):

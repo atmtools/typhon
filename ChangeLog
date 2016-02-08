@@ -1,3 +1,17 @@
+2016-02-08  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* /typhon/arts/griddedfield.py:
+
+	Added classmethod from_nc. This function extracts a given variable from a
+	netCDF file and stores it alongside its grids to a GriddedField object.
+
+	Added function to_dict which converts a GriddedField into a Python
+	dictionary.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Added test to check the conversion into a dictionary.
+
 2016-02-04  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/legacy/, doc/legacy.rst, doc/arts.rst, doc/modules.rst,

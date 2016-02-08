@@ -69,6 +69,20 @@ class TestGriddedFieldUsage():
         assert gf.name == reference
 
 
+    def test_to_dict(self):
+        """Test the conversion into a dictionary."""
+        gf2 = griddedfield.GriddedField2()
+        gf2.grids = [np.ones(5), np.zeros(5)]
+        gf2.gridnames = ["ones", "zeros"]
+        gf2.data = np.ones((5, 5))
+        d = gf2.to_dict()
+
+        res = (np.array_equal(d['ones'], np.ones(5))
+            and np.array_equal(d['zeros'], np.zeros(5))
+            and np.array_equal(d['data'], np.ones((5, 5))))
+
+        assert res is True
+
     def test_name_type(self):
         """Test if only names of type str are accepted."""
         for false_type in [float(), int()]:
