@@ -6,6 +6,7 @@ API Documentation
 
    arts
    xml
+   cm
    files
    utils
 

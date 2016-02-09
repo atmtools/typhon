@@ -1,3 +1,20 @@
+2016-02-09  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/cm.rst: Documentation file for the cm package.
+
+	* doc/modules.rst: Included the cm package.
+
+	* typhon/__init__.py: Import new package cm.
+
+	* typhon/cm: Package to provide matplotlib colormaps.
+
+	* typhon/cm/__init__.py:
+
+	The init file is used to collect the colormap data from all data files
+	stored in typhon/cm. It creates and registers the colormaps.
+
+	* typhon/cm/_cmocean.py: Ported colormaps from the cmocean project.
+
 2016-02-08  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* /typhon/arts/griddedfield.py:
