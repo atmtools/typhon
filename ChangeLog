@@ -1,3 +1,11 @@
+2016-02-10  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/cm/__init__.py:
+
+	Register colormaps with mpl.
+
+	Use LinearSegmentedColormap to make lut argument in mpl.get_cmap work.
+
 2016-02-09  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/cm.rst: Documentation file for the cm package.
