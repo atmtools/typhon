@@ -1,3 +1,10 @@
+2016-02-11  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* typhon/cm/__init__.py:
+
+	Colormaps can now be generated through dictionaries containing red, blue and
+	green entries (see matplotlib's LinearSegmentedColormap).
+
 2016-02-10  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/cm/__init__.py:
