@@ -1,5 +1,12 @@
 2016-02-13  Lukas Kluft <lukas.kluft@gmail.com>
 
+	* typhon/cm/__init__.py (mpl_colors):
+
+	Added default values for parameters. If no parameter is given, the function
+	will return 10 RGB color specifications for the default colormap.
+
+2016-02-13  Lukas Kluft <lukas.kluft@gmail.com>
+
 	* doc/cm.rst: Fixed documentation for cm module.
 
 	* typhon/cm/__init__.py:
@@ -11,8 +18,8 @@
 
 	* typhon/cm/_cm.py:
 
-	Colormap definitions. Currently containing ported versions two ColorBrewer
-	palettes.
+	Colormap definitions. Currently containing ported versions of two
+	ColorBrewer palettes.
 
 2016-02-11  Lukas Kluft <lukas.kluft@gmail.com>
 

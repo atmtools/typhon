@@ -43,7 +43,7 @@ for name, cmap in cmaps.items():
 
 __all__ = __all__ + list(cmaps.keys())
 
-def mpl_colors(cmap, N):
+def mpl_colors(cmap=None, N=10):
     """Return a list of RGB values.
 
     Parameters:
@@ -60,4 +60,7 @@ def mpl_colors(cmap, N):
             [ 0.369214,  0.788888,  0.382914,  1.      ],
             [ 0.993248,  0.906157,  0.143936,  1.      ]])
     """
+    if cmap is None:
+        cmap = plt.rcParams['image.cmap']
+
     return plt.get_cmap(cmap)(np.linspace(0, 1, N))
