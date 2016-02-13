@@ -1,3 +1,19 @@
+2016-02-13  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/cm.rst: Fixed documentation for cm module.
+
+	* typhon/cm/__init__.py:
+
+	Added function mpl_colors which returns a given number of RGB tuples from a
+	colormap.
+
+	Included new colormap definitions from _cm.py.
+
+	* typhon/cm/_cm.py:
+
+	Colormap definitions. Currently containing ported versions two ColorBrewer
+	palettes.
+
 2016-02-11  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* typhon/cm/__init__.py:

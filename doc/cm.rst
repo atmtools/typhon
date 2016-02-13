@@ -1,5 +1,11 @@
 typhon.cm
 ===========
 
-This module provides colormaps to use for the visualisation of meteorological
-data.
+User functionality
+------------------
+
+.. automodule:: typhon.cm
+    :members:
+    :undoc-members:
+    :show-inheritance:
+

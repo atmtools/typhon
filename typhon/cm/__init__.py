@@ -5,13 +5,18 @@ data.
 
 """
 
+import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.cm import register_cmap
+import numpy as np
 
 from ._cmocean import datad as _cmocean_datad
+from ._cm import datad as _cm_datad
 
+__all__ = ['mpl_colors']
 
 datad = _cmocean_datad
+datad.update(_cm_datad)
 
 def _rev_cdict(cdict):
     """Revert a dictionary containing specs for a LinearSegmentedColormap."""
@@ -36,4 +41,23 @@ locals().update(cmaps)
 for name, cmap in cmaps.items():
     register_cmap(name, cmap)
 
-__all__ = list(cmaps.keys())
+__all__ = __all__ + list(cmaps.keys())
+
+def mpl_colors(cmap, N):
+    """Return a list of RGB values.
+
+    Parameters:
+        cmap (str): Name of a registered colormap
+        N (int): Number of colors to return
+
+    Returns: A list of RGB and alpha values.
+
+    Examples:
+        >>> mpl_colors('viridis', 5)
+        array([[ 0.267004,  0.004874,  0.329415,  1.      ],
+            [ 0.229739,  0.322361,  0.545706,  1.      ],
+            [ 0.127568,  0.566949,  0.550556,  1.      ],
+            [ 0.369214,  0.788888,  0.382914,  1.      ],
+            [ 0.993248,  0.906157,  0.143936,  1.      ]])
+    """
+    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
