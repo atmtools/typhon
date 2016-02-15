@@ -9,3 +9,39 @@ User functionality
     :undoc-members:
     :show-inheritance:
 
+Example gallery
+------------------
+
+typhon colormaps
+^^^^^^^^^^^^^^^^
+.. plot:: pyplots/cm_gallery.py
+
+Density
+^^^^^^^
+.. plot:: pyplots/plot_density.py
+    :include-source:
+
+Temperature
+^^^^^^^^^^^
+.. plot:: pyplots/plot_temperature.py
+    :include-source:
+
+Speed
+^^^^^
+.. plot:: pyplots/plot_speed.py
+    :include-source:
+
+Phase
+^^^^^
+.. plot:: pyplots/plot_phase.py
+    :include-source:
+
+Qualitative 1
+^^^^^^^^^^^^^
+.. plot:: pyplots/plot_qualitative1.py
+    :include-source:
+
+Qualitative 2
+^^^^^^^^^^^^^
+.. plot:: pyplots/plot_qualitative2.py
+    :include-source:

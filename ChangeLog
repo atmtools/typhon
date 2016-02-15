@@ -1,3 +1,25 @@
+2016-02-15  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/_build: Ignore subdirectory plot_directive.
+
+	* doc/cm.rst: Included colormap gallery and example plots.
+
+	* doc/conf.py: Load matplotlib extension for documentation.
+
+	* doc/pyplots: Scripts and data to create example plots.
+
+	* doc/pyplots/_data, doc/pyplots/_data/test_data.nc:
+
+	Directory to store data for example plots. Currently containing a netCDF4
+	file with some atmospheric variables.
+
+	* doc/pyplots/cm_gallery.py, doc/pyplots/plot_density.py,
+	doc/pyplots/plot_phase.py, doc/pyplots/plot_qualitative1.py,
+	doc/pyplots/plot_qualitative2.py, doc/pyplots/plot_speed.py,
+	doc/pyplots/plot_temperature.py:
+
+	Scripts to create plots for the example gallery.
+
 2016-02-13  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* typhon/cm/__init__.py (mpl_colors):
