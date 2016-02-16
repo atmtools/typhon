@@ -16,18 +16,15 @@ nc = Dataset('_data/test_data.nc')
 lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
 u, v = nc.variables['u'][:], nc.variables['v'][:]
 
-u = u.filled(fill_value=np.nan)
-v = v.filled(fill_value=np.nan)
-
-wspeed = np.sqrt(u**2 + v**2)
+wspeed = np.hypot(u, v)
 
 fig, ax = plt.subplots(figsize=(10, 8))
-m = Basemap(projection='cyl', resolution='l',
+m = Basemap(projection='cyl', resolution='i',
             llcrnrlat=47, llcrnrlon=4,
             urcrnrlat=56, urcrnrlon=16)
 m.drawcoastlines()
 m.drawcountries()
-m.contourf(lon, lat, wspeed, 10, latlon=True, cmap='speed')
+m.pcolormesh(lon, lat, wspeed, latlon=True, cmap=plt.get_cmap('speed', lut=10))
 m.colorbar()
 ax.set_xlabel('Longitude', size=16)
 ax.set_ylabel('Latitude', size=16)
