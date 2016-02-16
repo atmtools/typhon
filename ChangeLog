@@ -1,3 +1,7 @@
+2016-02-16  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/requirements.rtd: Add requirements file for build on readthedocs.
+
 2016-02-15  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/_build: Ignore subdirectory plot_directive.
