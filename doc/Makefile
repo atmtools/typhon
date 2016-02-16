@@ -190,3 +190,8 @@ pseudoxml:
 	$(SPHINXBUILD) -b pseudoxml $(ALLSPHINXOPTS) $(BUILDDIR)/pseudoxml
 	@echo
 	@echo "Build finished. The pseudo-XML files are in $(BUILDDIR)/pseudoxml."
+
+# OLE: Target used by me to upload the docs to the web server
+upload:
+	rsync -av --delete _build/html/ arts:/srv/www/arts_misc/typhon/doc
+

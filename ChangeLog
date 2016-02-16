@@ -1,5 +1,9 @@
 2016-02-16  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/Makefile: Add target to upload docs for my own convenience.
+
+2016-02-16  Oliver Lemke  <olemke@core-dump.info>
+
 	* doc/requirements.rtd: Removed again. The automatic build
 	of the documentation through the readthedocs.org service fails if
 	additional packages such as netCDF4 are required. Although packages can
