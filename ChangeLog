@@ -1,5 +1,9 @@
 2016-02-17  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Post-upload version bump to 0.2.4.
+
+2016-02-17  Oliver Lemke  <olemke@core-dump.info>
+
 	* DESCRIPTION.rst: Adapt.
 
 2016-02-16  Lukas Kluft <lukas.kluft@gmail.com>
