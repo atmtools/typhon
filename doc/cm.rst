@@ -1,8 +1,8 @@
 typhon.cm
 ===========
 
-User functionality
-------------------
+Module contents
+---------------
 
 .. automodule:: typhon.cm
     :members:
@@ -12,7 +12,7 @@ User functionality
 Example gallery
 ------------------
 
-typhon colormaps
+Typhon Colormaps
 ^^^^^^^^^^^^^^^^
 .. plot:: pyplots/cm_gallery.py
 

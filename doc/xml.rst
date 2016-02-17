@@ -1,16 +1,16 @@
 typhon.arts.xml
 ======================
 
-User functionality
-------------------
+Reading / writing XML files
+---------------------------
 
 .. automodule:: typhon.arts.xml
     :members:
     :undoc-members:
     :show-inheritance:
 
-For developers
---------------
+Internal functions
+------------------
 
 typhon.arts.xml.read
 ^^^^^^^^^^^^^^^^^^^^

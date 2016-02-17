@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Implementation of funtions related to sensor settings.
+Implementation of functions related to sensor settings.
 
 """
 

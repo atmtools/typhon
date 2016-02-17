@@ -28,7 +28,7 @@ def save(var, filename, precision='.7e', format='ascii'):
         format (str): Output format: 'ascii' (default) or 'binary'.
 
     Note:
-        Python's gzip library is extremely slow in writing. Consider
+        Python's gzip module is extremely slow in writing. Consider
         compressing files manually after writing them normally.
 
     Example:

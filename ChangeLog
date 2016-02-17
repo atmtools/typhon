@@ -1,5 +1,13 @@
 2016-02-17  Oliver Lemke  <olemke@core-dump.info>
 
+	* doc/cm.rst, doc/xml.rst: Renamed some headers.
+
+	* typhon/arts/sensor.py: Fix typos.
+
+	* typhon/arts/xml/__init__.py: Fix term.
+
+2016-02-17  Oliver Lemke  <olemke@core-dump.info>
+
 	* doc/index.rst: Switch API/Dev order. Add short.description.
 
 2016-02-17  Oliver Lemke  <olemke@core-dump.info>
