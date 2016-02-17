@@ -6,9 +6,11 @@
 Typhon documentation
 ====================
 
+A collection of tools for atmospheric research with Python 3.
+
 .. toctree::
    :maxdepth: 2
 
-   developer
    modules
+   developer
 
