@@ -1,3 +1,7 @@
+2016-02-18  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py: Post-upload version bump to 0.2.6.
+
 2016-02-18  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* typhon/__init__.py: Do not import cm automatically.
