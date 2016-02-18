@@ -1,3 +1,27 @@
+2016-02-18  Oliver Lemke  <olemke@core-dump.info>
+
+	* ChangeLog: Got lost in previous commit.
+
+	* setup.py:
+
+	Change status from Planning to Alpha.
+
+	Remove Python 3.3 compatibility.
+
+	Add setuptools and matplotlib to requirements. Add version numbers for
+	numpy and scipy.
+
+	* typhon/arts/__init__.py, doc/arts.rst:
+
+	Move module description from doc to module. Add typhon.arts as
+	automodule in doc.
+
+	* typhon/arts/xml/__init__.py: Shorten module docstring.
+
+	* typhon/arts/griddedfield.py:
+
+	Lazy import of netCDF4 to avoid global dependency.
+
 2016-02-17  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/cm.rst, doc/xml.rst: Renamed some headers.
