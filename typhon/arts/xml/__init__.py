@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Read and write ARTS XML types
-
-This module provides functionality for reading and writing ARTS XML files.
-
+"""This module provides functionality for reading and writing ARTS XML files.
 """
 
 from __future__ import absolute_import

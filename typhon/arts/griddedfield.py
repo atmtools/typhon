@@ -2,7 +2,6 @@
 
 import numbers
 
-from netCDF4 import Dataset
 import numpy as np
 
 from .utils import return_if_arts_type, get_arts_typename
@@ -258,6 +257,7 @@ class GriddedField(object):
             Exception: If the variable key can't be found in the netCDF file.
 
         """
+        from netCDF4 import Dataset
         nc = Dataset(inputfile)
 
         if variable not in nc.variables:

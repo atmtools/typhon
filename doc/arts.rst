@@ -1,7 +1,10 @@
 typhon.arts
 ===========
 
-This module contains functions to interact with ARTS.
+.. automodule:: typhon.arts
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 typhon.arts.catalogues
 ------------------------
