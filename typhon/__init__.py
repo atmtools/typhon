@@ -3,7 +3,6 @@
 __version__ = '0.2.5'
 
 from . import arts
-from . import cm
 from . import files
 from . import utils
 

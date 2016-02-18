@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from mpl_toolkits.basemap import Basemap
 
-import typhon
+import typhon.cm
 
 
 nc = Dataset('_data/test_data.nc')

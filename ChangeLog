@@ -1,3 +1,15 @@
+2016-02-18  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* typhon/__init__.py: Do not import cm automatically.
+
+	The colormap module has to be imported directly using 'import typhon.cm'.
+
+	* doc/pyplots/plot_density.py doc/pyplots/plot_phase.py
+	doc/pyplots/plot_qualitative1.py doc/pyplots/plot_qualitative2.py
+	doc/pyplots/plot_speed.py doc/pyplots/plot_temperature.py:
+
+	Added the direct import of typhon.cm to the example plots.
+
 2016-02-18  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Post-upload version bump to 0.2.5.
