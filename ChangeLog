@@ -1,5 +1,9 @@
 2016-02-18  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Post-upload version bump to 0.2.5.
+
+2016-02-18  Oliver Lemke  <olemke@core-dump.info>
+
 	* ChangeLog: Got lost in previous commit.
 
 	* setup.py:
