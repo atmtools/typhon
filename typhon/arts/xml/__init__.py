@@ -68,6 +68,11 @@ def load(filename):
     Returns:
         Data from the XML file. Type depends on data in file.
 
+    Example:
+        >>> typhon.arts.xml.load('tests/reference/matrix.xml')
+        array([[ 0.,  1.],
+               [ 2.,  3.]])
+
     """
     if filename[-3:] == '.gz':
         xmlopen = gzip.open

@@ -1,3 +1,21 @@
+2016-02-19  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/cm.rst: Added a second example plot for Phase colormap.
+
+	* doc/pyplots/plot_phase_sinus.py:
+
+	New example plot to demonstrate the Phase colormap using sinus functions.
+
+	* doc/pyplots/plot_qualitative1.py, doc/pyplots/plot_qualitative2.py:
+
+	The figure size is now calculated using typhon.cm.figsize.
+
+	* typhon/arts/xml/__init__.py (load): Added example to docstring.
+
+	* typhon/cm/__init__.py (figsize):
+
+	Added function to construct figure sizes matching the golden ration.
+
 2016-02-18  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Post-upload version bump to 0.2.6.

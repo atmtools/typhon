@@ -6,10 +6,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typhon.cm import mpl_colors
+from typhon.cm import mpl_colors, figsize
 
 
-fig, ax = plt.subplots(figsize=(10, 6))
+fig, ax = plt.subplots(figsize=figsize(10))
 ax.set_prop_cycle(color=mpl_colors('qualitative2', 5))
 for c in np.arange(5):
     X = np.random.randn(100)/2
