@@ -13,9 +13,7 @@ import numpy as np
 from ._cmocean import datad as _cmocean_datad
 from ._cm import datad as _cm_datad
 
-__all__ = ['mpl_colors',
-           'figsize',
-          ]
+__all__ = ['mpl_colors']
 
 datad = _cmocean_datad
 datad.update(_cm_datad)
@@ -67,27 +65,3 @@ def mpl_colors(cmap=None, N=10):
         cmap = plt.rcParams['image.cmap']
 
     return plt.get_cmap(cmap)(np.linspace(0, 1, N))
-
-def figsize(w, portrait=False):
-    """Return a figure size matching the golden ratio.
-
-    This function takes a figure width and returns a tuple
-    representing width and height in the golden ratio.
-    Results can be returned for portrait orientation.
-
-    Parameters:
-        w (float): Figure width.
-        portrait (bool): Return size for portrait format.
-
-    Return:
-        tuple: Figure width and size.
-
-    Examples:
-        >>> typhon.cm.figsize(1)
-        (1, 0.61803398874989479)
-
-        >>> typhon.cm.figsize(1, portrait=True)
-        (1, 1.6180339887498949)
-    """
-    phi = 0.5 * (np.sqrt(5) + 1)
-    return (w, w * phi) if portrait else (w, w / phi)

@@ -1,3 +1,15 @@
+2016-02-23  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/modules.rst: Added plots to list of modules.
+
+	* doc/plots.rst: Documentation for module typhon.plots.
+
+	* typhon/cm/__init__.py: Moved function figsize to typhon.plots.
+
+	* typhon/plots: New module to provide plotting related functions.
+
+	* typhon/plots/__init__.py: Currently providing the function figsize.
+
 2016-02-19  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/cm.rst: Added a second example plot for Phase colormap.

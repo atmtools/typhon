@@ -8,6 +8,7 @@ API Documentation
    xml
    cm
    files
+   plots
    utils
 
 Indices and tables
