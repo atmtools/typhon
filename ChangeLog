@@ -1,3 +1,14 @@
+2016-02-23  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* doc/pyplots/{plot_phase_sinus.py,plot_qualitative1.py}:
+
+	Fixed import of function figsize.
+
+	* doc/pyplots/plot_qualitative2.py:
+
+	Fixed import of function figsize. Also increased number of used colors to
+	show the whole colormap.
+
 2016-02-23  Oliver Lemke  <olemke@core-dump.info>
 
 	* environment.yml:
