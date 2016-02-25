@@ -1,8 +1,9 @@
 name: typhon
 dependencies:
-        - python>=3.4
-        - matplotlib
-        - netCDF4
-        - nose
-        - numpy
-        - scipy
+        - python>=3.5.1
+        - matplotlib>=1.4
+        - netCDF4>=1.1.1
+        - nose>=1.3.0
+        - numpy>=1.6
+        - scipy>=0.15.1
+        - setuptools>=0.7.2

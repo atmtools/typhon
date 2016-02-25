@@ -1,3 +1,9 @@
+2016-02-25  Oliver Lemke  <olemke@core-dump.info>
+
+	* setup.py: Add netCDF4 and nose to requirements.
+
+	* environment.yml: Added for easy conda env creation.
+
 2016-02-23  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* doc/pyplots/{plot_phase_sinus.py,plot_qualitative1.py}:

@@ -73,6 +73,8 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
             'matplotlib>=1.4',
+            'netCDF4>=1.1.1',
+            'nose>=1.3.0',
             'numpy>=1.6',
             'scipy>=0.15.1',
             'setuptools>=0.7.2',
