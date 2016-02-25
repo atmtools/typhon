@@ -10,6 +10,8 @@ API Documentation
    files
    plots
    utils
+   datasets
+   config
 
 Indices and tables
 ------------------

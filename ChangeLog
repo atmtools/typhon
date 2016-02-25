@@ -1,3 +1,61 @@
+2016-02-25  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/utils/metaclass.py: Added
+
+	New module to collect typhon-related metaclasses.  Added two
+	metaclasses:
+
+	- DocStringInheritor.  When a class with this metaclass has a method
+	overridden, and the subclass method omits any docstring, it will
+	automatically inherit the docstring from the superclass.
+
+	- AbstractDocStringInheritor: the same, but for abstract classes.
+
+	Those metaclasses are used by my dataset and collocation frameworks.
+
+	* typhon/utils/cache.py: Added
+
+	New module collecting functions related to caching.  Python comes with
+	functools.lru_cache but this doesn't do mutable objects.  That's for a
+	good reason, but I want to cache mutable objects anyway!  Use at your
+	own risk.
+
+	For disk-stored memoisation, I like to use joblib, but this is not
+	currently a typhon dependency.
+
+	* typhon/utils/__init__.py: Also import new modules I added
+
+	* typhon/datasets/__init__.py: Added.  Import sole module.
+
+	* typhon/datasets/dataset.py: Added
+
+	New module containing classes for a framework abstracting datasets.
+
+	Currently contains classes Dataset, SingleFileDataset,
+	MultiFileDataset, SingleMeasurementPerFileDataset, and
+	HomemadeDataset.
+
+	Those are abstract classes, designed to be subclassed by classes
+	implementing routines for specific datasets.  I will soon add some
+	specific dataset classes to typhon.
+
+	It is possible that some parts of this module rely on numpy bugfixes
+	that are only available from numpy 1.11, which is not released yet, as
+	the latest version today is 1.11.0rc1.  This might particularly be the
+	case for structured masked multidimensional arrays.
+	
+	* typhon/config.py: Added
+
+	New module to handle configuration.  Configuration shall be used to
+	describe such things as where datasets are located, thus separating
+	description from implementation.
+
+	* doc/datasets.rst: Added
+
+	* doc/modules.rst: Updated
+
+	* doc/utils.rst: Updated
+
 2016-02-25  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Post-upload version bump to 0.2.7.
