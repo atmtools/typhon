@@ -1,3 +1,7 @@
+2016-02-26  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/datasets/__init__.py: Fix typo in import.
+
 2016-02-25  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/utils/metaclass.py: Added

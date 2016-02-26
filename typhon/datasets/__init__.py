@@ -7,4 +7,4 @@ reading routines.
 To implement a new reading routine, subclass one of the datasets here.
 """
 
-from . import datasets
+from . import dataset
