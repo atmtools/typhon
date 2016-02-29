@@ -3,11 +3,11 @@
 __version__ = '0.2.7'
 
 # Add revision number for development versions
-#_branch = 'release'
+# _branch = 'release'
 _branch = 'dev'
 _revision = ''.join(x for x in '$Revision$' if x.isdigit())
 if _branch != 'release' and _revision:
-	__version__ += '+r' + _revision
+    __version__ += '+r' + _revision
 
 from . import arts
 from . import files
@@ -20,5 +20,6 @@ def _runtest():
     import nose
     loader = nose.loader.TestLoader(workingDir=dirname(__file__))
     return nose.run(testLoader=loader)
+
 
 test = _runtest

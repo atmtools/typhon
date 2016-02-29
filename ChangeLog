@@ -1,5 +1,9 @@
 2016-02-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Close the door, a tab snuck in.
+
+2016-02-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py:
 
 	Add revision to version number for development releases.
