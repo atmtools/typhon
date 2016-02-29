@@ -1,3 +1,7 @@
+2016-02-29  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py: Replaced loop with dict comprehension.
+
 2016-02-29  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Close the door, a tab snuck in.

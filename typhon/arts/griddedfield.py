@@ -230,9 +230,7 @@ class GriddedField(object):
             if name == '':
                 gridnames[n] = 'grid%d' % (n + 1)
 
-        d = {}
-        for name, grid in zip(gridnames, grids):
-            d[name] = grid
+        d = {name: grid for name, grid in zip(gridnames, grids)}
 
         d['data'] = self.data
 
