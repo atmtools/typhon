@@ -1,4 +1,6 @@
 name: typhon
+channels:
+        - rttools
 dependencies:
         - python>=3.5.1
         - matplotlib>=1.4
@@ -7,3 +9,4 @@ dependencies:
         - numpy>=1.6
         - scipy>=0.15.1
         - setuptools>=0.7.2
+        - typhon

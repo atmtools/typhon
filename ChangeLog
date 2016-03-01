@@ -1,3 +1,11 @@
+2016-03-01  Lukas Kluft <lukas.kluft@gmail.com>
+
+	* environment.yml: Added typhon to list of dependencies.
+
+	typhon is now automatically installed when using environment.yml with conda.
+	It is still possible to overwrite this version with a local development
+	version using `pip install -e`.
+
 2016-02-29  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py: Replaced loop with dict comprehension.
