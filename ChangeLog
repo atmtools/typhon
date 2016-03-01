@@ -1,5 +1,12 @@
 2016-03-01  Lukas Kluft <lukas.kluft@gmail.com>
 
+	* environment.yml: Removed typhon after discussion with Oliver.
+
+	`pip install -e` should be the default way, so there is no need for
+	typhon being a dependency in environment.yml
+
+2016-03-01  Lukas Kluft <lukas.kluft@gmail.com>
+
 	* environment.yml: Added typhon to list of dependencies.
 
 	typhon is now automatically installed when using environment.yml with conda.
