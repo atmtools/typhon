@@ -1,3 +1,21 @@
+2016-03-03  Gerrit Holl	<g.holl@reading.ac.uk>
+
+	* typhon/plots/__init__.py:
+
+	Added function to plot y vs. x as a set of percentiles, essentially
+	plotting the distribution over time.
+
+	* typhon/math/stats.py: Added
+
+	Added module with statisticas functions.  Currently contains two
+	binning utilities moved over from pyatmlab: one for 1-D binning, and
+	one for n-D binning.  They are functionally identical to their
+	counterparts in atmlab.
+
+	* typhon/math/__init__.py: Added
+
+	Package to contain various maths-related modules.
+
 2016-03-03  Gerrit Holl <g.holl@reading.ac.uk>
 
 	* typhon/utils/cache.py: Added missing 'import logging'
