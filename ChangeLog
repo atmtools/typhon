@@ -1,3 +1,9 @@
+2016-03-03  Gerrit Holl <g.holl@reading.ac.uk>
+
+	* typhon/utils/cache.py: Added missing 'import logging'
+
+	* typhon/datasets/dataset.py: Numerous bugfixes
+
 2016-03-01  Lukas Kluft <lukas.kluft@gmail.com>
 
 	* environment.yml: Removed typhon after discussion with Oliver.
@@ -32,7 +38,7 @@
 	* typhon/datasets/__init__.py: Fix typo in import.
 
 2016-02-25  Gerrit Holl  <g.holl@reading.ac.uk>
-
+	
 	* typhon/utils/metaclass.py: Added
 
 	New module to collect typhon-related metaclasses.  Added two

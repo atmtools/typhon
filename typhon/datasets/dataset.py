@@ -163,7 +163,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     def read_period(self, start=None,
                           end=None,
                           onerror="skip",
-                          fields="all"):
+                          fields="all",
+                          sorted=True):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -190,6 +191,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 of strings corresponding to fields to read, or the str
                 "all" (default), which means read all fields.
 
+            sorted (bool): Should the granules be read in sorted order?
+                Defaults to true.
+
         Returns:
             
             Masked array containing all data in period.  Invalid data may
@@ -201,9 +205,11 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         end = end or self.end_date
 
         contents = []
-        for gran in self.find_granules(start, end):
+        finder = self.find_granules_sorted if sorted else self.find_granules
+        for gran in finder(start, end):
             try:
-                logging.debug("Reading {!s}".format(gran))
+                # .read is already being verbose…
+                #logging.debug("Reading {!s}".format(gran))
                 cont = self.read(str(gran), fields=fields)
             except DataFileError as exc:
                 if onerror == "skip":
@@ -214,7 +220,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     raise
             else:
                 contents.append(cont)
-        # retain type of first result, ordinary array of masked array
+        # retain type of first result, ordinary array or masked array
         arr = (numpy.ma.concatenate 
             if isinstance(contents[0], numpy.ma.MaskedArray)
             else numpy.concatenate)(contents)
@@ -222,8 +228,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if "flags" in self.related:
             arr = self.flag(arr)
                 
-        return numpy.ma.concatenate(list(
-            self.read(f) for f in self.find_granules(start, end)))
+        return arr
             
     @abc.abstractmethod
     def _read(self, f, fields="all"):
@@ -506,12 +511,14 @@ class MultiFileDataset(Dataset):
         """
         fm = string.Formatter()
         fields = {f[1] for f in fm.parse(str(self.subdir))}
+        if "day" in fields:
+            return "day"
+        if "month" in fields:
+            if "doy" in fields:
+                raise ValueError("Format string has both month and doy")
+            return "month"
         if "year" in fields:
-            if "month" in fields:
-                if "day" in fields:
-                    return "day"
-                return "month"
-            elif "doy" in fields:
+            if "doy" in fields:
                 return "day"
             return "year"
 
@@ -918,6 +925,11 @@ class HomemadeDataset(MultiFileDataset):
         return nm
 
     def _read(self, f, fields="all"):
+        if f.endswith("npz") or f.endswith("npy"):
+            return numpy.load(f)["arr_0"]
+
+        # TODO: implement NetCDF read/write
+        
         raise NotImplementedError()
 
 #    def find_granules(self, start, end):
