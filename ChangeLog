@@ -1,3 +1,10 @@
+2016-03-07  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py:
+
+	Fix runtime error when calling _runtest() from jupyter qtconsole and
+	notebook. Bug reported by Lukas.
+
 2016-03-03  Gerrit Holl	<g.holl@reading.ac.uk>
 
 	* typhon/plots/__init__.py:
