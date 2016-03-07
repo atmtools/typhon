@@ -8,6 +8,7 @@ API Documentation
    xml
    cm
    files
+   oem
    plots
    utils
    datasets

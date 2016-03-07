@@ -11,6 +11,7 @@ if _branch != 'release' and _revision:
 
 from . import arts
 from . import files
+from . import oem
 from . import utils
 
 

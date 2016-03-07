@@ -1,3 +1,24 @@
+2016-03-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/modules.rst: Added new module oem.
+
+	* doc/oem.rst: Documentation for oem module.
+
+	The autogeneration of function documentation is currently not working.
+	Sphinx seems to have trouble interpreting the @ operator for highlighted
+	code blocks.
+
+	* typhon/__init__.py: Import oem module by default.
+
+	* typhon/oem:
+
+	New module to provide functions related to the Optimal Estimation Method.
+
+	* typhon/oem/__init__.py:
+
+	Currently containing functions to calculate the error covariance matrix as
+	well as the averaging kernel matrix.
+
 2016-03-07  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py:
