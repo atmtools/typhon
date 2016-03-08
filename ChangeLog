@@ -1,3 +1,13 @@
+2016-03-08  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* KNOWN_ISSUES: Added info about failing sphinx build for oem module.
+
+	* doc/oem.rst:
+
+	Added disclaimer that the documentation is currently not working.
+
+	* doc/plots.rst: Fixed heading syntax.
+
 2016-03-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/modules.rst: Added new module oem.

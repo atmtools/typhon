@@ -1,5 +1,5 @@
 typhon.plots
-===========
+============
 
 Module contents
 ---------------
