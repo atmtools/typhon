@@ -1,3 +1,10 @@
+2016-03-08  Oliver Lemke  <olemke@core-dump.info>
+
+	* setup.py:
+
+	Remove python 3.4 from supported languages because we now use the new @
+	matrix operator from python 3.5.
+
 2016-03-08  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* KNOWN_ISSUES: Added info about failing sphinx build for oem module.
