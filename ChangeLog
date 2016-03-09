@@ -1,3 +1,16 @@
+2016-03-09  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/array.py: Added
+
+	Collection of math-related functions that are uniquely for array, such
+	as reduction operators.  Added one function, 'localmin', that returns
+	a mask with True at the locations where a 1-D array has a local
+	minimum.
+
+	* typhon/math/__init__.py: Added stats, array
+
+	* doc/modules.rst: Added math
+
 2016-03-08  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py:

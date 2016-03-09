@@ -13,6 +13,7 @@ API Documentation
    utils
    datasets
    config
+   math
 
 Indices and tables
 ------------------
