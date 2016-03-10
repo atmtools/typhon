@@ -3,6 +3,11 @@ typhon.utils
 
 This module contains convenience functions for any purposes.
 
+.. automodule:: typhon.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 typhon.utils.latex
 ------------------------
 

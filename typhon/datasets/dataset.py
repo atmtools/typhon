@@ -255,7 +255,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             f (str): String containing path to file to read.
 
             fields (Iterable[str] or str): What fields to return.
-                See :func:`Dataset.read_period' for details.
+                See :func:`Dataset.read_period` for details.
 
             Any further keyword arguments are passed on to the particular
             reading routine.
@@ -419,7 +419,7 @@ class MultiFileDataset(Dataset):
             Describes the directory within basedir where granules are
             located.  May contain string formatting directives where
             particular fields are replaces, such as `year`, `month`, and
-            `day`.  For example: `subdir = '{year}/{month}'.  Sorting
+            `day`.  For example: `subdir = '{year}/{month}'`.  Sorting
             cannot be more narrow than by day.
 
         re (str):
@@ -431,8 +431,8 @@ class MultiFileDataset(Dataset):
             exists in a version with "_end" appended.
             MultiFileDataset.refields contains all recognised fields.
 
-            If any *_end fields are found, the ending time is equal to the
-            beginning time with any *_end fields replaced.  If no *_end
+            If any _end fields are found, the ending time is equal to the
+            beginning time with any _end fields replaced.  If no _end
             fields are found, the `granule_duration` attribute is used to
             determine the ending time, or the file is read to get the
             ending time (hopefully the header is enough).
@@ -851,7 +851,7 @@ class SingleMeasurementPerFileDataset(MultiFileDataset):
             p (pathlib.Path): path to file
             
             fields (Iterable[str] or str): What fields to return.
-                See :func:`Dataset.read_period' for details.
+                See :func:`Dataset.read_period` for details.
         """
         raise NotImplementedError()
 
@@ -864,7 +864,7 @@ class SingleMeasurementPerFileDataset(MultiFileDataset):
             p (pathlib.Path): path to file
 
             fields (Iterable[str] or str): What fields to return.
-                See :func:`Dataset.read_period' for details.
+                See :func:`Dataset.read_period` for details.
         """
 
         (head, body) = self.read_single(p, fields=fields)

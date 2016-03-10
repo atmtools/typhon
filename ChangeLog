@@ -1,3 +1,13 @@
+2016-03-10  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/datasets/dataset.py: Fix sphinx warnings.
+
+	* doc/config.rst, doc/math.rst: Added.
+
+	* doc/cm.rst, doc/files.rst, doc/oem.rst, doc/plots.rst, doc/utils.rst:
+
+	Remove some unnecessary headings.
+
 2016-03-09  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/math/array.py: Added

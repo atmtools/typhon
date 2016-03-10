@@ -1,9 +1,6 @@
 typhon.cm
 ===========
 
-Module contents
----------------
-
 .. automodule:: typhon.cm
     :members:
     :undoc-members:

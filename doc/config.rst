@@ -1,7 +1,7 @@
-typhon.plots
-============
+typhon.config
+=============
 
-.. automodule:: typhon.plots
+.. automodule:: typhon.config
     :members:
     :undoc-members:
     :show-inheritance:
