@@ -47,6 +47,8 @@ class InvalidDataError(DataFileError):
     See DataFileError for more information.
     """
 
+all_datasets = {}
+
 class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     """Represents a dataset.
 
@@ -77,7 +79,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         end_date (datetime.datetime or numpy.datetime64)
             Similar to start_date, but for ending.
         name (str)
-            Name for the dataset.  May be used for logging purposes and so.
+            Name for the dataset.  Used to make sure there is only a
+            single dataset with the same name for any particular dataset.
+            If a dataset is initiated with a pre-exisitng name, the
+            previous product is called.
         aliases (Mapping[str, str])
             Aliases for field.  Dictionary can be useful if you want to
             programmatically loop through the same field for many different
@@ -92,6 +97,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
     """
 
+    _instances = {}
+
     start_date = None
     end_date = None
     name = ""
@@ -99,11 +106,30 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     unique_fields = {"time", "lat", "lon"}
     related = {}
 
+    def __new__(cls, name, **kwargs):
+        if name in cls._instances:
+            return cls._instances[name]
+        self = super().__new__(cls)
+        cls._instances[name] = self
+        if not cls in all_datasets:
+            all_datasets[cls] = {}
+        all_datasets[cls][name] = self
+        return self # __init__ takes care of the rest
+
+    # through __new__, I make sure there's only a single dataset
+    # object per class with the same name.  However, __init__ will get
+    # called again despite __new__ returning an older self.  Make sure
+    # we don't get hurt by that.
     def __init__(self, **kwargs):
         """Initialise a Dataset object.
 
         All keyword arguments will be translated into attributes.
         Does not take positional arguments.
+
+        Note that if you create a dataset with a name that already exists,
+        the existing object is returned, but __init__ is still called
+        (Python does this, see
+        https://docs.python.org/3.5/reference/datamodel.html#object.__new__).
         """
         for (k, v) in kwargs.items():
             setattr(self, k, v)
@@ -160,11 +186,16 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         """
         raise NotImplementedError()
 
+    # Cannot use functools.lru_cache because it cannot handle mutable
+    # results or arguments
+    @utils.cache.mutable_cache(maxsize=10)
     def read_period(self, start=None,
                           end=None,
                           onerror="skip",
                           fields="all",
-                          sorted=True):
+                          sorted=True,
+                          locator_args=None,
+                          reader_args=None):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -194,6 +225,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             sorted (bool): Should the granules be read in sorted order?
                 Defaults to true.
 
+            locator_args (dict): Extra keyword arguments passed on to
+                granule finding routines.
+
+            reader_args (dict): Extra keyword arguments to be passed on to
+                reading routine.
+
         Returns:
             
             Masked array containing all data in period.  Invalid data may
@@ -201,16 +238,22 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             reading routine implemented by the subclass.
         """
 
+        if locator_args is None:
+            locator_args = {}
+
+        if reader_args is None:
+            reader_args = {}
+
         start = start or self.start_date
         end = end or self.end_date
 
         contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
-        for gran in finder(start, end):
+        for gran in finder(start, end, **locator_args):
             try:
                 # .read is already being verbose…
                 #logging.debug("Reading {!s}".format(gran))
-                cont = self.read(str(gran), fields=fields)
+                cont = self.read(str(gran), fields=fields, **reader_args)
             except DataFileError as exc:
                 if onerror == "skip":
                     logging.error("Could not read file {}: {}".format(

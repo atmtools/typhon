@@ -1,3 +1,16 @@
+2016-03-17  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset): Make Dataset class semi-singleton.  For a particular class, there
+	should be only one object with the same name.  If one attempts to
+	create one with an already-existing name, the existing object is
+	returned.
+
+	(Dataset.read_period): Add provision to pass on arguments to
+	find_granules and to the reader.
+	
+	
 2016-03-10  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/datasets/dataset.py: Fix sphinx warnings.
