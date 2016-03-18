@@ -1,13 +1,50 @@
 # -*- coding: utf-8 -*-
 
-__version__ = '0.2.7'
 
-# Add revision number for development versions
-# _branch = 'release'
-_branch = 'dev'
-_revision = ''.join(x for x in '$Revision$' if x.isdigit())
-if _branch != 'release' and _revision:
-    __version__ += '+r' + _revision
+def get_version_info():
+    VERSION = '0.2.7'
+    # Add revision number for development versions
+    DEVBUILD = True
+
+    if DEVBUILD:
+        from os import path
+        if path.exists('.svn'):
+            revision = get_svn_revision()
+        else:
+            revision = "dev"
+        VERSION += '+' + revision
+
+    return VERSION
+
+
+def get_svn_revision():
+    def _minimal_ext_cmd(cmd):
+        from subprocess import Popen, PIPE
+        from os import environ
+        # construct minimal environment
+        env = {}
+        for k in ['SYSTEMROOT', 'PATH']:
+            v = environ.get(k)
+            if v is not None:
+                env[k] = v
+        # LANGUAGE is used on win32
+        env['LANGUAGE'] = 'C'
+        env['LANG'] = 'C'
+        env['LC_ALL'] = 'C'
+        out = Popen(cmd, stdout=PIPE, env=env).communicate()[0]
+        return out
+
+    try:
+        from re import findall
+        out = _minimal_ext_cmd(['svn', 'info'])
+        revision = 'r' + findall('Revision: (....)', out.decode('ascii'))[0]
+    except OSError:
+        revision = "unknown"
+
+    return revision
+
+
+__version__ = get_version_info()
 
 from . import arts
 from . import files

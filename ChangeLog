@@ -1,3 +1,18 @@
+2016-03-18  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py:
+
+	Improved version number handling. The svn revision number was not
+	correctly updated (reported by Gerrit).
+	The current svn revision is now extracted from 'svn info' for
+	development versions and appended to the installed package version.
+	However, because the svn version cannot be determined for installed
+	packages, typhon.__version__ has the string '+dev' appended for
+	development versions.
+
+	This also changes the convention for version number increases. The
+	version number is now increased before release, not after.
+
 2016-03-17  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py:
