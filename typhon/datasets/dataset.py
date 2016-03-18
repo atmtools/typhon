@@ -18,6 +18,7 @@ import numpy.lib.recfunctions
 
 from .. import config
 from .. import utils
+from .. import math as tpmath
 
 class DataFileError(Exception):
     """Superclass for any datafile problems
@@ -195,7 +196,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           fields="all",
                           sorted=True,
                           locator_args=None,
-                          reader_args=None):
+                          reader_args=None,
+                          limits=None):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -231,6 +233,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             reader_args (dict): Extra keyword arguments to be passed on to
                 reading routine.
 
+            limits (dict): Limitations to apply to each granule.  For the
+                exact format, see `:func:typhon.math.array.limit_ndarray`.
+
         Returns:
             
             Masked array containing all data in period.  Invalid data may
@@ -244,6 +249,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if reader_args is None:
             reader_args = {}
 
+        if limits is None:
+            limits = {}
+
         start = start or self.start_date
         end = end or self.end_date
 
@@ -254,6 +262,11 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 # .read is already being verbose…
                 #logging.debug("Reading {!s}".format(gran))
                 cont = self.read(str(gran), fields=fields, **reader_args)
+                oldsize = cont.size
+                cont = tpmath.array.limit_ndarray(cont, limits)
+                if cont.size < oldsize:
+                    logging.debug("Applying limitations, reducing "
+                        "{:d} to {:d}".format(oldsize, cont.size))
             except DataFileError as exc:
                 if onerror == "skip":
                     logging.error("Could not read file {}: {}".format(

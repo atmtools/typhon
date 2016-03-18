@@ -1,5 +1,11 @@
 2016-03-18  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/dataset.py(Dataset.read_period):
+
+	- Add filtering ability to reading long period.
+
+2016-03-18  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/math/array.py(limit_ndarray):
 
 	- New function to select elements from structured ndarray based on
