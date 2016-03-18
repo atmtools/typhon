@@ -37,7 +37,7 @@ def get_svn_revision():
     try:
         from re import findall
         out = _minimal_ext_cmd(['svn', 'info'])
-        revision = 'r' + findall('Revision: (....)', out.decode('ascii'))[0]
+        revision = 'r' + findall('Revision: ([0-9]+)', out.decode('ascii'))[0]
     except OSError:
         revision = "unknown"
 

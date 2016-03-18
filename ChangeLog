@@ -1,5 +1,9 @@
 2016-03-18  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Improve revision regex.
+
+2016-03-18  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py:
 
 	Improved version number handling. The svn revision number was not
