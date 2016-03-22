@@ -39,7 +39,8 @@ class DocStringInheritor(type):
                     if doc:
                         attribute.__doc__=doc
                         # added by Gerrit
-                        attribute.__doc__ += "\n\nDocstring inherited from parent"
+                        attribute.__doc__ += ("\n\nDocstring inherited "
+                            "from {:s}".format(mro_cls.__name__))
                         break
         # GH: replaced `type` by super() to not break multiple inheritance
         return super().__new__(meta, name, bases, clsdict)

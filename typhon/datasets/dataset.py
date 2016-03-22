@@ -107,7 +107,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     unique_fields = {"time", "lat", "lon"}
     related = {}
 
-    def __new__(cls, name, **kwargs):
+    def __new__(cls, name=None, **kwargs):
+        name = name or self.name
+        name = name or self.__class__.__name__
         if name in cls._instances:
             return cls._instances[name]
         self = super().__new__(cls)
