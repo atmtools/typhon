@@ -12,6 +12,8 @@ import string
 import shutil
 import tempfile
 import datetime
+import sys
+
 import numpy
 import numpy.lib.arraysetops
 import numpy.lib.recfunctions
@@ -19,6 +21,10 @@ import numpy.lib.recfunctions
 from .. import config
 from .. import utils
 from .. import math as tpmath
+
+class GranuleLocatorError(Exception):
+    """Problem locating granules.
+    """
 
 class DataFileError(Exception):
     """Superclass for any datafile problems
@@ -108,8 +114,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     related = {}
 
     def __new__(cls, name=None, **kwargs):
-        name = name or self.name
-        name = name or self.__class__.__name__
+        name = name or cls.name or cls.__name__
         if name in cls._instances:
             return cls._instances[name]
         self = super().__new__(cls)
@@ -520,6 +525,7 @@ class MultiFileDataset(Dataset):
     # interpreted as seconds since 00
     refields = ["".join(x)
         for x in itertools.product(datefields, ("", "_end"))]
+    valid_field_values = {}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -559,6 +565,34 @@ class MultiFileDataset(Dataset):
         return pathlib.Path(str(self.basedir / self.subdir).format(
             year=dt.year, month=dt.month, day=dt.day,
             doy=dt.timetuple().tm_yday))
+
+    def get_mandatory_fields(self):
+        fm = string.Formatter()
+        fields = {f[1] for f in fm.parse(str(self.subdir))}
+        return fields - set(self.datefields)
+
+    def verify_mandatory_fields(self, extra):
+        mandatory = self.get_mandatory_fields()
+        found = set(extra.keys())
+        if not mandatory <= found:
+            missing = mandatory - found
+            raise GranuleLocatorError("Missing fields needed to search for "
+                "{self.name:s} files.  Need: {mandatory:s}. "
+                "Found: {found:s}.  Missing: {missing:s}".format(
+                    self=self,
+                    mandatory=", ".join(mandatory),
+                    found=", ".join(found) or "(none)",
+                    missing=", ".join(missing)))
+        for field in found:
+            if field in self.valid_field_values:
+                if not extra[field] in self.valid_field_values[field]:
+                    raise GranuleLocatorError("Encountered invalid {field:s} "
+                        "when searching for {self.name:s} files. "
+                        "Found: {value:s}. Valid: "
+                        "{valid_values!s}".format(
+                            field=field, self=self, extra=extra,
+                            value=extra[field],
+                            valid_values=self.valid_field_values[field]))
 
     def get_subdir_resolution(self):
         """Return the resolution for the subdir precision.
@@ -614,6 +648,7 @@ class MultiFileDataset(Dataset):
             containing files between `d_start` and `d_end`.
         """
 
+        self.verify_mandatory_fields(extra)
         # depending on resolution, iterate by year, month, or day.
         # Resolution is determined by provided fields in self.subdir.
         d = d_start
@@ -691,21 +726,27 @@ class MultiFileDataset(Dataset):
 
         return_time = extra.pop("return_time", False)
 
+        self.verify_mandatory_fields(extra)
+
         d_start = (dt_start.date()
                 if isinstance(dt_start, datetime.datetime) 
                 else dt_start)
         d_end = (dt_end.date()
                 if isinstance(dt_end, datetime.datetime) 
                 else dt_end)
+        found_any_dirs = False
+        found_any_grans = False
         logging.debug(("Searching for {!s} granules between {!s} and {!s} "
                       ).format(self.name, dt_start, dt_end))
         for (timeinfo, subdir) in self.iterate_subdirs(d_start, d_end,
                                                        **extra):
             if subdir.exists() and subdir.is_dir():
                 logging.debug("Searching directory {!s}".format(subdir))
+                found_any_dirs = True
                 for child in subdir.iterdir():
                     m = self._re.fullmatch(child.name)
                     if m is not None:
+                        found_any_grans = True
                         try:
                             (g_start, g_end) = self.get_times_for_granule(child,
                                 **timeinfo)
@@ -719,6 +760,19 @@ class MultiFileDataset(Dataset):
                                 yield (g_start, child)
                             else:
                                 yield child
+        if not found_any_dirs:
+            print("Found no directories.  Make sure {self.name:s} has "
+                  "coverage in {dt_start:%Y-%m-%d %H:%M:%S} – "
+                  "{dt_end:%Y-%m-%d %H:%M:%S} and that you spelt any "
+                  "additional information correctly:".format(self=self,
+                  dt_start=dt_start, dt_end=dt_end), extra, "Satellite "
+                  "names and other fields are case-sensitive!",
+                  file=sys.stderr, flush=True)
+        elif not found_any_grans:
+            print("Directories searched appear to contain no matching "
+                  "files.  Make sure basedir, subdir, and regexp are "
+                  "correct and you did not misspell any extra "
+                  "information: ", extra, file=sys.stderr, flush=True)
             
     def find_granules_sorted(self, dt_start=None, dt_end=None, **extra):
         """Yield all granules, sorted by times.
@@ -1012,6 +1066,12 @@ class HomemadeDataset(MultiFileDataset):
         p = pathlib.Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         numpy.savez_compressed(str(path), M)
+
+class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
+    satellites = set()
+    @property
+    def valid_field_values(self):
+        return {"satname": self.satellites}
 
 # Not yet transferred from pyatmlab to typhon, not clean enough:
 #

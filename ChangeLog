@@ -2,6 +2,13 @@
 
 	* typhon/datasets/dataset.py:
 
+	- Raise a specific exception with a helpful error message if mandatory
+	fields are missing or have invalid values.
+
+2016-03-22  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+
 	- Don't require name, fallback to attribute then to class name.
 
 2016-03-21  Gerrit Holl  <g.holl@reading.ac.uk>
