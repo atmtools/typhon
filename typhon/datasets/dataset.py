@@ -22,6 +22,11 @@ from .. import config
 from .. import utils
 from .. import math as tpmath
 
+try:
+    import progressbar
+except ImportError:
+    progressbar = None
+
 class GranuleLocatorError(Exception):
     """Problem locating granules.
     """
@@ -264,7 +269,17 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
         contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
-        for gran in finder(start, end, **locator_args):
+        logging.info("Reading {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
+                     " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
+
+        if sorted and progressbar:
+            bar = progressbar.ProgressBar(maxval=1,
+                    widgets=[progressbar.Bar("=", "[", "]"), " ",
+                             progressbar.Percentage(),
+                             ' (', progressbar.ETA(), ') '])
+            bar.start()
+            bar.update(0)
+        for (g_start, gran) in finder(start, end, return_time=True, **locator_args):
             try:
                 # .read is already being verbose…
                 #logging.debug("Reading {!s}".format(gran))
@@ -283,6 +298,11 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     raise
             else:
                 contents.append(cont)
+            if sorted and progressbar:
+                bar.update((g_start-start) / (end-start))
+        if sorted and progressbar:
+            bar.update(1)
+            bar.finish()
         # retain type of first result, ordinary array or masked array
         arr = (numpy.ma.concatenate 
             if isinstance(contents[0], numpy.ma.MaskedArray)
@@ -569,6 +589,8 @@ class MultiFileDataset(Dataset):
     def get_mandatory_fields(self):
         fm = string.Formatter()
         fields = {f[1] for f in fm.parse(str(self.subdir))}
+        if fields == {None}:
+            fields = set()
         return fields - set(self.datefields)
 
     def verify_mandatory_fields(self, extra):
@@ -786,7 +808,10 @@ class MultiFileDataset(Dataset):
         # cached now; no need for additional hints when granule timeinfo
         # obtainable only with hints from subdir, which is not included in
         # the re-matching method
-        yield from sorted(allgran, key=self.get_times_for_granule)
+        if extra.get("return_time", False):
+            yield from sorted(allgran)
+        else:
+            yield from sorted(allgran, key=self.get_times_for_granule)
 
     @staticmethod
     def _getyear(gd, s, alt):
