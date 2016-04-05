@@ -1,3 +1,9 @@
+2016-04-05  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py:
+
+	Added examples on how to create and use a GriddedField object.
+
 2016-03-24  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py:

@@ -31,6 +31,23 @@ class GriddedField(object):
         For the special case of storing atmospheric profiles as GriddedField3
         the latitude and longitude grids have to be initialised as empty np.array.
 
+    Examples:
+        Create and manipulate a :class:`GriddedField` object.
+
+        >>> gf1 = GriddedField1()
+        >>> gf1.grids = [np.arange(10)]
+        >>> gf1.gridnames = ["Indices"]
+        >>> gf1.data = np.random.randn(10)
+
+        Inspect an existing :class:`GriddedField` object.
+
+        >>> gf1.dimension
+        1
+        >>> gf1.grids
+        [array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])]
+        >>> gf1.gridnames
+        ['Indices']
+
     """
     def __init__(self, dimension, grids=None, data=None, gridnames=None,
                  name=None):
