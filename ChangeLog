@@ -1,5 +1,9 @@
 2016-04-20  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: Set DEVBUILD back to True after release.
+
+2016-04-20  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py: 0.2.9 Release.
 
 2016-04-05  Lukas Kluft  <lukas.kluft@gmail.com>
