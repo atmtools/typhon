@@ -1,0 +1,53 @@
+#### Settings the matplotlib plotting style.
+# https://github.com/matplotlib/matplotlib/blob/master/lib/matplotlib/mpl-data/stylelib/classic.mplstyle
+
+
+### LINES
+# See http://matplotlib.org/api/artist_api.html#module-matplotlib.lines for
+# more information on line properties.
+lines.linewidth : 2     # line with in points
+lines.markersize : 10   # markersize, in point
+
+### FONT
+# font properties used by text.Text.  See
+# http://matplotlib.org/api/font_manager_api.html for more information on font
+# properties.
+# note that font.size controls default text sizes.  To configure
+# special text sizes tick labels, axes, labels, title, etc, see the rc
+# settings for axes and ticks. Special text sizes can be defined
+# relative to font.size, using the following values: xx-small, x-small,
+# small, medium, large, x-large, xx-large
+font.size : 18
+
+### AXES
+# default face and edge color, default tick sizes, default fontsizes for
+# ticklabels, and so on.  See
+# http://matplotlib.org/api/axes_api.html#module-matplotlib.axes
+axes.titlesize : large  # fontsize of the axes title
+axes.labelsize : medium # fontsize of the x and y labels
+
+### TICKS
+# see http://matplotlib.org/api/axis_api.html#matplotlib.axis.Tick
+xtick.direction : inout # direction: in, out, or inout
+ytick.direction : inout
+xtick.labelsize : small # fontsize of the tick labels
+ytick.labelsize : small
+
+### LEGEND
+legend.loc : best           # default location for the legend
+legend.numpoints : 1        # the number of points in the legend line
+legend.fontsize : medium
+
+### FIGURE
+# See http://matplotlib.org/api/figure_api.html#matplotlib.figure.Figure
+figure.figsize : 10, 6.1803398874989481 # figure size in inches
+
+### IMAGES
+image.cmap : viridis # default colormap
+
+### SAVING FIGURES
+savefig.bbox : tight # 'tight' or 'standard'.
+                     # 'tight' is incompatible with pipe-based animation
+                     # backends but will workd with temporary file based ones:
+                     # e.g. setting animation.writer to ffmpeg will not work,
+                     # use ffmpeg_file instead

@@ -4,14 +4,18 @@ This module provides functions related to plot or to plot data.
 
 """
 
-import math
 import collections
+import math
+import os
 
 import numpy as np
+import matplotlib as mpl
 
 from ..math import stats as tpstats
 
-__all__ = ['figsize']
+__all__ = ['figsize',
+           'install_mplstyles',
+           ]
 
 def figsize(w, portrait=False):
     """Return a figure size matching the golden ratio.
@@ -37,6 +41,7 @@ def figsize(w, portrait=False):
     phi = 0.5 * (np.sqrt(5) + 1)
     return (w, w * phi) if portrait else (w, w / phi)
 
+
 def plot_distribution_as_percentiles(ax, x, y,
         nbins=10, bins=None,
         ptiles=(5, 25, 50, 75, 95),
@@ -50,7 +55,7 @@ def plot_distribution_as_percentiles(ax, x, y,
     Then, within each bin, show the distribution by plotting percentiles.
 
     Arguments:
-        
+
         ax (AxesSubplot): matplotlib axes to plot into
         x (ndarray): data for x-axis
         y (ndarray): data for y-axis
@@ -84,5 +89,33 @@ def plot_distribution_as_percentiles(ax, x, y,
                                         for x in D_ls.pop(linestyles[i])))
             else:
                 locallab = None
-            
+
         ax.plot(bins, scores[:, i], ls=linestyles[i], label=locallab, **kwargs)
+
+
+def install_mplstyles():
+    """Install additional matplotlib stylesheets.
+
+    Create symbolic links for all stylesheets shipped with typhon. The symlinks
+    are created in the user's matplotlib config directory. If the needed
+    subdirectory 'stylelib' is not present it is created. No files or symlinks
+    are overwritten.
+
+    All typhon stylesheets stored in 'typhon/plots/stylelib' are considered.
+
+    """
+    stylelib = os.path.join(os.path.dirname(__file__), 'stylelib')
+    configdir = os.path.join(mpl.get_configdir(), 'stylelib')
+
+    # get absolute paths for shipped stylesheets
+    style_paths = [os.path.join(stylelib, s) for s in os.listdir(stylelib)]
+
+    if not os.path.isdir(configdir):
+        os.mkdir(configdir)
+
+    # create a symlink for each stylesheets in user's matplotlib configdir
+    for path in style_paths:
+        dest = os.path.join(configdir, os.path.basename(path))
+        if not os.path.isfile(dest):
+            os.symlink(path, dest)
+

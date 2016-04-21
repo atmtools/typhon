@@ -1,3 +1,16 @@
+	2016-04-21  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/__init__.py:
+
+	Added install_mplstyles() to create symbolic links for matplotlib
+	stylesheets shipped with typhon.
+
+	* typhon/plots/stylelib: Directory to store matplotlib stylesheets.
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Matplotlib stylesheet to overwrite the default values for rc params.
+
 2016-04-21  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py: Remove author_email. Update homepage url.
