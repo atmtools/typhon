@@ -1,3 +1,7 @@
+2016-04-21  Oliver Lemke  <olemke@core-dump.info>
+
+	* setup.py: Remove author_email. Update homepage url.
+
 2016-04-20  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/__init__.py: Set DEVBUILD back to True after release.

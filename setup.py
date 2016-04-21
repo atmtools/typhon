@@ -30,11 +30,10 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://pypi.python.org/pypi/typhon',
+    url='http://www.radiativetransfer.org/tools/#typhon',
 
     # Author details
     author='The Typhon developers',
-    author_email='oliver.lemke@uni-hamburg.de',
 
     # Choose your license
     license='MIT',
