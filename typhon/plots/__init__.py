@@ -5,6 +5,7 @@ This module provides functions related to plot or to plot data.
 """
 
 import collections
+import glob
 import math
 import os
 
@@ -108,7 +109,7 @@ def install_mplstyles():
     configdir = os.path.join(mpl.get_configdir(), 'stylelib')
 
     # get absolute paths for shipped stylesheets
-    style_paths = [os.path.join(stylelib, s) for s in os.listdir(stylelib)]
+    style_paths = glob.glob(os.path.join(stylelib, '*.mplstyle'))
 
     if not os.path.isdir(configdir):
         os.mkdir(configdir)
@@ -116,6 +117,14 @@ def install_mplstyles():
     # create a symlink for each stylesheets in user's matplotlib configdir
     for path in style_paths:
         dest = os.path.join(configdir, os.path.basename(path))
+        if os.path.islink(dest):
+            os.remove(dest)
+
         if not os.path.isfile(dest):
             os.symlink(path, dest)
+
+        mpl.style.reload_library()
+
+
+
 

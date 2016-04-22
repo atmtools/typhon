@@ -1,3 +1,14 @@
+	2016-04-22  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/__init__.py:
+
+	install_mplstyles() overwrites symlinks and automatically reloads the
+	stylesheet library.
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Replace the default colorcycle with more muted colors.
+
 	2016-04-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py:

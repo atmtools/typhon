@@ -25,11 +25,10 @@ font.size : 18
 # http://matplotlib.org/api/axes_api.html#module-matplotlib.axes
 axes.titlesize : large  # fontsize of the axes title
 axes.labelsize : medium # fontsize of the x and y labels
+axes.prop_cycle    : cycler('color', ['4878cf', '6acc65', 'd65f5f', 'b47cc7', 'c4ad66', '77bedb'])
 
 ### TICKS
 # see http://matplotlib.org/api/axis_api.html#matplotlib.axis.Tick
-xtick.direction : inout # direction: in, out, or inout
-ytick.direction : inout
 xtick.labelsize : small # fontsize of the tick labels
 ytick.labelsize : small
 
@@ -51,3 +50,4 @@ savefig.bbox : tight # 'tight' or 'standard'.
                      # backends but will workd with temporary file based ones:
                      # e.g. setting animation.writer to ffmpeg will not work,
                      # use ffmpeg_file instead
+
