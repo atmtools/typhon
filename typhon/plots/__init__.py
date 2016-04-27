@@ -99,10 +99,20 @@ def install_mplstyles():
 
     Create symbolic links for all stylesheets shipped with typhon. The symlinks
     are created in the user's matplotlib config directory. If the needed
-    subdirectory 'stylelib' is not present it is created. No files or symlinks
-    are overwritten.
+    subdirectory 'stylelib' is not present it is created. Symlinks are
+    overwritten to update the location of stylesheets if it is changed.
 
     All typhon stylesheets stored in 'typhon/plots/stylelib' are considered.
+
+    Examples:
+        Install typhon stylesheets for matplotlib (only needed once or if the
+        location of typhon changes):
+
+        >>> typhon.plots.install_mplstyles()
+
+        Use typhon stylesheet:
+
+        >>> plt.style.use('typhon')
 
     """
     stylelib = os.path.join(os.path.dirname(__file__), 'stylelib')

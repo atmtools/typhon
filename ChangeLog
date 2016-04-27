@@ -1,5 +1,11 @@
 	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/plots/__init__.py:
+
+	Added examples to install_mplstyles() docstring.
+
+	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/plots/stylelib/typhon.mplstyle:
 
 	Increased linewidths in propcycle by 1 as the smallest should be 2.
