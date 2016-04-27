@@ -2,6 +2,12 @@
 
 	* typhon/plots/stylelib/typhon.mplstyle:
 
+	Increased linewidths in propcycle by 1 as the smallest should be 2.
+
+	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
 	Automatically change linestyle after cycling through all available colors.
 	This extends the number of different styles to 18 (6 colors, 3 linestyles).
 	The linewidth for dashed and dotted lines is increased to adjust their look
