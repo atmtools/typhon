@@ -1,3 +1,14 @@
+	2016-04-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* KNOWN_ISSUES:
+
+	prop_cycle through lienstyles and linewidths breaks the usage of
+	keyword aliases in matplotlib functions.
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Added TODO comment on prop_cycle issue.
+
 	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py:
