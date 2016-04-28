@@ -28,7 +28,7 @@ axes.labelsize : medium # fontsize of the x and y labels
 # TODO: Setting the prop_cycle for linewidth and linestyle breaks the usage of
 #       keyword aliases in the plot function. One has to use the full keyword.
 #       The issue is reported to matplotlib on github (36343).
-axes.prop_cycle    : cycler(linestyle=['-', '--', '-.'], linewidth=[2, 3, 4])) * cycler(color=['4878cf', '6acc65', 'd65f5f', 'b47cc7', 'c4ad66', '77bedb'])
+axes.prop_cycle    : cycler(linestyle=['-', '--', '-.'], linewidth=[2, 3, 4]) * cycler(color=['4878cf', '6acc65', 'd65f5f', 'b47cc7', 'c4ad66', '77bedb'])
 
 ### TICKS
 # see http://matplotlib.org/api/axis_api.html#matplotlib.axis.Tick
