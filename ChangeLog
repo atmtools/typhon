@@ -1,5 +1,9 @@
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/version.py: 0.2.12 Release.
+
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py, setup.py:
 
 	Previous fix didn't work. Of course an import of typhon.version also
