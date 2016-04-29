@@ -1,10 +1,14 @@
-	2016-04-28  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/__init__.py: 0.2.10 Release.
+
+2016-04-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* ChangeLog: Fixed typo.
 
 	* typhon/plots/stylelib/typhon.mplstyle: Fixed syntax error.
 
-	2016-04-28  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* KNOWN_ISSUES:
 
@@ -15,13 +19,13 @@
 
 	Added TODO comment on prop_cycle issue.
 
-	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py:
 
 	Added examples to install_mplstyles() docstring.
 
-	2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/stylelib/typhon.mplstyle:
 
@@ -36,7 +40,7 @@
 	The linewidth for dashed and dotted lines is increased to adjust their look
 	in comparison to solid lines.
 
-	2016-04-22  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-22  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py:
 
@@ -47,7 +51,7 @@
 
 	Replace the default colorcycle with more muted colors.
 
-	2016-04-21  Lukas Kluft  <lukas.kluft@gmail.com>
+2016-04-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py:
 
