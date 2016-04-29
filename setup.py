@@ -10,7 +10,7 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-from typhon import __version__
+from typhon.version import __version__
 
 here = path.abspath(path.dirname(__file__))
 
@@ -70,13 +70,13 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-            'matplotlib>=1.4',
-            'netCDF4>=1.1.1',
-            'nose>=1.3.0',
-            'numpy>=1.6',
-            'scipy>=0.15.1',
-            'setuptools>=0.7.2',
-            ],
+        'matplotlib>=1.4',
+        'netCDF4>=1.1.1',
+        'nose>=1.3.0',
+        'numpy>=1.6',
+        'scipy>=0.15.1',
+        'setuptools>=0.7.2',
+    ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

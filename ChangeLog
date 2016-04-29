@@ -1,5 +1,19 @@
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py, typhon/version.py:
+
+	Seperate version handling from __init_.py. Otherwise we need to import
+	typhon/__init__.py into setup.py. This shouldn't be done as it makes
+	setup.py dependent on all external packages imported by __init__.py.
+	Anaconda skeleton pypi build hopefully works again now.
+
+	* typhon/version.py:
+
+	Don't fail completely if there is a problem determining the svn
+	revision number. Just set it to 'unknown' in that case.
+
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py: Set DEVBUILD back to True after release.
 
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
