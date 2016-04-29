@@ -58,7 +58,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Typhon'
-copyright = '2015, The Typhon Developers'
+copyright = '2015-2016, The Typhon Developers'
 author = 'The Typhon Developers'
 
 # The version info for the project you're documenting, acts as replacement for

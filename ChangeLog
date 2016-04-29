@@ -1,5 +1,11 @@
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py: 0.2.11 Release.
+
+	* doc/conf.py: Update copyright year.
+
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py, typhon/version.py:
 
 	Seperate version handling from __init_.py. Otherwise we need to import
