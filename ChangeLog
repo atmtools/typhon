@@ -1,6 +1,12 @@
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
-	* typhon/__init__.py: 0.2.11 Release.
+	* typhon/version.py: Set DEVBUILD back to True after release.
+
+	* ChangeLog: Corrections to previous entries.
+
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/version.py: 0.2.11 Release.
 
 	* doc/conf.py: Update copyright year.
 
@@ -17,6 +23,8 @@
 
 	Don't fail completely if there is a problem determining the svn
 	revision number. Just set it to 'unknown' in that case.
+
+	* setup.py: Import typhon.version instead of typhon.
 
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
