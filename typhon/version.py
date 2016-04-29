@@ -39,7 +39,7 @@ def get_svn_revision():
         out = _minimal_ext_cmd(['svn', 'info'])
         revision = 'r' + findall('Revision: ([0-9]+)', out.decode('ascii'))[0]
     except (OSError, IndexError):
-        revision = "unknown"
+        revision = "dev"
 
     return revision
 

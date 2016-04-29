@@ -1,5 +1,19 @@
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py, setup.py:
+
+	Previous fix didn't work. Of course an import of typhon.version also
+	imports typhon/__init__.py. *duh*
+
+	Next try: Add a flag __TYPHON_SETUP__ to builtins in setup.py and set
+	it to True. This way __init__.py can determine if it is imported
+	normally or during setup process. During setup, only __version__ is
+	provided and all other imports are omitted.
+
+	* typhon/version.py: Use 'dev' instead of 'unknown'.
+
+2016-04-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/version.py: Set DEVBUILD back to True after release.
 
 	* ChangeLog: Corrections to previous entries.
