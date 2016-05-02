@@ -2,7 +2,7 @@
 
 
 def get_version_info():
-    VERSION = '0.2.12'
+    VERSION = '0.2.15'
     # Add revision number for development versions
     DEVBUILD = True
 

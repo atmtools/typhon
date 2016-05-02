@@ -1,5 +1,11 @@
 2016-05-02  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/version.py: 0.2.15 Release.
+
+	* MANIFEST.in: Add xml.bin test files.
+
+2016-05-02  Oliver Lemke  <olemke@core-dump.info>
+
 	* MANIFEST.in: Add mplstyle and xml test files.
 
 2016-04-29  Oliver Lemke  <olemke@core-dump.info>
