@@ -1,3 +1,14 @@
+2016-05-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/__init__.py: Import matplotlib.style
+
+	* typhon/plots/tests: Tests for the plots package.
+
+	* typhon/plots/tests/test_mplstyles.py:
+
+	Module to provide test functions. Currently containing
+	test_install_mplstyle() to check if all mplstyles get installed.
+
 2016-05-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: 0.2.15 Release.

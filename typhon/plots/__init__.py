@@ -11,6 +11,7 @@ import os
 
 import numpy as np
 import matplotlib as mpl
+import matplotlib.style
 
 from ..math import stats as tpstats
 
