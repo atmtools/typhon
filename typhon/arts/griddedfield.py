@@ -317,6 +317,27 @@ class GriddedField(object):
         obj.check_dimension()
         return obj
 
+    def to_atmlab_dict(self):
+        """Returns a copy of the GriddedField as a dictionary.
+
+        Returns a dictionary compatible with an atmlab structure.
+
+        Returns:
+            Dictionary containing the grids and data.
+        """
+
+        d = {}
+        if self.name is None:
+            d['name'] = ''
+        else:
+            d['name'] = self.name
+        d['grids'] = self.grids
+        d['gridnames'] = self.gridnames
+        d['data'] = self.data
+        d['dataname'] = ''
+
+        return d
+
     def write_xml(self, xmlwriter, attr=None):
         """Save a GriddedField to an ARTS XML file."""
         self.check_dimension()

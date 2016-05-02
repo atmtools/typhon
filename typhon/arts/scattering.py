@@ -189,6 +189,28 @@ class SingleScatteringData:
 
         return obj
 
+    def to_atmlab_dict(self):
+        """Returns a copy of the SSD as a dictionary.
+
+        Returns a dictionary compatible with an atmlab structure.
+
+        Returns:
+            Dictionary containing the grids and data.
+        """
+
+        d = {}
+        d['ptype'] = self.ptype
+        d['description'] = self.description
+        d['f_grid'] = self.f_grid
+        d['T_grid'] = self.T_grid
+        d['za_grid'] = self.za_grid
+        d['aa_grid'] = self.aa_grid
+        d['pha_mat_data'] = self.pha_mat_data
+        d['ext_mat_data'] = self.ext_mat_data
+        d['abs_vec_data'] = self.abs_vec_data
+
+        return d
+
     def write_xml(self, xmlwriter, attr=None):
         """Write a SingleScatterinData object to an ARTS XML file.
         """
@@ -378,8 +400,8 @@ class ScatteringMetaData:
     """
 
     def __init__(self, description=None, source=None, refr_index=None,
-            mass=None, diameter_max=None, diameter_volume_equ=None,
-            diameter_area_equ_aerodynamical=None):
+                 mass=None, diameter_max=None, diameter_volume_equ=None,
+                 diameter_area_equ_aerodynamical=None):
 
         self.description = description
         self.source = source
@@ -533,7 +555,7 @@ class ScatteringMetaData:
 
         if version != 3:
             raise Exception('Unsupported ScatteringMetaData version '
-                    '{}. Version must be 3.'.format(version))
+                            '{}. Version must be 3.'.format(version))
 
         obj = cls()
         obj.description = xmlelement[0].value()
@@ -544,6 +566,27 @@ class ScatteringMetaData:
         obj.diameter_volume_equ = xmlelement[5].value()
         obj.diameter_area_equ_aerodynamical = xmlelement[6].value()
         return obj
+
+    def to_atmlab_dict(self):
+        """Returns a copy of the SMD as a dictionary.
+
+        Returns a dictionary compatible with an atmlab structure.
+
+       Returns:
+           Dictionary containing the grids and data.
+        """
+
+        d = {}
+        d['version'] = 3
+        d['description'] = self.description
+        d['source'] = self.source
+        d['refr_index'] = self.refr_index
+        d['mass'] = self.mass
+        d['diameter_max'] = self.diameter_max
+        d['diameter_volume_equ'] = self.diameter_volume_equ
+        d['diameter_area_equ_aerodynamical'] = self.diameter_area_equ_aerodynamical
+
+        return d
 
     def write_xml(self, xmlwriter, attr=None):
         """Write a ScatteringMetaData object to an ARTS XML file.
@@ -561,4 +604,3 @@ class ScatteringMetaData:
         xmlwriter.write_xml(self.diameter_volume_equ)
         xmlwriter.write_xml(self.diameter_area_equ_aerodynamical)
         xmlwriter.close_tag()
-

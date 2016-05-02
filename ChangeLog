@@ -1,3 +1,10 @@
+2016-05-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/griddedfield.py, typhon/arts/scattering.py:
+
+	Added convenience method to_atmlab_dict to GriddedField,
+	ScatteringMetaData and SingleScatteringData.
+
 2016-05-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/__init__.py: Import matplotlib.style
