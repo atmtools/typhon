@@ -1,2 +1,6 @@
 include ChangeLog
 include DESCRIPTION.rst
+recursive-include typhon *.xml
+recursive-include typhon *.mplstyle
+include typhon/arts/tests/*.py
+include typhon/arts/xml/tests/*.py
