@@ -5,8 +5,10 @@
 ### LINES
 # See http://matplotlib.org/api/artist_api.html#module-matplotlib.lines for
 # more information on line properties.
-lines.linewidth : 2     # line with in points
-lines.markersize : 10   # markersize, in point
+lines.linewidth : 2             # line width in points
+lines.markersize : 10           # markersize, in point
+lines.solid_capstyle : round    # butt|round|projecting
+lines.dash_capstyle : round     # butt|round|projecting
 
 ### FONT
 # font properties used by text.Text.  See
@@ -23,12 +25,15 @@ font.size : 18
 # default face and edge color, default tick sizes, default fontsizes for
 # ticklabels, and so on.  See
 # http://matplotlib.org/api/axes_api.html#module-matplotlib.axes
+axes.formatter.limits : -3, 4 # use scientific notation if log10
+                              # of the axis range is smaller than the
+                              # first or larger than the second
 axes.titlesize : large  # fontsize of the axes title
 axes.labelsize : medium # fontsize of the x and y labels
 # TODO: Setting the prop_cycle for linewidth and linestyle breaks the usage of
 #       keyword aliases in the plot function. One has to use the full keyword.
 #       The issue is reported to matplotlib on github (36343).
-axes.prop_cycle    : cycler(linestyle=['-', '--', '-.'], linewidth=[2, 3, 4]) * cycler(color=['4878cf', '6acc65', 'd65f5f', 'b47cc7', 'c4ad66', '77bedb'])
+axes.prop_cycle : cycler(linestyle=['-', '--', '-.'], linewidth=[2, 2.5, 3]) * cycler(color=['4878cf', '6acc65', 'd65f5f', 'b47cc7', 'c4ad66', '77bedb'])
 
 ### TICKS
 # see http://matplotlib.org/api/axis_api.html#matplotlib.axis.Tick
@@ -36,9 +41,9 @@ xtick.labelsize : small # fontsize of the tick labels
 ytick.labelsize : small
 
 ### LEGEND
+legend.fontsize : medium
 legend.loc : best           # default location for the legend
 legend.numpoints : 1        # the number of points in the legend line
-legend.fontsize : medium
 
 ### FIGURE
 # See http://matplotlib.org/api/figure_api.html#matplotlib.figure.Figure
@@ -54,3 +59,6 @@ savefig.bbox : tight # 'tight' or 'standard'.
                      # e.g. setting animation.writer to ffmpeg will not work,
                      # use ffmpeg_file instead
 
+### GRIDS
+grid.color : 0.6        # grid color
+grid.linestyle : -      # dotted

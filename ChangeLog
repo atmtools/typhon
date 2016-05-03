@@ -1,3 +1,10 @@
+2016-05-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Improved the overall look of the typhon style sheet. Changes include grid
+	settings, adjusted linewidths and fine tuned scientific notation limits.
+
 2016-05-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/griddedfield.py, typhon/arts/scattering.py:
