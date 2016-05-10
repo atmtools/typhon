@@ -1,3 +1,11 @@
+2016-05-10  Lukas Kluft  <lukas.kluft@gmail.com>
+	* doc/plots.rst: Show source and generated plots of stylesheet_gallery.py
+
+	* doc/pyplots/stylesheet_gallery.py:
+
+	Generate example plots using the classic style and all styles shipped with
+	typhon.
+
 2016-05-03  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/stylelib/typhon.mplstyle:
