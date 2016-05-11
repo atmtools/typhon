@@ -2,9 +2,9 @@
 
 
 def get_version_info():
-    VERSION = '0.2.15'
+    VERSION = '0.2.16'
     # Add revision number for development versions
-    DEVBUILD = True
+    DEVBUILD = False
 
     if DEVBUILD:
         from os import path
