@@ -30,7 +30,18 @@ class ARTSTypesLoadMultiplexer:
             raise RuntimeError('Unknown format in <arts> tag: {}'.format(
                 elem.attrib['format']))
 
-        return elem[0].value()
+        ret = elem[0].value()
+
+        # Try next element, if return value is None (comment tags).
+        n = 1
+        while ret is None:
+            try:
+                ret = elem[n].value()
+                n += 1
+            except:
+                break
+
+        return ret
 
     @staticmethod
     def comment(elem):

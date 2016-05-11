@@ -1,5 +1,23 @@
 2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/xml/read.py: Fixed the handling of comments.
+
+	Comment tags are now handled properly. If a XML file contains a comment
+	only None is returned. Comments within a file storing actual data are
+	ignored.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Added two test cases to check the handling of comments in XML files.
+
+	* typhon/arts/xml/tests/reference/arrayofindex-comment.xml:
+
+	ArrayOfIndex with additional comment tag.
+
+	* typhon/arts/xml/tests/reference/comment.xml: Only a comment tag.
+
+2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* doc/_static/increased_width.css: CSS style with increased maxwidth.
 
 	The maximum width for the documentation is increased to prevent plots

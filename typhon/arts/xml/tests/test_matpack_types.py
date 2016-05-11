@@ -116,6 +116,16 @@ class TestLoad(object):
         test_data = xml.load(self.ref_dir + 'arrayofvector.xml')
         assert np.array_equal(test_data, reference)
 
+    def test_load_comment(self):
+        """Load reference XML file storing only a comment."""
+        test_data = xml.load(self.ref_dir + 'comment.xml')
+        assert test_data is None
+
+    def test_load_arrayofindex_with_comment(self):
+        """Load reference XML file for ARTS type ArrayOfIndex with comment."""
+        reference = [1., 2., 3.]
+        test_data = xml.load(self.ref_dir + 'arrayofindex-comment.xml')
+        assert np.array_equal(test_data, reference)
 
     def _load_tensor(self, n):
         """Load tensor of dimension n and compare data to reference.
