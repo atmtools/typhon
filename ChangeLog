@@ -1,5 +1,9 @@
 2016-05-11  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/version.py: Set DEVBUILD back to True after release.
+
+2016-05-11  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/version.py: 0.2.16 Release.
 
 	* ChangeLog: Minor formatting fixes.
