@@ -1,3 +1,19 @@
+2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/_static/increased_width.css: CSS style with increased maxwidth.
+
+	The maximum width for the documentation is increased to prevent plots
+	using the typhon style from being scaled.
+
+	* doc/_templates/layout.html:
+
+	Use added CSS style for the default documentation layout.
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Switched yellow and cyan in colorcycle. This way blue hues do not follow
+	each other when the cycle starts over again.
+
 2016-05-11  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.
@@ -11,7 +27,7 @@
 2016-05-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/plots.rst:
-	
+
 	Show source and generated plots of stylesheet_gallery.py
 
 	* doc/pyplots/stylesheet_gallery.py:
