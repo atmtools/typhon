@@ -68,6 +68,12 @@ class ARTSXMLWriter:
         self.write('<?xml version="1.0"?>\n')
         self.open_tag('arts', {'version': version, 'format': filetype})
 
+    def write_comment(self, comment):
+        """Write comment tag to XML file."""
+        self.open_tag('comment')
+        self.write(str(comment) + '\n')
+        self.close_tag()
+
     def open_tag(self, tag, attr=None, newline=True):
         """Write opening tag with attributes.
 

@@ -14,7 +14,7 @@ from . import write
 __all__ = ['load', 'save']
 
 
-def save(var, filename, precision='.7e', format='ascii'):
+def save(var, filename, precision='.7e', format='ascii', comment=None):
     """Save a variable to an ARTS XML file.
 
     Args:
@@ -23,6 +23,7 @@ def save(var, filename, precision='.7e', format='ascii'):
             If the name ends in .gz, the file is compressed on the fly.
         precision (str): Format for output precision.
         format (str): Output format: 'ascii' (default) or 'binary'.
+        comment (str): Comment string included in a tag above data.
 
     Note:
         Python's gzip module is extremely slow in writing. Consider
@@ -46,11 +47,15 @@ def save(var, filename, precision='.7e', format='ascii'):
                 axw = write.ARTSXMLWriter(fp, precision=precision,
                                           binaryfp=binaryfp)
                 axw.write_header()
+                if comment is not None:
+                    axw.write_comment(comment)
                 axw.write_xml(var)
                 axw.write_footer()
         elif format == 'ascii':
             axw = write.ARTSXMLWriter(fp, precision=precision)
             axw.write_header()
+            if comment is not None:
+                axw.write_comment(comment)
             axw.write_xml(var)
             axw.write_footer()
         else:

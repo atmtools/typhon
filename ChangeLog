@@ -1,5 +1,16 @@
 2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/xml/__init__.py:
+
+	Added keyword argument 'comment' to save() function. A string passed as
+	comment is included within a comment tag at the top of the XML file.
+
+	* typhon/arts/xml/write.py:
+
+	Implemented function write_comment() to write strings into a comment tag.
+
+2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/xml/read.py: Fixed the handling of comments.
 
 	Comment tags are now handled properly. If a XML file contains a comment
