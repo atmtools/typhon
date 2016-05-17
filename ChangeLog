@@ -1,5 +1,9 @@
 2016-05-17  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/version.py: Set DEVBUILD back to True after release.
+
+2016-05-17  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/version.py: 0.3.0 Release.
 
 	* setup.py: Change dev status to '4 - Beta'.
