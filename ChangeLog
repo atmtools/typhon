@@ -1,3 +1,10 @@
+2016-05-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init.py__:
+
+	Added function extract_block_diag() to extract blocks around the diagonal
+	of a square matrix.
+
 2016-05-11  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/xml/__init__.py:
