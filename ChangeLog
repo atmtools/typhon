@@ -1,3 +1,9 @@
+2016-05-20  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Changed default mathtext font.
+
 2016-05-17  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.

@@ -21,6 +21,9 @@ lines.dash_capstyle : round     # butt|round|projecting
 # small, medium, large, x-large, xx-large
 font.size : 18
 
+### TEXT
+mathtext.default : regular # same font used in regular text
+
 ### AXES
 # default face and edge color, default tick sizes, default fontsizes for
 # ticklabels, and so on.  See
