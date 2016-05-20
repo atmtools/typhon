@@ -341,7 +341,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 See :func:`Dataset.read_period` for details.
 
             Any further keyword arguments are passed on to the particular
-            reading routine.
+            reading routine.  For details, please refer to the docstring
+            for the class.
 
         Returns:
 
@@ -888,16 +889,21 @@ class MultiFileDataset(Dataset):
             if (any(f in gd.keys() for f in self.datefields) and
                 (any(f in gd.keys() for f in {x+"_end" for x in self.datefields})
                         or self.granule_duration is not None)):
-                st_date = [int(gd.get(p, kwargs.get(p, "0"))) for p in self.datefields]
-                # month and day can't be 0...
-                st_date[1] = st_date[1] or 1
-                st_date[2] = st_date[2] or 1
+                st_date = [int(gd.get(p, kwargs.get(p, 0))) for p in self.datefields]
+                td = datetime.timedelta()
+                if st_date[1] == st_date[2] == 0:
+                    if "doy" in gd:
+                        td += datetime.timedelta(days=int(gd["doy"])-1)
+                    # month and day can't be 0...
+                    st_date[1] = st_date[1] or 1
+                    st_date[2] = st_date[2] or 1
                 # maybe it's a two-year notation
-                st_date[0] = self._getyear(gd, "year", kwargs.get("year", "0"))
+                st_date[0] = self._getyear(gd, "year", kwargs.get("year", 0))
 
                 start = datetime.datetime(*st_date)
                 if "tod" in gd and start.time() == datetime.time(0):
-                    start += datetime.timedelta(seconds=int(gd["tod"]))
+                    td += datetime.timedelta(seconds=int(gd["tod"]))
+                start += td
                 if any(k.endswith("_end") for k in gd.keys()):
                     # FIXME: Does this go well at the end of
                     # year/month/day boundary?  Should really makes sure

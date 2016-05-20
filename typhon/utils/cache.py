@@ -3,6 +3,7 @@
 
 import functools
 import logging
+import copy
 
 def mutable_cache(maxsize=10):
     """In-memory cache like functools.lru_cache but for any object
@@ -43,7 +44,9 @@ def mutable_cache(maxsize=10):
             if result is not sentinel:
                 logging.debug(("Getting result from cache "
                     " (key {!s}").format(key))
-                return result
+                # make sure we return a copy of the result; when a = f();
+                # b = f(), users should reasonably expect that a is not b.
+                return copy.copy(result)
             if kwds.get("CLEAR_CACHE"):
                 del kwds["CLEAR_CACHE"]
                 cache.clear()

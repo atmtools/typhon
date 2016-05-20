@@ -1,3 +1,18 @@
+2016-05-20  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon/utils/cache.py: Bugfix
+
+	- Now I realise why functools.lru_cache refuses to cache mutable
+	results... duh!  The mutable result gets altered earlier or later, so
+	it's not an actual cache of the object.  As a workaround (I still want
+	to cache it!) I'm caching a copy.
+
+	* typhon/datasets/dataset.py: Bugfix
+
+	- Something was going disastrously wrong in find_granules_sorted.  It
+	doesn't seem to go nearly as disastrously wrong now.  It might even be
+	miraculously correct.
+
 2016-05-20  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/stylelib/typhon.mplstyle:
