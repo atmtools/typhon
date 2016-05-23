@@ -1,3 +1,9 @@
+2016-05-23  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py:
+
+	Added class to provide a simple time profiling utility.
+
 2016-05-20  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon/utils/cache.py: Bugfix
