@@ -109,7 +109,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
     """
 
-    _instances = {}
+    _instances = None
 
     start_date = None
     end_date = None
@@ -118,8 +118,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     unique_fields = {"time", "lat", "lon"}
     related = {}
 
+    # Make singleton: there is no point in having multiple copies of a
+    # dataset-object around when both relate to the same dataset.
     def __new__(cls, name=None, **kwargs):
         name = name or cls.name or cls.__name__
+        if cls._instances is None:
+            cls._instances = {}
         if name in cls._instances:
             return cls._instances[name]
         self = super().__new__(cls)
@@ -279,6 +283,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                              ' (', progressbar.ETA(), ') '])
             bar.start()
             bar.update(0)
+        else:
+            logging.info("Psst!  If you install the progressbar2 package, "
+                "you will get a fancy progressbar!")
         for (g_start, gran) in finder(start, end, return_time=True, **locator_args):
             try:
                 # .read is already being verbose…
@@ -548,6 +555,13 @@ class MultiFileDataset(Dataset):
         for x in itertools.product(datefields, ("", "_end"))]
     valid_field_values = {}
 
+    # When set to a string, interpreted as a path to database of granules
+    # with corresponding first lines.  This may be relevant for cases like
+    # the NOAA and MetOp satelline sensors, where subsequent granules
+    # contain some repetitions of lines from previous granules.
+    granules_firstline_file = None
+    granules_firstline_db = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         for attr in ("basedir", "subdir", "granule_cache_file"):
@@ -727,6 +741,10 @@ class MultiFileDataset(Dataset):
         If keyword argument `return_time` is present and True, yield
         tuples of (start_time, path) rather than just `path`.
 
+        The results are usually sorted by start time, but this is not
+        guaranteed and depends on the filesystem.  If you need sorted
+        granules, please use find_granules_sorted.
+
         Arguments:
 
             d_start (datetime.date): Starting date.
@@ -813,6 +831,56 @@ class MultiFileDataset(Dataset):
             yield from sorted(allgran)
         else:
             yield from sorted(allgran, key=self.get_times_for_granule)
+
+    def find_most_recent_granule_before(self, instant, **locator_args):
+        """Find granule covering instant
+
+        Find granule started most recently before `instant`.
+
+        Arguments:
+
+            instant (datetime.datetime): Time to search for
+                datetime for which a granule is sought
+                beginning of dataset.
+
+            **locator_args:
+                Any other keyword arguments that the particular dataset
+                needs.  Commonly, `satname` is needed.
+                 
+        Returns:
+            pathlib.Path object for sought granule.
+
+        """
+
+        res = self.get_subdir_resolution()
+        if res == "day":
+            d0 = datetime.datetime(instant.year, instant.month, instant.day,
+                                   0, 0, 0)
+            d1 = d0 + datetime.timedelta(days=1)
+            d0 = d0 - datetime.timedelta(days=1) # granule may start yesterday
+        elif res == "month":
+            d0 = datetime.datetime(instant.year, instant.month, 1,
+                                   0, 0, 0)
+            d1 = d0 + datetime.timedelta(days=31)
+            d0 = d0 - datetime.timedelta(days=31)
+        elif res == "year":
+            d0 = datetime.datetime(instant.year-1, 1, 1,
+                                   0, 0, 0)
+            d1 = datetime.datetime(instant.year, 12, 31, 23, 59, 59)
+        else:
+            d0 = d1 = None # search entire dataset
+
+        first = False
+        for (time_st, gran) in self.find_granules_sorted(d0, d1,
+                        return_time=True, **locator_args):
+            if time_st > instant:
+                if not first:
+                    return lastgran
+                break
+            lastgran = gran
+            first = False
+        raise GranuleLocatorError("Could not find any granule "
+            "covering {:%Y-%m-%d %H:%M:%S}".format(instant))
 
     @staticmethod
     def _getyear(gd, s, alt):
@@ -963,6 +1031,14 @@ class MultiFileDataset(Dataset):
                 self._granule_start_times = shelve.open(tf.name)
         else:
             self._granule_start_times = {}
+
+    def _filter_firstline(self, f, M):
+        # by default, do nothing
+        raise NotImplementedError("Dataset {self:s} {self.name:s} needs "
+            "database for storing a table with the first new scanline per "
+            "granule, i.e. the first line not contained in the previous. "
+            "Please define `granules_firstline` in source-code or "
+            "configuration file.")
 
 class SingleMeasurementPerFileDataset(MultiFileDataset):
     """Represents datasets where each file contains one measurement.
