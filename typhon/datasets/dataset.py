@@ -47,7 +47,7 @@ class DataFileError(Exception):
     problem is due to corrupted data and not due to a bug.
     """
 
-class InvalidFileError(DataFileError):
+class InvalidFileError(DataFileError, ValueError):
     """Raised when the requested information cannot be obtained from the file
 
     See DataFileError for more information.
@@ -802,18 +802,17 @@ class MultiFileDataset(Dataset):
                             else:
                                 yield child
         if not found_any_dirs:
-            print("Found no directories.  Make sure {self.name:s} has "
+            logging.warning("Found no directories.  Make sure {self.name:s} has "
                   "coverage in {dt_start:%Y-%m-%d %H:%M:%S} – "
                   "{dt_end:%Y-%m-%d %H:%M:%S} and that you spelt any "
                   "additional information correctly:".format(self=self,
                   dt_start=dt_start, dt_end=dt_end), extra, "Satellite "
-                  "names and other fields are case-sensitive!",
-                  file=sys.stderr, flush=True)
+                  "names and other fields are case-sensitive!")
         elif not found_any_grans:
-            print("Directories searched appear to contain no matching "
+            logging.warning("Directories searched appear to contain no matching "
                   "files.  Make sure basedir, subdir, and regexp are "
                   "correct and you did not misspell any extra "
-                  "information: ", extra, file=sys.stderr, flush=True)
+                  "information: ", extra)
             
     def find_granules_sorted(self, dt_start=None, dt_end=None, **extra):
         """Yield all granules, sorted by times.
