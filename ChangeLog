@@ -1,3 +1,11 @@
+2016-06-13  Gerrit Holl  <g.holl@reading.ac.uk:
+
+	* typhon/datasets/dataset.py(Dataset.read_period):
+
+	- Actually read all measurements in period, including those contained
+	in a granule starting before the starting time.  Do not return
+	measurements beyond the end of the indicated period.
+
 2016-06-10  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py: Use the logging module to warn when no

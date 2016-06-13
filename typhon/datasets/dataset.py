@@ -202,6 +202,29 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         For details, see `find_granules`.
         """
         raise NotImplementedError()
+    
+    @abc.abstractmethod
+    def find_most_recent_granule_before(self, instant,
+            **locator_args):
+        """Find granule covering instant
+
+        Find granule started most recently before `instant`.
+
+        Arguments:
+
+            instant (datetime.datetime): Time to search for
+                datetime for which a granule is sought
+                beginning of dataset.
+
+            **locator_args:
+                Any other keyword arguments that the particular dataset
+                needs.  Commonly, `satname` is needed.
+                 
+        Returns:
+            pathlib.Path object for sought granule.
+
+        """
+        ...
 
     # Cannot use functools.lru_cache because it cannot handle mutable
     # results or arguments
@@ -276,6 +299,13 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         logging.info("Reading {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
+        # some content may be in last granule before starting time
+        if start > self.start_date:
+            last_before = self.find_most_recent_granule_before(
+                start, **locator_args)
+            cont = self.read(str(last_before), fields=fields,
+                    **reader_args)
+            contents.append(cont[cont["time"]>=start])
         if sorted and progressbar:
             bar = progressbar.ProgressBar(maxval=1,
                     widgets=[progressbar.Bar("=", "[", "]"), " ",
@@ -304,7 +334,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else:
                     raise
             else:
-                contents.append(cont)
+                contents.append(cont[cont["time"]<=end])
             if sorted and progressbar:
                 bar.update((g_start-start) / (end-start))
         if sorted and progressbar:
@@ -491,6 +521,14 @@ class SingleFileDataset(Dataset):
 
     def read(self, f=None, fields="all"):
         return super().read(f or self.srcfile, fields)
+
+    def find_most_recent_granule_before(self, instant,
+            **locator_args):
+        if instant > self.start_date:
+            yield from self.find_granules()
+        else:
+            raise GranuleLocatorError("Instant out of range: "
+                "{:%Y-%m-%d %H:%M:%S}".format(instant))
 
 class MultiFileDataset(Dataset):
     """Represents a dataset where measurements are spread over multiple
@@ -832,25 +870,7 @@ class MultiFileDataset(Dataset):
             yield from sorted(allgran, key=self.get_times_for_granule)
 
     def find_most_recent_granule_before(self, instant, **locator_args):
-        """Find granule covering instant
-
-        Find granule started most recently before `instant`.
-
-        Arguments:
-
-            instant (datetime.datetime): Time to search for
-                datetime for which a granule is sought
-                beginning of dataset.
-
-            **locator_args:
-                Any other keyword arguments that the particular dataset
-                needs.  Commonly, `satname` is needed.
-                 
-        Returns:
-            pathlib.Path object for sought granule.
-
-        """
-
+        # docstring in parent class
         res = self.get_subdir_resolution()
         if res == "day":
             d0 = datetime.datetime(instant.year, instant.month, instant.day,
@@ -967,7 +987,11 @@ class MultiFileDataset(Dataset):
                 # maybe it's a two-year notation
                 st_date[0] = self._getyear(gd, "year", kwargs.get("year", 0))
 
-                start = datetime.datetime(*st_date)
+                try:
+                    start = datetime.datetime(*st_date)
+                except ValueError as e:
+                    raise InvalidFileError("File {!s} has invalid "
+                        "starting date, giving up".format(p)) from v
                 if "tod" in gd and start.time() == datetime.time(0):
                     td += datetime.timedelta(seconds=int(gd["tod"]))
                 start += td
@@ -982,7 +1006,11 @@ class MultiFileDataset(Dataset):
                                                kwargs.get(p+"_end", sd_x)))
                                    for (p, sd_x) in zip(self.datefields[1:],
                                                         st_date[1:])]
-                    end = datetime.datetime(*end_date)
+                    try:
+                        end = datetime.datetime(*end_date)
+                    except ValueError as v:
+                        raise InvalidFileError("File {!s} has invalid "
+                            "ending date, giving up".format(p)) from v
                     if end_date < st_date: # must have crossed date boundary
                         end += datetime.timedelta(days=1)
                 elif self.granule_duration is not None:
