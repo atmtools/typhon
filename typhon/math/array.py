@@ -83,3 +83,25 @@ def limit_ndarray(M, limits):
             selection = (selection & lelo & sthi)
 
     return M[selection]
+
+def parity(v):
+    """Vectorised parity-checking.
+
+    For any ndarray with an nd.integer dtype, return an equally shaped
+    array with the bit parity for each element.
+
+    Arguments:
+
+        v (numpy.ndarray): Array of integer dtype
+
+    Returns:
+
+        ndarray with uint8 dtype with the parity for each value in v
+    """
+
+    v = v.copy() # don't ruin original
+    parity = numpy.zeros(dtype=">u1", shape=v.shape)
+    while v.any():
+        parity[v!=0] += 1
+        v &= (v-1)
+    return parity

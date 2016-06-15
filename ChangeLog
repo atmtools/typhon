@@ -1,4 +1,16 @@
-2016-06-13  Gerrit Holl  <g.holl@reading.ac.uk:
+2016-06-15  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/array.py:
+
+	- Added function that calculates the bit parity of all integers in an
+	array.  This is used in the HIRS reading routine that I will be adding
+	at some point.
+
+	* typhon/datasets/dataset.py:
+
+	- Bugfix when instant is near the end of a day/month/year
+
+2016-06-13  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset.read_period):
 

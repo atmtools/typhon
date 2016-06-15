@@ -875,17 +875,17 @@ class MultiFileDataset(Dataset):
         if res == "day":
             d0 = datetime.datetime(instant.year, instant.month, instant.day,
                                    0, 0, 0)
-            d1 = d0 + datetime.timedelta(days=1)
+            d1 = d0 + datetime.timedelta(days=2) # closed interval
             d0 = d0 - datetime.timedelta(days=1) # granule may start yesterday
         elif res == "month":
             d0 = datetime.datetime(instant.year, instant.month, 1,
                                    0, 0, 0)
-            d1 = d0 + datetime.timedelta(days=31)
+            d1 = d0 + datetime.timedelta(days=31*2)
             d0 = d0 - datetime.timedelta(days=31)
         elif res == "year":
             d0 = datetime.datetime(instant.year-1, 1, 1,
                                    0, 0, 0)
-            d1 = datetime.datetime(instant.year, 12, 31, 23, 59, 59)
+            d1 = datetime.datetime(instant.year+1, 12, 31, 23, 59, 59)
         else:
             d0 = d1 = None # search entire dataset
 
@@ -991,7 +991,7 @@ class MultiFileDataset(Dataset):
                     start = datetime.datetime(*st_date)
                 except ValueError as e:
                     raise InvalidFileError("File {!s} has invalid "
-                        "starting date, giving up".format(p)) from v
+                        "starting datetime, giving up".format(p)) from v
                 if "tod" in gd and start.time() == datetime.time(0):
                     td += datetime.timedelta(seconds=int(gd["tod"]))
                 start += td
@@ -1010,7 +1010,7 @@ class MultiFileDataset(Dataset):
                         end = datetime.datetime(*end_date)
                     except ValueError as v:
                         raise InvalidFileError("File {!s} has invalid "
-                            "ending date, giving up".format(p)) from v
+                            "ending datetime, giving up".format(p)) from v
                     if end_date < st_date: # must have crossed date boundary
                         end += datetime.timedelta(days=1)
                 elif self.granule_duration is not None:
