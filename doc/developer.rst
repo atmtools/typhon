@@ -8,7 +8,7 @@ Overall code formatting should adhere to the `Google Python Style Rules`_. Most
 notably, use 4 spaces for indentation (no tabs!) and try to keep maximum line
 length to 80 characters.
 
-.. _`Google Python Style Rules`: https://google-styleguide.googlecode.com/svn/trunk/pyguide.html#Python_Style_Rules
+.. _`Google Python Style Rules`: https://google.github.io/styleguide/pyguide.html
 
 Documentation Style
 -------------------

@@ -1,3 +1,9 @@
+2016-06-22  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/developer.rst: Fixed broken link to Google Python Style Guide.
+
+	* doc/pyplots/_data/test_data.nc: Increased resolution of test data.
+
 2016-06-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/math/array.py:
