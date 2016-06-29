@@ -144,3 +144,20 @@ def get_distribution_as_percentiles(x, y,
 
     ybinned = bin(x, y, bins)
     return numpy.vstack([scipy.stats.scoreatpercentile(b, ptiles) for b in ybinned])
+
+def adev(x, dim=-1):
+    r"""Calculate Allan deviation in its simplest form
+
+    Arguments:
+
+        x (ndarray)     n-dim array for Allan calculation
+        dim (int)       optional, axis to operate along, defaults to last
+
+        \sigma = \sqrt{\frac{1}{2(N-1)} \sum_{i=1}^{N-1} (y_{i+1} - y_i)^2}
+
+    Equation source: Jon Mittaz, personal communication, April 2016
+    """
+
+    x = x.swapaxes(-1, dim)
+    N = x.shape[-1]
+    return numpy.sqrt(1/(2*(N-1)) * ((x[..., 1:] - x[..., :-1])**2).sum(-1))

@@ -169,7 +169,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
     @abc.abstractmethod
     def find_granules(self, start=datetime.datetime.min,
-                                  end=datetime.datetime.max):
+                                  end=datetime.datetime.max,
+                    include_last_before=False):
         """Loop through all granules for indicated period.
 
         This is a generator that will loop through all granules from
@@ -187,6 +188,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 End datetime.  When omitted, continue to end of dataset.
                 Last granule will start before this datetime, but contents
                 may continue beyond it.
+
+            include_last_before (bool): Be inclusive
+                When True, also return the last granule /before/ start, so
+                that a reader is sure to include all data in the covered
+                period.  When False, the first granule yielded is the
+                first granule starting after start.
                  
         Yields:
             pathlib.Path objects for all files in dataset.  Sorting is not
@@ -270,7 +277,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 granule finding routines.
 
             reader_args (dict): Extra keyword arguments to be passed on to
-                reading routine.
+                reading routine.  Since these differ per type, those are
+                probably documented in the class docstring.
 
             limits (dict): Limitations to apply to each granule.  For the
                 exact format, see `:func:typhon.math.array.limit_ndarray`.
@@ -300,12 +308,20 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
         # some content may be in last granule before starting time
-        if start > self.start_date:
-            last_before = self.find_most_recent_granule_before(
-                start, **locator_args)
-            cont = self.read(str(last_before), fields=fields,
-                    **reader_args)
-            contents.append(cont[cont["time"]>=start])
+        # I should do this in the finder, to prevent code duplication
+#         if start > self.start_date:
+#             last_before = self.find_most_recent_granule_before(
+#                 start, **locator_args)
+#             try:
+#                 cont = self.read(str(last_before), fields=fields,
+#                         **reader_args)
+#             except DataFileError as exc:
+#                 if onerror == "skip":
+#                     logging.error("Can not read file {}: {}".format(
+#                         gran, exc.args[0]))
+#                 else:
+#                     raise
+#             contents.append(cont[cont["time"]>=start])
         if sorted and progressbar:
             bar = progressbar.ProgressBar(maxval=1,
                     widgets=[progressbar.Bar("=", "[", "]"), " ",
@@ -316,7 +332,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         else:
             logging.info("Psst!  If you install the progressbar2 package, "
                 "you will get a fancy progressbar!")
-        for (g_start, gran) in finder(start, end, return_time=True, **locator_args):
+        anygood = False
+        for (g_start, gran) in finder(start, end, return_time=True, 
+                                      include_last_before=True,
+                                      **locator_args):
             try:
                 # .read is already being verbose…
                 #logging.debug("Reading {!s}".format(gran))
@@ -328,27 +347,32 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "{:d} to {:d}".format(oldsize, cont.size))
             except DataFileError as exc:
                 if onerror == "skip":
-                    logging.error("Could not read file {}: {}".format(
+                    logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
                     continue
                 else:
                     raise
             else:
-                contents.append(cont[cont["time"]<=end])
+                contents.append(
+                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
+                anygood = True
             if sorted and progressbar:
-                bar.update((g_start-start) / (end-start))
+                bar.update(max((g_start-start) / (end-start),0))
         if sorted and progressbar:
             bar.update(1)
             bar.finish()
         # retain type of first result, ordinary array or masked array
-        arr = (numpy.ma.concatenate 
-            if isinstance(contents[0], numpy.ma.MaskedArray)
-            else numpy.concatenate)(contents)
+        if anygood:
+            arr = (numpy.ma.concatenate 
+                if isinstance(contents[0], numpy.ma.MaskedArray)
+                else numpy.concatenate)(contents)
 
-        if "flags" in self.related:
-            arr = self.flag(arr)
-                
-        return arr
+            if "flags" in self.related:
+                arr = self.flag(arr)
+                    
+            return arr
+        else:
+            raise DataFileError("Can not find any valid data!")
             
     @abc.abstractmethod
     def _read(self, f, fields="all"):
@@ -507,13 +531,17 @@ class SingleFileDataset(Dataset):
     end_date = datetime.datetime.max
     srcfile = None
 
+    # docstring in parent
     def find_granules(self, start=datetime.datetime.min,
-                            end=datetime.datetime.max):
+                            end=datetime.datetime.max,
+                            include_last_before=False):
         if start < self.end_date and end > self.start_date:
             yield self.srcfile
 
+    # docstring in parent
     def find_granules_sorted(self, start=datetime.datetime.min,
-                                   end=datetime.datetime.max):
+                                   end=datetime.datetime.max,
+                                   include_last_before=False):
         yield from self.find_granules(start, end)
 
     def get_times_for_granule(self, gran=None):
@@ -525,7 +553,7 @@ class SingleFileDataset(Dataset):
     def find_most_recent_granule_before(self, instant,
             **locator_args):
         if instant > self.start_date:
-            yield from self.find_granules()
+            yield from self.find_granules(**locator_args)
         else:
             raise GranuleLocatorError("Instant out of range: "
                 "{:%Y-%m-%d %H:%M:%S}".format(instant))
@@ -767,7 +795,8 @@ class MultiFileDataset(Dataset):
         else:
             yield ({}, self.basedir)
           
-    def find_granules(self, dt_start=None, dt_end=None, **extra):
+    def find_granules(self, dt_start=None, dt_end=None, 
+            include_last_before=False, **extra):
         """Yield all granules/measurementfiles in period
 
         Accepts extra keyword arguments.  Meaning depends on actual
@@ -787,6 +816,8 @@ class MultiFileDataset(Dataset):
 
             d_start (datetime.date): Starting date.
             d_end (datetime.date): Ending date
+            include_last_before (bool): Include last granule starting
+                before.
             **extra: Any extra keyword arguments.  This will be passed on to
                 format self.basedir / self.subdir, in case the standard fields
                 like year, month, etc. do not provide enough information.
@@ -817,6 +848,13 @@ class MultiFileDataset(Dataset):
         found_any_grans = False
         logging.debug(("Searching for {!s} granules between {!s} and {!s} "
                       ).format(self.name, dt_start, dt_end))
+        if include_last_before and dt_start > self.start_date:
+            try:
+                yield self.find_most_recent_granule_before(dt_start, 
+                        return_time=return_time, **extra)
+            except GranuleLocatorError: # no problem
+                pass
+
         for (timeinfo, subdir) in self.iterate_subdirs(d_start, d_end,
                                                        **extra):
             if subdir.exists() and subdir.is_dir():
@@ -852,13 +890,15 @@ class MultiFileDataset(Dataset):
                   "correct and you did not misspell any extra "
                   "information: ", extra)
             
-    def find_granules_sorted(self, dt_start=None, dt_end=None, **extra):
+    def find_granules_sorted(self, dt_start=None, dt_end=None, 
+                include_last_before=False, **extra):
         """Yield all granules, sorted by times.
 
         For documentation, see :func:`~Dataset.find_granules`.
         """
 
-        allgran = list(self.find_granules(dt_start, dt_end, **extra))
+        allgran = list(self.find_granules(dt_start, dt_end, 
+                       include_last_before, **extra))
 
         # I've been through all granules at least once, so all should be
         # cached now; no need for additional hints when granule timeinfo
@@ -871,6 +911,7 @@ class MultiFileDataset(Dataset):
 
     def find_most_recent_granule_before(self, instant, **locator_args):
         # docstring in parent class
+        return_time = locator_args.pop("return_time", False)
         res = self.get_subdir_resolution()
         if res == "day":
             d0 = datetime.datetime(instant.year, instant.month, instant.day,
@@ -889,17 +930,21 @@ class MultiFileDataset(Dataset):
         else:
             d0 = d1 = None # search entire dataset
 
-        first = False
+        first = True
         for (time_st, gran) in self.find_granules_sorted(d0, d1,
                         return_time=True, **locator_args):
             if time_st > instant:
                 if not first:
-                    return lastgran
+                    if return_time:
+                        return (lasttime, lastgran)
+                    else:
+                        return lastgran
                 break
+            lasttime = time_st
             lastgran = gran
             first = False
-        raise GranuleLocatorError("Could not find any granule "
-            "covering {:%Y-%m-%d %H:%M:%S}".format(instant))
+        raise GranuleLocatorError("Can not find any granule "
+            "before {:%Y-%m-%d %H:%M:%S}".format(instant))
 
     @staticmethod
     def _getyear(gd, s, alt):

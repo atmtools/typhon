@@ -1,3 +1,18 @@
+2016-06-29  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/stats.py:
+
+	- Add function to calculate Allan Devation
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	- Make figure title (suptitle) size consistent with axes title size.
+
+	* typhon/datasets/dataset.py:
+
+	- Fix bug related to boundary cases when ensuring last data from
+	previou granule also read.
+
 2016-06-22  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/developer.rst: Fixed broken link to Google Python Style Guide.

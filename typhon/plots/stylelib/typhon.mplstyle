@@ -51,6 +51,7 @@ legend.numpoints : 1        # the number of points in the legend line
 ### FIGURE
 # See http://matplotlib.org/api/figure_api.html#matplotlib.figure.Figure
 figure.figsize : 10, 6.1803398874989481 # figure size in inches
+figure.titlesize : large # same as axes.titlesize
 
 ### IMAGES
 image.cmap : viridis # default colormap
