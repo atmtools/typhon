@@ -18,7 +18,7 @@ __all__ = ['GriddedField',
 
 
 class GriddedField(object):
-    """:class:`GriddedField` simulates the behaviour of the same-named ARTS dataype.
+    """:class:`GriddedField` implements the same-named ARTS dataype.
 
     This class provides the facility of storing gridded data. For this purpose
     the grid-axes as well as the data are stored. GriddedFields can be easily
@@ -29,7 +29,8 @@ class GriddedField(object):
 
     Note:
         For the special case of storing atmospheric profiles as GriddedField3
-        the latitude and longitude grids have to be initialised as empty np.array.
+        the latitude and longitude grids have to be initialised as empty
+        np.array.
 
     Examples:
         Create and manipulate a :class:`GriddedField` object.
@@ -199,7 +200,7 @@ class GriddedField(object):
         grid_dim_error = (('The number of grids has to fit the dimension '
                            'of the GriddedField.\nThe dimension is {0} '
                            'but {1} grids were passed.')
-                           .format(self.dimension, len(self.grids)))
+                          .format(self.dimension, len(self.grids)))
 
         # number of grids has to match the GriddedField dimension
         if len(self.grids) != self.dimension:
@@ -212,7 +213,7 @@ class GriddedField(object):
         grid_name_error = (('The number of gridnames has to fit the '
                             'dimension of the GriddedField.\nThe dimension'
                             ' is {0} but {1} gridnames were passed.')
-                            .format(self.dimension, len(self.gridnames)))
+                           .format(self.dimension, len(self.gridnames)))
 
         if len(self.gridnames) != self.dimension:
             raise Exception(grid_name_error)
@@ -223,7 +224,7 @@ class GriddedField(object):
         if tuple(g_dim) != self.data.shape:
             raise Exception(('Dimension mismatch between data and grids. '
                              'Grid dimension is {0} but data {1}')
-                             .format(tuple(g_dim), self.data.shape))
+                            .format(tuple(g_dim), self.data.shape))
 
         return True
 
@@ -241,7 +242,7 @@ class GriddedField(object):
         grids, gridnames = self.grids, self.gridnames
 
         if gridnames is None:
-            gridnames = [ 'grid%d' % n for n in range(1, self.dimension + 1) ]
+            gridnames = ['grid%d' % n for n in range(1, self.dimension + 1)]
 
         for n, name in enumerate(gridnames):
             if name == '':
@@ -257,13 +258,13 @@ class GriddedField(object):
     def from_nc(cls, inputfile, variable, fill_value=np.nan):
         """Create GriddedField from variable in netCDF files.
 
-        Extract a given variable from a netCDF file. The data and its dimensions are
-        returned as a :class:`GriddedField` object.
+        Extract a given variable from a netCDF file. The data and its
+        dimensions are returned as a :class:`GriddedField` object.
 
         Parameters:
             inputfile (str): Path to netCDF file.
             variable (str): Variable key of variable to extract.
-            fill_value (float): Value to fill masked areas with (default: np.nan).
+            fill_value (float): Fill value for masked areas (default: np.nan).
 
         Returns:
             GriddedField object of sufficient dimension.
@@ -281,8 +282,8 @@ class GriddedField(object):
         data = nc.variables[variable]
 
         obj = cls(data.ndim)
-        obj.grids = [ nc.variables[dim][:] for dim in data.dimensions ]
-        obj.gridnames = [ dim for dim in data.dimensions ]
+        obj.grids = [nc.variables[dim][:] for dim in data.dimensions]
+        obj.gridnames = [dim for dim in data.dimensions]
 
         if type(data[:]) is np.ma.MaskedArray:
             obj.data = data[:].filled(fill_value=fill_value)

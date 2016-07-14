@@ -13,6 +13,7 @@ import pathlib
 import os
 import configparser
 
+
 class _Configurator(object):
     config = None
 
@@ -22,7 +23,7 @@ class _Configurator(object):
         p = pathlib.Path(os.getenv("TYPHONRC", "~/.typhonrc")).expanduser()
         config.read(str(p))
         self.config = config
-    
+
     def __call__(self, arg):
         if self.config is None:
             self.init()
@@ -30,6 +31,7 @@ class _Configurator(object):
 config = _Configurator()
 config.init()
 conf = config.config
+
 
 def get_config(arg):
     """Get value for configuration variable.

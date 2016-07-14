@@ -16,7 +16,7 @@ _known_compressions = {
 
 try:
     import lzma
-except ImportError: # no lzma
+except ImportError:  # no lzma
     pass
 else:
     _known_compressions['.xz'] = lzma.LZMAFile
@@ -52,7 +52,7 @@ def decompress(filename, tmpdir):
     filebase, fileext = os.path.splitext(filename)
     filebase = os.path.basename(filebase)
 
-    if _known_compressions.has_key(fileext):
+    if fileext in _known_compressions:
         tmpfile = tempfile.NamedTemporaryFile(prefix=os.path.join(tmpdir, ''),
                                               delete=False)
         # Read datafile in 100 MiB chunks for good performance/memory usage

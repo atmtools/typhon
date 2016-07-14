@@ -11,6 +11,7 @@ import typhon.plots
 
 typhon.plots.install_mplstyles()
 
+
 def simple_plot(style, **kwargs):
     """Generate a simple plot using a given matplotlib style."""
     plt.style.use('classic')

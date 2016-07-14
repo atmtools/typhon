@@ -13,6 +13,8 @@ from typhon.arts import xml
 # Notes:
 #   This is not a docstring to ensure readble output in nosetests.
 data_path = os.getenv('ARTS_DATA_PATH')
+
+
 def test_load_arts_xml_data():
     if data_path:
         for d in data_path.split(os.path.pathsep):
@@ -22,6 +24,7 @@ def test_load_arts_xml_data():
                         yield _load_xml, os.path.join(root, filename)
     else:
         raise Exception('ARTS_DATA_PATH is not set.')
+
 
 def _load_xml(f):
     """Load a given XML file."""

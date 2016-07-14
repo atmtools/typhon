@@ -60,23 +60,22 @@ def dict_combine_with_default(in_dict, default_dict):
 class SingleScatteringData:
     """The class representing the arts SingleScatteringData class.
 
-    The data members of this object are identical to the class of the same name in
-    ARTS; it includes all the single scattering properties required for
-    polarized radiative transfer calculations: the extinction matrix, the
-    phase matrix, and the absorption coefficient vector.  The angular,
-    frequency, and temperature grids for which these are defined are also
-    included.  Another data member - *ptype*, describes the orientational
-    symmetry of the particle ensemble, which determines the format of the
-    single scattering properties.  The data structure of the ARTS
-    SingleScatteringData class is described in the ARTS User
-    Guide.
+    The data members of this object are identical to the class of the same name
+    in ARTS; it includes all the single scattering properties required for
+    polarized radiative transfer calculations: the extinction matrix, the phase
+    matrix, and the absorption coefficient vector.  The angular, frequency, and
+    temperature grids for which these are defined are also included.  Another
+    data member - *ptype*, describes the orientational symmetry of the particle
+    ensemble, which determines the format of the single scattering properties.
+    The data structure of the ARTS SingleScatteringData class is described in
+    the ARTS User Guide.
 
-    The methods in the SingleScatteringData class enable the
-    calculation of the single scattering properties, and the output of the
-    SingleScatteringData structure in the ARTS XML format (see example file).
-    The low-level calculations are performed in arts_scat.
+    The methods in the SingleScatteringData class enable the calculation of the
+    single scattering properties, and the output of the SingleScatteringData
+    structure in the ARTS XML format (see example file).  The low-level
+    calculations are performed in arts_scat.
+
     """
-
     defaults = {'ptype': 'macroscopically_isotropic',
                 # as defined in optproperties.h
                 'description': 'SingleScatteringData created with Typhon.',
@@ -137,9 +136,9 @@ class SingleScatteringData:
         else:
             obj.description = (
                 obj.__class__.defaults['description'] +
-                "module, which uses the T-matrix code of Mishchenko to calculate single \n"
-                "scattering properties. The parameters used to create this file are shown\n"
-                "below\n" + str(params))
+                "module, which uses the T-matrix code of Mishchenko to\n"
+                "calculate single scattering properties. The parameters \n"
+                "used to create this file are shown below\n" + str(params))
             for k, v in params.items():
                 setattr(obj, k, v)
 
@@ -301,11 +300,11 @@ class SingleScatteringData:
 
         """
         if not ((self.f_grid.size or 1, self.T_grid.size or 1) ==
-                    self.ext_mat_data.shape[:2] ==
-                    self.pha_mat_data.shape[:2] ==
-                    self.abs_vec_data.shape[:2] and
-                        (self.za_grid.size or 1, self.aa_grid.size or 1) ==
-                        self.pha_mat_data.shape[2:4]):
+                self.ext_mat_data.shape[:2] ==
+                self.pha_mat_data.shape[:2] ==
+                self.abs_vec_data.shape[:2] and
+                (self.za_grid.size or 1, self.aa_grid.size or 1) ==
+                self.pha_mat_data.shape[2:4]):
             raise RuntimeError(
                 "Inconsistent sizes in SingleScatteringData.\n"
                 "f_grid: %s, T_grid: %s, za_grid: %s, aa_grid: %s, "
@@ -316,9 +315,9 @@ class SingleScatteringData:
                  self.abs_vec_data.shape))
 
     def assp2backcoef(self):
-        """The function returns the radar backscattering coeffcient. This is the
-        phase function times 4pi, following the standard definition in the radar
-        community.
+        """The function returns the radar backscattering coeffcient. This is
+        the phase function times 4pi, following the standard definition in the
+        radar community.
 
         Returns:
             Backscattering coefficients, one value for each frequency and
@@ -438,10 +437,10 @@ class ScatteringMetaData:
     @property
     def diameter_max(self):
         """The maximum diameter (or dimension) of the scattering element,
-        defined by the circumferential sphere diameter of the element. Note that
-        this parameter is only used by some size distributions; it does not have
-        a proper meaning if the scattering element represents an ensemble of
-        differently sized particles."""
+        defined by the circumferential sphere diameter of the element. Note
+        that this parameter is only used by some size distributions; it does
+        not have a proper meaning if the scattering element represents an
+        ensemble of differently sized particles."""
         return self._diameter_max
 
     @property
@@ -540,8 +539,8 @@ class ScatteringMetaData:
         s.write("mass=%4e " % self.mass)
         s.write("diameter_max=%4e " % self.diameter_max)
         s.write("diameter_volume_equ=%4e " % self.diameter_volume_equ)
-        s.write(
-            "diameter_area_equ_aerodynamical=%4e " % self.diameter_area_equ_aerodynamical)
+        s.write("diameter_area_equ_aerodynamical=%4e "
+                % self.diameter_area_equ_aerodynamical)
         return s.getvalue()
 
     @classmethod
@@ -584,7 +583,8 @@ class ScatteringMetaData:
         d['mass'] = self.mass
         d['diameter_max'] = self.diameter_max
         d['diameter_volume_equ'] = self.diameter_volume_equ
-        d['diameter_area_equ_aerodynamical'] = self.diameter_area_equ_aerodynamical
+        d['diameter_area_equ_aerodynamical'] = (
+            self.diameter_area_equ_aerodynamical)
 
         return d
 

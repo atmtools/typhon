@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
 """
 Implementation of functions related to LaTeX.
 
@@ -11,7 +10,7 @@ import numpy as np
 
 
 def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
-        align='r', delimiter=True):
+                  align='r', delimiter=True):
     """Convert a np.ndarray into a LaTeX table.
 
     Note:
@@ -54,7 +53,7 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
         raise Exception('Valid alignment values are: "l", "c" and "r"')
 
     # define row and column delimiters
-    if delimiter == True:
+    if delimiter is True:
         dlm = '|'
         nwl = '\\hline'
     else:
@@ -85,24 +84,22 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
               '\\caption{' + caption + '}\n'
               '\\begin{tabular}{'
               + (dlm + (align + dlm) * a.shape[1])
-              + '}' + nwl + '\n' )
+              + '}' + nwl + '\n')
 
     # if given, print column headings
     if heading is not None:
         out.write(heading[0])
         for c in heading[1:]:
-            out.write(' & '+ c)
+            out.write(' & ' + c)
         out.write('\\\\' + nwl + '\n')
-
 
     # print each matrix row
     for r in a:
         out.write(fmt % r[0])
         for c in r[1:]:
-            out.write(' & '+ fmt % c)
+            out.write(' & ' + fmt % c)
         out.write('\\\\' + nwl + '\n')
 
     # close table environment
     out.write('\\end{tabular}\n'
-                 '\\end{table}\n')
-
+              '\\end{table}\n')

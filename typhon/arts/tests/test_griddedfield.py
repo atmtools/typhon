@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-#!/usr/bin/env python
 
 import numpy as np
 import os
@@ -29,10 +28,9 @@ def _create_tensor(n):
 class TestGriddedFieldUsage():
     def test_check_init(self):
         """Test initialisation of GriddedFields."""
-        for dim in np.arange(1,8):
+        for dim in np.arange(1, 8):
             gf = griddedfield.GriddedField(dim)
             assert gf.dimension == dim
-
 
     def test_check_dimension1(self):
         """Test if grid and data dimension agree (positive)."""
@@ -41,7 +39,6 @@ class TestGriddedFieldUsage():
         gf3.gridnames = ["A", "B", "C"]
         gf3.data = np.ones((5, 5, 1))
         assert gf3.check_dimension() is True
-
 
     @raises(Exception)
     def test_check_dimension2(self):
@@ -52,7 +49,6 @@ class TestGriddedFieldUsage():
         gf3.data = np.ones((5, 5))
         gf3.check_dimension()
 
-
     def test_data(self):
         """Test setting and getting of data. """
         reference = np.random.randn(10, 10, 10)
@@ -60,14 +56,12 @@ class TestGriddedFieldUsage():
         gf3.data = reference
         assert np.array_equal(gf3.data, reference)
 
-
     def test_name_setter(self):
         """Test name setter and getter."""
         reference = 'TestName'
         gf = griddedfield.GriddedField1()
         gf.name = reference
         assert gf.name == reference
-
 
     def test_to_dict(self):
         """Test the conversion into a dictionary."""
@@ -77,9 +71,9 @@ class TestGriddedFieldUsage():
         gf2.data = np.ones((5, 5))
         d = gf2.to_dict()
 
-        res = (np.array_equal(d['ones'], np.ones(5))
-            and np.array_equal(d['zeros'], np.zeros(5))
-            and np.array_equal(d['data'], np.ones((5, 5))))
+        res = (np.array_equal(d['ones'], np.ones(5)) and
+               np.array_equal(d['zeros'], np.zeros(5)) and
+               np.array_equal(d['data'], np.ones((5, 5))))
 
         assert res is True
 
@@ -87,7 +81,6 @@ class TestGriddedFieldUsage():
         """Test if only names of type str are accepted."""
         for false_type in [float(), int()]:
             yield self._set_name_of_type, false_type
-
 
     @raises(TypeError)
     def _set_name_of_type(self, name_type):
@@ -98,7 +91,6 @@ class TestGriddedFieldUsage():
 class TestGriddedFieldLoad():
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
-
     def test_load_data(self):
         """Load reference XML file for GriddedField3 and check the data."""
         reference = _create_tensor(3)
@@ -106,25 +98,22 @@ class TestGriddedFieldLoad():
         test_data = gf3.data
         assert np.array_equal(test_data, reference)
 
-
     def test_load_grids(self):
         """Load reference XML file for GriddedField3 and check the grids."""
         reference = [np.arange(2)] * 3
-        gf3  = xml.load(self.ref_dir + 'GriddedField3.xml')
+        gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
         test_data = gf3.grids
         assert all(np.allclose(a, b) for a, b in zip(test_data, reference))
 
-
     def test_load_gridnames(self):
-        """Load reference XML file for GriddedField3 and check the gridnames."""
+        """Load reference XML file for GriddedField3 and check gridnames."""
         reference = ['grid1', 'grid2', 'grid3']
         gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
         test_data = gf3.gridnames
         assert np.array_equal(test_data, reference)
 
-
     def test_load_dimension(self):
-        """Load reference XML file for GriddedField3 and do the dimension check."""
+        """Load reference XML file for GriddedField3 and run check."""
         gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
         assert gf3.check_dimension()
 
@@ -135,17 +124,14 @@ class TestGriddedFieldWrite():
         _, self.f = mkstemp()
         print(self.f)
 
-
     def tearDown(self):
         """Delete temporary file."""
         os.remove(self.f)
-
 
     def test_write(self):
         """Save GriddedField to XML file, read it and compare the results."""
         for dim in np.arange(1, 8):
             yield self._load_griddedfield, dim
-
 
     def _load_griddedfield(self, dim):
         gf = griddedfield.GriddedField(dim)

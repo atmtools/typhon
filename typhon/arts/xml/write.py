@@ -61,9 +61,9 @@ class ARTSXMLWriter:
 
         """
         if self.binaryfilepointer is not None:
-            filetype='binary'
+            filetype = 'binary'
         else:
-            filetype='ascii'
+            filetype = 'ascii'
 
         self.write('<?xml version="1.0"?>\n')
         self.open_tag('arts', {'version': version, 'format': filetype})

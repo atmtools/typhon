@@ -8,9 +8,10 @@ import numpy as np
 from scipy.linalg import inv
 
 
-__all__ =  ['error_covariance_matrix',
-            'averaging_kernel_matrix',
+__all__ = ['error_covariance_matrix',
+           'averaging_kernel_matrix',
            ]
+
 
 def error_covariance_matrix(K, S_a, S_y):
     """Calculate the error covariance matrix.
@@ -24,6 +25,7 @@ def error_covariance_matrix(K, S_a, S_y):
         np.array: Measurement error covariance matrix.
     """
     return inv(K.T @ inv(S_y) @ K + inv(S_a))
+
 
 def averaging_kernel_matrix(K, S_a, S_y):
     """Calculate the averaging kernel matrix.

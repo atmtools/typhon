@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 """Testing the basic plotting functions.
 
@@ -27,8 +27,11 @@ class TestPlots(object):
             os.mkdir(config_dir)
             created_dir = True
 
-        typhon_styles = [os.path.basename(s) for s in
-                glob.glob(os.path.join('..', 'stylelib', '*.mplstyle'))]
+        typhon_styles = [
+            os.path.basename(s)
+            for s
+            in glob.glob(os.path.join('..', 'stylelib', '*.mplstyle'))
+            ]
 
         before = set(os.listdir(config_dir))
 

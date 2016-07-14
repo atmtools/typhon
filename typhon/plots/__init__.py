@@ -19,6 +19,7 @@ __all__ = ['figsize',
            'install_mplstyles',
            ]
 
+
 def figsize(w, portrait=False):
     """Return a figure size matching the golden ratio.
 
@@ -135,7 +136,3 @@ def install_mplstyles():
             os.symlink(path, dest)
 
         mpl.style.reload_library()
-
-
-
-

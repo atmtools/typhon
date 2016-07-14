@@ -37,6 +37,7 @@ def get_arts_typename(var):
 
     return ret
 
+
 def return_if_arts_type(var, artstype):
     """If variable is of specified ARTS type, return its value.
 

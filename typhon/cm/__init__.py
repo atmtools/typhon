@@ -18,6 +18,7 @@ __all__ = ['mpl_colors']
 datad = _cmocean_datad
 datad.update(_cm_datad)
 
+
 def _rev_cdict(cdict):
     """Revert a dictionary containing specs for a LinearSegmentedColormap."""
     rev_cdict = {}
@@ -30,7 +31,7 @@ for (name, data) in datad.items():
     if 'red' in data:
         cmaps[name] = LinearSegmentedColormap(name, data)
         cmaps[name + '_r'] = LinearSegmentedColormap(
-            name + '_r',_rev_cdict(data))
+            name + '_r', _rev_cdict(data))
     else:
         cmaps[name] = LinearSegmentedColormap.from_list(name, data)
         cmaps[name + '_r'] = LinearSegmentedColormap.from_list(
@@ -42,6 +43,7 @@ for name, cmap in cmaps.items():
     register_cmap(name, cmap)
 
 __all__ = __all__ + list(cmaps.keys())
+
 
 def mpl_colors(cmap=None, N=10):
     """Return a list of RGB values.

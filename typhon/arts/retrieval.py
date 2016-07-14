@@ -20,7 +20,7 @@ class RetrievalQuantity:
     """
 
     def __init__(self, maintag=None, subtag=None, subsubtag=None, mode=None,
-            analytical=None, pertubation=None, grids=None):
+                 analytical=None, pertubation=None, grids=None):
 
         self.maintag = maintag
         self.subtag = subtag
@@ -124,4 +124,3 @@ class RetrievalQuantity:
         xmlwriter.write_xml(self.pertubation, {'name': 'Perturbation'})
         xmlwriter.write_xml(self.grids, {'name': 'Grids'})
         xmlwriter.close_tag()
-

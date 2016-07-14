@@ -169,7 +169,7 @@ class SpeciesAuxData:
 
         if version == 1:
             nparam = int(xmlelement.attrib['nparam'])
-            data = [s for s in  xmlelement.text.split('\n') if s != '']
+            data = [s for s in xmlelement.text.split('\n') if s != '']
         elif version == 2:
             nparam = None
             data = []
@@ -214,10 +214,16 @@ class GasAbsLookup:
 
     """
 
-    def __init__(self, speciestags=None, nonlinearspecies=None,
-            frequencygrid=None, pressuregrid=None, referencevmrprofiles=None,
-            referencetemperatureprofile=None, temperaturepertubations=None,
-            nonlinearspeciesvmrpertubations=None, absorptioncrosssection=None):
+    def __init__(self,
+                 speciestags=None,
+                 nonlinearspecies=None,
+                 frequencygrid=None,
+                 pressuregrid=None,
+                 referencevmrprofiles=None,
+                 referencetemperatureprofile=None,
+                 temperaturepertubations=None,
+                 nonlinearspeciesvmrpertubations=None,
+                 absorptioncrosssection=None):
 
         self.speciestags = speciestags
         self.nonlinearspecies = nonlinearspecies
@@ -277,47 +283,47 @@ class GasAbsLookup:
     @speciestags.setter
     def speciestags(self, speciestags):
         self._speciestags = return_if_arts_type(
-                speciestags, 'ArrayOfArrayOfSpeciesTag')
+            speciestags, 'ArrayOfArrayOfSpeciesTag')
 
     @nonlinearspecies.setter
     def nonlinearspecies(self, nonlinearspecies):
         self._nonlinearspecies = return_if_arts_type(
-                nonlinearspecies, 'ArrayOfIndex')
+            nonlinearspecies, 'ArrayOfIndex')
 
     @frequencygrid.setter
     def frequencygrid(self, frequencygrid):
         self._frequencygrid = return_if_arts_type(
-                frequencygrid, 'Vector')
+            frequencygrid, 'Vector')
 
     @pressuregrid.setter
     def pressuregrid(self, pressuregrid):
         self._pressuregrid = return_if_arts_type(
-                pressuregrid, 'Vector')
+            pressuregrid, 'Vector')
 
     @referencevmrprofiles.setter
     def referencevmrprofiles(self, referencevmrprofiles):
         self._referencevmrprofiles = return_if_arts_type(
-                referencevmrprofiles, 'Matrix')
+            referencevmrprofiles, 'Matrix')
 
     @referencetemperatureprofile.setter
     def referencetemperatureprofile(self, referencetemperatureprofile):
         self._referencetemperatureprofile = return_if_arts_type(
-                referencetemperatureprofile, 'Vector')
+            referencetemperatureprofile, 'Vector')
 
     @temperaturepertubations.setter
     def temperaturepertubations(self, temperaturepertubations):
         self._temperaturepertubations = return_if_arts_type(
-                temperaturepertubations, 'Vector')
+            temperaturepertubations, 'Vector')
 
     @nonlinearspeciesvmrpertubations.setter
     def nonlinearspeciesvmrpertubations(self, nonlinearspeciesvmrpertubations):
         self._nonlinearspeciesvmrpertubations = return_if_arts_type(
-                nonlinearspeciesvmrpertubations, 'Vector')
+            nonlinearspeciesvmrpertubations, 'Vector')
 
     @absorptioncrosssection.setter
     def absorptioncrosssection(self, absorptioncrosssection):
         self._absorptioncrosssection = return_if_arts_type(
-                absorptioncrosssection, 'Tensor4')
+            absorptioncrosssection, 'Tensor4')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -399,7 +405,7 @@ class Sparse():
     """
 
     def __init__(self, nrows=None, ncols=None, rowindex=None, colindex=None,
-            sparsedata=None):
+                 sparsedata=None):
 
         self.nrows = nrows
         self.ncols = ncols
@@ -458,7 +464,7 @@ class Sparse():
 
         self.check_dimension()
         obj = csc_matrix((self.sparsedata, (self.rowindex, self.colindex)),
-                [self.nrows, self.ncols])
+                         [self.nrows, self.ncols])
 
         return obj
 
@@ -511,8 +517,10 @@ class Sparse():
         obj.ncols = int(xmlelement.attrib['ncols'])
 
         if binaryfp is None:
-            obj.rowindex = np.fromstring(xmlelement[0].text, sep=' ').astype(int)
-            obj.colindex = np.fromstring(xmlelement[1].text, sep=' ').astype(int)
+            rowindex = np.fromstring(xmlelement[0].text, sep=' ').astype(int)
+            obj.rowindex = rowindex
+            colindex = np.fromstring(xmlelement[1].text, sep=' ').astype(int)
+            obj.colindex = colindex
             obj.sparsedata = np.fromstring(xmlelement[2].text, sep=' ')
         else:
             obj.rowindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
@@ -696,7 +704,6 @@ class QuantumNumbers():
 
         return obj
 
-
     def write_xml(self, xmlwriter, attr=None):
         """Write a SpeciesTag object to an ARTS XML file.
         """
@@ -749,11 +756,11 @@ class LineMixingRecord():
     @quantumnumberrecord.setter
     def quantumnumberrecord(self, quantumnumberrecord):
         self._quantumnumberrecord = return_if_arts_type(
-                quantumnumberrecord, 'QuantumNumberRecord')
+            quantumnumberrecord, 'QuantumNumberRecord')
 
     @data.setter
     def data(self, data):
-        self._data = return_if_arts_type( data, 'Vector')
+        self._data = return_if_arts_type(data, 'Vector')
 
     @classmethod
     def from_xml(cls, xmlelement):

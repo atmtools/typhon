@@ -22,10 +22,10 @@ nrows = len(cmaps)
 gradient = np.linspace(0, 1, 256)
 gradient = np.vstack((gradient, gradient))
 
-fig, axes = plt.subplots(nrows=nrows*2, figsize=(10,len(cmaps)))
+fig, axes = plt.subplots(nrows=nrows*2, figsize=(10, len(cmaps)))
 fig.subplots_adjust(top=0.99, bottom=0.01, left=0.13, right=0.99)
 
-for ax, name in zip(zip(axes[::2],axes[1::2]), cmaps):
+for ax, name in zip(zip(axes[::2], axes[1::2]), cmaps):
     ax[0].imshow(gradient, aspect='auto',  cmap=plt.get_cmap(name))
     ax[1].imshow(gradient, aspect='auto', interpolation='nearest',
                  cmap=plt.get_cmap(name, lut=11))

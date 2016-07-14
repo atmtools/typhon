@@ -61,13 +61,11 @@ class TestLoad(object):
         """Load reference XML file for ARTS type Index."""
         assert xml.load(self.ref_dir + 'index.xml') == 0
 
-
     def test_load_vector(self):
         """Load reference XML file for ARTS type Vector."""
         reference = _create_tensor(1)
         test_data = xml.load(self.ref_dir + 'vector.xml')
         assert np.array_equal(test_data, reference)
-
 
     def test_load_vector_binary(self):
         """Load reference binary XML file for ARTS type Vector."""
@@ -75,19 +73,16 @@ class TestLoad(object):
         test_data = xml.load(self.ref_dir + 'vector-bin.xml')
         assert np.array_equal(test_data, reference)
 
-
     def test_load_matrix(self):
         """Load reference XML file for ARTS type Matrix."""
         reference = _create_tensor(2)
         test_data = xml.load(self.ref_dir + 'matrix.xml')
         assert np.array_equal(test_data, reference)
 
-
     def test_load_tensor(self):
         """Load reference XML files for different Tensor types."""
         for n in range(3, 8):
             yield self._load_tensor, n
-
 
     def test_load_arrayofindex(self):
         """Load reference XML file for ARTS type ArrayOfIndex."""
@@ -95,20 +90,17 @@ class TestLoad(object):
         test_data = xml.load(self.ref_dir + 'arrayofindex.xml')
         assert np.array_equal(test_data, reference)
 
-
     def test_load_arrayofindex_binary(self):
         """Load reference binary XML file for ARTS type ArrayOfIndex."""
         reference = [1., 2., 3.]
         test_data = xml.load(self.ref_dir + 'arrayofindex-bin.xml')
         assert np.array_equal(test_data, reference)
 
-
     def test_load_arrayofstring(self):
         """Load reference XML file for ARTS type ArrayOfString."""
         reference = ['a', 'bb', 'ccc']
         test_data = xml.load(self.ref_dir + 'arrayofstring.xml')
         assert np.array_equal(test_data, reference)
-
 
     def test_load_arrayofvector(self):
         """Load reference XML file for ARTS type ArrayOfVector."""
@@ -156,13 +148,11 @@ class TestSave(object):
         _, self.f = mkstemp()
         print(self.f)
 
-
     def tearDown(self):
         """Delete temporary file."""
-        for f in [self.f, self.f+'.bin']:
+        for f in [self.f, self.f + '.bin']:
             if os.path.isfile(f):
                 os.remove(f)
-
 
     def test_save_index(self):
         """Save Index to file, read it and compare the results."""
@@ -171,7 +161,6 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert test_data == reference
 
-
     def test_save_vector(self):
         """Save Vector to file, read it and compare the results."""
         reference = _create_tensor(1)
@@ -179,15 +168,12 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_vector_binary(self):
         """Save Vector to binary file, read it and compare the results."""
         reference = _create_tensor(1)
         xml.save(reference, self.f, format='binary')
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
-
-
 
     def test_save_empty_vector(self):
         """Save empty Vector to file, read it and compare the results."""
@@ -197,7 +183,6 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_empty_matrix(self):
         """Save empty Matrix to file, read it and compare the results."""
         reference = _create_empty_tensor(2)
@@ -206,7 +191,6 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_matrix(self):
         """Save Matrix to file, read it and compare the results."""
         reference = _create_tensor(2)
@@ -214,18 +198,15 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_empty_tensor(self):
         """Save different empty Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_empty_tensor, n
 
-
     def test_save_tensor(self):
         """Save different Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_tensor, n
-
 
     def test_save_arrayofindex(self):
         """Save ArrayOfIndex to file, read it and compare the results."""
@@ -234,14 +215,12 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_arrayofindex_binary(self):
-        """Save ArrayOfIndex to binary file, read it and compare the results."""
+        """Save ArrayOfIndex to binary file, read it and compare the result."""
         reference = [1., 2., 3.]
         xml.save(reference, self.f, format='binary')
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
-
 
     def test_save_arrayofstring(self):
         """Save ArrayOfString to file, read it and compare the results."""
@@ -250,14 +229,12 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def test_save_arrayofvector(self):
         """Save ArrayOfIndex to file, read it and compare the results."""
         reference = [np.arange(1), np.arange(1)]
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
-
 
     def _save_tensor(self, n):
         """Save tensor of dimension n to file, read it and compare data to
@@ -272,7 +249,6 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-
     def _save_empty_tensor(self, n):
         """Save empty tensor of dimension n to file, read it and compare data to
         reference.
@@ -285,4 +261,3 @@ class TestSave(object):
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
-
