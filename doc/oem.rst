@@ -6,7 +6,7 @@ detailed information on the included functions use Python's built-in help.
 
 Collection of functions concerning the Optimal Estimation Method (OEM).
 
-.. .. automodule:: typhon.oem
-..     :members:
-..     :undoc-members:
-..     :show-inheritance:
+.. automodule:: typhon.oem
+    :members:
+    :undoc-members:
+    :show-inheritance:

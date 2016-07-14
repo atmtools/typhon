@@ -1,3 +1,13 @@
+2016-07-14  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/conf.py: Set highlight_Language to python3.
+
+	* doc/oem.rst: Uncomment automodule for typhon.oem.
+
+	Included decent documentation for the OEM module. By setting the
+	highlight_language to python3 it is possible to display the matrix operator
+	(@) in the documentation.
+
 2016-06-29  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/math/stats.py:
