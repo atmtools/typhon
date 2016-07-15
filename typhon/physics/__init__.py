@@ -2,4 +2,4 @@
 
 from . import (units, em, constants)
 
-__all__ = ["unit", "em", "constants"]
+__all__ = ["units", "em", "constants"]

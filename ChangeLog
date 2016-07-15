@@ -1,3 +1,7 @@
+2016-07-15  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/physics/__init__.py: s/unit/units/ in __all__.
+
 2016-07-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/__init__.py: Added package
