@@ -14,6 +14,7 @@ API Documentation
    datasets
    config
    math
+   physics
 
 Indices and tables
 ------------------

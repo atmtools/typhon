@@ -1,3 +1,29 @@
+2016-07-15  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/__init__.py: Added package
+
+	* typhon/physics/constants.py: Added module with physical constants.
+
+	* typhon/physics/units.py: Added module handling units.
+
+	Note that this module has a soft dependency on the `pint` units
+	library.  Any module importing physics.units will also have this
+	dependency.  If you do not want your code to depend on the `pint`
+	units library, do not import `physics.units` or any of its
+	dependencies.  Any module with this dependency shall state so in the
+	module docstring.
+
+	* typhon/physics/em.py: Module with EM-related classes and functions.
+
+	Added class SRF for the description of spectral response functions and
+	the calculation thereof.
+
+	Added various smaller functions for EM-related conversions.
+
+	* doc/physics.rst: Added
+
+	* doc/modules.rst: Added physics package and modules.
+
 2016-07-14  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/conf.py: Set highlight_Language to python3.
