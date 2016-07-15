@@ -13,3 +13,11 @@ typhon.datasets.dataset
     :members:
     :undoc-members:
     :show-inheritance:
+
+typhon.datasets.tovs
+--------------------
+
+.. automodule:: typhon.datasets.tovs
+    :members:
+    :undoc-members:
+    :show-inheritance:

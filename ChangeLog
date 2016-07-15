@@ -1,3 +1,20 @@
+2016-07-15  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/utils/__init__.py: Added safe_eval
+
+	Added safe_eval function, from where it is somewhat safe to pass eval
+	code from a not entirely trusted source.  Supports numbers and basic
+	expressions.
+
+	* typhon/datasets/tovs.py: Added classes related to HIRS and IASI
+
+	Added a hierarchy of classes for reading HIRS and IASI data.  This
+	module has a soft dependency on pint.
+
+	* typhon/datasets/_tovs_defs.py: Definitions needed by tovs module.
+
+	* doc/datasets.rst: Add tovs module (but not _tovs_defs).
+
 2016-07-15  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/physics/__init__.py: s/unit/units/ in __all__.

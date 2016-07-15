@@ -21,6 +21,7 @@ import numpy.lib.recfunctions
 from .. import config
 from .. import utils
 from .. import math as tpmath
+from ..physics import em
 
 try:
     import progressbar
@@ -1251,6 +1252,12 @@ class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor
     @property
     def valid_field_values(self):
         return {"satname": self.satellites}
+
+
+class HyperSpectral(Dataset, em.FwmuMixin):
+    """Superclass for any hyperspectral instrument
+    """
+    freqfile = None
 
 # Not yet transferred from pyatmlab to typhon, not clean enough:
 #
