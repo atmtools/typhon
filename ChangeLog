@@ -1,3 +1,11 @@
+2016-07-20  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/cm.rst: Added example plot for velocity colormap.
+
+	* doc/pyplots/plot_velocity.py: Create example for velocity colormap.
+
+	Plotting the meridional wind to give an example for the velocity colormap.
+
 2016-07-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/utils/__init__.py: Added safe_eval

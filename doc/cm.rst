@@ -28,6 +28,11 @@ Speed
 .. plot:: pyplots/plot_speed.py
     :include-source:
 
+Velocity
+^^^^^^^^
+.. plot:: pyplots/plot_velocity.py
+    :include-source:
+
 Phase
 ^^^^^
 .. plot:: pyplots/plot_phase.py
