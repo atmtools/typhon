@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Plot to demonstrate the speed colormap.
+"""Plot to demonstrate the velocity colormap.
 """
 
 import numpy as np

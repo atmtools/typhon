@@ -1,3 +1,13 @@
+2016-07-21  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/cm.rst: Added example plot for vorticity colormap.
+
+	* doc/pyplots/plot_vorticity.py: Create example for vorticity colormap.
+
+	Plotting test data to give an example for the vorticity colormap.
+
+	* doc/pyplots/plot_velocity.py: Fixed docstring.
+
 2016-07-20  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/cm.rst: Added example plot for velocity colormap.

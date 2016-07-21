@@ -33,6 +33,11 @@ Velocity
 .. plot:: pyplots/plot_velocity.py
     :include-source:
 
+Vorticity
+^^^^^^^^^
+.. plot:: pyplots/plot_vorticity.py
+    :include-source:
+
 Phase
 ^^^^^
 .. plot:: pyplots/plot_phase.py
