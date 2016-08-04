@@ -1,3 +1,7 @@
+2016-08-04  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/em.py: Various small bugfixes
+
 2016-07-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/cm.rst: Added example plot for vorticity colormap.

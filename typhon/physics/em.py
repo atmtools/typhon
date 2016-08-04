@@ -20,7 +20,7 @@ import pint
 from .constants import (h, k, c)
 from .. import config
 from ..arts import xml
-from .units import ureg
+from .units import (ureg, radiance_units)
 
 class FwmuMixin:
     """Mixing for frequency/wavelength/wavenumber neutrality
@@ -132,9 +132,9 @@ class SRF(FwmuMixin):
         """
         cf = config.conf[instr]
         centres = xml.load(
-            cf["srf_backend_f"].format(sat="NOAA15"))
+            cf["srf_backend_f"].format(sat=sat))
         gfs = xml.load(
-            cf["srf_backend_response"].format(sat="NOAA15"))
+            cf["srf_backend_response"].format(sat=sat))
         freq = gfs[ch-1].grids[0] + centres[ch-1]
         response = gfs[ch-1].data
         return cls(freq, response)
@@ -252,7 +252,7 @@ def planck_f(f, T):
     if (f.size * T.size) > 1e5:
         return numexpr.evaluate("(2 * h * f**3) / (c**2) * "
                                 "1 / (exp((h*f)/(k*T)) - 1)") * (
-                                    units["si"])
+                                    radiance_units["si"])
     return ((2 * ureg.h * f**3) / (ureg.c ** 2) *
             1 / (numpy.exp(((ureg.h*f)/(ureg.k*T)).to("1")) - 1)).to(
                 ureg.W/(ureg.m**2 * ureg.sr * ureg.Hz))
@@ -347,7 +347,8 @@ def specrad_frequency_to_planck_bt(L, f):
                             L.size//L.shape[-1], f.size, L.size))
     #BT = (h * f) / (k * numpy.log((2*h*f**3)/(L * c**2) + 1))
     BT = numexpr.evaluate("(h * f) / (k * log((2*h*f**3)/(L * c**2) + 1))")
+    BT = numpy.ma.masked_invalid(BT)
     if L.size > 1500000:
         logging.debug("(done)")
-    return BT
+    return ureg.Quantity(BT, ureg.K)
 
