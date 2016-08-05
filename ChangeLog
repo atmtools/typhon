@@ -1,3 +1,9 @@
+2016-08-05  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/__init__.py: Added wrapper to run ARTS jobs.
+
+	Implemented function run_arts() to run ARTS jobs in a pythonic way.
+
 2016-08-04  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/em.py: Various small bugfixes
