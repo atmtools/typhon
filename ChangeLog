@@ -1,3 +1,10 @@
+2016-08-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/__init__.py:
+
+	Added functionality to write stdout and stderr to ASCII files. This can be
+	toggled using the writetxt keyword.
+
 2016-08-05  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/__init__.py: Added wrapper to run ARTS jobs.

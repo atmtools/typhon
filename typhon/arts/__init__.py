@@ -16,12 +16,13 @@ __all__ = ['xml',
            ]
 
 
-def run_arts(controlfile=None, arts='arts', **kwargs):
+def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
     """Start an ARTS Simulation.
 
     Parameters:
         controlfile (str): Path to the ARTS controlfile.
         arts (str): Path to the arts executable.
+        writetxt (bool): Write stdout and stderr to ASCII files.
         **kwargs: Additional command line arguments passed as keyword.
             See `arts --help` for more details.
 
@@ -51,7 +52,10 @@ def run_arts(controlfile=None, arts='arts', **kwargs):
     opts = []
     for kw, arg in kwargs.items():
         if type(arg) is bool and arg is True:
-            opts.append('--{}'.format(kw))
+            if len(kw) == 1:
+                opts.append('-{}'.format(kw))
+            else:
+                opts.append('--{}'.format(kw))
         elif len(kw) == 1:
             opts.append('-{}{}'.format(kw, arg))
         else:
@@ -64,9 +68,28 @@ def run_arts(controlfile=None, arts='arts', **kwargs):
                        universal_newlines=True
                        )
 
-    # Store results in namedtuple.
-    ARTS_out = collections.namedtuple('ARTS_output', ['stdout',
-                                                      'stderr',
-                                                      'retcode'])
+    # Write ARTS output and error to ASCII file.
+    if writetxt:
+        if controlfile.endswith('.arts'):
+            outfile = controlfile.replace('.arts', '.out')
+            errfile = controlfile.replace('.arts', '.err')
+        else:
+            outfile = 'arts.out'
+            errfile = 'arts.err'
+
+        for key in ['outdir', 'o']:
+            if key in kwargs:
+                outfile = os.path.join(kwargs[key], outfile)
+                errfile = os.path.join(kwargs[key], errfile)
+
+        with open(outfile, 'w') as out, open(errfile, 'w') as err:
+            out.write(p.stdout)
+            err.write(p.stderr)
+
+    # Store ARTS output in namedtuple.
+    ARTS_out = collections.namedtuple(
+        'ARTS_output',
+        ['stdout', 'stderr', 'retcode']
+        )
 
     return ARTS_out(stdout=p.stdout, stderr=p.stderr, retcode=p.returncode)
