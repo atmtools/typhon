@@ -938,8 +938,8 @@ class HIRSKLM(HIRS):
 
         where C are counts and a₀, a₁, a₂ contained in hrs_calcof as
         documented in the NOAA KLM User's Guide:
-            - Section 8.3.1.5.3.1, Table 8.3.1.5.3.1-1. and
-            - Section 8.3.1.5.3.2, Table 8.3.1.5.3.2-1.,
+        - Section 8.3.1.5.3.1, Table 8.3.1.5.3.1-1. and
+        - Section 8.3.1.5.3.2, Table 8.3.1.5.3.2-1.,
         """
         rad = (cc[:, numpy.newaxis, :, 2]
              + cc[:, numpy.newaxis, :, 1] * counts 
