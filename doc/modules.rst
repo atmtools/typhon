@@ -8,6 +8,7 @@ API Documentation
    xml
    cm
    files
+   geodetic
    oem
    plots
    utils

@@ -1,3 +1,24 @@
+2016-08-11  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodetic:
+
+	Started porting the atmlab geodetic functions to python.
+
+	* typhon/geodetic/__init__.py:
+
+	Functions for handling geographical coordinate systems
+	and reference ellipsoids.
+
+	* typhon/geodetic/constants.py:
+
+	Collection of physical constants and conversion factors.
+
+	* typhon/__init__.py: Import typhon.geodetic.
+
+	* doc/geodetic.rst: Documentation for geodetic sub-package.
+
+	* doc/modules.rst: Added typhon.geodetic to toc.
+
 2016-08-11  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.

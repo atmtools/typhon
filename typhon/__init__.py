@@ -10,6 +10,7 @@ except:
 if not __TYPHON_SETUP__:
     from . import arts
     from . import files
+    from . import geodetic
     from . import oem
     from . import utils
 
