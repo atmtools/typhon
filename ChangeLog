@@ -1,5 +1,18 @@
 2016-08-11  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodetic/__init__.py:
+
+	Added functions to convert between cartesian and spherical coordinates.
+
+	* typhon/geodetic/tests: Unittests for geodetic functions.
+
+	* typhon/geodetic/tests/test_geodetic.py:
+
+	Test the conversion between cartesian and spherical coordinates for three
+	fixed points. Additionally convert coordinates back and forth.
+
+2016-08-11  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/geodetic:
 
 	Started porting the atmlab geodetic functions to python.
