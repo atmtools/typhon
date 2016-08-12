@@ -10,7 +10,6 @@ from typhon import constants
 
 
 __all__ = [
-    'constants',
     'ellipsoidmodels',
     'sind',
     'cosd',

@@ -1,5 +1,11 @@
 2016-08-12  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodetic/__init__.py, typhon/physics/__init__.py:
+
+	Removed constants from __all__ definition in both sub-packages.
+
+2016-08-12  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/thermodynamics.py:
 
 	Currently containing functions related to water vapor and its thermodynamic
