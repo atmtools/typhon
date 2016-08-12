@@ -6,7 +6,7 @@ and reference ellipsoids.
 import numpy as np
 from numpy.lib import scimath
 
-from . import constants
+from typhon import constants
 
 
 __all__ = [

@@ -6,14 +6,6 @@ typhon.physics
     :undoc-members:
     :show-inheritance:
 
-typhon.physics.constants
-------------------------
-
-.. automodule:: typhon.physics.constants
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 typhon.physics.em
 -----------------
 

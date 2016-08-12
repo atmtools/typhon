@@ -1,3 +1,27 @@
+2016-08-12  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/thermodynamics.py:
+
+	Currently containing functions related to water vapor and its thermodynamic
+	effects.
+
+	* typhon/__init__.py: Import constants and thermodynamics.
+
+	* typhon/physics/constants.py, typhon/geodetic/constants.py,
+	typhon/constants.py:
+
+	Combined all constant definitions in top level module.
+
+	* typhon/datasets/_tovs_defs.py, typhon/physics/__init__.py,
+	typhon/physics/em.py, typhon/geodetic/__init__.py:
+
+	Fixed import of top level constants module.
+
+	* doc/constants.rst, doc/geodetic.rst, doc/modules.rst, doc/physics.rst,
+	doc/thermodynamics.rst:
+
+	Updated the module list and adapted the move of the constants module.
+
 2016-08-11  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodetic/__init__.py:

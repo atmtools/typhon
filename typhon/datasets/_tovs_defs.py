@@ -5,7 +5,7 @@ import datetime
 
 import numpy
 import collections
-from ..physics.constants import K
+from typhon.constants import K
 
 from numpy import (float32, array)
 

@@ -7,10 +7,12 @@ API Documentation
    arts
    xml
    cm
+   constants
    files
    geodetic
    oem
    plots
+   thermodynamics
    utils
    datasets
    config

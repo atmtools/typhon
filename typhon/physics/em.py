@@ -17,7 +17,7 @@ import numexpr
 import pint
 
 
-from .constants import (h, k, c)
+from typhon.constants import (h, k, c)
 from .. import config
 from ..arts import xml
 from .units import (ureg, radiance_units)

@@ -1,8 +1,11 @@
-#!/usr/bin/python
+# -*- coding: utf-8 -*-
 
-"""Definitions for physical constants
+"""Collection of physical constants and conversion factors.
+
+Attributes:
+    earth_radius (float): Earth radius.
+
 """
-
 R_d = 287.0 # J K^-1 kg^-1; gas constant for 1 mol dry air Wallace and Hobbs Eq. 3.11
 R_v = 461.51 # J K^-1 kg^-1 gas constant for water vapour; Wallace and Hobbs Eq. 3.13
 R = 8.3143 # J K^-1 mol^-1; Wallace and Hobbs page 467
@@ -29,3 +32,4 @@ MiB = 2**20
 MB = 10**6
 atm = 101325 # Pa
 K = 273.15 # offset °C ←→ K
+earth_radius = 6.3781e6
