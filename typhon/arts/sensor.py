@@ -7,7 +7,12 @@ Implementation of functions related to sensor settings.
 import numpy as np
 
 
-def get_f_backendRelWidth(f_start, f_end, bandwidth):
+__all__ = ['get_f_backend_reld_width',
+           'get_f_backend_const_width',
+           ]
+
+
+def get_f_backend_rel_width(f_start, f_end, bandwidth):
     """Compute backend frequencies with relative bandwidth.
 
     This function computes backend frequencies for a given frequency range and
@@ -39,7 +44,7 @@ def get_f_backendRelWidth(f_start, f_end, bandwidth):
     return f_backend, backend_bandwidth
 
 
-def get_f_backendConstWidth(f_start, f_end, bandwidth):
+def get_f_backend_const_width(f_start, f_end, bandwidth):
     """Compute backend frequencies with constant bandwidth.
 
     This function computes backend frequencies for a given frequency range and

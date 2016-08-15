@@ -9,10 +9,14 @@ import shutil
 import subprocess
 import sys
 
+from . import sensor
 from . import xml
 
 __all__ = ['xml',
+           'sensor',
            'run_arts',
+           'atm_fields_compact_get',
+           'atm_fields_compact_update',
            ]
 
 
@@ -93,3 +97,53 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
         )
 
     return ARTS_out(stdout=p.stdout, stderr=p.stderr, retcode=p.returncode)
+
+
+def atm_fields_compact_get(abs_species, gf4):
+    """Extract species from atm_fields_compact.
+
+    Parameters:
+        abs_species (list): Species to extract.
+        gf4 (GriddedField4): GriddedField4.
+
+    Returns:
+        Extracted profiles.
+
+    """
+    if not type(gf4) is types.GriddedField4:
+        raise Exception(
+            'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
+
+    if not type(abs_species) is list:
+        raise Exception('Absorption species have to be passed as list.')
+
+    vmr_field = gf4.data[[gf4.grids[0].index(s) for s in abs_species]]
+
+    return vmr_field
+
+
+def atm_fields_compact_update(abs_species, gf4, vmr):
+    """Update profile for given species.
+
+    Parameters:
+        abs_species (string): SpeciesTag.
+        gf4 (GriddedField4): GriddedField4.
+        vmr (ndarray): New VMR field.
+
+    Returns:
+        GriddedField4: Updated atm_fields_compact.
+
+    """
+    if not type(gf4) is types.GriddedField4:
+        raise Exception(
+            'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
+
+    if not type(abs_species) is list:
+        raise Exception('Absorption species have to be passed as list.')
+
+    species_index = [gf4.grids[0].index(s) for s in abs_species]
+    gf4.data[species_index, :, :, :] = vmr
+
+    gf4.check_dimension()
+
+    return gf4

@@ -1,3 +1,14 @@
+2016-08-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/__init__.py:
+
+	Import module sensor and add it to namespace.
+
+	Added two functions to interact and manipulate GriddedField4 storing
+	atm_fields_compact.
+
+	* typhon/arts/sensor.py: Renamed functions to be more pythonic.
+
 2016-08-12  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodetic/__init__.py, typhon/physics/__init__.py:
