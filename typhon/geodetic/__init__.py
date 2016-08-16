@@ -14,6 +14,10 @@ from typhon import constants
 
 __all__ = [
     'ellipsoidmodels',
+    'ellipsoid_r_geodetic',
+    'ellipsoid_r_geocentric',
+    'ellipsoid2d',
+    'ellipsoidcurvradius',
     'sind',
     'cosd',
     'tand',
@@ -46,6 +50,28 @@ def tand(x):
 def asind(x):
     """Inverse sine in degrees."""
     return np.arcsin(np.deg2rad(x))
+
+
+def inrange(x, minx, maxx, text=None):
+    """Test if x is within given bounds.
+
+    Parameters:
+        x: Variable to test.
+        minx: Lower boundary.
+        maxx: Upper boundary.
+        text (str): Addiitional warning text.
+
+    Raises:
+        Exception: If value is out of bounds.
+
+    """
+    if np.min(x) < minx or np.max(x) > maxx:
+        if text is None:
+            raise Exception('Range out of bound [{}, {}]'.format(minx, maxx))
+        else:
+            raise Exception(
+                'Range out of bound [{}, {}]: {}'.format(minx, maxx, text)
+                )
 
 
 class ellipsoidmodels():
@@ -118,26 +144,142 @@ class ellipsoidmodels():
         return list(self._data.keys())
 
 
-def inrange(x, minx, maxx, text=None):
-    """Test if x is within given bounds.
+def ellipsoid_r_geocentric(ellipsoid, lat):
+    """Geocentric radius of a reference ellipsoid.
+
+    Gives the distance from the Earth's centre and the reference ellipsoid
+    as a function of geoCENTRIC latitude.
+
+    Note:
+        To obtain the radii for *geodetic* latitude,
+        use :func:`ellipsoid_r_geodetic`.
 
     Parameters:
-        x: Variable to test.
-        minx: Lower boundary.
-        maxx: Upper boundary.
-        text (str): Addiitional warning text.
+        ellipsoid (tuple):  Model ellipsoid as returned
+            by :class:`ellipsoidmodels`.
+        lat: Geocentric latitudes.
 
-    Raises:
-        Exception: If value is out of bounds.
+    Returns:
+        Radii.
 
     """
-    if np.min(x) < minx or np.max(x) > maxx:
-        if text is None:
-            raise Exception('Range out of bound [{}, {}]'.format(minx, maxx))
-        else:
-            raise Exception(
-                'Range out of bound [{}, {}]: {}'.format(minx, maxx, text)
-                )
+    __credits__ = 'Patrick Eriksson'
+
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
+    if ellipsoid[1] == 0:
+        r = np.ones(lat.shape) * ellipsoid[0]
+    else:
+        c = 1 - ellipsoid[1]**2
+        b = ellipsoid[0] * np.sqrt(c)
+        r = b / np.sqrt(c * cosd(lat)**2 + sind(lat)**2)
+
+    return r
+
+
+def ellipsoid_r_geodetic(ellipsoid, lat):
+    """Geodetic radius of a reference ellipsoid.
+
+    The calculation expressions are taken from radiigeo.pdf, found in the
+    same folder as this function.
+
+    Note:
+        To obtain the radii for *geocentric* latitude,
+        use :func:`ellipsoid_r_geocentric`.
+
+    Parameters:
+        ellipsoid (tuple):  Model ellipsoid as returned
+            by :class:`ellipsoidmodels`.
+        lat: Geodetic latitudes.
+
+    Returns:
+        Radii.
+
+    """
+    __credits__ = 'Patrick Eriksson'
+
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
+    if ellipsoid[1] == 0:
+        r = np.ones(lat.shape) * ellipsoid[0]
+    else:
+        e2 = ellipsoid[1]**2
+        sin2 = sind(lat)**2
+        r = (ellipsoid[0] * np.sqrt((1 - e2)**2 * sin2
+             + cosd(lat) ** 2) / np.sqrt(1 - e2 * sin2)
+             )
+    return r
+
+
+def ellipsoid2d(ellipsoid, orbitinc):
+    """Approximate ellipsoid for 2D calculations.
+
+    Determines an approximate reference ellipsoid following an orbit track.
+    The new ellipsoid is determined simply, by determining the radius at the
+    maximum latitude and from this value calculate a new eccentricity.
+    The orbit is specified by giving the orbit inclination, that is
+    normally a value around 100 deg for polar sun-synchronous orbits.
+
+    Parameters:
+        ellipsoid (tuple):  Model ellipsoid as returned
+            by :class:`ellipsoidmodels`.
+        orbitinc (float): Orbit inclination.
+
+    Returns:
+        tuple: Modified ellipsoid vector.
+
+    """
+    __credits__ = 'Patrick Erikkson'
+
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
+    inrange(orbitinc, 0, 180, 'Invalid orbit inclination.')
+
+    rp = ellipsoid_r_geocentric(ellipsoid, orbitinc)
+
+    return ellipsoid[0], np.sqrt(1 - (rp / ellipsoid[0])**2)
+
+
+def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
+    """Sets ellispoid to local curvature radius
+
+    Calculates the curvature radius for the given latitude and azimuth
+    angle, and uses this to set a spherical reference ellipsoid
+    suitable for 1D calculations. The curvature radius is a better
+    local approximation than using the local ellipsoid radius.
+
+    The calculation expressions are taken from radiigeo.pdf, found in the
+    same folder as this function.
+
+    For exact result the *geodetic* latitude shall be used.
+
+    Parameters:
+    lat_gd: Geodetic latitude.
+    azimuth: Azimuthal angle (angle from NS plane).
+        If given curvature radii are returned, see above
+
+    Returns:
+        tuple: Modified ellipsoid.
+
+    """
+    __credits__ = 'Patrick Erikkson'
+
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
+    aterm = 1 - ellipsoid[1]**2 * sind(lat_gd)**2
+    rn = 1 / np.sqrt(aterm)
+    rm = (1 - ellipsoid[1]**2) * (rn / aterm)
+    e0 = (ellipsoid[0] /
+          (cosd(azimuth)**2.0 / rm
+           + sind(azimuth)**2.0 / rn)
+          )
+    e1 = 0
+
+    return e0, e1
 
 
 def cart2geocentric(x, y, z, lat0=None, lon0=None, za0=None, aa0=None):
@@ -256,6 +398,9 @@ def cart2geodetic(x, y, z, ellipsoid=None):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
     lon = np.rad2deg(np.arctan2(y, x))
     B0 = np.arctan2(z, np.hypot(x, y))
     B = np.ones(B0.shape)
@@ -294,6 +439,9 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
     a = ellipsoid[0]
     e2 = ellipsoid[1] ** 2
 
@@ -329,6 +477,9 @@ def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
+
     cart = geodetic2cart(h, lat, lon, ellipsoid)
     return cart2geocentric(*cart, **kwargs)
 
@@ -355,6 +506,9 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
 
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
+
+    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
+        raise Exception('Invalid excentricity value in ellipsoid model.')
 
     cart = geocentric2cart(r, lat, lon)
     return cart2geodetic(*cart, ellipsoid)

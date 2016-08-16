@@ -2,6 +2,21 @@
 
 	* typhon/geodetic/__init__.py:
 
+	Ported all ellipsoid related functions.
+
+	Added checks for valid excentricity wherever a ellipsoid model is used.
+
+	Added information about original authors to all functions.
+
+	* typhon/geodetic/tests/test_geodetic.py:
+
+	Added a test to check all models shipped with typhon for valid
+	excentricity.
+
+2016-08-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodetic/__init__.py:
+
 	Added functions to convert between geocentric and geodetic coordinates.
 
 	* typhon/geodetic/tests/test_geodetic.py:

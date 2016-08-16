@@ -14,6 +14,14 @@ class TestConversion(object):
     This class provides functions to test the conversion between different
     coordinate systems.
     """
+    def test_ellipsoidmodels(self):
+        """Check ellipsoidmodels for valid excentricities."""
+        e = geodetic.ellipsoidmodels()
+
+        exc = np.array([e[m][1] for m in e.models])
+
+        assert (np.all(exc >= 0) and np.all(exc < 1))
+
     def test_cart2geocentric(self):
         """Test conversion from cartesian to geocentric system."""
         cartesian = (np.array([1, 0, 0]),  # x
