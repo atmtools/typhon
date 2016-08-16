@@ -18,6 +18,8 @@ __all__ = [
     'inrange',
     'cart2geocentric',
     'geocentric2cart',
+    'cart2geodetic',
+    'geodetic2cart',
 ]
 
 
@@ -215,5 +217,73 @@ def geocentric2cart(r, lat, lon):
     y = x * np.sin(lonrad)
     x = x * np.cos(lonrad)
     z = r * np.sin(latrad)
+
+    return x, y, z
+
+
+def cart2geodetic(x, y, z, ellipsoid=None):
+    """Converts from cartesian to geodetic coordinates.
+
+    The geodetic coordinates refer to the reference ellipsoid
+    specified by input ellipsoid.
+    See module docstring for a defintion of the geocentric coordinate system.
+
+    Parameters:
+        x: Coordinates in x dimension.
+        y: Coordinates in y dimension.
+        z: Coordinates in z dimension.
+        ellipsoid: A tuple with the form (semimajor axis, eccentricity).
+            Default is 'WGS84' from :class:`ellipsoidmodels`.
+
+    Returns:
+        tuple: Geodetic height, latitude and longitude
+
+    """
+    if ellipsoid is None:
+        ellipsoid = ellipsoidmodels()['WGS84']
+
+    lon = np.rad2deg(np.arctan2(y, x))
+    B0 = np.arctan2(z, np.hypot(x, y))
+    B = np.ones(B0.shape)
+    e2 = ellipsoid[1]**2
+    while (np.any(np.abs(B - B0) > 1e-10)):
+        N = ellipsoid[0] / np.sqrt(1 - e2 * np.sin(B0)**2)
+        h = np.hypot(x, y) / np.cos(B0) - N
+        B = B0.copy()
+        B0 = np.arctan(z/np.hypot(x, y) * ((1-e2*N/(N+h))**(-1)))
+
+    lat = np.rad2deg(B)
+
+    return h, lat, lon
+
+
+def geodetic2cart(h, lat, lon, ellipsoid=None):
+    """Converts from geodetic to geocentric cartesian coordinates.
+
+    The geodetic coordinates refer to the reference ellipsoid
+    specified by input ellipsoid.
+    See module docstring for a defintion of the geocentric coordinate system.
+
+    Parameters:
+        h: Geodetic height (height above the reference ellipsoid).
+        lat: Geodetic latitude.
+        lon: Geodetic longitude.
+        ellipsoid: A tuple with the form (semimajor axis, eccentricity).
+            Default is 'WGS84' from :class:`ellipsoidmodels`.
+
+    Returns:
+        tuple: x, y, z coordinates.
+
+    """
+    if ellipsoid is None:
+        ellipsoid = ellipsoidmodels()['WGS84']
+
+    a = ellipsoid[0]
+    e2 = ellipsoid[1] ** 2
+
+    N = a / np.sqrt(1 - e2 * sind(lat)**2)
+    x = (N + h) * (cosd(lat)) * (cosd(lon))
+    y = (N + h) * (cosd(lat)) * (sind(lon))
+    z = (N * (1 - e2) + h) * (sind(lat))
 
     return x, y, z

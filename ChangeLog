@@ -1,3 +1,17 @@
+2016-08-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodetic/__init__.py:
+
+	Added functions to convert between cartesian and geodetic coordinates.
+
+	* typhon/geodetic/tests/test_geodetic.py:
+
+	Test the conversion between geodetic and cartesian coordiantes (there and
+	back) for all available ellipsoid models.
+
+	Test for cartesian/geocentric conversion are merged into one test case
+	each using arrays.
+
 2016-08-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/__init__.py:

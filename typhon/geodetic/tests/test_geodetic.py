@@ -16,26 +16,34 @@ class TestConversion(object):
     """
     def test_cart2geocentric(self):
         """Test conversion from cartesian to geocentric system."""
-        cartesians = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
-        references = [(1, 0, 0), (1, 0, 90), (1, 90, 0)]
+        cartesian = (np.array([1, 0, 0]),  # x
+                     np.array([0, 1, 0]),  # y
+                     np.array([0, 0, 1]),  # z
+                     )
 
-        for c, r in zip(cartesians, references):
-            yield self._convert_cart2geocentric, c, r
+        reference = (np.array([1, 1, 1]),  # r
+                     np.array([0, 0, 90]),  # lat
+                     np.array([0, 90, 0]),  # lon
+                     )
 
-    def _convert_cart2geocentric(self, cart, reference):
-        conversion = geodetic.cart2geocentric(*cart)
+        conversion = geodetic.cart2geocentric(*cartesian)
+
         assert np.allclose(conversion, reference)
 
     def test_geocentric2cart(self):
         """Test conversion from cartesian to geocentric system."""
-        geocentrics = [(1, 0, 0), (1, 0, 90), (1, 90, 0)]
-        references = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        geocentric = (np.array([1, 1, 1]),  # r
+                      np.array([0, 0, 90]),  # lat
+                      np.array([0, 90, 0]),  # lon
+                      )
 
-        for g, r in zip(geocentrics, references):
-            yield self._convert_geocentric2cart, g, r
+        reference = (np.array([1, 0, 0]),  # x
+                     np.array([0, 1, 0]),  # y
+                     np.array([0, 0, 1]),  # z
+                     )
 
-    def _convert_geocentric2cart(self, geocentric, reference):
         conversion = geodetic.geocentric2cart(*geocentric)
+
         assert np.allclose(conversion, reference)
 
     def test_geocentric2cart2geocentric(self):
@@ -46,3 +54,19 @@ class TestConversion(object):
         geo = geodetic.cart2geocentric(*cart)
 
         assert np.allclose(ref, geo)
+
+    def test_geodetic2cart2geodetic(self):
+        """Test geodetic/cartesian conversion for all ellipsoids."""
+        e = geodetic.ellipsoidmodels()
+
+        for model in e.models:
+            yield self._test_geodetic2cart2geodetic, e[model]
+
+    def _test_geodetic2cart2geodetic(self, ellipsoid):
+        """Test conversion from geodetic to cartesian system and back."""
+        ref = (1, -13, 42)
+
+        cart = geodetic.geodetic2cart(*ref, ellipsoid=ellipsoid)
+        geod = geodetic.cart2geodetic(*cart, ellipsoid=ellipsoid)
+
+        assert np.allclose(ref, geod)
