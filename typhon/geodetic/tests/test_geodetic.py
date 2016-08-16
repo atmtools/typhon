@@ -66,7 +66,23 @@ class TestConversion(object):
         """Test conversion from geodetic to cartesian system and back."""
         ref = (1, -13, 42)
 
-        cart = geodetic.geodetic2cart(*ref, ellipsoid=ellipsoid)
-        geod = geodetic.cart2geodetic(*cart, ellipsoid=ellipsoid)
+        cart = geodetic.geodetic2cart(*ref, ellipsoid)
+        geod = geodetic.cart2geodetic(*cart, ellipsoid)
+
+        assert np.allclose(ref, geod)
+
+    def test_geodetic2geocentric2geodetic(self):
+        """Test geodetic/geocentric conversion for all ellipsoids."""
+        e = geodetic.ellipsoidmodels()
+
+        for model in e.models:
+            yield self._test_geodetic2geocentric2geodetic, e[model]
+
+    def _test_geodetic2geocentric2geodetic(self, ellipsoid):
+        """Test conversion from geodetic to geocentric system and back."""
+        ref = (1, -13, 42)
+
+        geoc = geodetic.geodetic2geocentric(*ref, ellipsoid)
+        geod = geodetic.geocentric2geodetic(*geoc, ellipsoid)
 
         assert np.allclose(ref, geod)

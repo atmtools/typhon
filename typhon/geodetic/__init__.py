@@ -2,6 +2,9 @@
 
 """Functions for handling geographical coordinate systems
 and reference ellipsoids.
+
+Unless otherwise stated functions are ported from atmlab-2-3-181.
+
 """
 import numpy as np
 from numpy.lib import scimath
@@ -20,6 +23,8 @@ __all__ = [
     'geocentric2cart',
     'cart2geodetic',
     'geodetic2cart',
+    'geodetic2geocentric',
+    'geocentric2geodetic',
 ]
 
 
@@ -59,6 +64,8 @@ class ellipsoidmodels():
         >>> e = ellipsoidmodels()
 
     """
+    __credits__ = 'Patrick Eriksson'
+
     def __init__(self):
         self._data = {
             "SphericalEarth": (constants.earth_radius, 0),
@@ -122,6 +129,7 @@ def inrange(x, minx, maxx, text=None):
 
     Raises:
         Exception: If value is out of bounds.
+
     """
     if np.min(x) < minx or np.max(x) > maxx:
         if text is None:
@@ -163,7 +171,9 @@ def cart2geocentric(x, y, z, lat0=None, lon0=None, za0=None, aa0=None):
 
     Returns:
         tuple: Radius, Latitude, Longitude
+
     """
+    __credits__ = 'Bengt Rydberg'
 
     r = np.sqrt(x**2 + y**2 + z**2)
 
@@ -205,7 +215,9 @@ def geocentric2cart(r, lat, lon):
 
      Returns:
         tuple: Coordinate in x, y, z dimension.
+
     """
+    __credits__ = 'Bengt Rydberg'
 
     if np.any(r == 0):
         error("This set of functions does not handle r = 0.")
@@ -239,6 +251,8 @@ def cart2geodetic(x, y, z, ellipsoid=None):
         tuple: Geodetic height, latitude and longitude
 
     """
+    __credits__ = 'Bengt Rydberg'
+
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -275,6 +289,8 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
         tuple: x, y, z coordinates.
 
     """
+    __credits__ = 'Bengt Rydberg'
+
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -287,3 +303,58 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
     z = (N * (1 - e2) + h) * (sind(lat))
 
     return x, y, z
+
+
+def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
+    """Converts from geodetic to geocentric coordinates.
+
+    The geodetic coordinates refer to the reference ellipsoid
+    specified by input ellipsoid.
+    See module docstring for a defintion of the geocentric coordinate system.
+
+    Parameters:
+        h: Geodetic height (height above the reference ellipsoid).
+        lat: Geodetic latitude.
+        lon: Geodetic longitude.
+        kwargs: Additional keyword arguments for :func:`cart2geocentric`.
+        ellipsoid: A tuple with the form (semimajor axis, eccentricity).
+            Default is 'WGS84' from :class:`ellipsoidmodels`.
+
+    Returns:
+        tuple: Radius, geocentric latiude, geocentric longitude
+
+    """
+    __credits__ = 'Bengt Rydberg'
+
+    if ellipsoid is None:
+        ellipsoid = ellipsoidmodels()['WGS84']
+
+    cart = geodetic2cart(h, lat, lon, ellipsoid)
+    return cart2geocentric(*cart, **kwargs)
+
+
+def geocentric2geodetic(r, lat, lon, ellipsoid=None):
+    """Converts from geocentric to geodetic coordinates.
+
+    The geodetic coordinates refer to the reference ellipsoid
+    specified by input ellipsoid.
+    See module docstring for a defintion of the geocentric coordinate system.
+
+    Returns:
+        tuple: Geodetic height, latitude and longitude
+
+    Parameters:
+        r: Radius:
+        lat: Geocentric latitude.
+        lon: Geocentric longitude.
+        ellipsoid: A tuple with the form (semimajor axis, eccentricity).
+            Default is 'WGS84' from :class:`ellipsoidmodels`.
+
+    """
+    __credits__ = 'Bengt Rydberg'
+
+    if ellipsoid is None:
+        ellipsoid = ellipsoidmodels()['WGS84']
+
+    cart = geocentric2cart(r, lat, lon)
+    return cart2geodetic(*cart, ellipsoid)
