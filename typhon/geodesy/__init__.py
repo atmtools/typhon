@@ -52,20 +52,30 @@ def asind(x):
     return np.arcsin(np.deg2rad(x))
 
 
-def inrange(x, minx, maxx, text=None):
+def inrange(x, minx, maxx, exclude='none', text=None):
     """Test if x is within given bounds.
 
     Parameters:
         x: Variable to test.
         minx: Lower boundary.
         maxx: Upper boundary.
+        exclude (str): Exclude boundaries. Possible values are:
+            'none', 'lower', 'upper' and 'both'
         text (str): Addiitional warning text.
 
     Raises:
         Exception: If value is out of bounds.
 
     """
-    if np.min(x) < minx or np.max(x) > maxx:
+    compare = {'none': (np.greater_equal, np.less_equal),
+               'lower': (np.greater, np.less_equal),
+               'upper': (np.greater_equal, np.less),
+               'both': (np.greater, np.less),
+               }
+
+    greater, less = compare[exclude]
+
+    if less(x, minx) or greater(x, maxx):
         if text is None:
             raise Exception('Range out of bound [{}, {}]'.format(minx, maxx))
         else:
@@ -165,8 +175,8 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     """
     __credits__ = 'Patrick Eriksson'
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     if ellipsoid[1] == 0:
         r = np.ones(lat.shape) * ellipsoid[0]
@@ -199,8 +209,8 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     """
     __credits__ = 'Patrick Eriksson'
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     if ellipsoid[1] == 0:
         r = np.ones(lat.shape) * ellipsoid[0]
@@ -233,8 +243,8 @@ def ellipsoid2d(ellipsoid, orbitinc):
     """
     __credits__ = 'Patrick Erikkson'
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     inrange(orbitinc, 0, 180, 'Invalid orbit inclination.')
 
@@ -267,8 +277,8 @@ def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
     """
     __credits__ = 'Patrick Erikkson'
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     aterm = 1 - ellipsoid[1]**2 * sind(lat_gd)**2
     rn = 1 / np.sqrt(aterm)
@@ -319,8 +329,8 @@ def cart2geocentric(x, y, z, lat0=None, lon0=None, za0=None, aa0=None):
 
     r = np.sqrt(x**2 + y**2 + z**2)
 
-    if not np.all(r > 0):
-        raise Exception('This set of functions does not handle r > 0.')
+    if np.any(r == 0):
+        error("This set of functions does not handle r = 0.")
 
     lat = np.rad2deg(np.arcsin(z / r))
     lon = np.rad2deg(np.arctan2(y, x))
@@ -398,8 +408,8 @@ def cart2geodetic(x, y, z, ellipsoid=None):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     lon = np.rad2deg(np.arctan2(y, x))
     B0 = np.arctan2(z, np.hypot(x, y))
@@ -439,8 +449,8 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     a = ellipsoid[0]
     e2 = ellipsoid[1] ** 2
@@ -477,8 +487,8 @@ def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     cart = geodetic2cart(h, lat, lon, ellipsoid)
     return cart2geocentric(*cart, **kwargs)
@@ -507,8 +517,8 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
-    if not (ellipsoid[1] >= 0 and ellipsoid[1] < 1):
-        raise Exception('Invalid excentricity value in ellipsoid model.')
+    errtext = 'Invalid excentricity value in ellipsoid model.'
+    inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     cart = geocentric2cart(r, lat, lon)
     return cart2geodetic(*cart, ellipsoid)

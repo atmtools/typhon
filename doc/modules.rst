@@ -9,7 +9,7 @@ API Documentation
    cm
    constants
    files
-   geodetic
+   geodesy
    oem
    plots
    thermodynamics

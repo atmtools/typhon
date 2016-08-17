@@ -11,7 +11,7 @@ if not __TYPHON_SETUP__:
     from . import arts
     from . import constants
     from . import files
-    from . import geodetic
+    from . import geodesy
     from . import oem
     from . import utils
     from . import thermodynamics

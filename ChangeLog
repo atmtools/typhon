@@ -1,3 +1,22 @@
+2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodesy: Renamed from typhon/geodetic.
+
+	* typhon/geodesy/__init__.py:
+
+	inrange() now takes the keyword argument 'exclude' to exclude one or both
+	boundaries from the check.
+
+	* typhon/geodesy/tests/test_geodesy.py:
+
+	Renamed from typhon/geodesy/tests/test_geodetic.py:
+
+	* typhon/__init__.py: Fixed import from geodetic to geodesy.
+
+	* doc/geodesy.rst: Renamed from doc/geodetic.rst.
+
+	* doc/modules.rst: Renamed module geodetic to geodesy.
+
 2016-08-16  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodetic/__init__.py:
