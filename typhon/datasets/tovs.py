@@ -5,6 +5,7 @@ dependency on the pint units library.  Import this module only if you can
 accept such a dependency.
 """
 
+import sys
 import io
 import tempfile
 import subprocess
@@ -316,13 +317,16 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
                         progressbar.AdaptiveETA(), " -> ",
                         progressbar.AbsoluteETA(), ') '])
             except AttributeError:
+                dobar = False
                 bar = None
                 logging.info("If you had the "
                     "progressbar2 module, you would have gotten a "
                     "nice progressbar.")
             else:
-                bar.start()
-                bar.update(0)
+                dobar = sys.stdout.isatty()
+                if dobar:
+                    bar.start()
+                    bar.update(0)
             for (g_start, gran) in self.find_granules_sorted(start_date, end_date,
                             return_time=True, satname=satname):
                 try:
@@ -354,10 +358,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
                 prev_line = cur_line.copy()
                 prev_head = cur_head.copy()
                 prev_time = cur_time.copy()
-                if bar is not None:
+                if dobar:
                     bar.update((g_start-start_date)/(end_date-start_date))
                 count_all += 1
-            if bar is not None:
+            if dobar:
                 bar.update(1)
                 bar.finish()
             logging.info("Updated {:d}/{:d} granules".format(count_updated, count_all))
@@ -414,7 +418,13 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         T_uncorr = em.specrad_frequency_to_planck_bt(rad_f,
             em.wavenumber2frequency(wn))
 
-        T_corr = (T_uncorr - c1)/c2
+        # fails with FloatingPointError…
+        # see https://github.com/numpy/numpy/issues/4895
+        #T_corr = (T_uncorr - ureg.Quantity(c1, ureg.K))/c2
+        T_corr = ureg.Quantity(numpy.ma.MaskedArray(
+                (T_uncorr.m.data - c1)/c2,
+                mask=T_uncorr.mask),
+            ureg.K)
 
         return T_corr
 

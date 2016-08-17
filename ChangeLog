@@ -1,3 +1,33 @@
+2016-08-17  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/utils/cache.py:
+
+	- Add warning on memory usage, as this one keeps a copy in case an
+	object is mutable
+
+	- Add capability to suppress or clear cache on a single call
+
+	* typhon/plots/__init__.py(plot_distribution_as_percentiles):
+
+	- Fix bug when no label is passed
+
+	* typhon/datasets/tovs.py:
+
+	- Only do progressbar when sys.stdout is a terminal
+
+	- Add workaround for numpy issue 4895.
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Add CPIDS for NOAA16 and 17 HIRS.
+
+	* typhon/datasets/dataset.py(read_period):
+
+	- Add capability for filters (arbitrary functions) in addition to
+	limits (dict with boundaries), exactly like in atmlab.
+
+	- Only do progressbar is sys.stdout is a tty.
+
 2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/sensor.py: Fixed typo in __all__.

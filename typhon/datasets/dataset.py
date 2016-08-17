@@ -244,7 +244,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           sorted=True,
                           locator_args=None,
                           reader_args=None,
-                          limits=None):
+                          limits=None,
+                          filters=None):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -284,6 +285,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             limits (dict): Limitations to apply to each granule.  For the
                 exact format, see `:func:typhon.math.array.limit_ndarray`.
 
+            filters (container/iterable): collection of functions to be
+                applied for filtering.  Must take ndarray input, must give
+                ndarray output.
+
         Returns:
             
             Masked array containing all data in period.  Invalid data may
@@ -299,6 +304,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
         if limits is None:
             limits = {}
+
+        if filters is None:
+            filters = set()
 
         start = start or self.start_date
         end = end or self.end_date
@@ -323,7 +331,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 #                 else:
 #                     raise
 #             contents.append(cont[cont["time"]>=start])
-        if sorted and progressbar:
+        dobar = sorted and progressbar and sys.stdout.isatty()
+        if dobar:
             bar = progressbar.ProgressBar(maxval=1,
                     widgets=[progressbar.Bar("=", "[", "]"), " ",
                              progressbar.Percentage(),
@@ -343,6 +352,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 cont = self.read(str(gran), fields=fields, **reader_args)
                 oldsize = cont.size
                 cont = tpmath.array.limit_ndarray(cont, limits)
+                for f in filters:
+                    cont = f(cont)
                 if cont.size < oldsize:
                     logging.debug("Applying limitations, reducing "
                         "{:d} to {:d}".format(oldsize, cont.size))
@@ -357,9 +368,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 contents.append(
                     cont[(cont["time"]<=end)&(cont["time"]>=start)])
                 anygood = True
-            if sorted and progressbar:
+            if dobar:
                 bar.update(max((g_start-start) / (end-start),0))
-        if sorted and progressbar:
+        if dobar:
             bar.update(1)
             bar.finish()
         # retain type of first result, ordinary array or masked array

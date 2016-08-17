@@ -92,6 +92,8 @@ def plot_distribution_as_percentiles(ax, x, y,
                                         for x in D_ls.pop(linestyles[i])))
             else:
                 locallab = None
+        else:
+            label = None
 
         ax.plot(bins, scores[:, i], ls=linestyles[i], label=locallab, **kwargs)
 
