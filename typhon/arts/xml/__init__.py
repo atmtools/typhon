@@ -6,12 +6,15 @@
 from __future__ import absolute_import
 
 import gzip
-from os.path import isfile
+import glob
+from os.path import isfile, join, basename, splitext
 
 from . import read
 from . import write
 
-__all__ = ['load', 'save']
+__all__ = ['load',
+           'save',
+           'load_directory']
 
 
 def save(var, filename, precision='.7e', format='ascii', comment=None):
@@ -91,3 +94,31 @@ def load(filename):
                 return read.parse(fp, binaryfp).getroot().value()
         else:
             return read.parse(fp).getroot().value()
+
+
+def load_directory(directory, exclude=None):
+    """Load all XML files in a given directory.
+
+    Search given directory  for files with '.xml'-extension and try to load
+    them using :func:`load`.
+
+    Parameters:
+        directory (str): Path to the directory.
+        exclude (list[str]): Filenames to exlude.
+
+    Returns:
+        dictionary: Dictionary, filenames without extension are used as key.
+
+    Example:
+        Load all files in foo except for the lookup table in abs_lookup.xml.
+
+        >>> load_directory('foo', exclude=['abs_lookup.xml'])
+
+    """
+    if exclude is None:
+        exclude = []
+
+    xmlfiles = [f for f in glob.glob(join(directory, '*.xml'))
+                if basename(f) not in exclude]
+
+    return {splitext(basename(f))[0]: load(f) for f in xmlfiles}

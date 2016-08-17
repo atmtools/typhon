@@ -161,7 +161,7 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     as a function of geoCENTRIC latitude.
 
     Note:
-        To obtain the radii for *geodetic* latitude,
+        To obtain the radii for **geodetic** latitude,
         use :func:`ellipsoid_r_geodetic`.
 
     Parameters:
@@ -195,7 +195,7 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     same folder as this function.
 
     Note:
-        To obtain the radii for *geocentric* latitude,
+        To obtain the radii for **geocentric** latitude,
         use :func:`ellipsoid_r_geocentric`.
 
     Parameters:
@@ -267,9 +267,9 @@ def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
     For exact result the *geodetic* latitude shall be used.
 
     Parameters:
-    lat_gd: Geodetic latitude.
-    azimuth: Azimuthal angle (angle from NS plane).
-        If given curvature radii are returned, see above
+        lat_gd: Geodetic latitude.
+        azimuth: Azimuthal angle (angle from NS plane).
+            If given curvature radii are returned, see above.
 
     Returns:
         tuple: Modified ellipsoid.

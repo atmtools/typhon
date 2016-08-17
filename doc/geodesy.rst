@@ -1,7 +1,7 @@
 typhon.geodetic
 ===============
 
-.. automodule:: typhon.geodetic
+.. automodule:: typhon.geodesy
    :members:
    :undoc-members:
    :show-inheritance:

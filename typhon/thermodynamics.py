@@ -58,6 +58,7 @@ def e_eq_water_mk(T):
                     &\cdot \left(53.878 - \frac{1331.22}{T}
                                  - 9.44523 \cdot \ln(T)
                                  + 0.014025 \cdot T \right)
+
     Parameters:
         T: Temperature in [K].
 

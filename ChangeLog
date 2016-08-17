@@ -1,5 +1,23 @@
 2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/xml/__init__.py:
+
+	Added function load_directory() to load all XML files in a given
+	directory.
+
+	* typhon/cm/_cmocean.py: Added colormap 'difference'.
+
+	The new colormap is a variant of a blue-to-red colormap which fits the
+	overall impression of the other colormaps shipped with typhon.
+
+	* typhon/geodesy/__init__.py, typhon/thermodynamics.py:
+
+	Fixed syntax errors in reStructuredText for sphinx documentation.
+
+	* doc/geodesy.rst: Fixed module import.
+
+2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/geodesy: Renamed from typhon/geodetic.
 
 	* typhon/geodesy/__init__.py:
