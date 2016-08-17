@@ -7,7 +7,7 @@ Implementation of functions related to sensor settings.
 import numpy as np
 
 
-__all__ = ['get_f_backend_reld_width',
+__all__ = ['get_f_backend_rel_width',
            'get_f_backend_const_width',
            ]
 

@@ -1,5 +1,5 @@
-typhon.geodetic
-===============
+typhon.geodesy
+==============
 
 .. automodule:: typhon.geodesy
    :members:

@@ -1,5 +1,11 @@
 2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/sensor.py: Fixed typo in __all__.
+
+	* doc/geodesy.rst: Fixed documentation header.
+
+2016-08-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/xml/__init__.py:
 
 	Added function load_directory() to load all XML files in a given
