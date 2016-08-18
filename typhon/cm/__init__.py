@@ -9,11 +9,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.cm import register_cmap
 import numpy as np
+import time
 
 from ._cmocean import datad as _cmocean_datad
 from ._cm import datad as _cm_datad
 
-__all__ = ['mpl_colors']
+__all__ = ['mpl_colors',
+           'cmap2txt',
+           'cmap2cpt',
+           ]
 
 datad = _cmocean_datad
 datad.update(_cm_datad)
@@ -67,3 +71,56 @@ def mpl_colors(cmap=None, N=10):
         cmap = plt.rcParams['image.cmap']
 
     return plt.get_cmap(cmap)(np.linspace(0, 1, N))
+
+
+def cmap2txt(cmap, filename=None, comments='%'):
+    """Export colormap to txt file.
+
+    Parameters:
+        cmap (str): Colormap name.
+        filename (str): Optional filename.
+            Default: cmap + '.txt'
+        comments (str): Character to start comments with.
+
+    """
+    colors = mpl_colors(cmap, 256)
+    date = time.strftime('%c')
+    header = 'Colormap "{}". Created {}'.format(cmap, date)
+
+    if filename is None:
+        filename = cmap + '.txt'
+
+    np.savetxt(filename, colors[:, :3], header=header, comments=comments)
+
+
+def cmap2cpt(cmap, filename=None):
+    """Export colormap to cpt file.
+
+    Parameters:
+        cmap (str): Colormap name.
+        filename (str): Optional filename.
+            Default: cmap + '.cpt'
+
+    """
+    colors = mpl_colors(cmap, 256)
+    date = time.strftime('%c')
+    header = ('# Colormap "{}". Created {}\n'
+              '# COLOR_MODEL = RGB\n'.format(cmap, date))
+
+    left = '{:<3d} {:0>3d}/{:0>3d}/{:0>3d} '.format
+    right = '{:<3d} {:0>3d}/{:0>3d}/{:0>3d}\n'.format
+
+    if filename is None:
+        filename = cmap + '.cpt'
+
+    with open(filename, 'w') as f:
+        f.write(header)
+
+        # For each level spefifz a ...
+        for n in range(len(colors) - 1):
+            # ... start color ...
+            r, g, b = [int(c * 255) for c in colors[n, :3]]
+            f.write(left(n, r, g, b))
+            # ... and end color.
+            r, g, b = [int(c * 255) for c in colors[n + 1, :3]]
+            f.write(right(n + 1, r, g, b))
