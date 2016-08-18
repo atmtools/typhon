@@ -29,6 +29,8 @@ __all__ = [
     'geodetic2cart',
     'geodetic2geocentric',
     'geocentric2geodetic',
+    'great_circle_distance',
+    'geographic_mean',
 ]
 
 
@@ -458,7 +460,8 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
     N = a / np.sqrt(1 - e2 * sind(lat)**2)
     x = (N + h) * (cosd(lat)) * (cosd(lon))
     y = (N + h) * (cosd(lat)) * (sind(lon))
-    z = (N * (1 - e2) + h) * (sind(lat))
+    # np.ones(np.shape(lon)): Ensure equal shape of x, y, z.
+    z = (N * (1 - e2) + h) * (sind(lat)) * np.ones(np.shape(lon))
 
     return x, y, z
 
@@ -522,3 +525,72 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
 
     cart = geocentric2cart(r, lat, lon)
     return cart2geodetic(*cart, ellipsoid)
+
+
+def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
+    """Calculate the distance between two geograpgical positions.
+
+    "As-the-crow-flies" distance between two points, specified by their
+    latitude and longitude.
+
+    If the optional argument *r* is given, the distance in m is returned.
+    Otherwise the angular distance in degrees is returned.
+
+    Parameters:
+        lat1: Latitude of position 1.
+        lon1: Longitude of position 1.
+        lat2: Latitude of position 2.
+        lon2: Longitude of position 2.
+        r (float): The radius (common for both points).
+
+    Returns:
+        Distance, either in degress or m.
+
+    """
+    __credits__ = 'Patrick Erikkson'
+
+    a = (sind((lat2 - lat1) / 2)**2
+         + cosd(lat1) * (cosd(lat2))
+         * (sind((lon2 - lon1) / 2)**2)
+         )
+
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+    if r is None:
+        return np.rad2deg(c)
+    else:
+        return r * c
+
+
+def geographic_mean(lat, lon, ellipsoid=None):
+    """Calculate mean position for set of coordinates.
+
+    Parameters:
+        lat: Latitudes in degrees.
+        lon: Longitudes in degrees.
+        ellipsoid: A tuple with the form (semimajor axis, eccentricity).
+            Default is 'WGS84' from :class:`ellipsoidmodels`.
+
+    Returns:
+       tuple: Mean latitudes and longitudes in degrees.
+
+    """
+    # TODO: Consider altitude. This should be straight forward in typhon but
+    # has to be checked.
+
+    if ellipsoid is None:
+        ellipsoid = ellipsoidmodels()['WGS84']
+
+    x, y, z = geodetic2cart(
+        h,
+        lat,
+        lon,
+        ellipsoid=ellipsoid)
+
+    mh, mlat, mlon = cart2geodetic(
+        np.mean(x),
+        np.mean(y),
+        np.mean(z),
+        ellipsoid=ellipsoid)
+
+    return mlat, mlon

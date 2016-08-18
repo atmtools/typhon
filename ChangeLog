@@ -1,5 +1,12 @@
 2016-08-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodesy/__init__.py:
+
+	Added functions to calculate grate-circle distance, and geographical mean
+	of coordinates.
+
+2016-08-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/cm/__init__.py:
 
 	Added functions to export matplotlib colormaps to txt and cpt files.
