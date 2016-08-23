@@ -98,6 +98,17 @@ def plot_distribution_as_percentiles(ax, x, y,
         ax.plot(bins, scores[:, i], ls=linestyles[i], label=locallab, **kwargs)
 
 
+def get_subplot_arrangement(n):
+    """Get efficient (nrow, ncol) for n subplots
+
+    If we want to put `n` subplots in a square-ish/rectangular
+    arrangement, how should we arrange them?
+
+    Returns (⌈√n⌉, ‖√n‖)
+    """
+    return (int(np.ceil(np.sqrt(n))),
+            int(np.round(np.sqrt(n))))
+
 def install_mplstyles():
     """Install additional matplotlib stylesheets.
 

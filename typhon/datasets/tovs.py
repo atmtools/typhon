@@ -135,6 +135,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
     typ_iwt = 3 # internal warm calibration target
 
     _fact_shapes = {"hrs_h_fwcnttmp": (4, 5)}
+
+    max_valid_time_ptp = numpy.timedelta64(3, 'h')
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -250,6 +252,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             scanlines_new["bt"] = bt
             scanlines_new["lat"] = lat
             scanlines_new["lon"] = lon
+            time = self._get_time(scanlines)
+            if time.ptp() > self.max_valid_time_ptp:
+                raise dataset.InvalidDataError("Time span appears to be "
+                    "{!s}.  That can't be right!".format(
+                        time.ptp().astype(datetime.timedelta)))
             scanlines_new["time"] = self._get_time(scanlines)
             scanlines_new["calcof_sorted"] = cc
             scanlines = scanlines_new

@@ -1,3 +1,15 @@
+2016-08-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/plots/__init__.py(get_subplot_arrangement):
+
+	- Added a function to calculate a
+	perhaps-not-entirely-optimal-but-still-acceptable subplot arrangement
+	depending on how many subplots are to be arranged.
+
+	* typhon/datasets/tovs.py(HIRS._read):
+
+	- Check whether times make sense.  Raise error if they don't.
+
 2016-08-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodesy/__init__.py:
