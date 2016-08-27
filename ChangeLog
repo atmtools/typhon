@@ -1,3 +1,13 @@
+2016-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/constants.py:
+
+	Added aliases for some constants to make them usable via their clear name.
+
+	* typhon/physics/__init__.py:
+
+	Added planck functions for frequency and wavelength.
+
 2016-08-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/plots/__init__.py(get_subplot_arrangement):
