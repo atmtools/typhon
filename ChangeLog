@@ -1,3 +1,9 @@
+2016-08-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/math/__init__.py:
+
+	Added a function to calculate column integrals.
+
 2016-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/constants.py:
