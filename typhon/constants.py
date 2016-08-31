@@ -7,8 +7,10 @@
 import scipy.constants as spc
 
 
-R_d = 287.0  # J K^-1 kg^-1; gas constant for 1 mol dry air Wallace and Hobbs Eq. 3.11
-R_v = 461.51  # J K^-1 kg^-1 gas constant for water vapour; Wallace and Hobbs Eq. 3.13
+# Gas constants for dry air and water vapor are taken from
+# Wallace and Hobbs Eq. 3.11 and 3.13.
+R_d = gas_constant_dry_air = 287.0  # J K^-1 kg^-1
+R_v = gas_constant_water_vapor = 461.51  # J K^-1 kg^-1
 R = 8.3143  # J K^-1 mol^-1; Wallace and Hobbs page 467
 h = planck = spc.Planck  # J s
 k = boltzmann = spc.Boltzmann  # J/K

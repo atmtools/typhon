@@ -9,6 +9,7 @@ except:
 
 if not __TYPHON_SETUP__:
     from . import arts
+    from . import atmosphere
     from . import constants
     from . import files
     from . import geodesy

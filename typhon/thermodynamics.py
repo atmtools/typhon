@@ -4,10 +4,13 @@
 """
 import numpy as np
 
+from . import constants
+
 
 __all__ = [
     'e_eq_ice_mk',
     'e_eq_water_mk',
+    'density',
 ]
 
 
@@ -85,3 +88,22 @@ def e_eq_water_mk(T):
          * (53.878 - 1331.22 / T - 9.44523 * np.log(T) + 0.014025 * T))
 
     return np.exp(e)
+
+
+def density(p, T, R=constants.gas_constant_dry_air):
+    r"""Calculates gas density by ideal gas law.
+
+    .. math::
+        \rho = \frac{p}{R \cdot T}
+
+    Parameters:
+        p: Pressure [Pa.]
+        T: Temperature [K].
+        R (float): Gas constant [J K^-1 kg^-1].
+            Default is gas constant for dry air.
+
+    Returns:
+        Density [kg/m**3].
+
+    """
+    return p / (R * T)

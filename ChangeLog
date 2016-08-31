@@ -1,3 +1,22 @@
+2016-08-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/atmosphere.py: Added new module.
+
+	Module containing functions directly related to atmospheric sciences.
+
+	* typhon/__init__.py: Import atmosphere module.
+
+	* typhon/constants.py: Added clearnames for gas constants.
+
+	* typhon/thermodynamics.py:
+
+	Added function to calculate the density of gases by application of ideal
+	gas law.
+
+	* doc/atmosphere.rst: Documentation for new module.
+
+	* doc/modules.rst: Added new module to table of contents.
+
 2016-08-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/math/__init__.py:
