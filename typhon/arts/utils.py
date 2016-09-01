@@ -2,8 +2,6 @@
 
 """Collection of utility functions."""
 
-import numbers
-
 import numpy as np
 
 from .xml.names import basic_types, tensor_names
@@ -30,7 +28,7 @@ def get_arts_typename(var):
                     if element_type != get_arts_typename(element):
                         return None
                 ret = 'ArrayOf' + element_type
-    elif type(var) is np.ndarray:
+    elif isinstance(var, np.ndarray):
         ret = tensor_names[var.ndim - 1]
     else:
         ret = type(var).__name__

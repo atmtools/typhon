@@ -4,8 +4,6 @@ Implementation of RetrievalQuantity.
 
 """
 
-import numpy as np
-
 from .utils import return_if_arts_type
 
 __all__ = ['RetrievalQuantity',

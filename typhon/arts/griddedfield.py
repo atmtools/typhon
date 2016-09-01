@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import numbers
-
 import numpy as np
 
 from .utils import return_if_arts_type, get_arts_typename
@@ -50,6 +48,7 @@ class GriddedField(object):
         ['Indices']
 
     """
+
     def __init__(self, dimension, grids=None, data=None, gridnames=None,
                  name=None):
         """Create a GriddedField object.
@@ -285,7 +284,7 @@ class GriddedField(object):
         obj.grids = [nc.variables[dim][:] for dim in data.dimensions]
         obj.gridnames = [dim for dim in data.dimensions]
 
-        if type(data[:]) is np.ma.MaskedArray:
+        if isinstance(data[:], np.ma.MaskedArray):
             obj.data = data[:].filled(fill_value=fill_value)
         else:
             obj.data = data[:]
@@ -360,41 +359,48 @@ class GriddedField(object):
 
 class GriddedField1(GriddedField):
     """GriddedField with 1 dimension."""
+
     def __init__(self):
         super(GriddedField1, self).__init__(1)
 
 
 class GriddedField2(GriddedField):
     """GriddedField with 2 dimensions."""
+
     def __init__(self):
         super(GriddedField2, self).__init__(2)
 
 
 class GriddedField3(GriddedField):
     """GriddedField with 3 dimensions."""
+
     def __init__(self):
         super(GriddedField3, self).__init__(3)
 
 
 class GriddedField4(GriddedField):
     """GriddedField with 4 dimensions."""
+
     def __init__(self):
         super(GriddedField4, self).__init__(4)
 
 
 class GriddedField5(GriddedField):
     """GriddedField with 5 dimensions."""
+
     def __init__(self):
         super(GriddedField5, self).__init__(5)
 
 
 class GriddedField6(GriddedField):
     """GriddedField with 6 dimensions."""
+
     def __init__(self):
         super(GriddedField6, self).__init__(6)
 
 
 class GriddedField7(GriddedField):
     """GriddedField with 7 dimensions."""
+
     def __init__(self):
         super(GriddedField7, self).__init__(7)

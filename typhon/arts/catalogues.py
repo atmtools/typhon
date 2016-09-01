@@ -4,7 +4,6 @@ Implementation of classes to handle various catalogue information.
 
 """
 
-from .griddedfield import *
 from .utils import return_if_arts_type
 
 import numpy as np
@@ -49,7 +48,7 @@ class ArrayOfLineRecord:
             self._version = None
             return
 
-        if type(version) is str:
+        if isinstance(version, str):
             self._version = version
         else:
             raise TypeError('version has to be String.')

@@ -150,7 +150,7 @@ class SingleScatteringData:
 
     @ptype.setter
     def ptype(self, ptype):
-        if type(ptype) is int:
+        if isinstance(ptype, int):
             if ptype not in _old_ptype_mapping.keys():
                 raise RuntimeError('Invalid ptype {}'.format(ptype))
             ptype = _old_ptype_mapping[ptype]
@@ -471,7 +471,7 @@ class ScatteringMetaData:
             self._description = None
             return
 
-        if type(description) is str:
+        if isinstance(description, str):
             self._description = description
         else:
             raise TypeError('description has to be str.')
@@ -482,7 +482,7 @@ class ScatteringMetaData:
             self._source = None
             return
 
-        if type(source) is str:
+        if isinstance(source, str):
             self._source = source
         else:
             raise TypeError('source has to be str.')
@@ -493,7 +493,7 @@ class ScatteringMetaData:
             self._refr_index = None
             return
 
-        if type(refr_index) is str:
+        if isinstance(refr_index, str):
             self._refr_index = refr_index
         else:
             raise TypeError('refr_index has to be str.')

@@ -2,10 +2,29 @@
 
 """Collection of all ARTS types."""
 
-from .griddedfield import *
-from .scattering import *
-from .retrieval import *
-from .catalogues import *
+from .griddedfield import (GriddedField1,
+                           GriddedField2,
+                           GriddedField3,
+                           GriddedField4,
+                           GriddedField5,
+                           GriddedField6,
+                           GriddedField7,
+                           )
+from .scattering import (SingleScatteringData,
+                         ScatteringMetaData,
+                         )
+from .retrieval import (RetrievalQuantity)
+from .catalogues import (ArrayOfLineRecord,
+                         CIARecord,
+                         GasAbsLookup,
+                         LineMixingRecord,
+                         QuantumIdentifier,
+                         QuantumNumberRecord,
+                         QuantumNumbers,
+                         Sparse,
+                         SpeciesAuxData,
+                         SpeciesTag,
+                         )
 
 __all__ = []
 

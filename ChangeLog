@@ -1,5 +1,26 @@
 2016-09-01  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/catalogues.py, typhon/arts/catalogues.py:
+
+	Autopep8.
+
+	Remove unnecessary imports (griddedfield.* and numbers).
+
+	Use 'if isinstance() ...' instead of 'if type() is ...' because
+	isinstance also takes into account inheritance.
+
+	* typhon/arts/retrieval.py: Remove unnecessary import numpy.
+
+	* typhon/arts/scattering.py, typhon/arts/utils.py:
+
+	Use 'if isinstance() ...' instead of 'if type() is ...'.
+
+	* typhon/arts/types.py:
+
+	Replace all import * with explicit lists.
+
+2016-09-01  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/physics/{em,units}.py: Autopep8 fixes.
 
 2016-08-31  Lukas Kluft  <lukas.kluft@gmail.com>
