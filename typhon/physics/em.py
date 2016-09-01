@@ -1,12 +1,11 @@
+# -*- coding: utf-8 -*-
+
 """Module for anything related to the electromagnetic spectrum.
 
 This module imports typhon.physics.units and therefore has a soft
 dependency on the pint units library.
 """
 
-#!/usr/bin/env python
-
-# coding: utf-8
 
 import logging
 
@@ -21,6 +20,7 @@ from typhon.constants import (h, k, c)
 from .. import config
 from ..arts import xml
 from .units import (ureg, radiance_units)
+
 
 class FwmuMixin:
     """Mixing for frequency/wavelength/wavenumber neutrality
@@ -42,8 +42,8 @@ class FwmuMixin:
         except AttributeError:
             value = value * ureg.Hz
             self._frequency = value
-            
-        self._wavenumber = value.to(1/ureg.centimeter, "sp")
+
+        self._wavenumber = value.to(1 / ureg.centimeter, "sp")
         self._wavelength = value.to(ureg.metre, "sp")
 
     @property
@@ -53,9 +53,9 @@ class FwmuMixin:
     @wavenumber.setter
     def wavenumber(self, value):
         try:
-            self._wavenumber = value.to(1/ureg.centimeter, "sp")
+            self._wavenumber = value.to(1 / ureg.centimeter, "sp")
         except AttributeError:
-            value = value * 1/ureg.centimeter
+            value = value * 1 / ureg.centimeter
             self._wavenumber = value
 
         self._frequency = value.to(ureg.Hz, "sp")
@@ -74,7 +74,8 @@ class FwmuMixin:
             self._wavelength = value
 
         self._frequency = value.to(ureg.hertz, "sp")
-        self._wavenumber = value.to(1/ureg.centimeter, "sp")
+        self._wavenumber = value.to(1 / ureg.centimeter, "sp")
+
 
 class SRF(FwmuMixin):
     """Respresents a spectral response function
@@ -135,23 +136,25 @@ class SRF(FwmuMixin):
             cf["srf_backend_f"].format(sat=sat))
         gfs = xml.load(
             cf["srf_backend_response"].format(sat=sat))
-        freq = gfs[ch-1].grids[0] + centres[ch-1]
-        response = gfs[ch-1].data
+        freq = gfs[ch - 1].grids[0] + centres[ch - 1]
+        response = gfs[ch - 1].data
         return cls(freq, response)
 
     def centroid(self):
         """Calculate centre frequency
         """
-        return numpy.average(self.frequency, weights=self.W) * self.frequency.units
+        return numpy.average(
+            self.frequency, weights=self.W) * self.frequency.units
 
     def blackbody_radiance(self, T):
         """Calculate integrated radiance for blackbody at temperature T
 
         :param T: Temperature [K]
         """
-        return self.integrate_radiances(self.frequency,
-                    planck_f(self.frequency[numpy.newaxis, :],
-                             T[:, numpy.newaxis]))
+        return self.integrate_radiances(
+            self.frequency, planck_f(
+                self.frequency[numpy.newaxis, :],
+                T[:, numpy.newaxis]))
 
     def make_lookup_table(self):
         """Construct lookup table radiance <-> BT
@@ -167,7 +170,8 @@ class SRF(FwmuMixin):
 
         This method does not return anything, but fill self.lookup_table.
         """
-        self.lookup_table = numpy.zeros(shape=(2, self.T_lookup_table.size), dtype=numpy.float64)
+        self.lookup_table = numpy.zeros(
+            shape=(2, self.T_lookup_table.size), dtype=numpy.float64)
         self.lookup_table[0, :] = self.T_lookup_table
         self.lookup_table[1, :] = self.blackbody_radiance(self.T_lookup_table)
         self.L_to_T = scipy.interpolate.interp1d(self.lookup_table[1, :],
@@ -200,12 +204,13 @@ class SRF(FwmuMixin):
         # Interpolate onto common frequency grid.  The spectral response
         # function is more smooth so less harmed by interpolation, so I
         # interpolate the SRF.
-        fnc = scipy.interpolate.interp1d(self.frequency, self.W, bounds_error=False, fill_value=0.0)
-        w_on_L_grid = fnc(f) * (1/ureg.Hz)
-        #ch_BT = (w_on_L_grid * L_f).sum(-1) / (w_on_L_grid.sum())
+        fnc = scipy.interpolate.interp1d(
+            self.frequency, self.W, bounds_error=False, fill_value=0.0)
+        w_on_L_grid = fnc(f) * (1 / ureg.Hz)
+        # ch_BT = (w_on_L_grid * L_f).sum(-1) / (w_on_L_grid.sum())
         # due to numexpr limitation, do sum seperately
         ch_rad_tot = numexpr.evaluate("sum(w_on_L_grid * L, {:d})".format(
-                                    L.ndim-1))
+            L.ndim - 1))
         ch_rad_tot = ch_rad_tot * w_on_L_grid.u * L.u
         ch_rad = ch_rad_tot / w_on_L_grid.sum()
         return ch_rad
@@ -221,7 +226,8 @@ class SRF(FwmuMixin):
         if self.lookup_table is None:
             self.make_lookup_table()
         return self.L_to_T(
-            L.to(ureg.W/(ureg.m**2*ureg.sr*ureg.Hz), "radiance")) * ureg.K
+            L.to(ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
+                 "radiance")) * ureg.K
 
     # Methods returning new SRFs with some changes
     def shift(self, amount):
@@ -234,9 +240,12 @@ class SRF(FwmuMixin):
 
             Quantity amount: Distance to shift SRF
         """
-        return self.__class__(self.frequency.to(amount.u, "sp") + amount, self.W)
-                    
+        return self.__class__(self.frequency.to(
+            amount.u, "sp") + amount, self.W)
+
 _specrad_freq = ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz)
+
+
 def planck_f(f, T):
     """Planck law expressed in frequency.
 
@@ -254,8 +263,9 @@ def planck_f(f, T):
                                 "1 / (exp((h*f)/(k*T)) - 1)") * (
                                     radiance_units["si"])
     return ((2 * ureg.h * f**3) / (ureg.c ** 2) *
-            1 / (numpy.exp(((ureg.h*f)/(ureg.k*T)).to("1")) - 1)).to(
-                ureg.W/(ureg.m**2 * ureg.sr * ureg.Hz))
+            1 / (numpy.exp(((ureg.h * f) / (ureg.k * T)).to("1")) - 1)).to(
+                ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz))
+
 
 def wavelength2frequency(wavelength):
     """Converts wavelength (in meters) to frequency (in Hertz)
@@ -264,7 +274,8 @@ def wavelength2frequency(wavelength):
     :returns: Frequency [Hz]
     """
 
-    return c/wavelength
+    return c / wavelength
+
 
 def wavelength2wavenumber(wavelength):
     """Converts wavelength (in m) to wavenumber (in m^-1)
@@ -272,7 +283,8 @@ def wavelength2wavenumber(wavelength):
     :param wavelength: Wavelength [m]
     :returns: Wavenumber [m^-1]
     """
-    return 1/wavelength
+    return 1 / wavelength
+
 
 def wavenumber2frequency(wavenumber):
     """Converts wavenumber (in m^-1) to frequency (in Hz)
@@ -281,7 +293,8 @@ def wavenumber2frequency(wavenumber):
     :returns: Frequency [Hz]
     """
 
-    return c*wavenumber
+    return c * wavenumber
+
 
 def wavenumber2wavelength(wavenumber):
     """Converts wavenumber (in m^-1) to wavelength (in m)
@@ -289,7 +302,8 @@ def wavenumber2wavelength(wavenumber):
     :param wavenumber: Wave number [m^-1]
     :returns: Wavelength [m]
     """
-    return 1/wavenumber
+    return 1 / wavenumber
+
 
 def frequency2wavelength(frequency):
     """Converts frequency [Hz] to wave length [m]
@@ -298,7 +312,8 @@ def frequency2wavelength(frequency):
     :returns: Wave length [m]
     """
 
-    return c/frequency
+    return c / frequency
+
 
 def frequency2wavenumber(frequency):
     """Converts frequency [Hz] to wave number [m^-1]
@@ -306,11 +321,12 @@ def frequency2wavenumber(frequency):
     :param frequency: Frequency [Hz]
     :returns: Wave number [m^-1]
     """
-    return frequency/c
+    return frequency / c
+
 
 def specrad_wavenumber2frequency(specrad_wavenum):
     """Convert spectral radiance from per wavenumber to per frequency
-    
+
     :param specrad_wavenum: Spectral radiance per wavenumber
          [W·sr^{-1}·m^{-2}·{m^{-1}}^{-1}]
     :returns: Spectral radiance per frequency [W⋅sr−1⋅m−2⋅Hz−1]
@@ -318,10 +334,11 @@ def specrad_wavenumber2frequency(specrad_wavenum):
 
     if not isinstance(specrad_wavenum, pint.quantity._Quantity):
         specrad_wavenum = specrad_wavenum * ureg.W / (
-                            ureg.m**2 * ureg.sr * (1/ureg.m))
-                            
+            ureg.m**2 * ureg.sr * (1 / ureg.m))
+
     return (specrad_wavenum / ureg.c).to(ureg.W / (
-                            ureg.m**2 * ureg.sr * ureg.Hz))
+        ureg.m**2 * ureg.sr * ureg.Hz))
+
 
 def specrad_frequency_to_planck_bt(L, f):
     """Convert spectral radiance per frequency to brightness temperature
@@ -344,11 +361,10 @@ def specrad_frequency_to_planck_bt(L, f):
     if L.size > 1500000:
         logging.debug("Doing actual BT conversion: {:,} spectra * {:,} "
                       "frequencies = {:,} radiances".format(
-                            L.size//L.shape[-1], f.size, L.size))
-    #BT = (h * f) / (k * numpy.log((2*h*f**3)/(L * c**2) + 1))
+                          L.size // L.shape[-1], f.size, L.size))
+    # BT = (h * f) / (k * numpy.log((2*h*f**3)/(L * c**2) + 1))
     BT = numexpr.evaluate("(h * f) / (k * log((2*h*f**3)/(L * c**2) + 1))")
     BT = numpy.ma.masked_invalid(BT)
     if L.size > 1500000:
         logging.debug("(done)")
     return ureg.Quantity(BT, ureg.K)
-

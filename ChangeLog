@@ -1,3 +1,7 @@
+2016-09-01  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/physics/{em,units}.py: Autopep8 fixes.
+
 2016-08-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/atmosphere.py: Added new module.

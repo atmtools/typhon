@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """Various units-related things
 
 This module has a soft dependency on the pint units library.  Please
@@ -22,5 +24,5 @@ sp2.add_transformation(
 ureg.add_context(sp2)
 
 radiance_units = {
-    "si": ureg.W/(ureg.m**2*ureg.sr*ureg.Hz),
-    "ir": ureg.mW/(ureg.m**2*ureg.sr*(1/ureg.cm))}
+    "si": ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
+    "ir": ureg.mW / (ureg.m**2 * ureg.sr * (1 / ureg.cm))}
