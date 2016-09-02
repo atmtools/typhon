@@ -1,3 +1,9 @@
+2016-09-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/atmosphere.py: Fixed function name.
+
+	The abbreviation for integrated water vapor is IWV.
+
 2016-09-01  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/catalogues.py, typhon/arts/catalogues.py:

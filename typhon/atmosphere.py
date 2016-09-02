@@ -8,12 +8,12 @@ from . import thermodynamics
 
 
 __all__ = [
-    'iwp',
+    'iwv',
 ]
 
 
-def iwp(vmr, p, T, z):
-    """Calculate the integrated water vapor path.
+def iwv(vmr, p, T, z):
+    """Calculate the integrated water vapor (IWV).
 
     Parameters:
         vmr: Volume mixing ratio,
@@ -22,7 +22,7 @@ def iwp(vmr, p, T, z):
         z: Height [m].
 
     Returns:
-        Integrated water vapor path [kg/m**2].
+        Integrated water vapor [kg/m**2].
 
     """
     R_v = constants.gas_constant_water_vapor
