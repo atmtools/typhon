@@ -7,7 +7,6 @@ import collections
 import os
 import shutil
 import subprocess
-import sys
 
 from . import sensor
 from . import xml
@@ -55,7 +54,7 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
 
     opts = []
     for kw, arg in kwargs.items():
-        if type(arg) is bool and arg is True:
+        if isinstance(arg, bool) and arg is True:
             if len(kw) == 1:
                 opts.append('-{}'.format(kw))
             else:
@@ -94,7 +93,7 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
     ARTS_out = collections.namedtuple(
         'ARTS_output',
         ['stdout', 'stderr', 'retcode']
-        )
+    )
 
     return ARTS_out(stdout=p.stdout, stderr=p.stderr, retcode=p.returncode)
 
@@ -110,11 +109,11 @@ def atm_fields_compact_get(abs_species, gf4):
         Extracted profiles.
 
     """
-    if not type(gf4) is types.GriddedField4:
+    if not isinstance(gf4, types.GriddedField4):
         raise Exception(
             'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
 
-    if not type(abs_species) is list:
+    if not isinstance(abs_species, list):
         raise Exception('Absorption species have to be passed as list.')
 
     vmr_field = gf4.data[[gf4.grids[0].index(s) for s in abs_species]]
@@ -134,11 +133,11 @@ def atm_fields_compact_update(abs_species, gf4, vmr):
         GriddedField4: Updated atm_fields_compact.
 
     """
-    if not type(gf4) is types.GriddedField4:
+    if not isinstance(gf4, types.GriddedField4):
         raise Exception(
             'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
 
-    if not type(abs_species) is list:
+    if not isinstance(abs_species, list):
         raise Exception('Absorption species have to be passed as list.')
 
     species_index = [gf4.grids[0].index(s) for s in abs_species]

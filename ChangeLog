@@ -1,3 +1,19 @@
+2016-09-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/__init__.py:
+
+	Use 'if isinstance() ...' instead of 'if type() is ...'.
+
+	Remove unused import sys. Autopep8.
+
+	* typhon/arts/xml/read.py: Use explicit import instead of *.
+
+	* typhon/arts/xml/write.py:
+
+	Use explicit import instead of *.
+
+	Use 'if isinstance() ...' instead of 'if type() is ...'.
+
 2016-09-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/atmosphere.py: Fixed function name.

@@ -7,7 +7,7 @@ This package contains the internal implementation for writing ARTS XML files.
 
 import numpy as np
 
-from .names import *
+from .names import dimension_names
 from ..utils import get_arts_typename
 
 
@@ -122,13 +122,13 @@ class ARTSXMLWriter:
         """
         if hasattr(var, 'write_xml'):
             var.write_xml(self, attr)
-        elif type(var) is np.ndarray:
+        elif isinstance(var, np.ndarray):
             self.write_ndarray(var, attr)
-        elif type(var) is int:
+        elif isinstance(var, int):
             self.write_basic_type('Index', var, attr)
-        elif type(var) is float:
+        elif isinstance(var, float):
             self.write_basic_type('Numeric', var, attr, self.precision)
-        elif type(var) is str:
+        elif isinstance(var, str):
             self.write_basic_type('String', '"' + var + '"', attr)
         elif type(var) in (list, tuple):
             if arraytype is None:

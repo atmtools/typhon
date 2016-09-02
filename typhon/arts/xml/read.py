@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 import numpy as np
 
-from .names import *
+from .names import dimension_names
 from .. import types
 
 __all__ = ['parse']
