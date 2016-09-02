@@ -3,9 +3,9 @@
 """
 
 import numpy
-import matplotlib.mlab
 
 import scipy.stats
+
 
 def bin(x, y, bins):
     """Bin/bucket y according to values of x.
@@ -29,6 +29,7 @@ def bin(x, y, bins):
     digits = numpy.digitize(x, bins)
     binned = [y[digits == i, ...] for i in range(len(bins))]
     return binned
+
 
 def bin_nd(binners, bins, data=None):
     """Bin/bucket data in arbitrary number of dimensions
@@ -62,12 +63,13 @@ def bin_nd(binners, bins, data=None):
 
     if len(bins) != len(binners):
         raise ValueError("Length of bins must equal length of binners. "
-            "Found {} bins, {} binners.".format(len(bins), len(binners)))
-    
+                         "Found {} bins, {} binners.".format(
+                             len(bins), len(binners)))
+
     for b in bins:
         if b.ndim != 1:
             raise ValueError("Bin-array must be 1-D. "
-                "Found {}-D array.".format(b.ndim))
+                             "Found {}-D array.".format(b.ndim))
 
     if not all([b.size == binners[0].size for b in binners[1:]]):
         raise ValueError("All binners must have same length.")
@@ -75,7 +77,7 @@ def bin_nd(binners, bins, data=None):
     dims = numpy.array([b.size for b in bins])
 
     nd = len(binners)
-    
+
     if nd == 0:
         return numpy.array([], dtype=numpy.uint64)
 
@@ -84,7 +86,7 @@ def bin_nd(binners, bins, data=None):
         data = indices
 
     if nd > 1:
-        #innerbinned = bin(binners[-1], data, bins[-1])
+        # innerbinned = bin(binners[-1], data, bins[-1])
         innerbinned = bin(binners[-1], indices, bins[-1])
         outerbinned = []
         for (i, ib) in enumerate(innerbinned):
@@ -101,11 +103,11 @@ def bin_nd(binners, bins, data=None):
         # of size n_1 * n_2 * ... * n_{N-1}.
         #
         # We want V to be n_1 * n_2 * ... * n_N, where N is the number of
-        # dimensions we are binning.  
+        # dimensions we are binning.
         #
         # The following could /probably/ be do with some sophisticated
         # list comprehension and permutation, but this is clearer.
-        
+
         V = numpy.empty(shape=dims, dtype=numpy.object_)
         for i in range(len(outerbinned)):
             V[..., i] = outerbinned[i]
@@ -114,7 +116,7 @@ def bin_nd(binners, bins, data=None):
 #            [numpy.array(e.tolist(), dtype=numpy.uint64)
 #                for e in l] for l in outerbinned]
         return V
-        #return numpy.array(v, dtype=numpy.object_)
+        # return numpy.array(v, dtype=numpy.object_)
     else:
         # NB: I should not convert a list-of-ndarrays to an object-ndarray
         # directly.  If all nd-arrays have the same dimensions (such as
@@ -126,16 +128,17 @@ def bin_nd(binners, bins, data=None):
         B[:] = binned
         return B
 
+
 def get_distribution_as_percentiles(x, y,
-        bins,
-        ptiles=(5, 25, 5, 75, 95)):
+                                    bins,
+                                    ptiles=(5, 25, 5, 75, 95)):
     """get the distribution of y vs. x as percentiles.
 
     Bin y-data according to x-data (using :func:`typhon.math.stats.bin`).
     Then, within each bin, calculate percentiles.
 
     Arguments:
-        
+
         x (ndarray): data for x-axis
         y (ndarray): data for y-axis
         bins (ndarray): Specific bins to use for dividing the x-data.
@@ -143,7 +146,9 @@ def get_distribution_as_percentiles(x, y,
     """
 
     ybinned = bin(x, y, bins)
-    return numpy.vstack([scipy.stats.scoreatpercentile(b, ptiles) for b in ybinned])
+    return numpy.vstack([scipy.stats.scoreatpercentile(b, ptiles)
+                         for b in ybinned])
+
 
 def adev(x, dim=-1):
     r"""Calculate Allan deviation in its simplest form
@@ -160,4 +165,5 @@ def adev(x, dim=-1):
 
     x = x.swapaxes(-1, dim)
     N = x.shape[-1]
-    return numpy.sqrt(1/(2*(N-1)) * ((x[..., 1:] - x[..., :-1])**2).sum(-1))
+    return numpy.sqrt(1 / (2 * (N - 1)) *
+                      ((x[..., 1:] - x[..., :-1])**2).sum(-1))

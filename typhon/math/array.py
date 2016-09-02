@@ -4,6 +4,7 @@
 
 import numpy
 
+
 def localmin(arr):
     """Find local minima for 1-D array
 
@@ -17,7 +18,7 @@ def localmin(arr):
             minima.  Should have a numeric dtype.
 
     Returns:
-        
+
         numpy.ndarray with dtype `bool`.  True for any element that is
         strictly smaller than both neighbouring elements.  First and last
         element are always False.
@@ -25,10 +26,11 @@ def localmin(arr):
 
     localmin = numpy.hstack(
         (False,
-        (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]),
+         (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]),
          False))
 
     return localmin
+
 
 def limit_ndarray(M, limits):
     """Select elements from structured ndarray based on value ranges
@@ -50,7 +52,7 @@ def limit_ndarray(M, limits):
     [([2, 3], 3)]
 
     Arguments:
-        
+
         M (numpy.ndarray): 1-D structured ndarray
 
         limits (dict): Dictionary with limits.  Keys must correspond to
@@ -84,6 +86,7 @@ def limit_ndarray(M, limits):
 
     return M[selection]
 
+
 def parity(v):
     """Vectorised parity-checking.
 
@@ -99,9 +102,9 @@ def parity(v):
         ndarray with uint8 dtype with the parity for each value in v
     """
 
-    v = v.copy() # don't ruin original
+    v = v.copy()  # don't ruin original
     parity = numpy.zeros(dtype=">u1", shape=v.shape)
     while v.any():
-        parity[v!=0] += 1
-        v &= (v-1)
+        parity[v != 0] += 1
+        v &= (v - 1)
     return parity

@@ -1,3 +1,31 @@
+2016-09-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/math/array.py: Autopep8.
+
+	* typhon/math/stats.py:
+
+	Remove unused import matplotlib.mlab. Autopep8.
+
+	* typhon/oem/__init__.py: Remove unused import numpy.
+
+	* typhon/physics/__init__.py: Autopep8.
+
+	* typhon/plots/__init__.py:
+
+	Remove unused import matplotlib.style. Autopep8.
+
+	* typhon/utils/__init__.py, typhon/utils/cache.py: Autopep8.
+
+	* typhon/utils/latex.py:
+
+	Remove unused import numpy.
+
+	Use 'if isinstance() ...' instead of 'if type() is ...'.
+
+	* typhon/utils/metaclass.py:
+
+	Remove unused import numpy. Autopep8.
+
 2016-09-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodesy/__init__.py: Fixed porting leftovers.

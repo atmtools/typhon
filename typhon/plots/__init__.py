@@ -11,7 +11,6 @@ import os
 
 import numpy as np
 import matplotlib as mpl
-import matplotlib.style
 
 from ..math import stats as tpstats
 
@@ -46,12 +45,12 @@ def figsize(w, portrait=False):
 
 
 def plot_distribution_as_percentiles(ax, x, y,
-        nbins=10, bins=None,
-        ptiles=(5, 25, 50, 75, 95),
-        linestyles=(":", "--", "-", "--", ":"),
-        ptile_to_legend=True,
-        label=None,
-        **kwargs):
+                                     nbins=10, bins=None,
+                                     ptiles=(5, 25, 50, 75, 95),
+                                     linestyles=(":", "--", "-", "--", ":"),
+                                     ptile_to_legend=True,
+                                     label=None,
+                                     **kwargs):
     """Plot the distribution of y vs. x as percentiles.
 
     Bin y-data according to x-data (using :func:`typhon.math.stats.bin`).
@@ -88,8 +87,9 @@ def plot_distribution_as_percentiles(ax, x, y,
             if math.isclose(ptiles[i], 50):
                 locallab = label + " (median)"
             elif ptile_to_legend and linestyles[i] in D_ls:
-                locallab = label + " (p-{:s})".format("/".join("{:d}".format(x)
-                                        for x in D_ls.pop(linestyles[i])))
+                locallab = label + " (p-{:s})".format(
+                    "/".join("{:d}".format(x)
+                             for x in D_ls.pop(linestyles[i])))
             else:
                 locallab = None
         else:
@@ -108,6 +108,7 @@ def get_subplot_arrangement(n):
     """
     return (int(np.ceil(np.sqrt(n))),
             int(np.round(np.sqrt(n))))
+
 
 def install_mplstyles():
     """Install additional matplotlib stylesheets.

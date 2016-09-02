@@ -4,7 +4,6 @@ Collection of functions concerning the Optimal Estimation Method (OEM).
 
 """
 
-import numpy as np
 from scipy.linalg import inv
 
 

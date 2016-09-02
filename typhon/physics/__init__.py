@@ -30,7 +30,7 @@ def planck(f, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * f**3 / (c**2 * (np.exp(h*f/(k*T)) - 1))
+    return 2 * h * f**3 / (c**2 * (np.exp(h * f / (k * T)) - 1))
 
 
 def planck_wavelength(l, T):
@@ -48,4 +48,4 @@ def planck_wavelength(l, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * c**2 / (l**5 * (np.exp(h*c/(l*k*T)) - 1))
+    return 2 * h * c**2 / (l**5 * (np.exp(h * c / (l * k * T)) - 1))

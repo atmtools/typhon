@@ -66,6 +66,7 @@ class Timer(object):
         elapsed time: 1.001s
 
     """
+
     def __init__(self, verbose=True):
         self.verbose = verbose
 
@@ -87,14 +88,19 @@ class Timer(object):
         self.msecs = self.secs * 1000
         if self.verbose:
             print('elapsed time: {:d}m{:.3f}s'.format(
-                int(self.secs//60), self.secs % 60))
+                int(self.secs // 60), self.secs % 60))
 
 
 # Next part from http://stackoverflow.com/a/9558001/974555
 
-operators = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
-             ast.Div: operator.truediv, ast.Pow: operator.pow, ast.BitXor: operator.xor,
+operators = {ast.Add: operator.add,
+             ast.Sub: operator.sub,
+             ast.Mult: operator.mul,
+             ast.Div: operator.truediv,
+             ast.Pow: operator.pow,
+             ast.BitXor: operator.xor,
              ast.USub: operator.neg}
+
 
 def safe_eval(expr):
     """Safely evaluate string that may contain basic arithmetic
@@ -102,12 +108,14 @@ def safe_eval(expr):
 
     return _safe_eval_node(ast.parse(expr, mode="eval").body)
 
+
 def _safe_eval_node(node):
-    if isinstance(node, ast.Num): # <number>
+    if isinstance(node, ast.Num):  # <number>
         return node.n
-    elif isinstance(node, ast.BinOp): # <left> <operator> <right>
-        return operators[type(node.op)](_safe_eval_node(node.left), _safe_eval_node(node.right))
-    elif isinstance(node, ast.UnaryOp): # <operator> <operand> e.g., -1
+    elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
+        return operators[type(node.op)](
+            _safe_eval_node(node.left), _safe_eval_node(node.right))
+    elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
         return operators[type(node.op)](_safe_eval_node(node.operand))
     else:
         raise TypeError(node)

@@ -5,6 +5,7 @@ import functools
 import logging
 import copy
 
+
 def mutable_cache(maxsize=10):
     """In-memory cache like functools.lru_cache but for any object
 
@@ -29,10 +30,11 @@ def mutable_cache(maxsize=10):
 
     sentinel = object()
     make_key = functools._make_key
+
     def decorating_function(user_function):
         cache = {}
         cache_get = cache.get
-        keylist = [] # don't make it too long
+        keylist = []  # don't make it too long
 
         def wrapper(*args, **kwds):
             if kwds.get("CLEAR_CACHE"):
@@ -48,12 +50,12 @@ def mutable_cache(maxsize=10):
             # 'self') contain a cache which is a shelve object which
             # cannot be pickled.  Would need to create a proper pickle
             # protocol for dataset objects... maybe later
-            #key = pickle.dumps(args, 1) + pickle.dumps(kwds, 1)
+            # key = pickle.dumps(args, 1) + pickle.dumps(kwds, 1)
             key = str(args) + str(kwds)
             result = cache_get(key, sentinel)
             if result is not sentinel:
                 logging.debug(("Getting result for {!s} from cache "
-                    " (key {!s}").format(user_function, key))
+                               " (key {!s}").format(user_function, key))
                 # make sure we return a copy of the result; when a = f();
                 # b = f(), users should reasonably expect that a is not b.
                 return copy.copy(result)
@@ -73,4 +75,3 @@ def mutable_cache(maxsize=10):
         return functools.update_wrapper(wrapper, user_function)
 
     return decorating_function
-

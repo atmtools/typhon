@@ -6,8 +6,6 @@ Implementation of functions related to LaTeX.
 
 import sys
 
-import numpy as np
-
 
 def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
                   align='r', delimiter=True):
@@ -67,7 +65,7 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
 
     # if headings are given, one has to name each column
     if heading is not None:
-        if type(heading) is not list or type(heading[0]) is not str:
+        if not isinstance(heading, list) or not isinstance(heading[0], str):
             raise TypeError('heading has to be list of strings.')
         elif len(heading) != a.shape[1]:
             raise Exception('Number of names has to match number of columns.')
