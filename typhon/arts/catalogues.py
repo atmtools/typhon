@@ -179,6 +179,8 @@ class SpeciesAuxData:
                     sub_list = []
                 sub_list.append(elem.value())
             data.append(sub_list)
+        else:
+            raise Exception("Unknown SpeciesAuxData version {}.".format(version))
 
         obj = cls(data, version, nparam=nparam)
         return obj
@@ -486,7 +488,7 @@ class Sparse():
         """Creates a Sparse object from a scipy sparse object.
 
         Parameters:
-            cscs_matrix (sp.csc_matrix): scipy sparse object.
+            csc_matrix (sp.csc_matrix): scipy sparse object.
 
         Returns:
             Sparse: typhon Sparse object.

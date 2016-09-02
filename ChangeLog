@@ -1,5 +1,13 @@
 2016-09-02  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/catalogues.py:
+
+	(SpeciesAuxData.from_xml): Raise exception if version is unknown.
+
+	(Sparse.from_csc_matrix): Small doc fix.
+
+2016-09-02  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/math/array.py: Autopep8.
 
 	* typhon/math/stats.py:
