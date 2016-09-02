@@ -1,3 +1,9 @@
+2016-09-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodesy/__init__.py: Fixed porting leftovers.
+
+	Raise exceptions instead of calling error(). Bug reported by Oliver.
+
 2016-09-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/__init__.py:

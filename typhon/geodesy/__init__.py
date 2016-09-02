@@ -332,7 +332,7 @@ def cart2geocentric(x, y, z, lat0=None, lon0=None, za0=None, aa0=None):
     r = np.sqrt(x**2 + y**2 + z**2)
 
     if np.any(r == 0):
-        error("This set of functions does not handle r = 0.")
+        raise Exception("This set of functions does not handle r = 0.")
 
     lat = np.rad2deg(np.arcsin(z / r))
     lon = np.rad2deg(np.arctan2(y, x))
@@ -374,7 +374,7 @@ def geocentric2cart(r, lat, lon):
     __credits__ = 'Bengt Rydberg'
 
     if np.any(r == 0):
-        error("This set of functions does not handle r = 0.")
+        raise Exception("This set of functions does not handle r = 0.")
 
     latrad = np.deg2rad(lat)
     lonrad = np.deg2rad(lon)
