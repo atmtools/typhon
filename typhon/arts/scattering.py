@@ -5,7 +5,6 @@ ScatteringMetaData.
 
 """
 
-from __future__ import print_function
 
 import copy
 import numbers
@@ -85,7 +84,15 @@ class SingleScatteringData:
                 }
 
     def __init__(self):
-        pass
+        self._ptype = None
+        self.description = None
+        self.f_grid = None
+        self.T_grid = None
+        self.za_grid = None
+        self.aa_grid = None
+        self.abs_vec_data = None
+        self.ext_mat_data = None
+        self.pha_mat_data = None
 
     @classmethod
     def from_data(cls, params=None, **kwargs):
@@ -197,16 +204,16 @@ class SingleScatteringData:
             Dictionary containing the grids and data.
         """
 
-        d = {}
-        d['ptype'] = self.ptype
-        d['description'] = self.description
-        d['f_grid'] = self.f_grid
-        d['T_grid'] = self.T_grid
-        d['za_grid'] = self.za_grid
-        d['aa_grid'] = self.aa_grid
-        d['pha_mat_data'] = self.pha_mat_data
-        d['ext_mat_data'] = self.ext_mat_data
-        d['abs_vec_data'] = self.abs_vec_data
+        d = {'ptype': self.ptype,
+             'description': self.description,
+             'f_grid': self.f_grid,
+             'T_grid': self.T_grid,
+             'za_grid': self.za_grid,
+             'aa_grid': self.aa_grid,
+             'pha_mat_data': self.pha_mat_data,
+             'ext_mat_data': self.ext_mat_data,
+             'abs_vec_data': self.abs_vec_data,
+             }
 
         return d
 
@@ -575,16 +582,16 @@ class ScatteringMetaData:
            Dictionary containing the grids and data.
         """
 
-        d = {}
-        d['version'] = 3
-        d['description'] = self.description
-        d['source'] = self.source
-        d['refr_index'] = self.refr_index
-        d['mass'] = self.mass
-        d['diameter_max'] = self.diameter_max
-        d['diameter_volume_equ'] = self.diameter_volume_equ
-        d['diameter_area_equ_aerodynamical'] = (
-            self.diameter_area_equ_aerodynamical)
+        d = {'version': 3,
+             'description': self.description,
+             'source': self.source,
+             'refr_index': self.refr_index,
+             'mass': self.mass,
+             'diameter_max': self.diameter_max,
+             'diameter_volume_equ': self.diameter_volume_equ,
+             'diameter_area_equ_aerodynamical':
+             self.diameter_area_equ_aerodynamical,
+             }
 
         return d
 

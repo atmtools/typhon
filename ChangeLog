@@ -1,5 +1,16 @@
 2016-09-02  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/scattering.py:
+
+	Remove future import.
+
+	(SingleScatteringData.to_atmlab_dict,
+	ScatteringMetaData.to_atmlab_dict): Use dict literal for initialization.
+
+	(SingleScatteringData.__init__): Initialize known attributes with None.
+
+2016-09-02  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/catalogues.py:
 
 	(SpeciesAuxData.from_xml): Raise exception if version is unknown.
