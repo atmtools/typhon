@@ -13,6 +13,9 @@ length to 80 characters.
 Documentation Style
 -------------------
 
+General
++++++++
+
 All code documentation in `Typhon` should follow the Google Style Python
 Docstrings format. Below you can find various example on how the docstrings
 should look like. The example is taken from
@@ -22,6 +25,15 @@ Download: :download:`example_google.py <example_google.py>`
 
 .. literalinclude:: example_google.py
    :language: python
+
+Properties
+++++++++++
+
+All documentation for properties should be attached to the getter function
+(@property). No information should be put in the setter function of the
+property. Because all access occurs through the property name and never by
+calling the setter function explicitly, documentation put there will never be
+visible. Neither in the ipython interactive help nor in Sphinx.
 
 Common module names
 -------------------

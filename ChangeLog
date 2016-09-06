@@ -1,3 +1,31 @@
+2016-09-06  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/__init__.py:
+
+	Import GriddedField4.
+
+	(run_arts): Change variable arts_out to lowercase.
+
+	Change reportlevel in example to string. 020 cannot be passed as a
+	number. In old python versions it would be interpreted as an octal
+	number(not what we want). In Python 3.5 it's a syntax error.
+
+	* typhon/arts/catalogues.py:
+
+	Obey max line length.
+
+	Remove unnecessary parenthesis after class names.
+
+	* typhon/arts/griddedfield.py:
+
+	Move all property documentation into getter.
+
+	* doc/developer.rst: Add info on documenting properties.
+
+	* typhon/constants.py: Obey max line length.
+
+	* doc/modules.rst: Fix module order arts.xml - atmosphere.
+
 2016-09-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/scattering.py:

@@ -5,8 +5,8 @@ API Documentation
    :maxdepth: 3
 
    arts
-   atmosphere
    xml
+   atmosphere
    cm
    constants
    files

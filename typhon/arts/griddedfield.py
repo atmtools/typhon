@@ -80,17 +80,30 @@ class GriddedField(object):
 
     @property
     def grids(self):
-        """List of grids defining the GriddedField."""
+        """List of grids defining the GriddedField.
+
+        Note:
+            The number of grids has to match the GriddedField dimension.
+        """
         return self._grids
 
     @property
     def gridnames(self):
-        """A list or tuple that includes a name for every grid."""
+        """A list or tuple that includes a name for every grid.
+
+        Note:
+            The number of gridnames has to match the number of grids.
+            Gridnames are currently not used so it is not neccesarry
+            to set them.
+        """
         return self._gridnames
 
     @property
     def data(self):
-        """The data matrix stored in the GriddedField."""
+        """The data matrix stored in the GriddedField.
+        Note:
+            The data array has to fit the grid dimensions.
+        """
         return self._data
 
     @property
@@ -100,17 +113,6 @@ class GriddedField(object):
 
     @grids.setter
     def grids(self, grids):
-        """Set the grids of the GriddedField.
-
-        This function sets the grids inside the GriddedField.
-
-        Note:
-            The number of grids has to match the GriddedField dimension.
-
-        Args:
-            grids (List[np.ndarray]): list of grids
-
-        """
         if grids is None:
             self._grids = None
             return
@@ -128,48 +130,15 @@ class GriddedField(object):
 
     @gridnames.setter
     def gridnames(self, gridnames):
-        """Set the gridnames.
-
-        This functions sets the names for the grids stored in the GriddedField.
-
-
-        Note:
-            The number of gridnames has to match the number of grids.
-            Gridnames are currently not used so it is not neccesarry
-            to set them.
-
-        Args:
-            gridnames (List[str]): list of gridnames
-
-        """
         self._gridnames = return_if_arts_type(gridnames, 'ArrayOfString')
 
     @data.setter
     def data(self, data):
-        """Set the data array of the GriddedField.
-
-        This function sets the data array for the GriddedField.
-
-        Note:
-            The data array has to fit the grid dimensions.
-
-        Args:
-            data (np.ndarray): data array
-
-        """
         data_type = get_arts_typename(np.ndarray([0] * self.dimension))
         self._data = return_if_arts_type(data, data_type)
 
     @name.setter
     def name(self, name):
-        """Set the name of the GriddedField.
-
-        This function sets name of the GriddedField.
-
-        Args:
-            name (str): name of the GriddedField
-
-        """
         self._name = return_if_arts_type(name, 'String')
 
     def check_dimension(self):

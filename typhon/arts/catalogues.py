@@ -180,7 +180,8 @@ class SpeciesAuxData:
                 sub_list.append(elem.value())
             data.append(sub_list)
         else:
-            raise Exception("Unknown SpeciesAuxData version {}.".format(version))
+            raise Exception(
+                "Unknown SpeciesAuxData version {}.".format(version))
 
         obj = cls(data, version, nparam=nparam)
         return obj
@@ -398,7 +399,7 @@ class SpeciesTag(str):
         xmlwriter.close_tag()
 
 
-class Sparse():
+class Sparse:
     """Represents a Sparse object.
 
     See online ARTS documentation for object details.
@@ -603,7 +604,7 @@ class QuantumIdentifier(str):
         xmlwriter.close_tag()
 
 
-class QuantumNumberRecord():
+class QuantumNumberRecord:
     """Represents a QuantumNumberRecord object.
 
     See online ARTS documentation for object details.
@@ -660,7 +661,7 @@ class QuantumNumberRecord():
         xmlwriter.close_tag()
 
 
-class QuantumNumbers():
+class QuantumNumbers:
     """Represents a QuantumNumbers object.
 
     See online ARTS documentation for object details.
@@ -718,7 +719,7 @@ class QuantumNumbers():
         xmlwriter.close_tag(newline=False)
 
 
-class LineMixingRecord():
+class LineMixingRecord:
     """Represents a LineMixingRecord object.
 
     See online ARTS documentation for object details.

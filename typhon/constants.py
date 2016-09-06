@@ -27,8 +27,10 @@ hecto = 1e2
 kilo = 1e3
 giga = 1e9
 tera = 1e12
-M_d = 28.97  # kg kmol^-1; effective molecular weight of dry air; Wallace and Hobbs
-M_w = 18.016  # kg kmol^-1; molecular weight of H2O (Wallace and Hobbs)
+# Effective molecular weight of dry air; Wallace and Hobbs
+M_d = 28.97  # kg kmol^-1
+# Molecular weight of H2O (Wallace and Hobbs)
+M_w = 18.016  # kg kmol^-1
 KiB = 2**10
 KB = 10**3
 MiB = 2**20

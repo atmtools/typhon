@@ -11,6 +11,8 @@ import subprocess
 from . import sensor
 from . import xml
 
+from .griddedfield import GriddedField4
+
 __all__ = ['xml',
            'sensor',
            'run_arts',
@@ -36,7 +38,7 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
         Run a simple ARTS job and set the output directory
         and the report level:
 
-        >>> run_arts('foo.arts', outdir='bar', reporting=020)
+        >>> run_arts('foo.arts', outdir='bar', reporting='020')
 
         If a keyword is set to True it is added as flag.
         Show the ARTS help message:
@@ -90,12 +92,12 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
             err.write(p.stderr)
 
     # Store ARTS output in namedtuple.
-    ARTS_out = collections.namedtuple(
+    arts_out = collections.namedtuple(
         'ARTS_output',
         ['stdout', 'stderr', 'retcode']
     )
 
-    return ARTS_out(stdout=p.stdout, stderr=p.stderr, retcode=p.returncode)
+    return arts_out(stdout=p.stdout, stderr=p.stderr, retcode=p.returncode)
 
 
 def atm_fields_compact_get(abs_species, gf4):
@@ -109,7 +111,7 @@ def atm_fields_compact_get(abs_species, gf4):
         Extracted profiles.
 
     """
-    if not isinstance(gf4, types.GriddedField4):
+    if not isinstance(gf4, GriddedField4):
         raise Exception(
             'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
 
@@ -133,7 +135,7 @@ def atm_fields_compact_update(abs_species, gf4, vmr):
         GriddedField4: Updated atm_fields_compact.
 
     """
-    if not isinstance(gf4, types.GriddedField4):
+    if not isinstance(gf4, GriddedField4):
         raise Exception(
             'Expected GriddedField4 but got "{}".'.format(type(gf4).__name__))
 
