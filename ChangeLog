@@ -1,5 +1,18 @@
 2016-09-06  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/plots/__init__.py:
+
+	(figsize): Fix doc that was still referencing to cm module. Add
+	import statements to docs to enable better consistency checking.
+
+	(plot_distribution_as_percentiles): Make d_ls lowercase. Initialize
+	locallab early to avoid it being possibly used uninitialized.
+
+	(install_mplstyles): Add import statements to docs.
+	Add import for matplotlib.style. reload_libary was unknown.
+
+2016-09-06  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/__init__.py:
 
 	Import GriddedField4.

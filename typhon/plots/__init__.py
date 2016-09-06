@@ -11,6 +11,7 @@ import os
 
 import numpy as np
 import matplotlib as mpl
+import matplotlib.style as mstyle
 
 from ..math import stats as tpstats
 
@@ -34,10 +35,11 @@ def figsize(w, portrait=False):
         tuple: Figure width and size.
 
     Examples:
-        >>> typhon.cm.figsize(1)
+        >>> import typhon.plots
+        >>> typhon.plots.figsize(1)
         (1, 0.61803398874989479)
 
-        >>> typhon.cm.figsize(1, portrait=True)
+        >>> typhon.plots.figsize(1, portrait=True)
         (1, 1.6180339887498949)
     """
     phi = 0.5 * (np.sqrt(5) + 1)
@@ -79,19 +81,18 @@ def plot_distribution_as_percentiles(ax, x, y,
 
     # Collect where same linestyle is used, so it can be combined in
     # legend
-    D_ls = collections.defaultdict(list)
+    d_ls = collections.defaultdict(list)
+    locallab = None
     for (ls, pt) in zip(linestyles, ptiles):
-        D_ls[ls].append(pt)
+        d_ls[ls].append(pt)
     for i in range(len(ptiles)):
         if label is not None:
             if math.isclose(ptiles[i], 50):
                 locallab = label + " (median)"
-            elif ptile_to_legend and linestyles[i] in D_ls:
+            elif ptile_to_legend and linestyles[i] in d_ls:
                 locallab = label + " (p-{:s})".format(
                     "/".join("{:d}".format(x)
-                             for x in D_ls.pop(linestyles[i])))
-            else:
-                locallab = None
+                             for x in d_ls.pop(linestyles[i])))
         else:
             label = None
 
@@ -124,10 +125,12 @@ def install_mplstyles():
         Install typhon stylesheets for matplotlib (only needed once or if the
         location of typhon changes):
 
+        >>> import typhon.plots
         >>> typhon.plots.install_mplstyles()
 
         Use typhon stylesheet:
 
+        >>> import matplotlib.pyplot as plt
         >>> plt.style.use('typhon')
 
     """
@@ -149,4 +152,4 @@ def install_mplstyles():
         if not os.path.isfile(dest):
             os.symlink(path, dest)
 
-        mpl.style.reload_library()
+        mstyle.reload_library()
