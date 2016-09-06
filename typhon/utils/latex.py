@@ -31,7 +31,8 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
         LaTeX source code either to a specified file or stdout.
 
     Examples:
-        >>> texify_matrix(np.random.randn(5, 4),
+        >>> import numpy
+        >>> texify_matrix(numpy.random.randn(5, 4),
         ...               fmt="%.3f",
         ...               filename="matrix.tex",
         ...               caption="This is a test caption.",

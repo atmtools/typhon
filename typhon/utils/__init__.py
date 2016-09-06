@@ -59,7 +59,7 @@ class Timer(object):
         Timer object:
 
         >>> import time
-        >>> r = Timer.start()
+        >>> t = Timer.start()
         >>> time.sleep(1)
         >>> t.stop()
         >>> print(t.secs)

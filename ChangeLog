@@ -1,5 +1,28 @@
 2016-09-06  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/cm/__init__.py: Rename cmap to cm in module scope loop. Avoids
+	warnings about it being shadowed when the name cmap is used as function
+	argument name in other functions.
+
+	(mpl_colors): Make n argument lowercase.
+
+	* typhon/cm/_cmocean.py, typhon/cm/_cm.py:
+
+	Initialize datad as dictionary literal.
+
+	* typhon/utils/__init__.py (Timer):
+
+	Fix typo in docs r -> t.
+
+	* typhon/utils/latex.py: Add import numpy to docs.
+
+	* typhon/utils/metaclass.py:
+
+	Rename first argument to __new__ from meta to mcs to adhere to python
+	naming conventions. Analog to using cls in class methods.
+
+2016-09-06  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/plots/__init__.py:
 
 	(figsize): Fix doc that was still referencing to cm module. Add

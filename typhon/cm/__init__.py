@@ -43,18 +43,18 @@ for (name, data) in datad.items():
 
 locals().update(cmaps)
 
-for name, cmap in cmaps.items():
-    register_cmap(name, cmap)
+for name, cm in cmaps.items():
+    register_cmap(name, cm)
 
 __all__ = __all__ + list(cmaps.keys())
 
 
-def mpl_colors(cmap=None, N=10):
+def mpl_colors(cmap=None, n=10):
     """Return a list of RGB values.
 
     Parameters:
         cmap (str): Name of a registered colormap
-        N (int): Number of colors to return
+        n (int): Number of colors to return
 
     Returns:
         np.array: Array with RGB and alpha values.
@@ -70,7 +70,7 @@ def mpl_colors(cmap=None, N=10):
     if cmap is None:
         cmap = plt.rcParams['image.cmap']
 
-    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
+    return plt.get_cmap(cmap)(np.linspace(0, 1, n))
 
 
 def cmap2txt(cmap, filename=None, comments='%'):

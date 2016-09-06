@@ -2100,11 +2100,12 @@ _difference_data = [
     [0.25588406, 0.03990047, 0.07972236],
     [0.24596222, 0.03762595, 0.07461914]]
 
-datad = {}
-datad['density'] = _density_data
-datad['phase'] = _phase_data
-datad['speed'] = _speed_data
-datad['temperature'] = _temperature_data
-datad['velocity'] = _velocity_data
-datad['vorticity'] = _vorticity_data
-datad['difference'] = _difference_data
+datad = {
+    'density': _density_data,
+    'phase': _phase_data,
+    'speed': _speed_data,
+    'temperature': _temperature_data,
+    'velocity': _velocity_data,
+    'vorticity': _vorticity_data,
+    'difference': _difference_data,
+}

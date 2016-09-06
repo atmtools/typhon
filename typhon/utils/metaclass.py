@@ -25,7 +25,7 @@ class DocStringInheritor(type):
     implementation is inspired by Paul Mcguire, see
     http://groups.google.com/group/comp.lang.python/msg/26f7b4fcb4d66c95
     """
-    def __new__(meta, name, bases, clsdict):
+    def __new__(mcs, name, bases, clsdict):
         if not('__doc__' in clsdict and clsdict['__doc__']):
             for mro_cls in (
                     mro_cls for base in bases for mro_cls in base.mro()):
@@ -48,7 +48,7 @@ class DocStringInheritor(type):
                                                   mro_cls.__name__))
                         break
         # GH: replaced `type` by super() to not break multiple inheritance
-        return super().__new__(meta, name, bases, clsdict)
+        return super().__new__(mcs, name, bases, clsdict)
 
 
 class AbstractDocStringInheritor(DocStringInheritor, abc.ABCMeta):

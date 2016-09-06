@@ -30,6 +30,7 @@ _qualitative2_data = [
     [0.99215686, 0.70588235, 0.38431373],
     [0.70196078, 0.87058824, 0.41176471]]
 
-datad = {}
-datad['qualitative1'] = _qualitative1_data
-datad['qualitative2'] = _qualitative2_data
+datad = {
+    'qualitative1': _qualitative1_data,
+    'qualitative2': _qualitative2_data,
+}
