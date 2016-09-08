@@ -16,13 +16,15 @@ def iwv(vmr, p, T, z):
     """Calculate the integrated water vapor (IWV).
 
     Parameters:
-        vmr: Volume mixing ratio,
-        p: Pressue [Pa].
-        T: Temperature [K].
-        z: Height [m].
+        vmr (ndarray): Volume mixing ratio,
+        p (float or ndarray): Pressue [Pa].
+            If type is ndarray, size must match vmr.
+        T (float or ndarray): Temperature [K].
+            If type is ndarray, size must match vmr.
+        z (ndarray): Height [m]. Size must match vmr.
 
     Returns:
-        Integrated water vapor [kg/m**2].
+        float: Integrated water vapor [kg/m**2].
 
     """
     R_v = constants.gas_constant_water_vapor

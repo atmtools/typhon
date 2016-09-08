@@ -27,10 +27,10 @@ def e_eq_ice_mk(T):
                    - 0.00728332 \cdot T
 
     Parameters:
-        T: Temperature in [K].
+        T (float or ndarray): Temperature in [K].
 
     Returns:
-        Equilibrium water vapor pressure over ice in [Pa].
+        float or ndarray: Equilibrium water vapor pressure over ice in [Pa].
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
@@ -63,10 +63,10 @@ def e_eq_water_mk(T):
                                  + 0.014025 \cdot T \right)
 
     Parameters:
-        T: Temperature in [K].
+        T (float or ndarray): Temperature in [K].
 
     Returns:
-        Equilibrium water vapor pressure over water in [Pa].
+        float or ndarray: Equilibrium water vapor pressure over water in [Pa].
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
@@ -97,13 +97,14 @@ def density(p, T, R=constants.gas_constant_dry_air):
         \rho = \frac{p}{R \cdot T}
 
     Parameters:
-        p: Pressure [Pa.]
-        T: Temperature [K].
+        p (float or ndarray): Pressure [Pa.]
+        T (float or ndarray): Temperature [K].
+            If type of T and p is ndarray, size must match p.
         R (float): Gas constant [J K^-1 kg^-1].
             Default is gas constant for dry air.
 
     Returns:
-        Density [kg/m**3].
+        float or ndarray: Density [kg/m**3].
 
     """
     return p / (R * T)

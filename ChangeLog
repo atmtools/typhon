@@ -1,3 +1,9 @@
+2016-09-08  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/atmosphere.py, typhon/thermodynamics.py:
+
+	Add docs for types of input arguments and return values.
+
 2016-09-06  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/cm/__init__.py: Rename cmap to cm in module scope loop. Avoids
