@@ -1,3 +1,17 @@
+2016-09-12  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/constants.py:
+
+	Added some constants and restructured the whole module.
+
+	* typhon/physics/__init__.py:
+
+	Add docs for types of input arguments and return values.
+
+	* typhon/plots/__init__.py (figsize):
+
+	Use golden ratio from typhon.constants.
+
 2016-09-08  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/atmosphere.py, typhon/thermodynamics.py:

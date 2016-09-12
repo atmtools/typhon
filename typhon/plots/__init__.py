@@ -14,6 +14,7 @@ import matplotlib as mpl
 import matplotlib.style as mstyle
 
 from ..math import stats as tpstats
+from .. import constants
 
 __all__ = ['figsize',
            'install_mplstyles',
@@ -42,7 +43,7 @@ def figsize(w, portrait=False):
         >>> typhon.plots.figsize(1, portrait=True)
         (1, 1.6180339887498949)
     """
-    phi = 0.5 * (np.sqrt(5) + 1)
+    phi = constants.golden_ratio
     return (w, w * phi) if portrait else (w, w / phi)
 
 

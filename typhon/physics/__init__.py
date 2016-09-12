@@ -19,11 +19,11 @@ def planck(f, T):
     """Calculate black body radiation for given frequency and temperature.
 
     Parameters:
-        f : Frquencies [Hz].
-        T : Temperature [K].
+        f (float or ndarray): Frquencies [Hz].
+        T (float or ndarray): Temperature [K].
 
     Returns:
-        Radiances.
+        float or ndarray: Radiances.
 
     """
     c = constants.speed_of_light
@@ -37,11 +37,11 @@ def planck_wavelength(l, T):
     """Calculate black body radiation for given wavelength and temperature.
 
     Parameters:
-        l: Wavelength [m].
-        T: Temperature [K].
+        l (float or ndarray): Wavelength [m].
+        T (float or ndarray): Temperature [K].
 
     Returns:
-        Radiances.
+        float or ndarray: Radiances.
 
     """
     c = constants.speed_of_light
