@@ -11,7 +11,7 @@ g = earth_standard_gravity = spc.g  # m s^-2
 h = planck = spc.Planck  # J s
 k = boltzmann = spc.Boltzmann  # J K^-1
 c = speed_of_light = spc.speed_of_light  # m s^-1
-N_A = Avogadro = N = spc.Avogadro  # mol^-1
+N_A = avogadro = N = spc.Avogadro  # mol^-1
 R = gas_constant = spc.gas_constant  # J mol^-1 K^-1
 molar_mass_dry_air = 28.9645e-3  # kg mol^-1
 molar_mass_water = 18.01528e-3  # kg mol^-1
@@ -65,7 +65,7 @@ earth_mass = 5.97237e24  # kg
 earth_radius = 6.3781e6  # m
 
 # Miscellaneous
-K = zero_Celsius = 273.15  # Kelvin at 0 Celsius
+K = zero_celsius = 273.15  # Kelvin at 0 Celsius
 atm = atmosphere = 101325  # Pa
 
 # Deprecated constants from Wallace and Hobbs.

@@ -1,5 +1,9 @@
 2016-09-12  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/constants.py: Fixed attribute names for consistency.
+
+2016-09-12  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/constants.py:
 
 	Molar masses for dry air and water vapor are now listed in SI units.
