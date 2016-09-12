@@ -2,6 +2,22 @@
 
 	* typhon/constants.py:
 
+	Molar masses for dry air and water vapor are now listed in SI units.
+
+	Old definitions from Wallace and Hobbs are deprecated and will be removed
+	in a future version!
+
+	Gas constants for dry air and water vapor are calculated on the fly
+	using the previously defined gas constant and molar masses.
+
+	Added Earth characteristics.
+
+	Fixed inline documentation.
+
+2016-09-12  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/constants.py:
+
 	Added some constants and restructured the whole module.
 
 	* typhon/physics/__init__.py:

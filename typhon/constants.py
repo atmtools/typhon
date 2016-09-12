@@ -7,11 +7,16 @@ import scipy.constants as spc
 
 
 # Physcial constants
+g = earth_standard_gravity = spc.g  # m s^-2
 h = planck = spc.Planck  # J s
-k = boltzmann = spc.Boltzmann  # J/K
-c = speed_of_light = spc.speed_of_light  # m/s
-R = gas_constant = spc.gas_constant
-N_A = Avogadro = N = spc.Avogadro  # mol^-1 Avogadro constant
+k = boltzmann = spc.Boltzmann  # J K^-1
+c = speed_of_light = spc.speed_of_light  # m s^-1
+N_A = Avogadro = N = spc.Avogadro  # mol^-1
+R = gas_constant = spc.gas_constant  # J mol^-1 K^-1
+molar_mass_dry_air = 28.9645e-3  # kg mol^-1
+molar_mass_water = 18.01528e-3  # kg mol^-1
+gas_constant_dry_air = R / molar_mass_dry_air  # J K^-1 kg^-1
+gas_constant_water_vapor = R / molar_mass_water  # J K^-1 kg^-1
 
 # Mathematical constants
 golden = golden_ratio = (1 + np.sqrt(5)) / 2
@@ -55,17 +60,17 @@ yobi = 2**80
 KB = 10**3
 MB = 10**6
 
-# Constants from Wallace and Hobbs
-# Gas constants for dry air (Eq. 3.11)
-R_d = gas_constant_dry_air = 287.0  # J K^-1 kg^-1
-# Gas constant for water vapor (Eq. 3.13)
-R_v = gas_constant_water_vapor = 461.51  # J K^-1 kg^-1
-# Effective molecular weight of dry air
-M_d = 28.97  # kg kmol^-1
-# Molecular weight of H2O
-M_w = 18.016  # kg kmol^-1
+# Earth characteristics
+earth_mass = 5.97237e24  # kg
+earth_radius = 6.3781e6  # m
 
 # Miscellaneous
-K = zero_Celsius = 273.15  # offset °C ←→ K
+K = zero_Celsius = 273.15  # Kelvin at 0 Celsius
 atm = atmosphere = 101325  # Pa
-earth_radius = 6.3781e6
+
+# Deprecated constants from Wallace and Hobbs.
+# Will be removed in a future version.
+R_d = 287.0  # J K^-1 kg^-1 (Eq. 3.11)
+R_v = 461.51  # J K^-1 kg^-1 (Eq. 3.13)
+M_d = 28.97  # kg kmol^-1
+M_w = 18.016  # kg kmol^-1
