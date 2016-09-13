@@ -1,3 +1,10 @@
+2016-09-13  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Revert (presumably accidental) change of default font size and
+	linewidth to huge values.
+
 2016-09-12  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/constants.py: Fixed attribute names for consistency.

@@ -5,7 +5,7 @@
 ### LINES
 # See http://matplotlib.org/api/artist_api.html#module-matplotlib.lines for
 # more information on line properties.
-lines.linewidth : 8             # line width in points
+lines.linewidth : 2             # line width in points
 lines.markersize : 10           # markersize, in point
 lines.solid_capstyle : round    # butt|round|projecting
 lines.dash_capstyle : round     # butt|round|projecting
@@ -19,7 +19,7 @@ lines.dash_capstyle : round     # butt|round|projecting
 # settings for axes and ticks. Special text sizes can be defined
 # relative to font.size, using the following values: xx-small, x-small,
 # small, medium, large, x-large, xx-large
-font.size : 28
+font.size : 18
 
 ### TEXT
 mathtext.default : regular # same font used in regular text
