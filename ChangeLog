@@ -1,3 +1,16 @@
+2016-09-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/catalogues.py: Reimplemented Sparse class.
+
+	The Sparse class is now a simple wrapper around SciPy's csc_matrix.
+
+	The usage of both classes is exactly the same, the only differences are
+	additional reading and writing functions for XML files as well as
+	ARTS-consistent attributenames.
+
+	Changes are **not** backwards compatible! Code relying on the old
+	implementation of Sparse will fail and has to be adapted.
+
 2016-09-13  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.

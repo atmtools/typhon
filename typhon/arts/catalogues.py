@@ -7,6 +7,7 @@ Implementation of classes to handle various catalogue information.
 from .utils import return_if_arts_type
 
 import numpy as np
+import scipy.sparse
 
 __all__ = ['ArrayOfLineRecord',
            'CIARecord',
@@ -399,181 +400,110 @@ class SpeciesTag(str):
         xmlwriter.close_tag()
 
 
-class Sparse:
-    """Represents a Sparse object.
+class Sparse(scipy.sparse.csc_matrix):
+    """Wrapper around :class:`scipy.sparse.csc_matrix`.
 
-    See online ARTS documentation for object details.
+    This class wraps around the SciPy Compressed Sparse Column matrix. The
+    usage is exactly the same, but support for reading and writing XML files
+    is added. Also additional attributes were added, which follow the ARTS
+    names.
+
+    See ARTS_ and SciPy_ documentations for more details.
+
+    .. _ARTS: http://arts.mi.uni-hamburg.de/docserver-trunk/groups/Sparse
+    .. _SciPy: http://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_matrix.html
 
     """
-
-    def __init__(self, nrows=None, ncols=None, rowindex=None, colindex=None,
-                 sparsedata=None):
-
-        self.nrows = nrows
-        self.ncols = ncols
-        self.rowindex = rowindex
-        self.colindex = colindex
-        self.sparsedata = sparsedata
-
     @property
     def nrows(self):
         """Number of rows."""
-        return self._nrows
+        return self.shape[0]
 
     @property
     def ncols(self):
         """Number of columns."""
-        return self._ncols
+        return self.shape[0]
 
     @property
     def rowindex(self):
         """Row indices to locate data in matrix."""
-        return self._rowindex
+        return self.tocoo().row
 
     @property
     def colindex(self):
         """Column indices to locate data in matrix."""
-        return self._colindex
+        return self.tocoo().col
 
     @property
     def sparsedata(self):
         """Data value at specified positions in matrix."""
-        return self._sparsedata
-
-    @nrows.setter
-    def nrows(self, nrows):
-        self._nrows = return_if_arts_type(nrows, 'Index')
-
-    @ncols.setter
-    def ncols(self, ncols):
-        self._ncols = return_if_arts_type(ncols, 'Index')
-
-    @rowindex.setter
-    def rowindex(self, rowindex):
-        self._rowindex = return_if_arts_type(rowindex, 'Vector')
-
-    @colindex.setter
-    def colindex(self, colindex):
-        self._colindex = return_if_arts_type(colindex, 'Vector')
-
-    @sparsedata.setter
-    def sparsedata(self, sparsedata):
-        self._sparsedata = return_if_arts_type(sparsedata, 'Vector')
-
-    def to_csc_matrix(self):
-        """ Returns a scipy sparse object """
-        from scipy.sparse import csc_matrix
-
-        self.check_dimension()
-        obj = csc_matrix((self.sparsedata, (self.rowindex, self.colindex)),
-                         [self.nrows, self.ncols])
-
-        return obj
-
-    def check_dimension(self):
-        """Checks the consistency of stored data.
-
-        Note:
-            This check is done automatically before storing and after loading
-            XML files.
-
-        """
-        if self.rowindex.size == self.colindex.size == self.sparsedata.size:
-            return True
-        else:
-            raise Exception(
-                'RowIndex, ColIndex and SparseData must have same length.')
-
-    @classmethod
-    def from_csc_matrix(cls, csc_matrix):
-        """Creates a Sparse object from a scipy sparse object.
-
-        Parameters:
-            csc_matrix (sp.csc_matrix): scipy sparse object.
-
-        Returns:
-            Sparse: typhon Sparse object.
-
-        """
-
-        obj = cls()
-        obj.nrows = csc_matrix.shape[0]
-        obj.ncols = csc_matrix.shape[1]
-        csc = csc_matrix.tocoo()
-        obj.rowindex = csc.row
-        obj.colindex = csc.col
-        obj.sparsedata = csc_matrix.data
-        obj.check_dimension()
-
-        return obj
+        return self.tocoo().data
 
     @classmethod
     def from_xml(cls, xmlelement):
-        """Loads a Sparse object from an existing file.
-        """
+        """Loads a Sparse object from an existing file."""
 
         binaryfp = xmlelement.binaryfp
         nelem = int(xmlelement[0].attrib['nelem'])
-        obj = cls()
-        obj.nrows = int(xmlelement.attrib['nrows'])
-        obj.ncols = int(xmlelement.attrib['ncols'])
+        nrows = int(xmlelement.attrib['nrows'])
+        ncols = int(xmlelement.attrib['ncols'])
 
         if binaryfp is None:
             rowindex = np.fromstring(xmlelement[0].text, sep=' ').astype(int)
-            obj.rowindex = rowindex
             colindex = np.fromstring(xmlelement[1].text, sep=' ').astype(int)
-            obj.colindex = colindex
-            obj.sparsedata = np.fromstring(xmlelement[2].text, sep=' ')
+            sparsedata = np.fromstring(xmlelement[2].text, sep=' ')
         else:
-            obj.rowindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
-            obj.colindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
-            obj.sparsedata = np.fromfile(binaryfp, dtype='<d', count=nelem)
+            rowindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
+            colindex = np.fromfile(binaryfp, dtype='<i4', count=nelem)
+            sparsedata = np.fromfile(binaryfp, dtype='<d', count=nelem)
 
-        obj.check_dimension()
-
-        return obj
+        return cls((sparsedata, (rowindex, colindex)), [nrows, ncols])
 
     def write_xml(self, xmlwriter, attr=None):
-        """Write a Sparse object to an ARTS XML file.
-        """
+        """Write a Sparse object to an ARTS XML file."""
 
-        self.check_dimension()
+        # Get ARTS-style information from CSC matrix.
+        nrows = self.shape[0]
+        ncols = self.shape[1]
+        rowindex = self.tocoo().row
+        colindex = self.tocoo().col
+        sparsedata = self.tocoo().data
 
         precision = xmlwriter.precision
 
         if attr is None:
             attr = {}
 
-        attr['nrows'] = self.nrows
-        attr['ncols'] = self.ncols
+        attr['nrows'] = nrows
+        attr['ncols'] = ncols
 
         xmlwriter.open_tag('Sparse', attr)
 
         binaryfp = xmlwriter.binaryfilepointer
 
         if binaryfp is None:
-            xmlwriter.open_tag('RowIndex', {'nelem': self.rowindex.size})
-            for i in self.rowindex:
+            xmlwriter.open_tag('RowIndex', {'nelem': rowindex.size})
+            for i in rowindex:
                 xmlwriter.write('%d' % i + '\n')
             xmlwriter.close_tag()
-            xmlwriter.open_tag('ColIndex', {'nelem': self.colindex.size})
-            for i in self.colindex:
+            xmlwriter.open_tag('ColIndex', {'nelem': colindex.size})
+            for i in colindex:
                 xmlwriter.write('%d' % i + '\n')
             xmlwriter.close_tag()
-            xmlwriter.open_tag('SparseData', {'nelem': self.sparsedata.size})
-            for i in self.sparsedata:
+            xmlwriter.open_tag('SparseData', {'nelem': sparsedata.size})
+            for i in sparsedata:
                 xmlwriter.write(('%' + precision) % i + '\n')
             xmlwriter.close_tag()
             xmlwriter.close_tag()
         else:
-            xmlwriter.open_tag('RowIndex', {'nelem': self.rowindex.size})
-            np.array(self.rowindex, dtype='i4').tofile(binaryfp)
+            xmlwriter.open_tag('RowIndex', {'nelem': rowindex.size})
+            np.array(rowindex, dtype='i4').tofile(binaryfp)
             xmlwriter.close_tag()
-            xmlwriter.open_tag('ColIndex', {'nelem': self.colindex.size})
-            np.array(self.colindex, dtype='i4').tofile(binaryfp)
+            xmlwriter.open_tag('ColIndex', {'nelem': colindex.size})
+            np.array(colindex, dtype='i4').tofile(binaryfp)
             xmlwriter.close_tag()
-            xmlwriter.open_tag('SparseData', {'nelem': self.sparsedata.size})
-            np.array(self.sparsedata, dtype='d').tofile(binaryfp)
+            xmlwriter.open_tag('SparseData', {'nelem': sparsedata.size})
+            np.array(sparsedata, dtype='d').tofile(binaryfp)
             xmlwriter.close_tag()
             xmlwriter.close_tag()
 
