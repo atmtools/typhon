@@ -554,8 +554,10 @@ def geographic_mean(lat, lon, h=0, ellipsoid=None):
     """Calculate mean position for set of coordinates.
 
     Parameters:
-        lat: Latitudes in degrees.
-        lon: Longitudes in degrees.
+        lat (float or ndarray): Latitudes in degrees.
+        lon (float or ndarray): Longitudes in degrees.
+        h (float or ndarray): Optiional altitude for
+            each coordinate (default is).
         ellipsoid: A tuple with the form (semimajor axis, eccentricity).
             Default is 'WGS84' from :class:`ellipsoidmodels`.
 

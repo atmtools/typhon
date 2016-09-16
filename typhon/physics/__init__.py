@@ -75,13 +75,14 @@ def snell(n1, n2, theta1):
         n = \sqrt{\epsilon}
 
     Parameters:
-        n1 (float): Refractive index for medium of incoming radiation.
-        n2 (float): Refractive index for reflecting medium.
+        n1 (float or ndarray): Refractive index for medium of incoming
+            radiation.
+        n2 (float or ndarray): Refractive index for reflecting medium.
         theta1 (float): Angle between surface normal
             and incoming radiation [degree].
 
     Returns:
-        float: Angle for transmitted part [degree].
+        float or ndarray: Angle for transmitted part [degree].
 
     .. Ported from atmlab. Original author: Patrick Eriksson
     """
@@ -139,16 +140,15 @@ def fresnel(n1, n2, theta1):
     transmitted part. Rv and Rh are here set to 1.
 
     Parameters:
-        n1 (float): Refractive index for medium of incoming radiation.
-        n2 (float): Refractive index for reflecting medium.
-        theta1 (float): Angle between surface normal
+        n1 (float or ndarray): Refractive index for medium of incoming radiation.
+        n2 (float or ndarray): Refractive index for reflecting medium.
+        theta1 (float or ndarray): Angle between surface normal
             and incoming radiation [degree].
 
     Returns:
-        float, float, float:
+        float or ndarray, float or ndarray:
             Reflection coefficient for vertical polarisation,
-            reflection coefficient for horisontal polarisation,
-            angle for transmitted part [degree].
+            reflection coefficient for horisontal polarisation.
 
     .. Ported from atmlab. Original author: Patrick Eriksson
     """
@@ -164,4 +164,4 @@ def fresnel(n1, n2, theta1):
     Rv = (n2 * costheta1 - n1 * costheta2) / (n2 * costheta1 + n1 * costheta2)
     Rh = (n1 * costheta1 - n2 * costheta2) / (n1 * costheta1 + n2 * costheta2)
 
-    return Rv, Rh, theta2
+    return Rv, Rh
