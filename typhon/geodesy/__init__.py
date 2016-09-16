@@ -7,7 +7,6 @@ Unless otherwise stated functions are ported from atmlab-2-3-181.
 
 """
 import numpy as np
-from numpy.lib import scimath
 
 from typhon import constants
 
@@ -551,7 +550,7 @@ def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
         return r * c
 
 
-def geographic_mean(lat, lon, ellipsoid=None):
+def geographic_mean(lat, lon, h=0, ellipsoid=None):
     """Calculate mean position for set of coordinates.
 
     Parameters:
@@ -564,9 +563,6 @@ def geographic_mean(lat, lon, ellipsoid=None):
        tuple: Mean latitudes and longitudes in degrees.
 
     """
-    # TODO: Consider altitude. This should be straight forward in typhon but
-    # has to be checked.
-
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 

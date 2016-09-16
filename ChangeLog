@@ -1,3 +1,13 @@
+2016-09-16  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/geodesy/__init__.py:
+
+	Convert to unix line endings.
+
+	Remove unused scimath import.
+
+	(geographic_mean): Add altitude with default 0.
+
 2016-09-15  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/geodesy/__init__.py, typhon/physics/__init__.py:
