@@ -101,8 +101,8 @@ class ellipsoidmodels():
     Examples:
         >>> e = ellipsoidmodels()
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Eriksson'
 
     def __init__(self):
         self._data = {
@@ -174,9 +174,8 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     Returns:
         Radii.
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Eriksson'
-
     errtext = 'Invalid excentricity value in ellipsoid model.'
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
@@ -208,9 +207,8 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     Returns:
         Radii.
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Eriksson'
-
     errtext = 'Invalid excentricity value in ellipsoid model.'
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
@@ -242,9 +240,8 @@ def ellipsoid2d(ellipsoid, orbitinc):
     Returns:
         tuple: Modified ellipsoid vector.
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Erikkson'
-
     errtext = 'Invalid excentricity value in ellipsoid model.'
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
@@ -276,9 +273,8 @@ def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
     Returns:
         tuple: Modified ellipsoid.
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Erikkson'
-
     errtext = 'Invalid excentricity value in ellipsoid model.'
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
@@ -326,9 +322,8 @@ def cart2geocentric(x, y, z, lat0=None, lon0=None, za0=None, aa0=None):
     Returns:
         tuple: Radius, Latitude, Longitude
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     r = np.sqrt(x**2 + y**2 + z**2)
 
     if np.any(r == 0):
@@ -370,9 +365,8 @@ def geocentric2cart(r, lat, lon):
      Returns:
         tuple: Coordinate in x, y, z dimension.
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     if np.any(r == 0):
         raise Exception("This set of functions does not handle r = 0.")
 
@@ -404,9 +398,8 @@ def cart2geodetic(x, y, z, ellipsoid=None):
     Returns:
         tuple: Geodetic height, latitude and longitude
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -445,9 +438,8 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
     Returns:
         tuple: x, y, z coordinates.
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -484,9 +476,8 @@ def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
     Returns:
         tuple: Radius, geocentric latiude, geocentric longitude
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -514,9 +505,8 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
         ellipsoid: A tuple with the form (semimajor axis, eccentricity).
             Default is 'WGS84' from :class:`ellipsoidmodels`.
 
+    .. Ported from atmlab. Original author: Bengt Rydberg
     """
-    __credits__ = 'Bengt Rydberg'
-
     if ellipsoid is None:
         ellipsoid = ellipsoidmodels()['WGS84']
 
@@ -546,9 +536,8 @@ def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
     Returns:
         Distance, either in degress or m.
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Erikkson'
-
     a = (sind((lat2 - lat1) / 2)**2
          + cosd(lat1) * (cosd(lat2))
          * (sind((lon2 - lon1) / 2)**2)

@@ -10,7 +10,6 @@ import numpy as np
 from .names import dimension_names
 from ..utils import get_arts_typename
 
-
 __all__ = ['ARTSXMLWriter']
 
 
@@ -57,8 +56,6 @@ class ARTSXMLWriter:
 
         Args:
             version (int): ARTS XML version.
-            filetype (str): ARTS XML file type (e.g. 'ascii', 'binary').
-
         """
         if self.binaryfilepointer is not None:
             filetype = 'binary'
@@ -106,9 +103,9 @@ class ARTSXMLWriter:
         """Write closing tag for ARTS XML file."""
         self.close_tag()
 
-    def write(self, str):
+    def write(self, s):
         """Write string to XML file."""
-        self.filepointer.write(str)
+        self.filepointer.write(s)
 
     def write_xml(self, var, attr=None, arraytype=None):
         """Write a variable as XML.
@@ -156,11 +153,11 @@ class ARTSXMLWriter:
             raise TypeError(
                 "Can't map '{}' to any ARTS type.".format(type(var).__name__))
 
-    def write_basic_type(self, name, var, attr={}, precision=''):
+    def write_basic_type(self, name, var, attr=None, precision=''):
         """Write a basic ARTS type as XML.
 
         Args:
-            name: Variable type name.
+            name (str): Variable type name.
             var: See :meth:`write_xml`.
             attr: See :meth:`write_xml`.
             precision (str): Output format string.
@@ -208,7 +205,7 @@ class ARTSXMLWriter:
             else:
                 # Reshape for row-based linebreaks in XML file
                 if np.prod(var.shape) != 0:
-                    if (ndim > 2):
+                    if ndim > 2:
                         var = var.reshape(-1, var.shape[-1])
 
                     fmt = ' '.join(['%' + self.precision, ] * var.shape[1])

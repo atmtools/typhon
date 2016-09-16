@@ -83,8 +83,8 @@ def snell(n1, n2, theta1):
     Returns:
         float: Angle for transmitted part [degree].
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Eriksson'
 
     if np.any(np.real(n1) <= 0) or np.any(np.real(n2) <= 0):
         raise Exception('The real part of *n1* and *n2* can not be <= 0.')
@@ -150,9 +150,8 @@ def fresnel(n1, n2, theta1):
             reflection coefficient for horisontal polarisation,
             angle for transmitted part [degree].
 
+    .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    __credits__ = 'Patrick Eriksson'
-
     if np.any(np.imag(n1) < 0) or np.any(np.imag(n2) < 0):
         raise Exception(
             'The imaginary part of *n1* and *n2* can not be negative.')

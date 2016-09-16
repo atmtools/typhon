@@ -1,3 +1,22 @@
+2016-09-15  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/geodesy/__init__.py, typhon/physics/__init__.py:
+
+	Remove __credits__ variables as they show up in editors with syntax
+	checking as unused variables. Instead add a line to the docstring as a
+	hidden Sphinx comment noting that the function originates from atmlab
+	and state the original author.
+
+	* typhon/arts/xml/write.py:
+
+	(ARTSXMLWriter.write_basic_type): Set default value of attr to None.
+
+	(ARTSXMLWriter.write_header): Remove obsolete arg from docs.
+
+	(ARTSXMLWriter.write): Don't use str as a parameter name.
+
+	(ARTSXMLWriter.write_ndarray): Remove redundant parenthesis.
+
 2016-09-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/__init__.py:
