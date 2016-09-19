@@ -4,7 +4,7 @@
 """
 from . import constants
 from . import math
-from . import thermodynamics
+from .physics import thermodynamics
 
 
 __all__ = [

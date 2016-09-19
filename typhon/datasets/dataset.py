@@ -21,7 +21,7 @@ import numpy.lib.recfunctions
 from .. import config
 from .. import utils
 from .. import math as tpmath
-from ..physics import em
+from ..physics.units import em
 
 try:
     import progressbar

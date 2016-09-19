@@ -1,3 +1,27 @@
+2016-09-19  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/__init__.py: Removed import of thermodynamics.
+
+	* typhon/atmosphere.py: Fixed import of thermodynamics.
+
+	* typhon/physics/__init__.py: Import thermodynamics. Do not import units.
+
+	* typhon/physics/em.py: Moved to typhon/physics/units/em.py.
+
+	* typhon/physics/units: New sub-package for calculations with units.
+
+	* typhon/physics/units/__init__.py: New file.
+
+	* typhon/physics/units/common.py: Common UnitRegisrty definitions.
+
+	* typhon/thermodynamics.py: Moved to typhon/physics/thermodynamics.py:
+
+	* typhon/datasets/dataset.py: Fixed import of em.
+
+	* typhon/plots/tests/test_mplstyles.py:
+
+	Replaced outdated test of install_mplstyles().
+
 2016-09-19  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/math/stats.py (adev): Fix formula formatting and parameters.

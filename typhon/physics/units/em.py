@@ -17,9 +17,9 @@ import pint
 
 
 from typhon.constants import (h, k, c)
-from .. import config
-from ..arts import xml
-from .units import (ureg, radiance_units)
+from typhon import config
+from typhon.arts import xml
+from .common import (ureg, radiance_units)
 
 
 class FwmuMixin:

@@ -4,7 +4,7 @@
 """
 import numpy as np
 
-from . import constants
+from .. import constants
 
 
 __all__ = [

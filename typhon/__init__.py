@@ -15,7 +15,6 @@ if not __TYPHON_SETUP__:
     from . import geodesy
     from . import oem
     from . import utils
-    from . import thermodynamics
 
     def _runtest():
         """Run all tests."""

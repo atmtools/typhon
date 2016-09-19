@@ -4,12 +4,11 @@
 
 import numpy as np
 
-from . import (units, em)
+from . import thermodynamics
 from typhon import constants
 
 
-__all__ = ['units',
-           'em',
+__all__ = ['thermodynamics',
            'planck',
            'planck_wavelength',
            'snell',
