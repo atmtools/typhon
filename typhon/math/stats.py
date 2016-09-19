@@ -155,9 +155,10 @@ def adev(x, dim=-1):
 
     Arguments:
 
-        x (ndarray)     n-dim array for Allan calculation
-        dim (int)       optional, axis to operate along, defaults to last
+        x (ndarray): n-dim array for Allan calculation
+        dim (int): optional, axis to operate along, defaults to last
 
+    .. math::
         \sigma = \sqrt{\frac{1}{2(N-1)} \sum_{i=1}^{N-1} (y_{i+1} - y_i)^2}
 
     Equation source: Jon Mittaz, personal communication, April 2016
