@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-
+""" Common variables to use within the units subpackage.
 """
 from pint import (UnitRegistry, Context)
 

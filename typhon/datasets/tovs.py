@@ -35,7 +35,7 @@ from ..utils import (metaclass, safe_eval)
 # from .. import physics
 # from .. import math as pamath
 from ..physics.units import ureg
-from ..physics import em
+from ..physics.units import em
 from .. import config
 
 from . import _tovs_defs

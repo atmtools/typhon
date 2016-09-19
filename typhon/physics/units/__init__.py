@@ -8,3 +8,4 @@ dependency.
 """
 from .common import *
 from . import em
+from . import thermodynamics

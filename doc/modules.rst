@@ -13,7 +13,6 @@ API Documentation
    geodesy
    oem
    plots
-   thermodynamics
    utils
    datasets
    config

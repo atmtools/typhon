@@ -2,8 +2,8 @@
 
 """Module for anything related to the electromagnetic spectrum.
 
-This module imports typhon.physics.units and therefore has a soft
-dependency on the pint units library.
+This module imports typhon.physics.units.common and therefore
+has a soft dependency on the pint units library.
 """
 
 

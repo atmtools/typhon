@@ -1,5 +1,26 @@
 2016-09-19  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* doc/modules.rst: Removed thermodynamics.
+
+	* doc/physics.rst: Added new subpackages for physics.
+
+	* doc/thermodynamics.rst: Removed documentation.
+
+	* typhon/datasets/tovs.py: Fixed import.
+
+	* typhon/physics/units/__init__.py: Import thermodynamics.
+
+	* typhon/physics/units/common.py: Added module docstring.
+
+	* typhon/physics/units/em.py: Added module docstring.
+
+	* typhon/physics/units/thermodynamics.py:
+
+	New module to implement wrappers for functions in
+	typhon.physics.thermodynamics.
+
+2016-09-19  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/__init__.py: Removed import of thermodynamics.
 
 	* typhon/atmosphere.py: Fixed import of thermodynamics.
