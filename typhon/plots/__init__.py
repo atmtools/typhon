@@ -5,19 +5,16 @@ This module provides functions related to plot or to plot data.
 """
 
 import collections
-import glob
 import math
 import os
 
 import numpy as np
-import matplotlib as mpl
-import matplotlib.style as mstyle
 
 from ..math import stats as tpstats
 from .. import constants
 
 __all__ = ['figsize',
-           'install_mplstyles',
+           'styles',
            ]
 
 
@@ -112,45 +109,25 @@ def get_subplot_arrangement(n):
             int(np.round(np.sqrt(n))))
 
 
-def install_mplstyles():
-    """Install additional matplotlib stylesheets.
+def styles(name):
+    """Return absolute path to typhon stylesheet.
 
-    Create symbolic links for all stylesheets shipped with typhon. The symlinks
-    are created in the user's matplotlib config directory. If the needed
-    subdirectory 'stylelib' is not present it is created. Symlinks are
-    overwritten to update the location of stylesheets if it is changed.
+    Matplotlib stylesheets can be passed via their full path. This function
+    takes a style name and returns the absolute path to the typhon stylesheet.
 
-    All typhon stylesheets stored in 'typhon/plots/stylelib' are considered.
+    Parameters:
+        name (str): Style name.
 
-    Examples:
-        Install typhon stylesheets for matplotlib (only needed once or if the
-        location of typhon changes):
+    Returns:
+        str: Absolute path to stylesheet.
 
-        >>> import typhon.plots
-        >>> typhon.plots.install_mplstyles()
-
-        Use typhon stylesheet:
+    Example:
+        Use typhon style for matplotlib plots.
 
         >>> import matplotlib.pyplot as plt
-        >>> plt.style.use('typhon')
+        >>> plt.style.use(styles('typhon'))
 
     """
-    stylelib = os.path.join(os.path.dirname(__file__), 'stylelib')
-    configdir = os.path.join(mpl.get_configdir(), 'stylelib')
+    stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
 
-    # get absolute paths for shipped stylesheets
-    style_paths = glob.glob(os.path.join(stylelib, '*.mplstyle'))
-
-    if not os.path.isdir(configdir):
-        os.mkdir(configdir)
-
-    # create a symlink for each stylesheets in user's matplotlib configdir
-    for path in style_paths:
-        dest = os.path.join(configdir, os.path.basename(path))
-        if os.path.islink(dest):
-            os.remove(dest)
-
-        if not os.path.isfile(dest):
-            os.symlink(path, dest)
-
-        mstyle.reload_library()
+    return os.path.join(stylelib_dir, name + '.mplstyle')

@@ -1,3 +1,40 @@
+2016-09-19  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/__init__.py: Removed install_mplstyles().
+
+	The function install_mplstyles() has been replaced by styles().
+	The new implementation returns the absolute path to a given stylesheet
+	instead of creating a symlink in the user's matplotlib config directory.
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	The property cycler no longer cycles through linewidths. It is a bit too
+	unintuitive to cycle all three line properties at once. If you want to
+	restore the old behaviour you can use the 'typhon-fullcycler' style.
+
+	* typhon/plots/stylelib/typhon-fullcycler.mplstyle:
+
+	Restore the old porperty cycler for color, linestyle and linewidth.
+
+	* typhon/plots/stylelib/typhon-geometry.mplstyle:
+
+	Set the figures geometry (figure size, font sizes, ...) but use the default
+	colors and colormaps.
+
+	* ChangeLog: Not commited the last time...
+
+	* doc/pyplots/plot_vorticity.py: Removed unused import.
+
+	* doc/pyplots/stylesheet_gallery.py:
+
+	Adapted for the new way of style handling.
+
+2016-09-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geodesy/__init__.py, typhon/physics/__init__.py:
+
+	Add docs for types of input arguments and return values.
+
 2016-09-16  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/geodesy/__init__.py:

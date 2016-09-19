@@ -1,0 +1,8 @@
+#### Settings the matplotlib plotting style.
+# https://github.com/matplotlib/matplotlib/blob/master/lib/matplotlib/mpl-data/stylelib/classic.mplstyle
+
+### AXES
+# default face and edge color, default tick sizes, default fontsizes for
+# ticklabels, and so on.  See
+# http://matplotlib.org/api/axes_api.html#module-matplotlib.axes
+axes.prop_cycle : cycler(linestyle=['-', '--', '-.'], linewidth=[2, 2.5, 3]) * cycler(color=['4878cf', '6acc65', 'd65f5f', 'b47cc7', '77bedb', 'c4ad66'])
