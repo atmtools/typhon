@@ -13,10 +13,13 @@ import shutil
 import tempfile
 import datetime
 import sys
+import collections
 
 import numpy
 import numpy.lib.arraysetops
 import numpy.lib.recfunctions
+
+import netCDF4
 
 from .. import config
 from .. import utils
@@ -436,7 +439,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 #    @tools.mark_for_disk_cache(
 #        process=dict(
 #            my_data=lambda x: x.view(dtype="i1")))
-    def combine(self, my_data, other_obj):
+    def combine(self, my_data, other_obj, other_args=None, trans=None,
+                timetol=numpy.timedelta64(1, 's')):
         """Combine with data from other dataset.
 
         Combine a set of measurements from this dataset with another
@@ -458,16 +462,37 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 Object from a Dataset subclass from which to find matching
                 data.
 
+            other_args (dict): Keyword arguments passed to
+                other_obj.read_period.  May need to contain things like
+                {"locator_args": {"satname": "noaa18"}}
+
+            trans (dict): Dictionary of what field in `my_data`
+                corresponds to what field in `other_data`.  Optional; by
+                default, merges self.unique_fields and
+                other_obj.unique_fields, and assumes names between the two
+                are identical.
+    
+            timetol (timedelta64): For datetime types, `isclose` does not
+                work (https://github.com/numpy/numpy/issues/5610).  User
+                must pass an explicit tolerance, defaulting to 1 second.
+
         Returns:
 
             Masked ndarray of same size as `my_data` and same `dtype` as
             returned by `other_obj.read`.
         """
 
+        if trans is None:
+            flds = list(self.unique_fields & other_obj.unique_fields)
+            trans = dict(zip(flds, flds))
+
+        if other_args is None:
+            other_args = {}
+
         first = my_data["time"].min().astype(datetime.datetime)
         last = my_data["time"].max().astype(datetime.datetime)
 
-        other_data = other_obj.read_period(first, last)
+        other_data = other_obj.read_period(first, last, **other_args)
         other_ind = numpy.zeros(dtype="u4", shape=my_data.shape)
         found = numpy.zeros(dtype="bool", shape=my_data.shape)
         other_combi = numpy.zeros(dtype=other_data.dtype, shape=my_data.shape)
@@ -478,10 +503,14 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             # can't use isclose for all because datetime64 don't work, see
             # https://github.com/numpy/numpy/issues/5610
             ident = [
-                (numpy.isclose(my_data[i][f], other_data[f])
-                    if issubclass(my_data[f].dtype.type, numpy.inexact)
-                    else my_data[i][f] == other_data[f]).nonzero()[0]
-                        for f in self.unique_fields & other_obj.unique_fields]
+                (numpy.isclose(my_data[i][f_my], other_data[f_oth])
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.inexact) else
+                 abs(my_data[i][f_my] - other_data[f_oth]) > timetol
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.datetime64) else
+                    my_data[i][f_my] == other_data[f_oth]).nonzero()[0]
+                        for (f_my, f_oth) in trans.items()]
             # N arrays of numbers, find numbers occuring in each array.
             # Should be exactly one!
             secondaries = functools.reduce(numpy.lib.arraysetops.intersect1d, ident)
@@ -860,10 +889,12 @@ class MultiFileDataset(Dataset):
         found_any_grans = False
         logging.debug(("Searching for {!s} granules between {!s} and {!s} "
                       ).format(self.name, dt_start, dt_end))
+        before = None
         if include_last_before and dt_start > self.start_date:
             try:
-                yield self.find_most_recent_granule_before(dt_start, 
+                before = self.find_most_recent_granule_before(dt_start, 
                         return_time=return_time, **extra)
+                yield before
             except GranuleLocatorError: # no problem
                 pass
 
@@ -873,6 +904,8 @@ class MultiFileDataset(Dataset):
                 logging.debug("Searching directory {!s}".format(subdir))
                 found_any_dirs = True
                 for child in subdir.iterdir():
+                    if before is not None and child == before[1]: # already yielded it as "last before"
+                        continue
                     m = self._re.fullmatch(child.name)
                     if m is not None:
                         found_any_grans = True
@@ -894,13 +927,13 @@ class MultiFileDataset(Dataset):
                   "coverage in {dt_start:%Y-%m-%d %H:%M:%S} – "
                   "{dt_end:%Y-%m-%d %H:%M:%S} and that you spelt any "
                   "additional information correctly:".format(self=self,
-                  dt_start=dt_start, dt_end=dt_end), extra, "Satellite "
+                  dt_start=dt_start, dt_end=dt_end) + str(extra) + "Satellite "
                   "names and other fields are case-sensitive!")
         elif not found_any_grans:
             logging.warning("Directories searched appear to contain no matching "
                   "files.  Make sure basedir, subdir, and regexp are "
                   "correct and you did not misspell any extra "
-                  "information: ", extra)
+                  "information: " + str(extra))
             
     def find_granules_sorted(self, dt_start=None, dt_end=None, 
                 include_last_before=False, **extra):
@@ -1264,11 +1297,45 @@ class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor
     def valid_field_values(self):
         return {"satname": self.satellites}
 
-
 class HyperSpectral(Dataset, em.FwmuMixin):
     """Superclass for any hyperspectral instrument
     """
     freqfile = None
+
+class NetCDFDataset:
+    """Mixin for any dataset where the contents are in NetCDF.
+
+    This may provide a good default for any NetCDF-based dataset.  The
+    reading routine will take the most commonly occurring dimension as the
+    ndarray axes, and the rest within structured multidimensional dtype.
+    """
+
+    def _read(self, f, fields="all"):
+        with netCDF4.Dataset(f, 'r') as ds:
+            cnt = collections.Counter(
+                itertools.chain.from_iterable(
+                    ds[d].dimensions for d in ds.variables))
+
+            # generic conversion of NetCDF to ndarray; consider the most
+            # common dimension, make this one the shape of the ndarray,
+            # copy over all variables that share this dimension, and
+            # ignore the rest, unless variables are passed explicitly
+            prim = cnt.most_common(1)[0][0]
+            n = ds.dimensions[prim].size
+            M = numpy.zeros(shape=(n,),
+                dtype=[
+                    (k,
+                     v.dtype,
+                     tuple(s for (i, s) in enumerate(v.shape)
+                         if v.dimensions[i] != prim))
+                     for (k, v) in ds.variables.items()
+                     if ((prim in v.dimensions) if fields=="all"
+                          else (k in fields))])
+
+            for v in M.dtype.names:
+                M[v][...] = ds[v][...]
+
+        return M
 
 # Not yet transferred from pyatmlab to typhon, not clean enough:
 #

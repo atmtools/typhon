@@ -145,6 +145,15 @@ def get_distribution_as_percentiles(x, y,
         ptiles (ndarray): Percentiles to use.
     """
 
+    # explicitly get rid of masked data, because scoreatpercentile is not
+    # masked-array aware
+    try:
+        good = (~x.mask) & (~y.mask)
+    except AttributeError: # not a masked-array, leave as-is
+        pass
+    else: # surely masked arrays
+        x = x[good].data
+        y = y[good].data
     ybinned = bin(x, y, bins)
     return numpy.vstack([scipy.stats.scoreatpercentile(b, ptiles)
                          for b in ybinned])

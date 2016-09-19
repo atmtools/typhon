@@ -1,3 +1,37 @@
+2016-09-19  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon/math/stats.py(get_distribution_as_percentiles):
+
+	- Explicitly get rid of masked arrays — scoreatpercentile otherwise
+	will return incorrect results.
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS.get_temp) (HIRSPOD.get_temp):
+
+	- Bugfix, wrong size for patch_exp, fsr
+
+	(HIASI): New class for Vijus HIRS-IASI collocations
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset.combine):
+
+	- Expand for situation where self and other do not have the same name
+	for things.
+
+	- Allow explicit tolerance for datetime64 options; does not support
+	isclose but anyway might want larger tolerance.
+
+	(MultiFileDataset.find_granules):
+
+	- Be more verbose when stuff isn't found.
+
+	(NetCDFDataset):
+
+	- New class for products in NetCDF, tries to cleverly read NetCDF
+	dataset into structured ndarray.
+	
 2016-09-19  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/modules.rst: Removed thermodynamics.

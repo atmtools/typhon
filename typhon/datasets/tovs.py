@@ -672,13 +672,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             ict = self._convert_temp(*self._get_ict_info(header, elem)),
             fwh = self._convert_temp(
                     self._get_temp_factor(header, "hrs_h_fwcnttmp"),
-                    elem[:, 60, 2:22].reshape(N, 4, 5)),
-            patch_exp = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_patchexpcnttmp").reshape(1, 6),
-                    elem[:, 61, 2:7].reshape(N, 1, 5)),
-            fsr = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_fsradcnttmp").reshape(1, 6),
-                    elem[:, 61, 7:12].reshape(N, 1, 5)))
+                    elem[:, 60, 2:22].reshape(N, 4, 5)))
 
     def _reshape_fact(self, name, fact, robust=False):
         if name in self._fact_shapes:
@@ -821,6 +815,14 @@ class HIRSPOD(HIRS):
         D = super().get_temp(header, elem, anwrd)
         # FIXME: need to add temperatures from minor frame 62 here.  See
         # NOAA POD GUIDE, chapter 4, page 4-8 (PDF page 8)
+        #
+        # FIXME: Also minor frame 61: patch_exp, fsr, ...
+#            patch_exp = self._convert_temp(
+#                    self._get_temp_factor(header, "hrs_h_patchexpcnttmp").reshape(1, 6),
+#                    elem[:, 61, 2:7].reshape(N, 1, 5)),
+#            fsr = self._convert_temp(
+#                    self._get_temp_factor(header, "hrs_h_fsradcnttmp").reshape(1, 6),
+#                    elem[:, 61, 7:12].reshape(N, 1, 5)))
         return D
 
     # docstring in parent
@@ -1069,8 +1071,9 @@ class HIRSKLM(HIRS):
         #return (badline, badchannel, badmnrframe)
 
     
-        for fld in lines.dtype.names:
+        for fld in set(lines.dtype.names) - {"lat", "lon", "time"}:
             # only for the most serious offences
+            # ...but still leave lat/lon/time intact
 
             lines[fld].mask |= qidonotuse.reshape(([lines.shape[0]] +
                     [1]*(lines[fld].ndim-1)))!=0
@@ -1178,7 +1181,13 @@ class HIRSKLM(HIRS):
                     anwrd[:, 5]), # bad
             an_fwm = self._convert_temp_analog(
                     header[0]["hrs_h_fwmtemp"],
-                    anwrd[:, 6]))) # bad
+                    anwrd[:, 6])), # bad
+            patch_exp = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_patchexpcnttmp").reshape(1, 6),
+                    elem[:, 61, 2:7].reshape(N, 1, 5)),
+            fsr = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_fsradcnttmp").reshape(1, 6),
+                    elem[:, 61, 7:12].reshape(N, 1, 5)))
         return D
 
     def _convert_temp_analog(self, F, C):
@@ -1579,7 +1588,29 @@ class IASISub(dataset.HomemadeDataset, dataset.HyperSpectral):
         end = datetime.datetime(year, month, day, 23, 59, 59)
         return (start, end)
 
-
+class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectral):
+    """"HIRS-IASI collocations
+    """
+    name = "hiasi"
+    subdir = "{month:02d}"
+    re = (r"W_XX-EUMETSAT-Darmstadt,SATCAL\+COLLOC\+LEOLEOIR,"
+          r"opa\+HIRS\+M02\+IASI_C_EUMS_(?P<year>\d{4})(?P<month>\d{2})"
+          r"(?P<day>\d{2})(?P<hour>\d{2})(?P<minute>\d{2})(?P<second>\d{2})_"
+          r"(?P<year_end>\d{4})(?P<month_end>\d{2})(?P<day_end>\d{2})"
+          r"(?P<hour_end>\d{2})(?P<minute_end>\d{2})(?P<second_end>\d{2})\.nc")
+    start_date = datetime.datetime(2013, 1, 1)
+    end_date = datetime.datetime(2014, 1, 1)
+    
+    def _read(self, f, fields="all"):
+        M = super()._read(f, fields)
+        # functionality in numpy.lib.recfunctions.append_fields is too
+        # slow!
+        MM = numpy.zeros(shape=M.shape,
+                         dtype=M.dtype.descr + [("time", "M8[s]")])
+        MM["time"] = M["mon_time"].astype("M8[s]")
+        for f in M.dtype.names:
+            MM[f][...] = M[f][...]
+        return MM
 
 def which_hirs_fcdr(satname):
     """Given a satellite, return right HIRS object
