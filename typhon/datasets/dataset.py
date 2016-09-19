@@ -506,7 +506,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 (numpy.isclose(my_data[i][f_my], other_data[f_oth])
                     if issubclass(my_data[f_my].dtype.type,
                                   numpy.inexact) else
-                 abs(my_data[i][f_my] - other_data[f_oth]) > timetol
+                 abs(my_data[i][f_my] - other_data[f_oth]) < timetol
                     if issubclass(my_data[f_my].dtype.type,
                                   numpy.datetime64) else
                     my_data[i][f_my] == other_data[f_oth]).nonzero()[0]
