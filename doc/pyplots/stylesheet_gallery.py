@@ -28,13 +28,9 @@ def simple_plot(style, stylename, **kwargs):
 
 # Create plot using default styles.
 simple_plot('classic', 'classic')
+
+# Create a plot for each available typhon style.
+for style in typhon.plots.get_available_styles():
+    simple_plot(typhon.plots.styles(style), style)
+
 plt.show()
-
-# Create a plot for each typhon style.
-style_dir = os.path.dirname(typhon.plots.__file__)
-typhon_styles = os.listdir(os.path.join(style_dir, 'stylelib'))
-styles = [s.split('.')[0] for s in typhon_styles if s.endswith('.mplstyle')]
-
-for stylename in styles:
-    simple_plot(typhon.plots.styles(stylename), stylename)
-    plt.show()

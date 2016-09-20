@@ -5,6 +5,7 @@ This module provides functions related to plot or to plot data.
 """
 
 import collections
+import glob
 import math
 import os
 
@@ -15,6 +16,7 @@ from .. import constants
 
 __all__ = ['figsize',
            'styles',
+           'get_available_styles',
            ]
 
 
@@ -131,3 +133,17 @@ def styles(name):
     stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
 
     return os.path.join(stylelib_dir, name + '.mplstyle')
+
+
+def get_available_styles():
+    """Return list of names of all styles shipped with typhon.
+
+    Returns:
+        list[str]: List of available styles.
+
+    """
+    stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
+    pattern = os.path.join(stylelib_dir, '*.mplstyle')
+
+    return [os.path.splitext(os.path.basename(s))[0]
+            for s in glob.glob(pattern)]
