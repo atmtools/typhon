@@ -1,5 +1,12 @@
 2016-09-20  Gerrit Holl  <g.holl@reading.ac.uk>:
 
+	* typhon/datasets/tovs.py(HIASI.combine):
+
+	- Overload method in this particular case, so that I pick out the
+	correct one from each scanline.
+
+2016-09-20  Gerrit Holl  <g.holl@reading.ac.uk>:
+
 	* typhon/datasets/dataset.py(Dataset.combine):
 
 	Re-implemented combination algorithm, now runs in O(n) (I think)

@@ -1612,6 +1612,24 @@ class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectr
             MM[f][...] = M[f][...]
         return MM
 
+    def combine(self, M, other_obj, *args, **kwargs):
+        MM = super().combine(M, other_obj, *args, **kwargs)
+        # do something about entire scanlines being returned
+        scnlin_names = [f[0] for f in MM.dtype.descr 
+            if len(f)>2 and f[2][0]==other_obj.n_perline]
+        # strip out scanline dimension
+        new_dtp = [(f[0], f[1], tuple(i for i in f[2] if i!=other_obj.n_perline))
+                    if f[0] in scnlin_names else f for f in MM.dtype.descr]
+        idx_all = numpy.arange(M.size)
+        MM_new = numpy.ma.zeros(dtype=new_dtp, shape=MM.shape)
+        for fld in MM.dtype.names:
+            if fld in scnlin_names:
+                # see http://stackoverflow.com/a/23435869/974555
+                MM_new[fld][...] = MM[fld][idx_all, M["mon_column"], ...]
+            else:
+                MM_new[fld][...] = MM[fld][...]
+        return MM_new
+
 def which_hirs_fcdr(satname):
     """Given a satellite, return right HIRS object
     """
