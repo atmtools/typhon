@@ -466,11 +466,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 other_obj.read_period.  May need to contain things like
                 {"locator_args": {"satname": "noaa18"}}
 
-            trans (dict): Dictionary of what field in `my_data`
+            trans (collections.OrderedDict): Dictionary of what field in `my_data`
                 corresponds to what field in `other_data`.  Optional; by
                 default, merges self.unique_fields and
                 other_obj.unique_fields, and assumes names between the two
-                are identical.
+                are identical.  Order is relevant for optimal recursive
+                bisection search for matches, which is to be implemented.
     
             timetol (timedelta64): For datetime types, `isclose` does not
                 work (https://github.com/numpy/numpy/issues/5610).  User
@@ -484,7 +485,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
         if trans is None:
             flds = list(self.unique_fields & other_obj.unique_fields)
-            trans = dict(zip(flds, flds))
+            trans = collections.OrderedDict(zip(flds, flds))
 
         if other_args is None:
             other_args = {}
@@ -493,54 +494,58 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         last = my_data["time"].max().astype(datetime.datetime)
 
         other_data = other_obj.read_period(first, last, **other_args)
-        other_ind = numpy.zeros(dtype="u4", shape=my_data.shape)
-        found = numpy.zeros(dtype="bool", shape=my_data.shape)
-        other_combi = numpy.zeros(dtype=other_data.dtype, shape=my_data.shape)
-        other_combi.fill(numpy.nan) # masked arrays work poorly (2014-09-17)
-        
-        # brute force algorithm for now.  Update if needed.
-        for i in range(my_data.shape[0]):
-            # can't use isclose for all because datetime64 don't work, see
-            # https://github.com/numpy/numpy/issues/5610
-            ident = [
-                (numpy.isclose(my_data[i][f_my], other_data[f_oth])
-                    if issubclass(my_data[f_my].dtype.type,
-                                  numpy.inexact) else
-                 abs(my_data[i][f_my] - other_data[f_oth]) < timetol
-                    if issubclass(my_data[f_my].dtype.type,
-                                  numpy.datetime64) else
-                    my_data[i][f_my] == other_data[f_oth]).nonzero()[0]
-                        for (f_my, f_oth) in trans.items()]
-            # N arrays of numbers, find numbers occuring in each array.
-            # Should be exactly one!
-            secondaries = functools.reduce(numpy.lib.arraysetops.intersect1d, ident)
-            if secondaries.shape[0] == 1: # all good
-                other_ind[i] = secondaries[0]
-                found[i] = True
-            elif secondaries.shape[0] > 1: # don't know what to do!
-                raise InvalidDataError(
-                    "Expected 1 unique, got {:d}".format(
-                        secondaries.shape[0]))
-        # else, leave unfound
-        other_combi[found] = other_data[other_ind[found]]
-        # Meh.  even with usemask=False, append_fields internally uses
-        # masked arrays.
-#        return numpy.lib.recfunctions.append_fields(
-#            my_data, other_combi.dtype.names,
-#                [other_combi[s] for s in other_combi.dtype.names], usemask=False)
-#       But what if fields have the same name?  Just return both...
-#        dmp = numpy.zeros(shape=my_data.shape,
-#            dtype=my_data.dtype.descr + other_combi.dtype.descr)
-#        for f in my_data.dtype.names:
-#            dmp[f] = my_data[f]
-#        for f in other_combi.dtype.names:
-#            dmp[f] = other_combi[f]
-        if not found.any():
+
+
+        (my_prim, other_prim) = next(iter(trans.items()))
+
+        # my_data needs to be sorted
+        try:
+            my_data._fill_value
+        except AttributeError:
+            my_data.sort(order=my_prim, kind="heapsort")
+        else:
+            # see 
+            # https://github.com/numpy/numpy/issues/8069
+            my_data.sort(order=my_prim, kind="heapsort",
+                                fill_value=my_data._fill_value)
+
+        # through interpolation, find times in `other` closest to times in
+        # myself; hopefully that means the difference is zero
+        if issubclass(my_data[my_prim].dtype.type, numpy.datetime64):
+            x = other_data[other_prim].astype("<M8[ms]").astype("f8")
+            xx = my_data[my_prim].astype("<M8[ms]").astype("f8")
+        else:
+            x = other_data[other_prim]
+            xx = my_data[my_prim]
+
+        ii = numpy.interp(xx, x,
+            numpy.arange(other_data[other_prim].shape[0])).round().astype(
+                numpy.uint64)
+
+        other_combi = other_data[ii]
+        # now go through fields to see that there is an actual match
+
+        near = numpy.all([(numpy.isclose(my_data[f_my], other_combi[f_oth])
+                if issubclass(my_data[f_my].dtype.type,
+                              numpy.inexact) else
+                abs(my_data[f_my] - other_combi[f_oth]) < timetol
+                if issubclass(my_data[f_my].dtype.type,
+                              numpy.datetime64) else
+                my_data[f_my] == other_combi[f_oth])
+                    for (f_my, f_oth) in trans.items()], 0)
+
+        if not near.any():
             raise ValueError("Did not find any secondaries!  Are times off?")
-        elif not found.all():
-            logging.warn("Only {:d}/{:d} ({:.2f}%) of secondaries found".format(
-                found.sum(), found.size, 100*found.sum()/found.size))
+
+        if not near.all():
+            logging.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
+                near.sum(), near.size, near.sum()/near.size))
+
+        other_combi.mask[~near] = numpy.ones_like(other_combi.mask[~near])
+
         return other_combi
+
+        # For old, bruce force implementation, see versioning history
 
     def get_additional_field(self, M, fld):
         """Get additional field.

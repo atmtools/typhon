@@ -1,3 +1,10 @@
+2016-09-20  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon/datasets/dataset.py(Dataset.combine):
+
+	Re-implemented combination algorithm, now runs in O(n) (I think)
+	rather than O(n²).
+
 2016-09-20  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/units/thermodynamics.py:
