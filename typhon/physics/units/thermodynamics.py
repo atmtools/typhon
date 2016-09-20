@@ -5,9 +5,6 @@
 This module contains wrapper functions to perform calculations with pint
 quantities.
 """
-import numpy as np
-
-from typhon import constants
 from typhon import physics
 
 from .common import ureg

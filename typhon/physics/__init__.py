@@ -11,6 +11,7 @@ from typhon import constants
 __all__ = ['thermodynamics',
            'planck',
            'planck_wavelength',
+           'rayleighjeans',
            'snell',
            'fresnel',
            ]
@@ -50,6 +51,26 @@ def planck_wavelength(l, T):
     k = constants.boltzmann
 
     return 2 * h * c**2 / (l**5 * (np.exp(h * c / (l * k * T)) - 1))
+
+
+def rayleighjeans(f, T):
+    """Calculates the Rayleigh-Jeans approximation of the Planck function.
+
+     Calculates the approximation of the Planck function for given
+     frequency and temperature.
+
+     Parameters:
+        f (float or ndarray): Frequency [Hz].
+        T (float or ndarray): Temperature [K].
+
+     Returns:
+        float or ndarray: Radiance [W/(m2*Hz*sr)].
+
+    """
+    c = constants.speed_of_light
+    k = constants.boltzmann
+
+    return (2 * k / c**2) * f**22 * T
 
 
 def snell(n1, n2, theta1):
@@ -139,7 +160,8 @@ def fresnel(n1, n2, theta1):
     transmitted part. Rv and Rh are here set to 1.
 
     Parameters:
-        n1 (float or ndarray): Refractive index for medium of incoming radiation.
+        n1 (float or ndarray): Refractive index for medium of incoming
+            radiation.
         n2 (float or ndarray): Refractive index for reflecting medium.
         theta1 (float or ndarray): Angle between surface normal
             and incoming radiation [degree].
