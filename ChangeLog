@@ -1,3 +1,41 @@
+2016-09-23  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon.plots.__init__.py(plot_distribution_as_percentiles):
+
+	- Bugfix, correct keywoard is linestyle, not ls.
+
+	* typhon/datasets/tovs.py:
+
+	(ATOVS):
+	
+	- Started this class to collect functionality in common between HIRS
+	and other ATOVS readers.  Currently designed as a mixin but could also
+	be designed as a subclass of MultiFileDataset.  Don't remember right
+	now why that didn't work.
+
+	(HIRS._read):
+
+	- When filtering firstlines fails, catch the KeyError and instead
+	raise a more useful InvalidFileError, so that the caller can more
+	specifically catch this problem.
+
+	(HIRSKLM.get_mask_from_flags):
+
+	- For scanlines that don't observe Earth, mask not only BT but also
+	radiance.
+
+	(MHSL1C):
+
+	- Class to read MHS L1C files in NetCDF, such as the ones converted by
+	people in Hamburg (kudos to... Oliver?)
+
+	* typhon/datasets/dataset.py(NetCDFDataset._read):
+
+	- Do some evil trickery to convert some form of NetCDF file with
+	groups to a structured array.  This is likely to be changed, the
+	proper way would be with structured subdtypes.  Use with care!
+
+
 2016-09-20  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon/datasets/tovs.py(HIASI.combine):

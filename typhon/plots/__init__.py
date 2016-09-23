@@ -96,7 +96,7 @@ def plot_distribution_as_percentiles(ax, x, y,
         else:
             label = None
 
-        ax.plot(bins, scores[:, i], ls=linestyles[i], label=locallab, **kwargs)
+        ax.plot(bins, scores[:, i], linestyle=linestyles[i], label=locallab, **kwargs)
 
 
 def get_subplot_arrangement(n):

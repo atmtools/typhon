@@ -45,6 +45,18 @@ class Radiometer(metaclass=metaclass.AbstractDocStringInheritor):
     srf_backend_response = ""
     srf_backend_f = ""
 
+class ATOVS:
+    """Functionality in common with all ATOVS.
+
+    Designed as mixin.
+    """
+    @staticmethod
+    def _get_time(scanlines, prefix):
+        return (scanlines[prefix + "scnlinyr"].astype("M8[Y]") - 1970 +
+                (scanlines[prefix + "scnlindy"]-1).astype("m8[D]") +
+                 scanlines[prefix + "scnlintime"].astype("m8[ms]"))
+
+
 class HIRS(dataset.MultiSatelliteDataset, Radiometer,
            dataset.MultiFileDataset):
     """High-resolution Infra-Red Sounder.
@@ -111,7 +123,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
       NOAA KLM User's Guide pages 3-31 and 8-154, but I'm not sure how to
       apply it.
     - If datasets like MHS or AVHRR are added some common code could
-      probably move to a class between HIRS and MultiFileDataset.
+      probably move to a class between HIRS and MultiFileDataset, or to a
+      mixin such as ATOVS.
     - Better handling of duplicates between subsequent granules.
       Currently it takes all lines from the older granule and none from
       the newer, but this should be decided on a case-by-case basis (Jon
@@ -281,7 +294,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             scanlines = scanlines[fields]
 
         if filter_firstline:
-            scanlines = self.filter_firstline(header, scanlines)
+            try:
+                scanlines = self.filter_firstline(header, scanlines)
+            except KeyError as e:
+                raise dataset.InvalidFileError(
+                    "Unable to filter firstline: {:s}".format(e.args[0])) from e
         # TODO:
         # - Add other meta-information from TIP
         return (header, scanlines) if return_header else scanlines
@@ -930,7 +947,7 @@ class HIRS2I(HIRS2):
     satellites = {"noaa11", "noaa14"}
 
 # docstring in parent
-class HIRSKLM(HIRS):
+class HIRSKLM(ATOVS, HIRS):
     counts_offset = 4096
     n_wordperframe = 24
     views = ("iwt", "space", "Earth")
@@ -1103,14 +1120,15 @@ class HIRSKLM(HIRS):
             
 
         # Some lines are marked as space view or black body view
-        lines["bt"].mask |= (lines["hrs_scntyp"] != self.typ_Earth)[:, numpy.newaxis, numpy.newaxis]
+        for v in ("bt", "radiance"):
+            lines[v].mask |= (lines["hrs_scntyp"] != self.typ_Earth)[:, numpy.newaxis, numpy.newaxis]
 
-        # Where radiances are negative, mask individual values as masked
-        lines["bt"].mask |= (lines["radiance"][:, :, :19] < 0)
+            # Where radiances are negative, mask individual values as masked
+            lines[v][:, :, :19].mask |= (lines["radiance"][:, :, :19] <= 0)
 
-        # Where counts==0, mask individual values
-        # WARNING: counts==0 is within the valid range for some channels!
-        lines["bt"].mask |= (elem[:, :56, 2:21]==0)
+            # Where counts==0, mask individual values
+            # WARNING: counts==0 is within the valid range for some channels!
+            lines[v][:, :, :19].mask |= (elem[:, :56, 2:21]==0)
 
         if lines["counts"].mask.sum() > lines["counts"].size*max_flagged:
             raise dataset.InvalidDataError(
@@ -1252,17 +1270,16 @@ class HIRSKLM(HIRS):
 
     # docstring in parent
     @staticmethod
-    def _get_time(scanlines):
-        return (scanlines["hrs_scnlinyr"].astype("M8[Y]") - 1970 +
-                (scanlines["hrs_scnlindy"]-1).astype("m8[D]") +
-                 scanlines["hrs_scnlintime"].astype("m8[ms]"))
-
-    # docstring in parent
-    @staticmethod
     def get_pos(scanlines):
         lat = scanlines["hrs_pos"][:, ::2]
         lon = scanlines["hrs_pos"][:, 1::2]
         return (lat, lon)
+
+    @staticmethod
+    def _get_time(scanlines):
+        # according to http://stackoverflow.com/a/26807879/974555
+        # I need to pass the class now?
+        return super(HIRSKLM, HIRSKLM)._get_time(scanlines, prefix="hrs_")
 
     # docstring in parent
     def get_other(self, scanlines):
@@ -1629,6 +1646,27 @@ class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectr
             else:
                 MM_new[fld][...] = MM[fld][...]
         return MM_new
+
+class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
+    name = "mhs_l1c"
+    subdir = "{satname:s}_mhs_{year:04d}/{month:02d}/{day:02d}"
+    re = (r"(\d*\.)?NSS.MHSX.(?P<satcode>.{2})\.D(?P<year>\d{2})"
+          r"(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E"
+          r"(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.h5")
+    start_date = datetime.datetime(1999, 1, 1)
+    end_date = datetime.datetime(2016, 4, 1)
+
+    def _read(self, f, fields="all"):
+        M = super()._read(f, fields)
+        # functionality in numpy.lib.recfunctions.append_fields is too
+        # slow!
+        MM = numpy.zeros(shape=M.shape,
+                         dtype=M.dtype.descr + [("time", "M8[s]")])
+        MM["time"] = self._get_time(M, prefix="")
+        #MM["time"] = M["mon_time"].astype("M8[s]")
+        for f in M.dtype.names:
+            MM[f][...] = M[f][...]
+        return MM
 
 def which_hirs_fcdr(satname):
     """Given a satellite, return right HIRS object

@@ -481,6 +481,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
             Masked ndarray of same size as `my_data` and same `dtype` as
             returned by `other_obj.read`.
+
+        TODO: Allow user to pass already-read data from other dataset.
         """
 
         if trans is None:
@@ -1313,32 +1315,51 @@ class NetCDFDataset:
     This may provide a good default for any NetCDF-based dataset.  The
     reading routine will take the most commonly occurring dimension as the
     ndarray axes, and the rest within structured multidimensional dtype.
+
+    USE WITH CARE!  PROVISIONAL API!
     """
 
     def _read(self, f, fields="all"):
         with netCDF4.Dataset(f, 'r') as ds:
-            cnt = collections.Counter(
-                itertools.chain.from_iterable(
-                    ds[d].dimensions for d in ds.variables))
 
             # generic conversion of NetCDF to ndarray; consider the most
             # common dimension, make this one the shape of the ndarray,
             # copy over all variables that share this dimension, and
             # ignore the rest, unless variables are passed explicitly
+            #
+            # if contained in one layer of groups, flatten those first
+
+            if ds.groups != {}: # NB: empty OrderedDict == {}
+                alldims = collections.OrderedDict(
+                    itertools.chain.from_iterable(
+                        ds[x].dimensions.items() for x in ds.groups.keys()))
+                allvars = collections.OrderedDict(
+                    itertools.chain.from_iterable(
+                        ds[x].variables.items() for x in ds.groups.keys()))
+            else:
+                alldims = ds.dimensions
+                allvars = ds.variables
+            # count most frequent dimensions
+            cnt = collections.Counter(
+                itertools.chain.from_iterable(
+                    allvars[var].dimensions for var in allvars.keys()))
             prim = cnt.most_common(1)[0][0]
-            n = ds.dimensions[prim].size
+            n = alldims[prim].size
+            # MHS L1C has multiple phony dimensions in different groups,
+            # with the same shape, so I need to go by value (size) of the
+            # dimensions rather than by name
             M = numpy.zeros(shape=(n,),
                 dtype=[
                     (k,
-                     v.dtype,
+                     "f4" if (getattr(v, "Scale", 1)!=1) else v.dtype,
                      tuple(s for (i, s) in enumerate(v.shape)
-                         if v.dimensions[i] != prim))
-                     for (k, v) in ds.variables.items()
-                     if ((prim in v.dimensions) if fields=="all"
+                         if v.shape[i] != alldims[prim].size))
+                     for (k, v) in allvars.items()
+                     if ((alldims[prim].size in v.shape) if fields=="all"
                           else (k in fields))])
 
             for v in M.dtype.names:
-                M[v][...] = ds[v][...]
+                M[v][...] = allvars[v][...] * getattr(allvars[v], "Scale", 1)
 
         return M
 
