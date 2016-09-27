@@ -14,6 +14,12 @@ __all__ = ['thermodynamics',
            'rayleighjeans',
            'snell',
            'fresnel',
+           'frequency2wavelength',
+           'frequency2wavenumber',
+           'wavelength2frequency',
+           'wavelength2wavenumber',
+           'wavenumber2frequency',
+           'wavenumber2wavelength',
            ]
 
 
@@ -186,3 +192,80 @@ def fresnel(n1, n2, theta1):
     Rh = (n1 * costheta1 - n2 * costheta2) / (n1 * costheta1 + n2 * costheta2)
 
     return Rv, Rh
+
+
+def frequency2wavelength(frequency):
+    """Convert frequency to wavelength.
+
+    Parameters:
+        frequency (float or ndarray): Frequency [Hz].
+
+    Returns:
+        float or ndarray: Wavelength [m].
+
+    """
+    return constants.speed_of_light / frequency
+
+
+def frequency2wavenumber(frequency):
+    """Convert frequency to wavelength.
+
+    Parameters:
+        frequency (float or ndarray): Frequency [Hz].
+
+    Returns:
+        float or ndarray: Wavenumber [m^-1].
+
+    """
+    return frequency / constants.speed_of_light
+
+
+def wavelength2frequency(wavelength):
+    """Convert wavelength to frequency.
+
+    Parameters:
+        wavelength (float or ndarray): Wavelength [m].
+
+    Returns:
+        float or ndarray: Frequency [Hz].
+
+    """
+    return constants.speed_of_lightc / wavelength
+
+
+def wavelength2wavenumber(wavelength):
+    """Convert wavelength to wavenumber.
+
+    Parameters:
+        wavelength (float or ndarray): Wavelength [m].
+
+    Returns:
+        float or ndarray: Wavenumber [m^-1].
+
+    """
+    return 1 / wavelength
+
+
+def wavenumber2frequency(wavenumber):
+    """Convert wavenumber to frequency.
+
+    Parameters:
+        wavenumber (float or ndarray): Wavenumber [m^-1].
+    Returns:
+        float or ndarray: Frequency [Hz].
+
+    """
+    return constants.speed_of_light * wavenumber
+
+
+def wavenumber2wavelength(wavenumber):
+    """Convert wavenumber to wavelength.
+
+    Parameters:
+        wavenumber (float or ndarray): Wavenumber [m^-1].
+
+    Returns:
+        float or ndarray: Wavelength [m].
+
+    """
+    return 1 / wavenumber

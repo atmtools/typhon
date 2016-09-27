@@ -1,3 +1,11 @@
+2016-09-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/physics/__init__.py:
+
+	Added documentation to all spectroscopic conversion functions.
+
+	Conversion functions are now properly included in __all__.
+
 2016-09-23  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon.plots.__init__.py(plot_distribution_as_percentiles):
