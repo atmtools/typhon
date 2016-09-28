@@ -744,10 +744,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         """
 
         # explicit loop may be somewhat slower than broadcasting, but
-        # takes FAR less memory
+        # broadcasting is O(N²) in memory — not acceptable!
         ix_iwt = (M[self.scantype_fieldname]==self.typ_iwt).nonzero()[0]
         time_iwt = M["time"][M[self.scantype_fieldname]==self.typ_iwt]
-        tsc = numpy.ma.masked_all(shape=M.shape)
+        tsc = numpy.ma.masked_all(shape=M.shape, dtype="m8[ms]")
         for i in range(ix_iwt.shape[0]):
             lst = ix_iwt[i]
             try:
@@ -756,12 +756,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
                 nxt = time_iwt.shape[0]
             tsc[lst:nxt] = M["time"][lst:nxt] - M["time"][lst]
             
-        # OOPS, implementation below is O(N²) in MEMORY.  No wonder I
-        # crashed CEMS…
-#        dtm = M["time"][:, numpy.newaxis] - time_iwt[numpy.newaxis, :]
-#        tsc = numpy.ma.masked_where(
-#            dtm<numpy.timedelta64(0, 'ms'), dtm).min(1)
-        return tsc.astype("m8[s]").astype("u2")
+        return tsc.astype("m8[ms]").astype("f4")/1000
                 
 
 class HIRSPOD(HIRS):
@@ -1698,6 +1693,24 @@ class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
     start_date = datetime.datetime(2013, 1, 1)
     end_date = datetime.datetime(2014, 1, 1)
   #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
+
+
+    def _read(self, f, fields="all"):
+        M = super()._read(f, fields)
+
+        timefields = [x for x in M.dtype.descr
+                      if x[0].endswith("acquisition_time")]
+        if len(timefields) != 2:
+            raise dataset.InvalidFileError("Expected 2 "
+                "fields for time, found {:d}".format(len(timefields)))
+
+        MM = numpy.zeros(shape=M.shape,
+                         dtype=M.dtype.descr +
+                         [("time", "M8[s]", timefields[0][2]
+                            if len(timefields[0])>2 else ())])
+
+        MM["time"] = (M[timefields[0][0]]*.5+M[timefields[1][0]]*.5).astype("M8[s]")
+        return MM
 
 
 class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):

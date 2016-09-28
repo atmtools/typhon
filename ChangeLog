@@ -1,3 +1,29 @@
+2016-09-28  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS.calc_time_since_last_calib):
+
+	- Fix bug introduced when reducing memory usage, now returns correct
+	tsc in seconds (float) again, I hope.
+
+	(HIRSHIRS._read)
+
+	- Add time field, needs more checking though.
+
+	* typhon/datasets/dataset.py:
+	
+	(Dataset.read_period):
+
+	- Fix bug that was destroying flags by turning a masked array into a
+	regular array.
+
+	- Don't report success when no data were available.
+
+	(NetCDFDataset._read):
+
+	- Use masked arrays and respect fillvalues accordingly, if available.
+	
 2016-09-28  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon/plots/__init__.py(plot_distribution_as_percentiles):

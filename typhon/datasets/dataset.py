@@ -404,28 +404,23 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                                 arr.size, arr.nbytes/MiB, frac_done,
                                 newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
                                 newsize, newsize*arr.itemsize/MiB))
-                        arr = numpy.concatenate(
-                            (arr, numpy.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
+                        arr = numpy.ma.concatenate(
+                            (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
                     arr[N:(N+cont.size)] = cont
                     N += cont.size
 #                contents.append(
 #                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
-                anygood = True
+                    if N > 0:
+                        anygood = True
             if dobar:
                 bar.update(max((g_start-start) / (end-start),0))
         if dobar:
             bar.update(1)
             bar.finish()
-        # retain type of first result, ordinary array or masked array
-        # FIXME: This doubles the memory usage!  Find smarter way!
-#        logging.info("Copying data to final ndarray")
         if anygood:
-            logging.debug("Mitigating overallocation ({:d}->{:d})".format(
+            logging.debug("Correcting overallocation ({:d}->{:d})".format(
                 arr.size, N))
             arr = arr[:N]
-#            arr = (numpy.ma.concatenate 
-#                if isinstance(contents[0], numpy.ma.MaskedArray)
-#                else numpy.concatenate)(contents)
 
             if "flags" in self.related:
                 arr = self.flag(arr)
@@ -1410,10 +1405,16 @@ class NetCDFDataset:
                      for (k, v) in allvars.items()
                      if ((alldims[prim].size in v.shape) if fields=="all"
                           else (k in fields))])
+            M = numpy.ma.masked_array(M)
 
             for v in M.dtype.names:
                 try:
                     M[v][...] = allvars[v][...] * getattr(allvars[v], "Scale", 1)
+                    try:
+                        M[v].mask[M[v]==allvars[v]._FillValue] = True
+                    except AttributeError:
+                        # no fill value...?
+                        pass
                 except TypeError:
                     pass # probably not a numeric type
 
