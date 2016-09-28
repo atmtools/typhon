@@ -89,10 +89,13 @@ def plot_distribution_as_percentiles(ax, x, y,
         if label is not None:
             if math.isclose(ptiles[i], 50):
                 locallab = label + " (median)"
-            elif ptile_to_legend and linestyles[i] in d_ls:
-                locallab = label + " (p-{:s})".format(
-                    "/".join("{:d}".format(x)
-                             for x in d_ls.pop(linestyles[i])))
+            else:
+                if ptile_to_legend and linestyles[i] in d_ls:
+                    locallab = label + " (p-{:s})".format(
+                        "/".join("{:d}".format(x)
+                                 for x in d_ls.pop(linestyles[i])))
+                else:
+                    locallab = None
         else:
             label = None
 

@@ -1,3 +1,42 @@
+2016-09-28  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon/plots/__init__.py(plot_distribution_as_percentiles):
+
+	- Bugfix: should omit label for repeated pattern for higher
+	percentiles if no locallib is passed.
+
+	* typhon/dataset/dataset.py:
+	
+	(Dataset.read_period):
+
+	- Rather than gathering a list of ndarrays, dynamically guess the size
+	of the final ndarray required and copy data into there directly.  This
+	reduces memory consumption by at least a factor two.  Uses a maximum
+	size, contained in the `maxsize` attribute, which causes it to refuse
+	to even start reading years of data when the estimated size will be
+	too large (it will give up at 10% at the moment).
+
+	(Dataset.combine):
+
+	- Allow fo other_data to be passed directly.  Also, support
+	non-masked-arrays.
+
+	(MultiFileDataset.iterate_subdirs):
+
+	- Bugfix for the case where all granules are in the same directory (no
+	sorting by year).
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS.calc_time_since_last_calib):
+
+	- Calculate time since last calibration cycle
+
+	(HIRSHIRS):
+
+	Added class for Brockmanns HIRSHIRS collocations.
+
+
 2016-09-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/__init__.py:

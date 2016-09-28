@@ -25,6 +25,7 @@ from .. import config
 from .. import utils
 from .. import math as tpmath
 from ..physics.units import em
+from ..constants import MiB
 
 try:
     import progressbar
@@ -121,6 +122,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     aliases = {}
     unique_fields = {"time", "lat", "lon"}
     related = {}
+    maxsize = 10000*MiB
 
     # Make singleton: there is no point in having multiple copies of a
     # dataset-object around when both relate to the same dataset.
@@ -314,7 +316,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         start = start or self.start_date
         end = end or self.end_date
 
-        contents = []
+        #contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
         logging.info("Reading {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
@@ -346,6 +348,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             logging.info("Psst!  If you install the progressbar2 package, "
                 "you will get a fancy progressbar!")
         anygood = False
+        arr = None
+        N = 0
         for (g_start, gran) in finder(start, end, return_time=True, 
                                       include_last_before=True,
                                       **locator_args):
@@ -368,8 +372,44 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else:
                     raise
             else:
-                contents.append(
-                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
+                cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
+                if arr is None:
+                    arr = cont
+                    N = cont.size
+                else:
+                    if (N+cont.size) > arr.size: # need to allocate more
+                        frac_done = max((g_start-start) / (end-start),0)
+                        # suppose all future files have on average the
+                        # same size?  Until we have reached 10%, simply
+                        # double every time.  After that, extrapolate more
+                        # cleverly. 
+                        newsize = (int((N+cont.size)//frac_done)
+                                    if frac_done > 0.1
+                                    else (N+cont.size) * 2)
+                        if newsize * arr.itemsize > self.maxsize:
+                            raise MemoryError("This dataset is too large "
+                                "for typhons little mind.  Continuing might "
+                                "ultimately need {:,.0f} MiB of RAM.  This exceeds my "
+                                "maximum (self.maxsize) of {:,.0f} MiB. "
+                                "Sorry! ".format(
+                                    newsize*arr.itemsize/MiB,
+                                    self.maxsize/MiB))
+                        logging.debug(
+                            "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
+                            "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
+                            "through.  Allocating new: {:d} items, {:,.0f} "
+                            "MiB.  New size: {:d} items, {:,.0f} "
+                            "MiB.".format(N+cont.size,
+                                (cont.nbytes+arr.nbytes)/MiB,
+                                arr.size, arr.nbytes/MiB, frac_done,
+                                newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
+                                newsize, newsize*arr.itemsize/MiB))
+                        arr = numpy.concatenate(
+                            (arr, numpy.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
+                    arr[N:(N+cont.size)] = cont
+                    N += cont.size
+#                contents.append(
+#                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
                 anygood = True
             if dobar:
                 bar.update(max((g_start-start) / (end-start),0))
@@ -377,10 +417,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             bar.update(1)
             bar.finish()
         # retain type of first result, ordinary array or masked array
+        # FIXME: This doubles the memory usage!  Find smarter way!
+#        logging.info("Copying data to final ndarray")
         if anygood:
-            arr = (numpy.ma.concatenate 
-                if isinstance(contents[0], numpy.ma.MaskedArray)
-                else numpy.concatenate)(contents)
+            logging.debug("Mitigating overallocation ({:d}->{:d})".format(
+                arr.size, N))
+            arr = arr[:N]
+#            arr = (numpy.ma.concatenate 
+#                if isinstance(contents[0], numpy.ma.MaskedArray)
+#                else numpy.concatenate)(contents)
 
             if "flags" in self.related:
                 arr = self.flag(arr)
@@ -439,7 +484,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 #    @tools.mark_for_disk_cache(
 #        process=dict(
 #            my_data=lambda x: x.view(dtype="i1")))
-    def combine(self, my_data, other_obj, other_args=None, trans=None,
+    def combine(self, my_data, other_obj, other_data=None, other_args=None, trans=None,
                 timetol=numpy.timedelta64(1, 's')):
         """Combine with data from other dataset.
 
@@ -461,6 +506,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             other_obj (Dataset): Dataset to match
                 Object from a Dataset subclass from which to find matching
                 data.
+
+            other_data (ndarray): Data for other.  Optional.
+                Optionally, pass data for other object.  If not provided
+                or None, this will be read using other_obj.
 
             other_args (dict): Keyword arguments passed to
                 other_obj.read_period.  May need to contain things like
@@ -495,7 +544,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         first = my_data["time"].min().astype(datetime.datetime)
         last = my_data["time"].max().astype(datetime.datetime)
 
-        other_data = other_obj.read_period(first, last, **other_args)
+        if other_data is None:
+            other_data = other_obj.read_period(first, last, **other_args)
 
 
         (my_prim, other_prim) = next(iter(trans.items()))
@@ -543,7 +593,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             logging.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
                 near.sum(), near.size, near.sum()/near.size))
 
-        other_combi.mask[~near] = numpy.ones_like(other_combi.mask[~near])
+        try:
+            other_combi.mask[~near] = numpy.ones_like(other_combi.mask[~near])
+        except AttributeError: # not a MaskedArray yet
+            other_combi = numpy.ma.masked_where(~near, other_combi)
 
         return other_combi
 
@@ -841,7 +894,7 @@ class MultiFileDataset(Dataset):
                             **extra)))
                     d = d + datetime.timedelta(days=1)
         else:
-            yield ({}, self.basedir)
+            yield ({}, pathlib.Path(pst.format(**extra)))
           
     def find_granules(self, dt_start=None, dt_end=None, 
             include_last_before=False, **extra):
@@ -1359,7 +1412,10 @@ class NetCDFDataset:
                           else (k in fields))])
 
             for v in M.dtype.names:
-                M[v][...] = allvars[v][...] * getattr(allvars[v], "Scale", 1)
+                try:
+                    M[v][...] = allvars[v][...] * getattr(allvars[v], "Scale", 1)
+                except TypeError:
+                    pass # probably not a numeric type
 
         return M
 

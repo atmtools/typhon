@@ -726,6 +726,44 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         """Extract dataname from header.
         """
 
+    def calc_time_since_last_calib(self, M):
+        """Calculate time since last calibration.
+
+        Calculate time (in seconds) since the last calibration cycle.
+
+        Arguments:
+
+            M [ndarray]
+
+                ndarray of the same type as returned by self.read.  Must
+                be contiguous or results will be wrong.
+
+        Returns:
+
+            ndarray, seconds since last calibration cycle
+        """
+
+        # explicit loop may be somewhat slower than broadcasting, but
+        # takes FAR less memory
+        ix_iwt = (M[self.scantype_fieldname]==self.typ_iwt).nonzero()[0]
+        time_iwt = M["time"][M[self.scantype_fieldname]==self.typ_iwt]
+        tsc = numpy.ma.masked_all(shape=M.shape)
+        for i in range(ix_iwt.shape[0]):
+            lst = ix_iwt[i]
+            try:
+                nxt = ix_iwt[i+1]
+            except IndexError:
+                nxt = time_iwt.shape[0]
+            tsc[lst:nxt] = M["time"][lst:nxt] - M["time"][lst]
+            
+        # OOPS, implementation below is O(N²) in MEMORY.  No wonder I
+        # crashed CEMS…
+#        dtm = M["time"][:, numpy.newaxis] - time_iwt[numpy.newaxis, :]
+#        tsc = numpy.ma.masked_where(
+#            dtm<numpy.timedelta64(0, 'ms'), dtm).min(1)
+        return tsc.astype("m8[s]").astype("u2")
+                
+
 class HIRSPOD(HIRS):
     """Read early HIRS such as documented in POD guide.
 
@@ -1609,7 +1647,7 @@ class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectr
     """"HIRS-IASI collocations
     """
     name = "hiasi"
-    subdir = "{month:02d}"
+    subdir = "{year:04d}/{month:02d}"
     re = (r"W_XX-EUMETSAT-Darmstadt,SATCAL\+COLLOC\+LEOLEOIR,"
           r"opa\+HIRS\+M02\+IASI_C_EUMS_(?P<year>\d{4})(?P<month>\d{2})"
           r"(?P<day>\d{2})(?P<hour>\d{2})(?P<minute>\d{2})(?P<second>\d{2})_"
@@ -1646,6 +1684,21 @@ class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectr
             else:
                 MM_new[fld][...] = MM[fld][...]
         return MM_new
+
+class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
+    """HIRS-HIRS collocations from Brockmann Consult
+
+    A.k.a. MMD05
+    """
+    name = "hirshirs"
+    subdir = "hirs_{prim:s}_{sec:s}"
+    re = (r"mmd05_hirs-(?P<prim>.{2,3})_hirs-(?P<sec>.{2,3})_"
+          r"(?P<year>\d{4})-(?P<doy>\d{3})_(?P<year_end>\d{4})-"
+          r"(?P<doy_end>\d{3})\.nc")
+    start_date = datetime.datetime(2013, 1, 1)
+    end_date = datetime.datetime(2014, 1, 1)
+  #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
+
 
 class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
     name = "mhs_l1c"
