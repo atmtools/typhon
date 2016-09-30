@@ -140,6 +140,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
     count_start = 2
     count_end = 22
     granules_firstline_file = pathlib.Path("")
+    re = r"(L\d*\.)?NSS.HIRX.(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
 
     # For convenience, define scan type codes.  Stores in hrs_scntyp.
     typ_Earth = 0

@@ -1,3 +1,10 @@
+2016-09-30  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/typhon/datasets (HIRS):
+
+	- Add re to HIRS definition.  Include cases where it starts with
+	a prefix of (L\d*) for some reason.
+
 2016-09-30  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/__init__.py (run_arts):
