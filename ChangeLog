@@ -1,3 +1,10 @@
+2016-09-30  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/__init__.py (run_arts):
+
+	By default an exception is raised if the ARTS run failed. This behaviour
+	can the disabled with the ignore_error keyword.
+
 2016-09-28  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py:

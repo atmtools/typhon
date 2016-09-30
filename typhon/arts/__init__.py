@@ -21,13 +21,16 @@ __all__ = ['xml',
            ]
 
 
-def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
+def run_arts(controlfile=None, arts='arts', writetxt=False,
+             ignore_error=False, **kwargs):
     """Start an ARTS Simulation.
 
     Parameters:
         controlfile (str): Path to the ARTS controlfile.
         arts (str): Path to the arts executable.
         writetxt (bool): Write stdout and stderr to ASCII files.
+        ignore_error (bool): If set to True, erros during the ARTS run do not
+            result in an exception (default is False).
         **kwargs: Additional command line arguments passed as keyword.
             See `arts --help` for more details.
 
@@ -90,6 +93,10 @@ def run_arts(controlfile=None, arts='arts', writetxt=False, **kwargs):
         with open(outfile, 'w') as out, open(errfile, 'w') as err:
             out.write(p.stdout)
             err.write(p.stderr)
+
+    # Throw exception if ARTS run failed.
+    if p.returncode != 0 and ignore_error is not True:
+        raise Exception('ARTS run failed:\n{}'.format(p.stderr))
 
     # Store ARTS output in namedtuple.
     arts_out = collections.namedtuple(
