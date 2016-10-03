@@ -1,5 +1,12 @@
 2016-10-03  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/_tovs_defs.py:
+
+	- Add defiitions for NOAA11, NOAA10, NOAA9.  We don't have definitions
+	for older NOAA, so use NOAA9.  Use with caution.
+
+2016-10-03  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/tovs.py:
 
 	- Rearrange some code between superclasses

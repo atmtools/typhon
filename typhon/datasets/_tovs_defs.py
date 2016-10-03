@@ -873,17 +873,48 @@ HIRS_count_to_temp["NOAA17"].update({'an_bptemp': array([  3.92104492e+02,  -7.9
 # or OSO-EM/POES-0270
 # or NESS 107, PDF page 92
 HIRS_count_to_temp["NOAA09"]["iwtcnttmp"] = numpy.array([
- [28.2238,6.52238e-03,8.62819e-08,4.81437e-11,1.16950e-15,0.0],
- [28.2066,6.51928e-03,8.59682e-08,4.81011e-11,1.17422e-15,0.0],
- [28.2159,6.52446e-03,8.61933e-08,4.81459e-11,1.17357e-15,0.0],
- [28.2138,6.51965e-03,8.58931e-08,4.81048e-11,1.18056e-15,0.0]])
+ [28.2238,6.52238e-03,8.62819e-08,4.81437e-11,1.16950e-15],
+ [28.2066,6.51928e-03,8.59682e-08,4.81011e-11,1.17422e-15],
+ [28.2159,6.52446e-03,8.61933e-08,4.81459e-11,1.17357e-15],
+ [28.2138,6.51965e-03,8.58931e-08,4.81048e-11,1.18056e-15]])
 
-# Warning: Did not find any source for NOAA8, NOAA7, NOAA6, TIROS-N.
-for sat in "NOAA08 NOAA07 NOAA06 TIROSN".split():
-    HIRS_count_to_temp[sat]["iwtcnttmp"] = (
-        HIRS_count_to_temp["NOAA09"]["iwtcnttmp"].copy())
+HIRS_count_to_temp["NOAA09"].update(
+    {"ictcnttmp": numpy.array([
+    [-1.65255+K, 6.04056E-03, 7.35066E-08, 7.55589E-11, 1.43631E-15],
+    [-1.71422+K, 6.04355E-03, 7.36043E-08, 7.56091E-11, 1.43456E-15],
+    [-1.68446+K, 6.03979E-03, 7.33514E-08, 7.33514E-11, 1.43901E-15],
+    [-1.65907+K, 6.03885E-03, 7.34900E-08, 7.55388E-11, 1.42696E-15]]),
+     "fwcnttmp": numpy.array([
+    [28.1949+K, 6.51264E-03, 8.59918E-08, 4.80551E-11, 1.16901E-15],
+    [28.2017+K, 6.52156E-03, 8.60778E-08, 4.81226E-11, 1.16877E-15],
+    [28.1953+K, 6.51171E-03, 8.59595E-08, 4.80356E-11, 1.16953E-15],
+    [28.2065+K, 6.52561E-03, 8.61091E-08, 4.81359E-11, 1.17885E-15]]),
+     "patchexpcnttmp": numpy.array([ # NB: manually drawn circle final 6
+    [-155.197+K, 7.55076E-03, 1.53359E-07, 2.98578E-12, -6.15827E-16]]),
+    # TOTHIER
+     "fsradcnttpm": numpy.array([
+    [-55.2015+K, -0.0202043, 9.87098E-07, -4.85923E-11, 2.23676E-15]]),
+     "scmircnttmp": numpy.array([
+    [-12.9307+K, 0.0168306, -2.25548E-06, 3.32533E-10, 2.14454E-14]]),
+     "pttcnttmp": numpy.array([
+    [-12.8906+K, 0.0168187, -2.25216E-06, 3.31743E-10, 2.14941E-14]]),
+     "sttcnttmp": numpy.array([
+    [-12.9634+K, 0.0168226, -2.24673E-06, 3.29283E-10, 2.18498E-14]]),
+     "bpcnttmp": numpy.array([
+    [-12.9488+K, 0.0168261, -2.24877E-06, 3.29881E-10, 2.17861E-14]]),
+     "electcnttmp": numpy.array([
+    [-12.9606+K, 0.0168081, -2.23523E-06, 3.24923E-10, 2.23598E-14]]),
+     "patchfcnttmp": numpy.array([
+    [-95.7222+K, -0.0268139, 1.58297E-06, -8.87254E-11, 4.30667E-15]]),
+     "scmotcnttmp": numpy.array([
+    [-12.9457+K, 0.0168203, -2.23845E-06, 3.25463E-10, 2.22358E-14]]),
+     "fwmcnttmp": numpy.array([
+    [-12.9501+K, 0.0168513, -2.27076E-06, 3.36984E-10, 2.08690E-14]]),
+     "chsgcnttmp": numpy.array([
+    [13.8538+K, -0.0103199, 2.90704E-07, -3.00507E-10, 2.49086E-14]])})
 
-# NOAA G/10
+
+# HIRS/2, NOAA G/10
 # AAPP/src/calibration/libhirsc1/calcoef.dat : 1021
 # or OSO-EM/POES-0263
 # or NESS 107, PDF page 104
@@ -895,20 +926,91 @@ HIRS_count_to_temp["NOAA10"]["iwtcnttmp"] = numpy.array([
  [28.2189+K,6.51610e-03,8.59659e-08,4.80415e-11,1.16682e-15],
  [28.2152+K,6.52074e-03,8.61310e-08,4.80831e-11,1.16844e-15],
  [28.2215+K,6.51970e-03,8.61605e-08,4.80733e-11,1.16825e-15]])
+   
+HIRS_count_to_temp["NOAA10"].update(
+    {"ictcnttmp": numpy.array([
+    [-1.164962+K, 6.03689E-03, 7.34912E-08, 7.54314E-11, 1.42586E-15],
+    [-1.70384+K, 6.04024E-03, 7.37735E-08, 7.54898E-11, 1.43042E-15],
+    [-1.70852+K, 6.03912E-03, 7.36121E-08, 7.54685E-11, 1.42635E-15],
+    [-1.64355+K, 6.03858E-03, 7.34838E-08, 7.54628E-11, 1.42588E-15]]),
+     "fwcnttmp": numpy.array([
+    [28.2397+K, 6.52436E-03, 8.62374E-08, 4.81100E-11, 1.16956E-15],
+    [28.2304+K, 6.51641E-03, 8.59091E-08, 4.80366E-11, 1.16251E-15],
+    [28.2255+K, 6.51977E-03, 8.60432E-08, 4.80685E-11, 1.16687E-15],
+    [28.2421+K, 6.51274E-03, 8.57481E-08, 4.80110E-11, 1.16202E-15]]),
+     "patchexpcnttmp": numpy.array([
+    [-155.4416+K, 7.536789E-03, 1.524822E-07, 1.4873E-12, -2.565222E-16]]),
+     "fsradcnttpm": numpy.array([
+    [-55.77669+K, -0.02017624, 9.817677E-07, -4.836361E-11, 2.599754E-15]]),
+     "scmircnttmp": numpy.array([
+    [-12.9608+K, 0.0168004, -2.23610E-06, 3.25812E-10, 1.21004E-14]]),
+     "pttcnttmp": numpy.array([
+    [-12.9762+K, 0.0168154, -2.23704E-06, 3.25789E-10, 2.22007E-14]]),
+     "sttcnttmp": numpy.array([
+    [-12.9445+K, 0.0167932, -2.22566E-06, 3.21847E-10, 2.25101E-14]]),
+     "bpcnttmp": numpy.array([
+    [-12.8863+K, 0.0167926, -2.23476E-06, 3.25616E-10, 2.21272E-14]]),
+     "electcnttmp": numpy.array([
+    [-12.9509+K, 0.0168066, -2.23946E-06, 3.26607E-10, 2.20469E-14]]),
+     "patchfcnttmp": numpy.array([
+    [-96.28774+K, -0.02670914, 1.580789E-06, -9.235212E-11, 4.581839E-15]]),
+     "scmotcnttmp": numpy.array([
+    [-12.9595+K, 0.0168041, -2.22971E-06, 3.22726E-10, 2.24640E-14]]),
+     "fwmcnttmp": numpy.array([
+    [-12.9371+K, 0.0168011, -2.22929E-06, 3.22858E-10, 2.25543E-14]]),
+     "chsgcnttmp": numpy.array([
+    [13.9371+K, -0.01029897, 3.599862E-07, -2.832785E-10, 1.102146E-14]])})
 
-# NOAA H/11
+
+# HIRS/2I, FM - 1I, NOAA - H/11
+#
 # http://noaasis.noaa.gov/NOAASIS/pubs/CAL/cal11.asc
 # or AAPP/src/calibration/libhirsc1/calcoef.dat : 1129
 # or OSO-PO/POES-0342
 #
 # NB: Some sources have coefficients to convert to °C, others to K!
-# NOTE: OSO-PO/POES-0443 has offsets 0.01K smaller
+# NOTE: OSO-PO/POES-0342 has offsets 0.01K smaller
 
 HIRS_count_to_temp["NOAA11"]["iwtcnttmp"] = numpy.array([
  [28.2221+K,6.52057e-03,9.05197e-08,4.73741e-11,8.29062e-16],
  [28.2256+K,6.52283e-03,9.13565e-08,4.73871e-11,7.86019e-16],
  [28.2625+K,6.51819e-03,9.18444e-08,4.75139e-11,7.30508e-16],
  [28.2242+K,6.51875e-03,9.04524e-08,4.72894e-11,8.06020e-16]])
+   
+HIRS_count_to_temp["NOAA11"].update(
+    {"ictcnttmp": numpy.array([
+    [-1.66149+K, 6.05183E-03, 8.36527E-08, 7.39875E-11, 6.36552E-16],
+    [-1.64027+K, 6.06415E-03, 6.71813E-08, 7.32452E-11, 2.09389E-16],
+    [-1.62225+K, 6.05344E-03, 6.50493E-08, 7.36357E-11, 2.31484E-15],
+    [-1.58883+K, 6.05475E-03, 6.51235E-08, 7.36992E-11, 2.31215E-15]]),
+     "fwcnttmp": numpy.array([
+    [28.2881+K, 6.52783E-03, 8.47513E-08, 4.67773E-11, 1.41152E-15],
+    [28.2261+K, 6.53212E-03, 8.32388E-08, 4.72510E-11, 1.55037E-15],
+    [28.1887+K, 6.52847E-03, 8.34361E-08, 4.76895E-11, 1.60687E-15],
+    [28.2607+K, 6.51994E-03, 8.34024E-08, 4.69065E-11, 1.45467E-15]]),
+     "patchexpcnttmp": numpy.array([
+    [-155.6846+K, 7.54243E-03, 1.50306E-07, 1.64668E-12, 3.91776E-16]]),
+     "fsradcnttpm": numpy.array([
+    [-56.3904+K, -2.01207E-02, 9.86605E-07, -5.07092E-11, 2.75734E-15]]),
+     "scmircnttmp": numpy.array([
+    [-12.9637+K, 1.69314E-2, -2.40346E-06, 3.9885E-10, 1.23468E-14]]),
+     "pttcnttmp": numpy.array([
+    [-12.8350+K, 1.68966E-2, -2.38757E-06, 3.84036E-10, 1.27566E-14]]),
+     "sttcnttmp": numpy.array([
+    [-12.8867+K, 1.69249E-2, -2.40909E-06, 4.00712E-10, 1.22148E-14]]),
+     "bpcnttmp": numpy.array([
+    [-12.8543+K, 1.68916E-2, -2.38309E-06, 3.94308E-10, 1.27083E-14]]),
+     "electcnttmp": numpy.array([
+    [-12.9442+K, 1.69049E-2, -2.38823E-06, 3.94308E-10, 1.27083E-14]]),
+     "patchfcnttmp": numpy.array([
+    [-96.2308+K, -2.68462E-2, 1.56695E-06, 7.72502E-11, 7.54464E-15]]),
+     "scmotcnttmp": numpy.array([
+    [-12.9429+K, 1.69301E-2, -2.40365E-06, 3.97902E-10, 1.24430E-14]]),
+     "fwmcnttmp": numpy.array([
+    [-12.7006+K, 1.64457E-2, -1.95255E-06, 2.37550E-10, 3.17240E-14]]),
+     "chsgcnttmp": numpy.array([
+    [12.4889+K, -9.06432e-3, 5.06557E-07, -5.30145E-10, 2.65042-14]])})
+
 
 # http://noaasis.noaa.gov/NOAASIS/pubs/CAL/cal12.asc
 # or AAPP/src/calibration/libhirsc1/calcoef.dat : 1237
@@ -1010,6 +1112,12 @@ HIRS_count_to_temp["NOAA14"].update(
      "chsgcnttmp": numpy.array([
     [13.67123+K, -1.033193E-02, 3.098585E-07, -2.888921E-10, 2.03276E-14]])})
 
+
+# Warning: Did not find any source for NOAA8, NOAA7, NOAA6, TIROS-N.
+for sat in "NOAA08 NOAA07 NOAA06 TIROSN".split():
+    for fld in HIRS_count_to_temp["NOAA09"].keys():
+        HIRS_count_to_temp[sat][fld]] = (
+            HIRS_count_to_temp["NOAA09"]["iwtcnttmp"])
 
 # Fill what's missing with dummies
 dummy = numpy.ma.array([numpy.ma.masked])
