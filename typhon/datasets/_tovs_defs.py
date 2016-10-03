@@ -1116,7 +1116,7 @@ HIRS_count_to_temp["NOAA14"].update(
 # Warning: Did not find any source for NOAA8, NOAA7, NOAA6, TIROS-N.
 for sat in "NOAA08 NOAA07 NOAA06 TIROSN".split():
     for fld in HIRS_count_to_temp["NOAA09"].keys():
-        HIRS_count_to_temp[sat][fld]] = (
+        HIRS_count_to_temp[sat][fld] = (
             HIRS_count_to_temp["NOAA09"]["iwtcnttmp"])
 
 # Fill what's missing with dummies
