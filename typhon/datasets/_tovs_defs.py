@@ -533,6 +533,8 @@ for sat in {"TIROSN", "NOAA06", "NOAA07", "NOAA08", "NOAA09", "NOAA10", "NOAA11"
     HIRS_count_to_temp[sat] = {}
 
 
+
+
 ##########
 #
 # NOAA-15
@@ -843,7 +845,12 @@ HIRS_count_to_temp["NOAA17"].update({'an_bptemp': array([  3.92104492e+02,  -7.9
 
 # Remaining information for NOAA-15 onward is based on CPIDS information
 # sent by Dejiang Han <dejiang.han@noaa.gov> to Gerrit Holl
-# <g.holl@reading.ac.uk> on 2016-02-17.
+# <g.holl@reading.ac.uk> on 2016-02-17 and 2016-02-25,,
+# contained in document
+# “Pre-K_Telemetry_Parameters.pdf”, sent by Deijiang Han
+# <dejiang.han@noaa.gov> to Gerrit Holl <g.holl@reading.ac.uk> on
+# 2016-02-25, and stored by Gerrit in the git repo '2015_FIDUCEO' at
+# bitbucket, at WP4/HIRS/pre_launch_data/Pre-K_Telemetry_Parameters.pdf
 
 # For HIRS/2, the POD guide does not appear to include any coefficients.
 # Information is scarce.
@@ -909,13 +916,49 @@ HIRS_count_to_temp["NOAA11"]["iwtcnttmp"] = numpy.array([
 #
 # NB: Some sources have coefficients to convert to °C, others to K!
 # NOTE: OSO-PO/POES-0443 has offsets 0.01K smaller
+#
+# HIRS/2, NG, NOAA - D/12
 
+# NOTE: OSO-PO/POES-0443 has offsets 0.01K smaller!
 HIRS_count_to_temp["NOAA12"]["iwtcnttmp"] = numpy.array([
     [28.2330+K, 6.52454e-03,8.63834e-08,4.81705e-11,1.17918e-15],
     [28.2349+K, 6.51937e-03,8.61601e-08,4.81257e-11,1.17221e-15],
     [28.2492+K, 6.51150e-03,8.58417e-08,4.80590e-11,1.17105e-15],
     [28.2377+K, 6.52702e-03,8.63606e-08,4.81834e-11,1.17766e-15]])
     
+HIRS_count_to_temp["NOAA12"].update(
+    {"ictcnttmp": numpy.array([
+    [-1.70036+K, 6.04583E-03, 7.36419E-08, 7.56354E-11, 1.44062E-15],
+    [-1.65101+K, 6.03811E-03, 7.36193E-08, 7.55440E-11, 1.43640E-15],
+    [-1.66014+K, 6.04015E-03, 7.34807E-08, 7.55699E-11, 1.43751E-15],
+    [-1.65136+K, 6.03752E-03, 7.33257E-08, 7.55369E-11, 1.43161-15]]),
+     "fwcnttmp": numpy.array([
+    [28.2221+K, 6.51373E-03, 8.59968E-08, 4.80660E-11, 1.17528E-15],
+    [28.2112+K, 6.53128E-03, 8.65921E-08, 4.82197E-11, 1.17912E-15],
+    [28.2249+K, 6.52089E-03, 8.60196E-08, 4.81186E-11, 1.16907E-15],
+    [28.2249+K, 6.51519E-03, 8.58945E-08, 4.80783E-11, 1.16956E-15]]),
+     "patchexpcnttmp": numpy.array([
+    [-155.700+K, 7.53317E-03, 1.51966E-07, 3.11118E-12, 8.02310E-18]]),
+     "fsradcnttpm": numpy.array([
+    [-56.1307+K, -0.020177, 9.91298E-07, -4.71603E-11, 1.92522E-15]]),
+     "scmircnttmp": numpy.array([
+    [-12.8971+K, 0.0168158, -2.23437E-06, 3.23752E-10, 2.24851E-14]]),
+     "pttcnttmp": numpy.array([
+    [-12.9639+K, 0.016810, -2.23795E-06, 3.25980E-10, 2.22135E-14]]),
+     "sttcnttmp": numpy.array([
+    [-12.9134+K, 0.0168019, -2.22561E-06, 3.21094E-10, 2.27971E-14]]),
+     "bpcnttmp": numpy.array([
+    [-12.9655+K, 0.016840, -2.25183E-06, 3.30385E-10, 2.17492E-14]]),
+     "electcnttmp": numpy.array([
+    [-12.9659+K, 0.0168519, -2.27114E-06, 3.37073E-10, 2.08839E-14]]),
+     "patchfcnttmp": numpy.array([
+    [-96.3341+K, -0.0267854, 1.58865E-06, -8.89173E-11, 4.19066E-15]]),
+     "scmotcnttmp": numpy.array([
+    [-12.9534+K, 0.016803, -2.23045E-06, 3.23111E-10, 2.25228E-14]]),
+     "fwmcnttmp": numpy.array([
+    [-12.9575+K, 0.0168222, -2.24124E-06, 3.26210E-10, 2.22081E-14]]),
+     "chsgcnttmp": numpy.array([
+    [13.7213+K, -0.010311, 2.89418E-07, -3.00307E-10, 2.56626-14]])})
 
 # http://www.sat.dundee.ac.uk/noaa14.html
 # or AAPP/src/calibration/libhirsc1/calcoef.dat : 1345
@@ -924,16 +967,49 @@ HIRS_count_to_temp["NOAA12"]["iwtcnttmp"] = numpy.array([
 # “Pre-K_Telemetry_Parameters.pdf”
 #
 # NB: Some sources have coefficients to convert to °C, others to K!
-# NOTE: OSO-PO/POES-0443 has offsets 0.01K smaller
+ 
+# HIRS/2I, FM - 3I, NOAA - J/14,     
 
-
-HIRS_count_to_temp["NOAA14"]["iwtcnttmp"] = numpy.array([
+HIRS_count_to_temp["NOAA14"].update(
+    {"iwtcnttmp": # NOTE: OSO-PO/POES-0443 has offsets 0.01K smaller!
+    numpy.array([
     [28.23795+K, 6.52106e-03,8.27531e-08,4.65675e-11,1.45893E-15],
     [28.22735+K, 6.53105e-03,8.36999e-08,4.66502e-11,1.44768E-15],
     [28.24698+K, 6.52318e-03,8.26203e-08,4.65039e-11,1.51146E-15],
-    [28.21675+K, 6.52655e-03,8.36699e-08,4.67894e-11,1.41383E-15]])
- 
-    
+    [28.21675+K, 6.52655e-03,8.36699e-08,4.67894e-11,1.41383E-15]]),
+     "ictcnttmp": numpy.array([
+    [-1.639719+K, 6.058305e-03, 7.30042e-08, 7.190141E-11, 1.532254E-15],
+    [-1.676158+K, 6.062627e-03, 7.194456e-08, 7.19288E-11, 1.569662E-15],
+    [-1.664393+K, 6.060146E-03, 7.218341E-08, 7.198368E-11, 1.542339E-15],
+    [-1.650414+K, 6.055869E-03, 7.271501E-08, 7.208245E-11, 1.495386E-15]]),
+     "fwcnttmp": numpy.array([
+    [28.25454+K, 6.517852E-03, 8.383772E-08, 4.662422E-11, 1.390598E-15],
+    [28.22579+K, 6.582672E-03, 8.484221E-08, 4.675707E-11, 1.387996E-15],
+    [28.24453+K, 6.521369E-03, 8.331517E-08, 4.648439E-11, 1.432773E-15],
+    [28.19867+K, 6.524292E-03, 8.346979E-08, 4.643709E-11, 1.446272E-15]]),
+     "patchexpcnttmp": numpy.array([
+    [-155.2574+K, 7.541707E-03, 1.439548E-07, 3.092415E-12, 9.992008E-16]]),
+     "fsradcnttpm": numpy.array([
+    [-56.16665+K, -2.009704E-02, 9.841351E-07, -4.649764E-11, 1.512245E-15]]),
+     "scmircnttmp": numpy.array([
+    [-12.77747+K, 1.65525E-02, -2.113233E-06, 3.081038E-10, 2.166063E-14]]),
+     "pttcnttmp": numpy.array([
+    [-13.73046+K, 1.655457E-02, -2.125267E-06, 3.13368E-10, 2.082416E-14]]),
+     "sttcnttmp": numpy.array([
+    [-12.71208+K, 1.65439E-02, -2.109315E-06, 3.052881E-10, 2.203706E-14]]),
+     "bpcnttmp": numpy.array([
+    [-13.78767+K, 1.656044E-02, -2.106339E-06, 3.029825E-10, 2.238227E-14]]),
+     "electcnttmp": numpy.array([
+    [-12.70893+K, 1.654305E-02, -2.115256E-06, 3.09039E-10, 2.149756E-14]]),
+     "patchfcnttmp": numpy.array([
+    [-95.78484+K, -2.67893E-02, 1.563783E-06, -8.730941E-11, 5.548513E-15]]),
+     "scmotcnttmp": numpy.array([
+    [-12.69014+K, 1.648452E-02, -2.055571E-06, 2.87316E-10, 2.403221E-14]]),
+     "fwmcnttmp": numpy.array([
+    [-12.74053+K, 1.652814E-02, -2.106452E-06, 3.071005E-10, 2.150916E-14]]),
+     "chsgcnttmp": numpy.array([
+    [13.67123+K, -1.033193E-02, 3.098585E-07, -2.888921E-10, 2.03276E-14]])})
+
 
 # Fill what's missing with dummies
 dummy = numpy.ma.array([numpy.ma.masked])

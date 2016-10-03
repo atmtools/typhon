@@ -140,7 +140,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
     count_start = 2
     count_end = 22
     granules_firstline_file = pathlib.Path("")
-    re = r"(L\d*\.)?NSS.HIRX.(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
+    re = r"(L?\d*\.)?NSS.HIRX.(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
 
     # For convenience, define scan type codes.  Stores in hrs_scntyp.
     typ_Earth = 0
@@ -690,7 +690,35 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             ict = self._convert_temp(*self._get_ict_info(header, elem)),
             fwh = self._convert_temp(
                     self._get_temp_factor(header, "hrs_h_fwcnttmp"),
-                    elem[:, 60, 2:22].reshape(N, 4, 5)))
+                    elem[:, 60, 2:22].reshape(N, 4, 5)),
+            scanmirror = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_scmircnttmp"),
+                    elem[:, 62, 2]),
+            primtlscp = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_pttcnttmp"),
+                    elem[:, 62, 3]),
+            sectlscp = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_sttcnttmp"),
+                    elem[:, 62, 4]),
+            baseplate = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_bpcnttmp"),
+                    elem[:, 62, 5]),
+            elec = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_electcnttmp"),
+                    elem[:, 62, 6]),
+            patch_full = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_patchfcnttmp"),
+                    elem[:, 62, 7]),
+            scanmotor = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_scmotcnttmp"),
+                    elem[:, 62, 8]),
+            fwm = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_fwmcnttmp"),
+                    elem[:, 62, 9]),
+            ch = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_chsgcnttmp"),
+                    elem[:, 62, 10]),
+)
 
     def _reshape_fact(self, name, fact, robust=False):
         if name in self._fact_shapes:
@@ -758,6 +786,122 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             tsc[lst:nxt] = M["time"][lst:nxt] - M["time"][lst]
             
         return tsc.astype("m8[ms]").astype("f4")/1000
+
+    def extract_calibcounts_and_temp(self, M, srf, ch):
+        """Calculate calibration counts and IWCT temperature
+
+        In the IR, space view temperature can be safely estimated as 0
+        (radiance at 3K is around 10^200 times less than at 300K)
+
+        Arguments:
+
+            M
+
+                ndarray such as returned by self.read, corresponding to
+                scanlines
+
+            srf [typhon.physics.em.SRF]
+
+                SRF object used to estimate IWCT
+
+            ch
+
+                Channel for which counts shall be returned and IWCT
+                temperature shall be calculated.
+        
+        Returns:
+        
+            time
+            
+                time corresponding to remaining arrays
+            
+            L_iwct
+
+                radiance corresponding to IWCT views.  Calculated by
+                assuming ε=1 (blackbody), an arithmetic mean of all
+                temperature sensors on the IWCT, and the SRF passed to the
+                method.
+            
+            counts_iwct
+            
+                counts corresponding to IWCT views
+                
+            counts_space
+            
+                counts corresponding to space views
+        """
+        views_space = M[self.scantype_fieldname] == self.typ_space
+        views_iwct = M[self.scantype_fieldname] == self.typ_iwt
+
+        # select instances where I have both in succession.  Should be
+        # always, unless one of the two is missing or the start or end of
+        # series is in the middle of a calibration.  Take this from
+        # self.dist_space_iwct because for HIRS/2 and HIRS/2I, there is a
+        # views_icct in-between.
+        dsi = self.dist_space_iwct
+        space_followed_by_iwct = (views_space[:-dsi] & views_iwct[dsi:])
+        #M15[1:][views_space[:-1]]["hrs_scntyp"]
+
+        M_space = M[:-dsi][space_followed_by_iwct]
+        M_iwct = M[dsi:][space_followed_by_iwct]
+
+        counts_space = ureg.Quantity(M_space["counts"][:, 8:, ch-1],
+                                     ureg.count)
+        counts_iwct = ureg.Quantity(M_iwct["counts"][:, 8:, ch-1],
+                                    ureg.count)
+
+        T_iwct = ureg.Quantity(
+            M_space["temp_iwt"].mean(-1).mean(-1).astype("f4"), ureg.K)
+
+        L_iwct = srf.blackbody_radiance(T_iwct)
+        L_iwct = ureg.Quantity(L_iwct.astype("f4"), L_iwct.u)
+
+        return (M_space["time"], L_iwct, counts_iwct, counts_space)
+
+
+    def calculate_offset_and_slope(self, M, srf, ch):
+        """Calculate offset and slope.
+
+        Arguments:
+
+            M [ndarray]
+            
+                ndarray with dtype such as returned by self.read.  Must
+                contain enough fields.
+
+            srf [typhon.physics.em.SRF]
+
+                SRF used to estimate slope.  Needs to implement the
+                `blackbody_radiance` method such as `typhon.physics.em.SRF`
+                does.
+
+            ch [int]
+
+                Channel that the SRF relates to.
+
+            tuple with:
+
+            time [ndarray] corresponding to offset and slope
+
+            offset [ndarray] offset calculated at each calibration cycle
+
+            slope [ndarray] slope calculated at each calibration cycle
+
+        """
+
+        (time, L_iwct, counts_iwct, counts_space) = self.extract_calibcounts_and_temp(M, srf, ch)
+        L_space = ureg.Quantity(numpy.zeros_like(L_iwct), L_iwct.u)
+
+        slope = (
+            (L_iwct - L_space)[:, numpy.newaxis] /
+            (counts_iwct - counts_space))
+
+        offset = -slope * counts_space
+
+        return (time,
+                offset,
+                slope)
+
                 
 
 class HIRSPOD(HIRS):
@@ -771,6 +915,9 @@ class HIRSPOD(HIRS):
     typ_ict = 2 # internal cold calibration target; only used on HIRS/2
     views = ("ict", "iwt", "space", "Earth")
     scantype_fieldname = "scantype"
+
+    # “distance” between space and IWCT views
+    dist_space_iwct = 2
 
     # HIRS/2 has LZA only for the edge of the scan.  Linear interpolation
     # is not good enough; scale with a single reference array for other
@@ -863,6 +1010,7 @@ class HIRSPOD(HIRS):
         
     # docstring in parent
     def get_temp(self, header, elem, anwrd):
+        N = elem.shape[0]
         D = super().get_temp(header, elem, anwrd)
         # FIXME: need to add temperatures from minor frame 62 here.  See
         # NOAA POD GUIDE, chapter 4, page 4-8 (PDF page 8)
@@ -874,6 +1022,13 @@ class HIRSPOD(HIRS):
 #            fsr = self._convert_temp(
 #                    self._get_temp_factor(header, "hrs_h_fsradcnttmp").reshape(1, 6),
 #                    elem[:, 61, 7:12].reshape(N, 1, 5)))
+        D.update(dict(
+            patch_exp = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_patchexpcnttmp").reshape(1, 5),
+                    elem[:, 61, 2:7].reshape(N, 1, 5)),
+            fsr = self._convert_temp(
+                    self._get_temp_factor(header, "hrs_h_fsradcnttmp").reshape(1, 5),
+                    elem[:, 61, 7:12].reshape(N, 1, 5))))
         return D
 
     # docstring in parent
@@ -986,6 +1141,9 @@ class HIRSKLM(ATOVS, HIRS):
     n_wordperframe = 24
     views = ("iwt", "space", "Earth")
     scantype_fieldname = "hrs_scntyp"
+
+    # “distance” between space and IWCT views
+    dist_space_iwct = 1
 
     # docstring in parent
     def seekhead(self, f):
@@ -1189,33 +1347,6 @@ class HIRSKLM(ATOVS, HIRS):
         N = elem.shape[0]
         D = super().get_temp(header, elem, anwrd)
         D.update(dict(
-            scanmirror = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_scmircnttmp"),
-                    elem[:, 62, 2]),
-            primtlscp = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_pttcnttmp"),
-                    elem[:, 62, 3]),
-            sectlscp = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_sttcnttmp"),
-                    elem[:, 62, 4]),
-            baseplate = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_bpcnttmp"),
-                    elem[:, 62, 5]),
-            elec = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_electcnttmp"),
-                    elem[:, 62, 6]),
-            patch_full = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_patchfcnttmp"),
-                    elem[:, 62, 7]),
-            scanmotor = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_scmotcnttmp"),
-                    elem[:, 62, 8]),
-            fwm = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_fwmcnttmp"),
-                    elem[:, 62, 9]),
-            ch = self._convert_temp(
-                    self._get_temp_factor(header, "hrs_h_chsgcnttmp"),
-                    elem[:, 62, 10]),
             an_rd = self._convert_temp_analog(
                     header[0]["hrs_h_rdtemp"],
                     anwrd[:, 0]), # ok
@@ -1337,119 +1468,6 @@ class HIRSKLM(ATOVS, HIRS):
 
     # various calculation methods that are not strictly part of the
     # reader.  Could be moved elsewhere.
-
-    def extract_calibcounts_and_temp(self, M, srf, ch):
-        """Calculate calibration counts and IWCT temperature
-
-        In the IR, space view temperature can be safely estimated as 0
-        (radiance at 3K is around 10^200 times less than at 300K)
-
-        Arguments:
-
-            M
-
-                ndarray such as returned by self.read, corresponding to
-                scanlines
-
-            srf [typhon.physics.em.SRF]
-
-                SRF object used to estimate IWCT
-
-            ch
-
-                Channel for which counts shall be returned and IWCT
-                temperature shall be calculated.
-        
-        Returns:
-        
-            time
-            
-                time corresponding to remaining arrays
-            
-            L_iwct
-
-                radiance corresponding to IWCT views.  Calculated by
-                assuming ε=1 (blackbody), an arithmetic mean of all
-                temperature sensors on the IWCT, and the SRF passed to the
-                method.
-            
-            counts_iwct
-            
-                counts corresponding to IWCT views
-                
-            counts_space
-            
-                counts corresponding to space views
-        """
-        views_space = M["hrs_scntyp"] == self.typ_space
-        views_iwct = M["hrs_scntyp"] == self.typ_iwt
-
-        # select instances where I have both in succession.  Should be
-        # always, unless one of the two is missing or the start or end of
-        # series is in the middle of a calibration.
-        space_followed_by_iwct = (views_space[:-1] & views_iwct[1:])
-        #M15[1:][views_space[:-1]]["hrs_scntyp"]
-
-        M_space = M[:-1][space_followed_by_iwct]
-        M_iwct = M[1:][space_followed_by_iwct]
-
-        counts_space = ureg.Quantity(M_space["counts"][:, 8:, ch-1],
-                                     ureg.count)
-        counts_iwct = ureg.Quantity(M_iwct["counts"][:, 8:, ch-1],
-                                    ureg.count)
-
-        T_iwct = ureg.Quantity(
-            M_space["temp_iwt"].mean(-1).mean(-1).astype("f4"), ureg.K)
-
-        L_iwct = srf.blackbody_radiance(T_iwct)
-        L_iwct = ureg.Quantity(L_iwct.astype("f4"), L_iwct.u)
-
-        return (M_space["time"], L_iwct, counts_iwct, counts_space)
-
-
-    def calculate_offset_and_slope(self, M, srf, ch):
-        """Calculate offset and slope.
-
-        Arguments:
-
-            M [ndarray]
-            
-                ndarray with dtype such as returned by self.read.  Must
-                contain enough fields.
-
-            srf [typhon.physics.em.SRF]
-
-                SRF used to estimate slope.  Needs to implement the
-                `blackbody_radiance` method such as `typhon.physics.em.SRF`
-                does.
-
-            ch [int]
-
-                Channel that the SRF relates to.
-
-            tuple with:
-
-            time [ndarray] corresponding to offset and slope
-
-            offset [ndarray] offset calculated at each calibration cycle
-
-            slope [ndarray] slope calculated at each calibration cycle
-
-        """
-
-        (time, L_iwct, counts_iwct, counts_space) = self.extract_calibcounts_and_temp(M, srf, ch)
-        L_space = ureg.Quantity(numpy.zeros_like(L_iwct), L_iwct.u)
-
-        slope = (
-            (L_iwct - L_space)[:, numpy.newaxis] /
-            (counts_iwct - counts_space))
-
-        offset = -slope * counts_space
-
-        return (time,
-                offset,
-                slope)
-
 # docstring in parent
 class HIRS3(HIRSKLM):
     pdf_definition_pages = (26, 37)
@@ -1724,7 +1742,15 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
     end_date = datetime.datetime(2016, 4, 1)
 
     def _read(self, f, fields="all"):
-        M = super()._read(f, fields)
+        try:
+            M = super()._read(f, fields)
+        except ValueError as e:
+            # some MHS L1C files have multiple 'phony_0' dimensions, even
+            # though they should have different dimensions with the same
+            # size.  This crashes my clever NetCDF reader.  Until I have a
+            # bugfix, make a workaround.
+            raise dataset.InvalidFileError("Encountered ValueError"
+            "probably due to phony files...") from e
         # functionality in numpy.lib.recfunctions.append_fields is too
         # slow!
         MM = numpy.zeros(shape=M.shape,

@@ -1,3 +1,13 @@
+2016-10-03  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+
+	- Rearrange some code between superclasses
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Add definitions for noaa14, noaa12, work in progress
+
 2016-09-30  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/typhon/datasets (HIRS):
