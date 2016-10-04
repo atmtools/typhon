@@ -1,3 +1,10 @@
+2016-10-04  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/oem.rst:
+
+	Remove sentence about oem docs not working. Remove duplicate
+	description text.
+
 2016-10-04  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:
