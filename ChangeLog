@@ -1,3 +1,9 @@
+2016-10-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/math/__init__.py (sum_digits):
+
+	Function to calculate the sum of digits.
+
 2016-10-04  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/oem.rst:
