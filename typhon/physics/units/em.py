@@ -43,7 +43,7 @@ class FwmuMixin:
             value = value * ureg.Hz
             self._frequency = value
 
-        self._wavenumber = value.to(1 / ureg.centimeter, "sp")
+        self._wavenumber = 1 / value.to(ureg.centimeter, "sp")
         self._wavelength = value.to(ureg.metre, "sp")
 
     @property
@@ -265,63 +265,6 @@ def planck_f(f, T):
     return ((2 * ureg.h * f**3) / (ureg.c ** 2) *
             1 / (numpy.exp(((ureg.h * f) / (ureg.k * T)).to("1")) - 1)).to(
                 ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz))
-
-
-def wavelength2frequency(wavelength):
-    """Converts wavelength (in meters) to frequency (in Hertz)
-
-    :param wavelength: Wavelength [m]
-    :returns: Frequency [Hz]
-    """
-
-    return c / wavelength
-
-
-def wavelength2wavenumber(wavelength):
-    """Converts wavelength (in m) to wavenumber (in m^-1)
-
-    :param wavelength: Wavelength [m]
-    :returns: Wavenumber [m^-1]
-    """
-    return 1 / wavelength
-
-
-def wavenumber2frequency(wavenumber):
-    """Converts wavenumber (in m^-1) to frequency (in Hz)
-
-    :param wavenumber: Wave number [m^-1]
-    :returns: Frequency [Hz]
-    """
-
-    return c * wavenumber
-
-
-def wavenumber2wavelength(wavenumber):
-    """Converts wavenumber (in m^-1) to wavelength (in m)
-
-    :param wavenumber: Wave number [m^-1]
-    :returns: Wavelength [m]
-    """
-    return 1 / wavenumber
-
-
-def frequency2wavelength(frequency):
-    """Converts frequency [Hz] to wave length [m]
-
-    :param frequency: Frequency [Hz]
-    :returns: Wave length [m]
-    """
-
-    return c / frequency
-
-
-def frequency2wavenumber(frequency):
-    """Converts frequency [Hz] to wave number [m^-1]
-
-    :param frequency: Frequency [Hz]
-    :returns: Wave number [m^-1]
-    """
-    return frequency / c
 
 
 def specrad_wavenumber2frequency(specrad_wavenum):

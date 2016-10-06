@@ -4,9 +4,11 @@
 
 This module contains wrapper functions to perform calculations with pint
 quantities.
+
 """
 from typhon import physics
 
+from . import constants
 from .common import ureg
 
 
@@ -15,7 +17,7 @@ __all__ = [
 ]
 
 
-def density(p, T, R):
+def density(p, T, R=None):
     """Wrapper around :func:`typhon.physics.thermodynamics.density`.
 
     Parameters:
@@ -28,10 +30,15 @@ def density(p, T, R):
         Quantity: Density [kg/m**3].
 
     """
-    p = p.to('pascal').magnitude
-    T = T.to('kelvin').magnitude
-    R = R.to('joule / kilogram / kelvin').magnitude
+    if R is None:
+        R = constants.gas_constant_dry_air
 
-    ret = physics.thermodynamics.density(p, T, R)
+    # SI conversion
+    p = p.to('pascal')
+    T = T.to('kelvin')
+    R = R.to('joule / kelvin / kilogram')
+
+    ret = physics.thermodynamics.density(
+              p.magnitude, T.magnitude, R.magnitude)
 
     return ret * ureg('kilogram / meter**3')

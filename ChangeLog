@@ -1,5 +1,20 @@
 2016-10-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/units/constants.py:
+
+	Added a module for constants with pint units. The values are taken from
+	typhon.physics.constants to ensure consistency within typhon.
+
+	* typhon/physics/units/em.py:
+
+	Removed conversion functions as they are not needed.
+
+	* typhon/physics/units/thermodynamics.py (density):
+
+	Added new default value for R (taken from new constant module).
+
+2016-10-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/plots/tests, typhon/plots/tests/test_mplstyles.py:
 
 	Removed test for typhon matplotlib stylesheets (not useful anymore).
