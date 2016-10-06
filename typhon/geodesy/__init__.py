@@ -581,3 +581,162 @@ def geographic_mean(lat, lon, h=0, ellipsoid=None):
         ellipsoid=ellipsoid)
 
     return mlat, mlon
+
+
+def cartposlos2geocentric(x,y,z,dx,dy,dz,ppc=None,lat0=None,lon0=None,za0=None,aa0=None):
+    """Converts cartesian POS/LOS to spherical coordinates 
+
+       Position is given as (x,y,z), while line-of-sight is given as
+       (dx,dy,dz). The corresponding quantities in polar coordinates are
+       (r,lat,lon) and (za,aa), respectively.
+
+       See *Contents* for defintion of coordinate systems.
+
+       If the optional arguments are given, it is ensured that latitude and
+       longitude are kept constant for zenith or nadir cases, and the longitude
+       and azimuth angle for N-S cases. The optional input shall be interpreted
+       as the [x,y,z] is obtained by moving from [r0,lat0,lon0] in the direction
+       of [za0,aa0].
+         
+     Parameters:
+         x      Coordinate in x dimension.
+         y      Coordinate in y dimension.
+         z      Coordinate in z dimension.
+         dx     LOS component in x dimension.
+         dy     LOS component in y dimension.
+         dz     LOS component in z dimension.
+         ppc    Propagation path constant = r0*sin(za0)
+         lat0   Original latitude
+         lon0   Original longitude
+         za0    Orignal zenith angle
+         aa0    Orignal azimuth angle
+            
+     Returns:
+         r      Radius
+         lat    Latitude
+         lon    Longitude
+         za     Zenith angle
+         aa     Azimuth angle
+
+     .. Ported from atmlab. Original author: Bengt Rydberg
+    """
+    
+    # Fixer function for simple scripts and to avoid python confusions for matlab
+    if not ppc==None and not za0==None and not lat0==None and not aa0==0 and not lon0==None:
+        x,y,z,dx,dy,dz,ppc,lat0,lon0,za0,aa0 = make_same_size(x,y,z,dx,dy,dz,ppc,lat0,lon0,za0,aa0)
+    elif not ppc == None:
+        x,y,z,dx,dy,dz,ppc = make_same_size(x,y,z,dx,dy,dz,ppc)
+    else:
+        x,y,z,dx,dy,dz = make_same_size(x,y,z,dx,dy,dz)
+    
+    (r,lat,lon)=cart2geocentric(x,y,z,lat0,lon0,za0,aa0)
+    
+    # Renormalize for length of the variables (not in atmlab)
+    norm_r = np.sqrt(dx**2 + dy**2 + dz**2)
+    dx=dx/norm_r
+    dy=dy/norm_r
+    dz=dz/norm_r
+    
+    coslat=np.cos(np.deg2rad(lat))
+    sinlat=np.sin(np.deg2rad(lat))
+    coslon=np.cos(np.deg2rad(lon))
+    sinlon=np.sin(np.deg2rad(lon))
+    dr=coslat*coslon*dx + sinlat*dz + coslat*sinlon*dy
+    
+    # Get LOS angle
+    if ppc==None:
+        za=np.rad2deg(np.arccos(dr))
+    else:
+        za=np.rad2deg(np.arcsin(ppc / r))
+    aa=za*0
+    
+    # Fix zenith and azimuth angle with optional input only when all exists
+    if not za0==None and not lat0==None and not aa0==0 and not lon0==None:
+        
+        # Determine the type for zenith
+        noz = np.logical_or(za0 < 1e-06, za0 > 180 - 1e-06)
+        nan = np.isnan(za)
+        pre = np.logical_and(noz==False,nan)
+        
+        # Either set or do not
+        za[noz]=za0[noz]
+        za[pre]=90.
+        # NB: removed check for dr<0 since by putting dr==1 is more sensible
+        
+        # Determine the type for azimuth
+        cir1  = abs(aa0) < 1e-06
+        cir2  = np.logical_or(cir1,abs(aa0 - 180) < 1e-06)
+        same  = np.equal(lon,lon0)
+        circ  = np.logical_and(cir2,same)
+        left  = np.logical_and(cir1,same==False)
+        right = np.logical_and(cir1==False,same==False)
+        
+        # This should set all cases
+        aa[circ]  = aa0[circ]
+        aa[left]  = 180.
+        aa[right] = 0.
+    else:
+        
+        # Determine the type of calculations to be carried out
+        noz = np.logical_or(za < 1e-06, za > 180 - 1e-06)
+        pol = abs(lat)>90-1e-08
+        pre = np.logical_and(noz==False,pol)
+        non = np.logical_and(noz==False,pol==False)
+        aa[noz] = 0.
+        aa[pre] = np.rad2deg(np.arctan2(dy[pre],dx[pre]))
+        
+        dlat=- sinlat[non] * coslon[non] / r[non] * dx[non] + coslat[non] /\
+               r[non] * dz[non] - sinlat[non] * sinlon[non] / r[non] * dy[non]
+        dlon=- sinlon[non] / coslat[non] / r[non] * dx[non] + coslon[non] /\
+               coslat[non] / r[non] * dy[non]
+        aa[non]=np.rad2deg(np.arccos(r[non] * dlat /\
+                np.sin(np.deg2rad(za[non]))))
+        
+        fix = np.logical_and(np.isnan(aa[non]),np.isreal(aa[non])==False)
+        aa[non][np.logical_and(fix,dlat >= 0)]=0
+        aa[non][np.logical_and(fix,dlat <  0)]=180
+        
+        aa[np.logical_and(fix==False,dlon<0)]*=-1
+    
+    return r,lat,lon,za,aa
+    
+def make_same_size(*args):
+    """ 
+    Make python floats and numpy arrays behave nice with one-another by 
+    changing the size of inputs to numpy arrays if there is ever a disagreement
+    
+    Only intended for internal use in geodesy
+    """
+
+    one = np.array([1]).shape
+    msz = one
+    size=[]
+    out=[]
+    
+    # Checks the shapes and sizes of things
+    for i in args:
+        if np.isscalar(i):
+            size.append(one) # scalars are the same as one-long arrays
+        else:
+            if type([])==type(i):
+                i=np.array(i) # lists are treated the same as arrays
+            sz = i.shape
+            size.append(sz)
+            
+            # Either (1,) or (n,m,x, ...).  If any other raise a fuss
+            if sz==one or msz==sz:
+                continue
+            elif msz==one:
+                msz=sz
+            else:
+                raise RuntimeError("Only scalars and arrays of the same length allowed.")
+    
+    # Now we can add things to the output
+    v=np.ones(msz)
+    for ii in range(len(size)):
+        if size[ii]==one:
+            out.append(v*args[ii])
+        else:
+            out.append(np.array(args[ii]))
+            
+    return tuple(out)

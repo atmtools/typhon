@@ -1,3 +1,9 @@
+2016-10-06  Richard larsson <ric.larsson@gmail.com>
+
+	* typhon/geodesy/__init__.py (cartposlos2geocentric):
+	
+	Ported from atmlab.  Should work the same way or at least without regression
+	
 2016-10-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/math/__init__.py (sum_digits):
