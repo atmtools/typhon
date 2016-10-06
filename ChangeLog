@@ -1,3 +1,9 @@
+2016-10-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/tests, typhon/plots/tests/test_mplstyles.py:
+
+	Removed test for typhon matplotlib stylesheets (not useful anymore).
+
 2016-10-06  Richard larsson <ric.larsson@gmail.com>
 
 	* typhon/geodesy/__init__.py (cartposlos2geocentric):
