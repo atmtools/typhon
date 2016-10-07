@@ -1,3 +1,34 @@
+2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/physics/__init__.py:
+
+	Perform 'import *' on all modules in the physics package. This leads to a
+	flatter package hierarchy.
+
+	Moved all functions to new module typhon.physics.em.
+
+	* typhon/physics/em.py:
+
+	Moved all functions related to the electro-magnetic spectrum to this
+	module.
+
+	* typhon/physics/thermodynamics.py: Use absolute imports.
+
+	* typhon/physics/units/__init__.py:
+
+	Perform 'import *' on all modules in the physics.units package.
+
+	* typhon/physics/units/common.py,
+	typhon/physics/units/constants.py,
+	typhon/physics/units/em.py,
+	typhon/physics/units/thermodynamics.py:
+
+	Use absolute imports.
+
+	* doc/physics.rst:
+
+	Adjusted documentation to match the new hierarchy.
+
 2016-10-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/units/constants.py:

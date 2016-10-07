@@ -8,8 +8,8 @@ quantities.
 """
 from typhon import physics
 
-from . import constants
-from .common import ureg
+from typhon.physics.units import constants
+from typhon.physics.units.common import ureg
 
 
 __all__ = [

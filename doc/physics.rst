@@ -14,27 +14,10 @@ typhon.physics.units
     :undoc-members:
     :show-inheritance:
 
-typhon.physics.units.em
------------------------
+typhon.physics.units.constants
+------------------------------
 
-.. automodule:: typhon.physics.units.em
+.. automodule:: typhon.physics.units.constants
     :members:
     :undoc-members:
     :show-inheritance:
-
-typhon.physics.units.thermodynamics
------------------------------------
-
-.. automodule:: typhon.physics.units.thermodynamics
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-typhon.physics.thermodynamics
------------------------------
-
-.. automodule:: typhon.physics.thermodynamics
-    :members:
-    :undoc-members:
-    :show-inheritance:
-

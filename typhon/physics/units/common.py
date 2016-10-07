@@ -4,6 +4,11 @@
 from pint import (UnitRegistry, Context)
 
 
+__all__ = [
+    'ureg',
+    'radiance_units',
+        ]
+
 ureg = UnitRegistry()
 ureg.define("micro- = 1e-6 = µ-")
 

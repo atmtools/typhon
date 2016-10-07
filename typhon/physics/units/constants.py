@@ -3,14 +3,15 @@
 """Collection of physical constants and conversion factors.
 
 The magnitudes of the defined constants are taken from
-:module:`typhon.constants`.
+:mod:`typhon.constants`.
 
 This module adds units defined with pint's UnitRegistry..
 """
 import numpy as np
 
-from .common import ureg
 from typhon import constants
+from typhon.physics.units.common import ureg
+
 
 # Physcial constants
 g = earth_standard_gravity = constants.g * ureg('m / s**2')

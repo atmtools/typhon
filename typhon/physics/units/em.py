@@ -16,10 +16,19 @@ import numexpr
 import pint
 
 
-from typhon.constants import (h, k, c)
 from typhon import config
 from typhon.arts import xml
-from .common import (ureg, radiance_units)
+from typhon.constants import (h, k, c)
+from typhon.physics.units.common import (ureg, radiance_units)
+
+
+__all__ = [
+    'FwmuMixin',
+    'SRF',
+    'planck_f',
+    'specrad_wavenumber2frequency',
+    'specrad_frequency_to_planck_bt',
+    ]
 
 
 class FwmuMixin:
@@ -43,7 +52,7 @@ class FwmuMixin:
             value = value * ureg.Hz
             self._frequency = value
 
-        self._wavenumber = 1 / value.to(ureg.centimeter, "sp")
+        self._wavenumber = value.to(1 / ureg.centimeter, "sp")
         self._wavelength = value.to(ureg.metre, "sp")
 
     @property
