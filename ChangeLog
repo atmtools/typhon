@@ -1,3 +1,9 @@
+2016-10-07  Richard larsson <ric.larsson@gmail.com>
+
+	* typhon/geodesy/__init__.py (cartposlos2geocentric):
+	
+	Fixed logic bug and made explicit the differences from the atmlab version
+
 2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodesy/__init__.py

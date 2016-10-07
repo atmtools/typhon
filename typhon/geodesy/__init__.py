@@ -599,6 +599,9 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     and azimuth angle for N-S cases. The optional input shall be interpreted
     as the [x,y,z] is obtained by moving from [r0,lat0,lon0] in the direction
     of [za0,aa0].
+    
+    This version is different from the atmlab version by normalizing the los-
+    vector and demanding all or nothing for the optional arguments to work.
 
     Parameters:
         x: Coordinate in x dimension.
@@ -624,7 +627,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
 
     # Broadcast all input variables to the same shape.
     if (ppc is not None and za0 is not None and lat0 is not None
-        and aa0 != 0 and lon0 is not None):
+        and aa0 is not  None and lon0 is not None):
         x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0 = np.broadcast_arrays(
             x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0)
     elif ppc is not None:
@@ -655,7 +658,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     aa = np.zeros(za.shape)
 
     # Fix zenith and azimuth angle with optional input only when all exists
-    if za0 is not None and lat0 is not None and aa0 != 0 and lon0 is not None:
+    if za0 is not None and lat0 is not None and aa0 is not None and lon0 is not None:
 
         # Determine the type for zenith
         noz = np.logical_or(za0 < 1e-06, za0 > 180 - 1e-06)
@@ -696,10 +699,10 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
                 coslat[non] / r[non] * dy[non])
         aa[non] = (np.rad2deg(np.arccos(r[non] *
                    dlat / np.sin(np.deg2rad(za[non])))))
-
-        fix = np.logical_and(np.isnan(aa[non]), ~np.isreal(aa[non]))
-        aa[non][np.logical_and(fix, dlat >= 0)] = 0
-        aa[non][np.logical_and(fix, dlat < 0)] = 180
+        
+        fix = np.logical_or(np.isnan(aa), ~np.isreal(aa))
+        aa[np.logical_and(fix, dlat >= 0)] = 0
+        aa[np.logical_and(fix, dlat < 0)] = 180
 
         aa[np.logical_and(~fix, dlon < 0)] *= -1
 
