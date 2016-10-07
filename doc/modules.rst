@@ -11,6 +11,7 @@ API Documentation
    constants
    files
    geodesy
+   geographical
    oem
    plots
    utils

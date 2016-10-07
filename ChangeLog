@@ -1,3 +1,16 @@
+2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/geographical.py:
+
+	General functions for manipulation geographical data.
+	Currently containing a function to calculate area weighted mean.
+
+	* typhon/__init__.py: Import new module.
+
+	* doc/geographical.rst, doc/modules.rst:
+
+	Included new module in the documentation.
+
 2016-10-07  Richard larsson <ric.larsson@gmail.com>
 
 	* typhon/geodesy/__init__.py (cartposlos2geocentric):

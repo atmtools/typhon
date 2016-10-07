@@ -13,6 +13,7 @@ if not __TYPHON_SETUP__:
     from . import constants
     from . import files
     from . import geodesy
+    from . import geographical
     from . import oem
     from . import utils
 
