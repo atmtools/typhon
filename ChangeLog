@@ -1,5 +1,16 @@
 2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodesy/__init__.py
+
+	Removed make_same_size() as it can be replaced with np.broadcast_arrays().
+
+	Several PEP8 fixes.
+
+	I barely touched any functionality and the code produces the same results
+	for a couple of dummy values.
+
+2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/physics/__init__.py:
 
 	Perform 'import *' on all modules in the physics package. This leads to a
