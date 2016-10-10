@@ -8,14 +8,6 @@ This module contains convenience functions for any purposes.
     :undoc-members:
     :show-inheritance:
 
-typhon.utils.latex
-------------------------
-
-.. automodule:: typhon.utils.latex
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 typhon.utils.metaclass
 ------------------------
 

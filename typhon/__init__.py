@@ -14,6 +14,7 @@ if not __TYPHON_SETUP__:
     from . import files
     from . import geodesy
     from . import geographical
+    from . import latex
     from . import oem
     from . import utils
 

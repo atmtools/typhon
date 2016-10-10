@@ -8,17 +8,18 @@ API Documentation
    xml
    atmosphere
    cm
+   config
    constants
+   datasets
    files
    geodesy
    geographical
+   latex
+   math
    oem
+   physics
    plots
    utils
-   datasets
-   config
-   math
-   physics
 
 Indices and tables
 ------------------

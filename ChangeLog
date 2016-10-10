@@ -1,3 +1,13 @@
+2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/latex.py:
+
+	Moved from typhon.utils as it does not really fit there.
+
+	* typhon/__init__.py, typhon/utils/__init__.py: Fixed imports.
+
+	* doc/latex.rst, doc/modules.rst, doc/utils.rst: Updated documentation.
+
 2016-10-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geographical.py:

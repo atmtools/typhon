@@ -7,6 +7,11 @@ Implementation of functions related to LaTeX.
 import sys
 
 
+__all__ = [
+    'texify_matrix',
+    ]
+
+
 def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
                   align='r', delimiter=True):
     """Convert a np.ndarray into a LaTeX table.

@@ -5,12 +5,10 @@ import operator
 
 import numpy as np
 
-from . import latex
 from . import cache
 from . import metaclass
 
-__all__ = ["latex",
-           "cache",
+__all__ = ["cache",
            "metaclass",
            "extract_block_diag",
            "Timer",
