@@ -1,5 +1,16 @@
 2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodesy/__init__.py:
+
+	ellipsoid_r_geodetic() and ellipsoid_r_geocentric() now take float and
+	ndarray as lat argument.
+
+	* typhon/geodesy/tests/test_geodesy.py:
+
+	Added checks for ellipsoid_r_geodetic() and ellipsoid_r_geocentric().
+
+2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/latex.py:
 
 	Moved from typhon.utils as it does not really fit there.

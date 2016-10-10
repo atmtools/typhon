@@ -68,9 +68,9 @@ class TestConversion(object):
         e = geodesy.ellipsoidmodels()
 
         for model in e.models:
-            yield self._test_geodetic2cart2geodetic, e[model]
+            yield self._geodetic2cart2geodetic, e[model]
 
-    def _test_geodetic2cart2geodetic(self, ellipsoid):
+    def _geodetic2cart2geodetic(self, ellipsoid):
         """Test conversion from geodetic to cartesian system and back."""
         ref = (1, -13, 42)
 
@@ -84,9 +84,9 @@ class TestConversion(object):
         e = geodesy.ellipsoidmodels()
 
         for model in e.models:
-            yield self._test_geodetic2geocentric2geodetic, e[model]
+            yield self._geodetic2geocentric2geodetic, e[model]
 
-    def _test_geodetic2geocentric2geodetic(self, ellipsoid):
+    def _geodetic2geocentric2geodetic(self, ellipsoid):
         """Test conversion from geodetic to geocentric system and back."""
         ref = (1, -13, 42)
 
@@ -94,3 +94,37 @@ class TestConversion(object):
         geod = geodesy.geocentric2geodetic(*geoc, ellipsoid)
 
         assert np.allclose(ref, geod)
+
+    # TODO: Consider if it is useful to check ellisoir_r_* calculation for
+    # *all* ellipsoid models.
+    # TODO: Both tests are currently only checking the easy way of the
+    # function's alrogithm.
+    def test_ellipsoid_r_geodetic(self):
+        """Test return of geodetic radius for all ellipsois."""
+        e = geodesy.ellipsoidmodels()
+
+        for model in e.models:
+            yield self._geodetic_r_at_equator, e[model]
+
+    def _geodetic_r_at_equator(self, ellipsoid):
+        """Check the geodetic radius at equator."""
+        r = geodesy.ellipsoid_r_geodetic(ellipsoid, 0)
+
+        # Radius at equator has to be equal to the one defined in the
+        # ellipsoidmodel.
+        assert ellipsoid[0] == r
+
+    def test_ellipsoid_r_geocentric(self):
+        """Test return of geocentric radius for all ellipsois."""
+        e = geodesy.ellipsoidmodels()
+
+        for model in e.models:
+            yield self._geocentric_r_at_equator, e[model]
+
+    def _geocentric_r_at_equator(self, ellipsoid):
+        """Check the geocentric radius at equator."""
+        r = geodesy.ellipsoid_r_geocentric(ellipsoid, 0)
+
+        # Radius at equator has to be equal to the one defined in the
+        # ellipsoidmodel.
+        assert ellipsoid[0] == r

@@ -169,10 +169,10 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     Parameters:
         ellipsoid (tuple):  Model ellipsoid as returned
             by :class:`ellipsoidmodels`.
-        lat: Geocentric latitudes.
+        lat (float or ndarray): Geocentric latitudes.
 
     Returns:
-        Radii.
+        float or ndarray: Radii.
 
     .. Ported from atmlab. Original author: Patrick Eriksson
     """
@@ -180,7 +180,7 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     if ellipsoid[1] == 0:
-        r = np.ones(lat.shape) * ellipsoid[0]
+        r = np.ones(np.shape(lat)) * ellipsoid[0]
     else:
         c = 1 - ellipsoid[1]**2
         b = ellipsoid[0] * np.sqrt(c)
@@ -202,10 +202,10 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     Parameters:
         ellipsoid (tuple):  Model ellipsoid as returned
             by :class:`ellipsoidmodels`.
-        lat: Geodetic latitudes.
+        lat (float or ndarray): Geodetic latitudes.
 
     Returns:
-        Radii.
+        float or ndarray: Radii.
 
     .. Ported from atmlab. Original author: Patrick Eriksson
     """
@@ -213,7 +213,7 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
     if ellipsoid[1] == 0:
-        r = np.ones(lat.shape) * ellipsoid[0]
+        r = np.ones(np.shape(lat)) * ellipsoid[0]
     else:
         e2 = ellipsoid[1]**2
         sin2 = sind(lat)**2
