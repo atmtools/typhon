@@ -1,5 +1,9 @@
 2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodesy/__init__.py: Fixed documentation.
+
+2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/geodesy/__init__.py:
 
 	ellipsoid_r_geodetic() and ellipsoid_r_geocentric() now take float and

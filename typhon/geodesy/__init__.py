@@ -160,7 +160,7 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
     """Geocentric radius of a reference ellipsoid.
 
     Gives the distance from the Earth's centre and the reference ellipsoid
-    as a function of geoCENTRIC latitude.
+    as a function of geo\ **centric** latitude.
 
     Note:
         To obtain the radii for **geodetic** latitude,
@@ -192,8 +192,8 @@ def ellipsoid_r_geocentric(ellipsoid, lat):
 def ellipsoid_r_geodetic(ellipsoid, lat):
     """Geodetic radius of a reference ellipsoid.
 
-    The calculation expressions are taken from radiigeo.pdf, found in the
-    same folder as this function.
+    Gives the distance from the Earth's centre and the reference ellipsoid
+    as a function of geo\ **detic** latitude.
 
     Note:
         To obtain the radii for **geocentric** latitude,
