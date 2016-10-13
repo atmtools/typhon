@@ -245,7 +245,9 @@ def ellipsoid2d(ellipsoid, orbitinc):
     errtext = 'Invalid excentricity value in ellipsoid model.'
     inrange(ellipsoid[1], 0, 1, exclude='upper', text=errtext)
 
-    inrange(orbitinc, 0, 180, 'Invalid orbit inclination.')
+    inrange(orbitinc, 0, 180,
+            exclude='both',
+            text='Invalid orbit inclination.')
 
     rp = ellipsoid_r_geocentric(ellipsoid, orbitinc)
 
@@ -259,9 +261,6 @@ def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
     angle, and uses this to set a spherical reference ellipsoid
     suitable for 1D calculations. The curvature radius is a better
     local approximation than using the local ellipsoid radius.
-
-    The calculation expressions are taken from radiigeo.pdf, found in the
-    same folder as this function.
 
     For exact result the *geodetic* latitude shall be used.
 
@@ -599,7 +598,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     and azimuth angle for N-S cases. The optional input shall be interpreted
     as the [x,y,z] is obtained by moving from [r0,lat0,lon0] in the direction
     of [za0,aa0].
-    
+
     This version is different from the atmlab version by normalizing the los-
     vector and demanding all or nothing for the optional arguments to work.
 
@@ -627,7 +626,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
 
     # Broadcast all input variables to the same shape.
     if (ppc is not None and za0 is not None and lat0 is not None
-        and aa0 is not  None and lon0 is not None):
+        and aa0 is not None and lon0 is not None):
         x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0 = np.broadcast_arrays(
             x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0)
     elif ppc is not None:
@@ -699,7 +698,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
                 coslat[non] / r[non] * dy[non])
         aa[non] = (np.rad2deg(np.arccos(r[non] *
                    dlat / np.sin(np.deg2rad(za[non])))))
-        
+
         fix = np.logical_or(np.isnan(aa), ~np.isreal(aa))
         aa[np.logical_and(fix, dlat >= 0)] = 0
         aa[np.logical_and(fix, dlat < 0)] = 180

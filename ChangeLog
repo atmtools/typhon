@@ -1,5 +1,22 @@
 2016-10-13  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/geodesy/tests/test_geodesy.py:
+
+	Added simple tests for all remaining functions in geodesy.
+
+	Removed automatic iterative conversion tests for all ellipsoid models. It
+	seems to be fine to check the conversion for the default ellipsoid model
+	WGS84.
+
+	* typhon/geodesy/__init__.py:
+
+	Include boundaries when checking the range of orbit inclination in
+	ellipsoid2d().
+
+	Fixed docstrings and syntax.
+
+2016-10-13  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/griddedfield.py: Implemented comparison.
 
 	Implemented __eq__() and __neq__() to provide comparison functionality for
