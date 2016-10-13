@@ -67,6 +67,22 @@ class GriddedField(object):
         self.gridnames = gridnames
         self.name = name
 
+    def __eq__(self, other):
+        """Test the equality of GriddedFields."""
+        if isinstance(other, self.__class__):
+            return (self.name == other.name
+                    and self.gridnames == other.gridnames
+                    and self.dimension == other.dimension
+                    and np.all(a == b for a, b in zip(self.grids, other.grids))
+                    and np.allclose(self.data, other.data))
+        return NotImplemented
+
+    def __neq__(self, other):
+        """Test the non-equality of GriddedFields."""
+        if isinstance(other, self.__class__):
+            return not self.__eq__(other)
+        return NotImplemented
+
     @property
     def dimension(self):
         """Dimension of the GriddedField.

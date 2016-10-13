@@ -117,6 +117,25 @@ class TestGriddedFieldLoad():
         gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
         assert gf3.check_dimension()
 
+    def test_equality(self):
+        """Check the equality of two GriddedField objects."""
+        # Create two different objects with same content.
+        a = xml.load(self.ref_dir + 'GriddedField3.xml')
+        b = xml.load(self.ref_dir + 'GriddedField3.xml')
+
+        assert a == b
+
+    def test_nonequality(self):
+        """Check the non-equality of two GriddedField objects."""
+        # Create two different objects with same content.
+        a = xml.load(self.ref_dir + 'GriddedField3.xml')
+        b = xml.load(self.ref_dir + 'GriddedField3.xml')
+
+        a.name = 'foo'
+        b.name = 'bar'
+
+        assert a != b
+
 
 class TestGriddedFieldWrite():
     def setUp(self):

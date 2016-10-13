@@ -1,3 +1,14 @@
+2016-10-13  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py: Implemented comparison.
+
+	Implemented __eq__() and __neq__() to provide comparison functionality for
+	GriddedField objects.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Test the equality and non-equality of reference GriddedField objects.
+
 2016-10-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodesy/__init__.py: Fixed documentation.
