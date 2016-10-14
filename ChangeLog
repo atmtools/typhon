@@ -1,3 +1,9 @@
+2016-10-14  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/tests: Directory to store tests for top-level modules.
+
+	* typhon/tests/test_atmosphere.py: Added test function for iwv().
+
 2016-10-13  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/geodesy/tests/test_geodesy.py:
