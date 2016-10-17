@@ -218,8 +218,13 @@ class SRF(FwmuMixin):
         w_on_L_grid = fnc(f) * (1 / ureg.Hz)
         # ch_BT = (w_on_L_grid * L_f).sum(-1) / (w_on_L_grid.sum())
         # due to numexpr limitation, do sum seperately
-        ch_rad_tot = numexpr.evaluate("sum(w_on_L_grid * L, {:d})".format(
-            L.ndim - 1))
+        # and due to numexpr bug, explicitly consider zero-dim case
+        #     see https://github.com/pydata/numexpr/issues/229
+        if L.shape[0] == 0:
+            ch_rad_tot = numpy.empty(dtype="f8", shape=L.shape[:-1])
+        else:
+            ch_rad_tot = numexpr.evaluate("sum(w_on_L_grid * L, {:d})".format(
+                L.ndim - 1))
         ch_rad_tot = ch_rad_tot * w_on_L_grid.u * L.u
         ch_rad = ch_rad_tot / w_on_L_grid.sum()
         return ch_rad

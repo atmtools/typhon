@@ -873,10 +873,10 @@ HIRS_count_to_temp["NOAA17"].update({'an_bptemp': array([  3.92104492e+02,  -7.9
 # or OSO-EM/POES-0270
 # or NESS 107, PDF page 92
 HIRS_count_to_temp["NOAA09"]["iwtcnttmp"] = numpy.array([
- [28.2238,6.52238e-03,8.62819e-08,4.81437e-11,1.16950e-15],
- [28.2066,6.51928e-03,8.59682e-08,4.81011e-11,1.17422e-15],
- [28.2159,6.52446e-03,8.61933e-08,4.81459e-11,1.17357e-15],
- [28.2138,6.51965e-03,8.58931e-08,4.81048e-11,1.18056e-15]])
+ [28.2238+K,6.52238e-03,8.62819e-08,4.81437e-11,1.16950e-15],
+ [28.2066+K,6.51928e-03,8.59682e-08,4.81011e-11,1.17422e-15],
+ [28.2159+K,6.52446e-03,8.61933e-08,4.81459e-11,1.17357e-15],
+ [28.2138+K,6.51965e-03,8.58931e-08,4.81048e-11,1.18056e-15]])
 
 HIRS_count_to_temp["NOAA09"].update(
     {"ictcnttmp": numpy.array([
@@ -1117,7 +1117,7 @@ HIRS_count_to_temp["NOAA14"].update(
 for sat in "NOAA08 NOAA07 NOAA06 TIROSN".split():
     for fld in HIRS_count_to_temp["NOAA09"].keys():
         HIRS_count_to_temp[sat][fld] = (
-            HIRS_count_to_temp["NOAA09"]["iwtcnttmp"])
+            HIRS_count_to_temp["NOAA09"][fld])
 
 # Fill what's missing with dummies
 dummy = numpy.ma.array([numpy.ma.masked])

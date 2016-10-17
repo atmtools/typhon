@@ -35,6 +35,7 @@ from ..utils import (metaclass, safe_eval)
 # from .. import physics
 # from .. import math as pamath
 from ..physics.units import ureg
+from ..physics.units import radiance_units as rad_u
 from ..physics.units import em
 from .. import config
 
@@ -225,7 +226,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             # convert wn to SI units
             wn = wn * (1 / ureg.cm)
             wn = wn.to(1 / ureg.m)
-            bt = self.rad2bt(rad_wn[:, :, :self.n_calibchannels], wn.m, c1, c2)
+            bt = self.rad2bt(rad_wn[:, :, :self.n_calibchannels], wn, c1, c2)
             # extract more info from TIP
             temp = self.get_temp(header, elem,
                 scanlines["hrs_anwrd"]
@@ -252,12 +253,16 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             for f in other.dtype.names:
                 scanlines_new[f] = other[f]
             if radiance_units == "si":
-                scanlines_new["radiance"] = em.specrad_wavenumber2frequency(rad_wn)
+                scanlines_new["radiance"] = rad_wn.to(rad_u["si"],
+                    "radiance")
+#                    ureg.W / (ureg.sr * ureg.m**2 * (1/ureg.m))).to(
+#                    rad_u["si"])
             elif radiance_units == "classic":
                 # earlier, I converted to base units: W / (m^2 sr m^-1).
-                scanlines_new["radiance"] = ureg.Quantity(rad_wn,
-                    ureg.W  / (ureg.sr * ureg.m**2 * (1/ureg.m) )).to(
-                    ureg.mW / (ureg.sr * ureg.m**2 * (1/ureg.cm))).m
+                scanlines_new["radiance"] = rad_wn.to(rad_u["ir"],
+                    "radiance")
+#                    ureg.W  / (ureg.sr * ureg.m**2 * (1/ureg.m) )).to(
+#                    rad_u["ir"])
             else:
                 raise ValueError("Invalid value for radiance_units. "
                     "Expected 'si' or 'classic'.  Got "
@@ -433,15 +438,17 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         :param c2: c2 as contained in hrs_h_tempradcnv
         """
 
-        # if possible, ensure it's in base
-        try:
-            rad_wn = rad_wn.to(ureg. W / (ureg.m**2 * ureg.sr * (1/ureg.m))).m
-        except AttributeError:
-            pass
-        rad_f = em.specrad_wavenumber2frequency(rad_wn)
+        # if possible, ensure it's in base — not needed if I already rely
+        # on pint beyond
+#        try:
+#            rad_wn = rad_wn.to(ureg. W / (ureg.m**2 * ureg.sr * (1/ureg.m)))
+#        except AttributeError:
+#            pass
+        #rad_f = em.specrad_wavenumber2frequency(rad_wn)
+        rad_f = rad_wn.to(rad_u["si"], "radiance")
         # standard inverse Planck function
         T_uncorr = em.specrad_frequency_to_planck_bt(rad_f,
-            em.wavenumber2frequency(wn))
+            wn.to(ureg.Hz, "sp"))#em.wavenumber2frequency(wn))
 
         # fails with FloatingPointError…
         # see https://github.com/numpy/numpy/issues/4895
@@ -548,6 +555,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         for v in self.views:
             x = lines[self.scantype_fieldname] == getattr(self,
                     "typ_{:s}".format(v))
+            if not x.any():
+                raise dataset.InvalidDataError("Out of {:d} scanlines, "
+                    "found no {:s} views, cannot calibrate!".format(
+                        lines.shape[0], v))
             C = lines["counts"][x, 8:, :]
             med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
             mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
@@ -735,6 +746,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
 
     def _get_temp_factor(self, head, name):
         satname = self.id2name(head["hrs_h_satid"][0])
+        # TIROS-N and NOAA-11 have same code...
+        if satname == "NOAA11" and ((numpy.ascontiguousarray(
+                head["hrs_h_startdatadatetime"]).view(">u2")[0] & 0xfe00)
+                >> 9) < 1985:
+            satname = "TIROSN"
         fact = _tovs_defs.HIRS_count_to_temp[satname][name[6:]]
         return self._reshape_fact(name, fact, robust=True)
 
@@ -786,6 +802,39 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             tsc[lst:nxt] = M["time"][lst:nxt] - M["time"][lst]
             
         return tsc.astype("m8[ms]").astype("f4")/1000
+
+    def count_lines_since_last_calib(self, M):
+        """Count scanlines since last calibration.
+
+        Count scanlines since the last calibration cycle.
+
+        Arguments:
+
+            M [ndarray]
+
+                ndarray of the same type as returned by self.read.  Must
+                be contiguous or results will be wrong.
+
+        Returns:
+
+            ndarray (uint16), scanlines since last calibration cycle
+        """
+
+        # explicit loop may be somewhat slower than broadcasting, but
+        # broadcasting is O(N²) in memory — not acceptable!
+        ix_iwt = (M[self.scantype_fieldname]==self.typ_iwt).nonzero()[0]
+        time_iwt = M["time"][M[self.scantype_fieldname]==self.typ_iwt]
+        lsc = numpy.ma.masked_all(shape=M.shape, dtype="u2")
+        for i in range(ix_iwt.shape[0]):
+            lst = ix_iwt[i]
+            try:
+                nxt = ix_iwt[i+1]
+            except IndexError:
+                nxt = time_iwt.shape[0]
+            lsc[lst:nxt] = numpy.arange(0, nxt-lst)
+            
+        return lsc
+
 
     def extract_calibcounts_and_temp(self, M, srf, ch):
         """Calculate calibration counts and IWCT temperature
@@ -963,11 +1012,11 @@ class HIRSPOD(HIRS):
                 "which ones to use.  Giving up ☹. ")
 
         # This is apparently calibrated in units of mW/m2-sr-cm-1.
-        rad = ureg.Quantity(rad,
-            ureg.mW / (ureg.m**2 * ureg.sr * (1/ureg.cm)))
-        # Convert to SI base units.
-        rad = rad.to(ureg.W / (ureg.m**2 * ureg.sr * (1/ureg.m)),
-            "radiance")
+        rad = ureg.Quantity(rad, rad_u["ir"])
+            #ureg.mW / (ureg.m**2 * ureg.sr * (1/ureg.cm)))
+        # Convert to SI base units (not needed anymore with pint)
+#        rad = rad.to(ureg.W / (ureg.m**2 * ureg.sr * (1/ureg.m)),
+#            "radiance")
 
         return rad
 
@@ -1174,11 +1223,11 @@ class HIRSKLM(ATOVS, HIRS):
              + cc[:, numpy.newaxis, :, 0] * counts**2)
         # This is apparently calibrated in units of mW/m2-sr-cm-1.
         # Convert to SI units.
-        rad = ureg.Quantity(rad,
-            ureg.mW / (ureg.m**2 * ureg.sr * (1/ureg.cm)))
-        # Convert to SI base units.
-        rad = rad.to(ureg.W / (ureg.m**2 * ureg.sr * (1/ureg.m)),
-            "radiance")
+        rad = ureg.Quantity(rad, rad_u["ir"])
+#            ureg.mW / (ureg.m**2 * ureg.sr * (1/ureg.cm)))
+#        # Convert to SI base units (not needed anymore with pint)
+#        rad = rad.to(ureg.W / (ureg.m**2 * ureg.sr * (1/ureg.m)),
+#            "radiance")
         return rad
 
     # docstring in parent
@@ -1740,6 +1789,18 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
           r"(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.h5")
     start_date = datetime.datetime(1999, 1, 1)
     end_date = datetime.datetime(2016, 4, 1)
+
+    def _get_dtype_from_vars(self, alldims, allvars, fields, prim):
+        # MHS L1C has phony dims with repeated names between groups, so
+        # need to determine by value (size) rather than name
+        return numpy.dtype([
+            (k,
+             "f4" if (getattr(v, "Scale", 1)!=1) else v.dtype,
+             tuple(s for (i, s) in enumerate(v.shape)
+                 if v.shape[i] != alldims[prim].size))
+             for (k, v) in allvars.items()
+             if ((alldims[prim].size in v.shape) if fields=="all"
+                  else (k in fields))])
 
     def _read(self, f, fields="all"):
         try:

@@ -1,3 +1,64 @@
+2016-10-17  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/units/em.py(SRF.integrate_radiances):
+
+	- Introduce workaround for numexpr bug when operating reducing
+	operation on ndarray along zero dimension (see
+	https://github.com/pydata/numexpr/issues/229)
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS):
+
+	- Make more use of radiance_units dict
+
+	(HIRS.apply_calibcount_filter):
+
+	- Raise graceful exception when there aren't any calibration scanlines
+
+	(HIRS._get_temp_factor):
+
+	- Support TIROSN by peeking into start data time (same code as
+	NOAA11).
+
+	(HIRS.count_lines_since_last_calib):
+	
+	- Title says it all.
+
+	(MHSL1C._get_dtype_from_vars):
+
+	- Workaround for phony duplicate dims
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- NOAA-9 °C → K
+
+	* typhon/datasets/model.py: Added
+
+	- New module containing classes for model-based data.  Started with
+	ERAInterim class.  API highly provisional, not documented yet.
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset.__new__): Bugfix when instantiating a class and its subclass
+
+	(Dataset.read_period): Fix docs
+
+	(Dataset.read): 
+	
+	- Add support for “pseudo fields” which shall be calculated after
+	every granule, potentially helpful when reading a lot of data and
+	running into memory problems
+
+	(NetCDFDataset._get_dtype_from_vars):
+
+	- Move this to own so that it can be subclassed
+
+	(NetCDFDataset._read):
+
+	- Allow pseudo-fields here too but at a lower level, because they may
+	need access to the ds object
+
 2016-10-14  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/tests: Directory to store tests for top-level modules.

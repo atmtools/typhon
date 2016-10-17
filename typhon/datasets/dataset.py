@@ -125,15 +125,19 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     maxsize = 10000*MiB
 
     # Make singleton: there is no point in having multiple copies of a
-    # dataset-object around when both relate to the same dataset.
+    # dataset-object around when both relate to the same dataset and
+    # class.
     def __new__(cls, name=None, **kwargs):
         name = name or cls.name or cls.__name__
         if cls._instances is None:
             cls._instances = {}
-        if name in cls._instances:
-            return cls._instances[name]
+        # make sure subclasses aren't confused for their parents
+        if not cls in cls._instances:
+            cls._instances[cls] = {}
+        if name in cls._instances[cls]:
+            return cls._instances[cls][name]
         self = super().__new__(cls)
-        cls._instances[name] = self
+        cls._instances[cls][name] = self
         if not cls in all_datasets:
             all_datasets[cls] = {}
         all_datasets[cls][name] = self
@@ -246,6 +250,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           end=None,
                           onerror="skip",
                           fields="all",
+                          pseudo_fields=None,
                           sorted=True,
                           locator_args=None,
                           reader_args=None,
@@ -277,8 +282,13 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 of strings corresponding to fields to read, or the str
                 "all" (default), which means read all fields.
 
+            pseudo_fields (Mapping[str, function]): See documentation for
+                self.read.
+
             sorted (bool): Should the granules be read in sorted order?
-                Defaults to true.
+                Defaults to true.  NB: does not currently guarantee that
+                the actual results are sorted; this is up to the
+                individual reading routines!
 
             locator_args (dict): Extra keyword arguments passed on to
                 granule finding routines.
@@ -356,7 +366,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             try:
                 # .read is already being verbose…
                 #logging.debug("Reading {!s}".format(gran))
-                cont = self.read(str(gran), fields=fields, **reader_args)
+                cont = self.read(str(gran), fields=fields,
+                    pseudo_fields=pseudo_fields, **reader_args)
                 oldsize = cont.size
                 cont = tpmath.array.limit_ndarray(cont, limits)
                 for f in filters:
@@ -444,7 +455,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     # Cannot use functools.lru_cache because it cannot handle mutable
     # results or arguments
     @utils.cache.mutable_cache(maxsize=10)
-    def read(self, f=None, **kwargs):
+    def read(self, f=None, pseudo_fields=None, **kwargs):
         """Read granule in file and do some other fixes
 
         Shall return an ndarray with at least the fields lat, lon, time.
@@ -456,6 +467,13 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             fields (Iterable[str] or str): What fields to return.
                 See :func:`Dataset.read_period` for details.
 
+            pseudo_fields (Mapping[str, function]): Additional fields to
+                calculate on-the-fly after every read.  That may be more
+                attractive from a memory point of view.  In this mapping,
+                the keys will be names added to the dtype of the returned
+                ndarray (at the top level).  The values are functions.
+                Each function must take a 
+
             Any further keyword arguments are passed on to the particular
             reading routine.  For details, please refer to the docstring
             for the class.
@@ -466,8 +484,21 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         """
         if isinstance(f, pathlib.PurePath):
             f = str(f)
+        if pseudo_fields is None:
+            pseudo_fields = {}
         logging.debug("Reading {:s}".format(f))
         M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)
+        D = {}
+        for (k, fnc) in pseudo_fields.items():
+            D[k] = fnc(M)
+        if D != {}:
+            newM = numpy.ma.zeros(shape=M.shape,
+                dtype=M.dtype.descr + [(k, v.dtype, v.shape[1:]) for (k,v) in D.items()])
+            for (k, v) in D.items():
+                newM[k] = v
+            for k in M.dtype.names:
+                newM[k] = M[k]
+            M = newM
         return M
 
     def __str__(self):
@@ -1367,13 +1398,33 @@ class NetCDFDataset:
     USE WITH CARE!  PROVISIONAL API!
     """
 
-    def _read(self, f, fields="all"):
+    def _get_dtype_from_vars(self, alldims, allvars, fields, prim):
+        """Get dtype from alldims, allvars
+        """
+        return numpy.dtype([
+            (k,
+             "f4" if (getattr(v, "Scale", 1)!=1) else v.dtype,
+             tuple(s for (i, s) in enumerate(v.shape)
+                 if v.dimensions[i] != alldims[prim].name))
+             for (k, v) in allvars.items()
+             if ((alldims[prim].name in v.dimensions) if fields=="all"
+                  else (k in fields))])
+
+    def _read(self, f, fields="all",
+              pseudo_fields=None):
+        if pseudo_fields is None:
+            pseudo_fields = {}
         with netCDF4.Dataset(f, 'r') as ds:
 
             # generic conversion of NetCDF to ndarray; consider the most
             # common dimension, make this one the shape of the ndarray,
             # copy over all variables that share this dimension, and
             # ignore the rest, unless variables are passed explicitly
+
+            # first do the “pseudo fields” so I know the dtype before I
+            # create the structured dtype
+            extra = {nm: f(ds) for (nm, f) in pseudo_fields.items()}
+
             #
             # if contained in one layer of groups, flatten those first
 
@@ -1393,21 +1444,21 @@ class NetCDFDataset:
                     allvars[var].dimensions for var in allvars.keys()))
             prim = cnt.most_common(1)[0][0]
             n = alldims[prim].size
-            # MHS L1C has multiple phony dimensions in different groups,
-            # with the same shape, so I need to go by value (size) of the
-            # dimensions rather than by name
             M = numpy.zeros(shape=(n,),
-                dtype=[
-                    (k,
-                     "f4" if (getattr(v, "Scale", 1)!=1) else v.dtype,
-                     tuple(s for (i, s) in enumerate(v.shape)
-                         if v.shape[i] != alldims[prim].size))
-                     for (k, v) in allvars.items()
-                     if ((alldims[prim].size in v.shape) if fields=="all"
-                          else (k in fields))])
+                dtype=self._get_dtype_from_vars(alldims, allvars,
+                                                fields, prim).descr +
+                      [(nm, v.dtype, v.shape[1:]) for (nm, v) in
+                                  extra.items()])
             M = numpy.ma.masked_array(M)
 
             for v in M.dtype.names:
+                try:
+                    M[v][...] = extra[v][...]
+                except KeyError:
+                    # should be direct instead
+                    pass
+                else:
+                    continue
                 try:
                     M[v][...] = allvars[v][...] * getattr(allvars[v], "Scale", 1)
                     try:
