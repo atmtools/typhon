@@ -20,10 +20,20 @@ class TestEM(object):
         x = physics.planck_wavelength(0.01, 273.15)
         assert np.allclose(x, 0.00022552294907196693)
 
+    def test_planck_wavenumber(self):
+        """Test calculation of Planck black body radiation (for wavenumber)."""
+        x = physics.planck_wavenumber(100, 273.15)
+        assert np.allclose(x, 3.2205817195716319e-10)
+
     def test_rayleighjeans(self):
         """Test calculation Rayleigh-Jeans black body radiation."""
         x = physics.rayleighjeans(183e9, 273.15)
         assert np.allclose(x, 2.810445098218606e-15)
+
+    def test_rayleighjeans_wavelength(self):
+        """Test calculation RJ black body radiation (for wavelength)."""
+        x = physics.rayleighjeans_wavelength(0.01, 273.15)
+        assert np.allclose(x, 0.00022611794774492813)
 
     def test_snell(self):
         """Test Snell's law."""

@@ -10,7 +10,9 @@ from typhon import constants
 __all__ = [
     'planck',
     'planck_wavelength',
+    'planck_wavenumber',
     'rayleighjeans',
+    'rayleighjeans_wavelength',
     'snell',
     'fresnel',
     'frequency2wavelength',
@@ -58,6 +60,24 @@ def planck_wavelength(l, T):
     return 2 * h * c**2 / (l**5 * (np.exp(h * c / (l * k * T)) - 1))
 
 
+def planck_wavenumber(n, T):
+    """Calculate black body radiation for given wavenumber and temperature.
+
+    Parameters:
+        n (float or ndarray): Wavelength.
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float or ndarray: Radiances.
+
+    """
+    c = constants.speed_of_light
+    h = constants.planck
+    k = constants.boltzmann
+
+    return 2 * h * c**2 * n**3 / (np.exp(h * c * n / (k * T) - 1))
+
+
 def rayleighjeans(f, T):
     """Calculates the Rayleigh-Jeans approximation of the Planck function.
 
@@ -75,7 +95,27 @@ def rayleighjeans(f, T):
     c = constants.speed_of_light
     k = constants.boltzmann
 
-    return (2 * k / c**2) * f**2 * T
+    return 2 * f**2 * k * T / c**2
+
+
+def rayleighjeans_wavelength(l, T):
+    """Calculates the Rayleigh-Jeans approximation of the Planck function.
+
+     Calculates the approximation of the Planck function for given
+     frequency and temperature.
+
+     Parameters:
+        l (float or ndarray): Frequency [m].
+        T (float or ndarray): Temperature [K].
+
+     Returns:
+        float or ndarray: Radiance [W/(m2*Hz*sr)].
+
+    """
+    c = constants.speed_of_light
+    k = constants.boltzmann
+
+    return 2 * c * k * T / l**4
 
 
 def snell(n1, n2, theta1):

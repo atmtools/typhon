@@ -1,5 +1,15 @@
 2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/em.py:
+
+	Added rayleighjeans_wavelength() and planck_wavenumber().
+
+	* typhon/physics/tests/test_physics.py:
+
+	Added tests for newly implemented functions.
+
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/physics/__init__.py:
 
 	disable syntax checking for imports using the noqa (no quality assurance)
