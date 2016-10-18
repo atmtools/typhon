@@ -75,7 +75,7 @@ def rayleighjeans(f, T):
     c = constants.speed_of_light
     k = constants.boltzmann
 
-    return (2 * k / c**2) * f**22 * T
+    return (2 * k / c**2) * f**2 * T
 
 
 def snell(n1, n2, theta1):
@@ -229,7 +229,7 @@ def wavelength2frequency(wavelength):
         float or ndarray: Frequency [Hz].
 
     """
-    return constants.speed_of_lightc / wavelength
+    return constants.speed_of_light / wavelength
 
 
 def wavelength2wavenumber(wavelength):

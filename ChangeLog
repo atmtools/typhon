@@ -1,5 +1,19 @@
 2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/__init__.py:
+
+	disable syntax checking for imports using the noqa (no quality assurance)
+	directive.
+
+	* typhon/physics/em.py: Fixed bugs (found while writing tests).
+
+	* typhon/physics/tests,
+	typhon/physics/tests/test_physics.py:
+
+	Tests for typhon.physics.
+
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/cm/tests, typhon/cm/tests/test_cm.py:
 
 	Tests for typhon.cm.
