@@ -1,3 +1,14 @@
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/tests/test_geographical.py: Tests for typhon.geographical.
+
+	* typhon/tests/test_latex.py: Tests for typhon.latex.
+
+	* typhon/tests/reference,
+	typhon/tests/reference/matrix.tex:
+
+	Reference data for unit tests.
+
 2016-10-17  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/units/em.py(SRF.integrate_radiances):
