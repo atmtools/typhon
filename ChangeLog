@@ -1,5 +1,23 @@
 2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/tests/test_arts.py:
+
+	Included optional test case for ARTS system call (only run if ARTS in
+	search path).
+
+	* typhon/plots/__init__.py:
+
+	Import typhon.cm.
+
+	Added get_subplot_arrangement() to __all__.
+
+	* typhon/plots/tests,
+	typhon/plots/tests/test_plots.py:
+
+	Test all functions in typhon.plots that do not create plots.
+
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/tests/test_geographical.py: Tests for typhon.geographical.
 
 	* typhon/tests/test_latex.py: Tests for typhon.latex.

@@ -11,12 +11,14 @@ import os
 
 import numpy as np
 
-from ..math import stats as tpstats
-from .. import constants
+import typhon.cm
+from typhon.math import stats as tpstats
+from typhon import constants
 
 __all__ = ['figsize',
            'styles',
            'get_available_styles',
+           'get_subplot_arrangement',
            ]
 
 
