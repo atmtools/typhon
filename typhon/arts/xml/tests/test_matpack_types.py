@@ -146,7 +146,6 @@ class TestSave(object):
     def setUp(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
-        print(self.f)
 
     def tearDown(self):
         """Delete temporary file."""

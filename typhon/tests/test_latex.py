@@ -18,13 +18,10 @@ class TestLaTeX(object):
     def setUp(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
-        print(self.f)
 
     def tearDown(self):
         """Delete temporary file."""
-        for f in [self.f, self.f + '.bin']:
-            if os.path.isfile(f):
-                os.remove(f)
+        os.remove(self.f)
 
     def test_texify_matrix(self):
         """Save NumPy array as LaTeX table."""

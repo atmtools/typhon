@@ -1,5 +1,27 @@
 2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/cm/tests, typhon/cm/tests/test_cm.py:
+
+	Tests for typhon.cm.
+
+	* typhon/cm/tests/reference,
+	typhon/cm/tests/reference/viridis.cpt,
+	typhon/cm/tests/reference/viridis.txt:
+
+	Reference data for colormap tests.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Removed print form setUp().
+
+	* typhon/tests/test_latex.py:
+
+	Removed print from setUp().
+
+	Do not try to remove *.bin files in tearDown().
+
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/tests/test_arts.py:
 
 	Included optional test case for ARTS system call (only run if ARTS in
