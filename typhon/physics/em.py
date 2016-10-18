@@ -64,7 +64,7 @@ def planck_wavenumber(n, T):
     """Calculate black body radiation for given wavenumber and temperature.
 
     Parameters:
-        n (float or ndarray): Wavelength.
+        n (float or ndarray): Wavenumber.
         T (float or ndarray): Temperature [K].
 
     Returns:
@@ -102,10 +102,10 @@ def rayleighjeans_wavelength(l, T):
     """Calculates the Rayleigh-Jeans approximation of the Planck function.
 
      Calculates the approximation of the Planck function for given
-     frequency and temperature.
+     wavelength and temperature.
 
      Parameters:
-        l (float or ndarray): Frequency [m].
+        l (float or ndarray): Wavelength [m].
         T (float or ndarray): Temperature [K].
 
      Returns:

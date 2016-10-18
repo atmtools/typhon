@@ -1,5 +1,9 @@
 2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/em.py: Fixed documentation.
+
+2016-10-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/physics/em.py:
 
 	Added rayleighjeans_wavelength() and planck_wavenumber().
