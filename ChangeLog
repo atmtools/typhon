@@ -1,5 +1,9 @@
 2016-10-21  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/version.py: 0.3.4 Release.
+
+2016-10-21  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/__init__.py:
 
 	Avoid abort of test procedure when no DISPLAY is defined.
