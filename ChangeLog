@@ -1,5 +1,9 @@
 2016-10-21  Oliver Lemke  <olemke@core-dump.info>
 
+	* MANIFEST.in: Ensure that all tests and reference files are installed.
+
+2016-10-21  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/version.py: Set DEVBUILD back to True after release.
 
 2016-10-21  Oliver Lemke  <olemke@core-dump.info>
