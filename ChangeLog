@@ -1,5 +1,16 @@
 2016-10-21  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/__init__.py:
+
+	Avoid abort of test procedure when no DISPLAY is defined.
+
+	* typhon/arts/tests/test_arts.py:
+
+	Add TODO on 'Skipped' indicator not being displayed properly when
+	running tests from inside ipython.
+
+2016-10-21  Oliver Lemke  <olemke@core-dump.info>
+
 	* MANIFEST.in: Ensure that all tests and reference files are installed.
 
 2016-10-21  Oliver Lemke  <olemke@core-dump.info>

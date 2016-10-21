@@ -22,6 +22,8 @@ if not __TYPHON_SETUP__:
         """Run all tests."""
         from os.path import dirname
         from sys import argv
+        import matplotlib
+        matplotlib.use('Agg')
         import nose
         loader = nose.loader.TestLoader(workingDir=dirname(__file__))
         return nose.run(argv=[argv[0]], testLoader=loader)

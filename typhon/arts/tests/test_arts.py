@@ -11,6 +11,7 @@ from typhon import arts
 
 class TestPlots(object):
     """Testing the plot functions."""
+    # TODO: Currently issue with ipython not displaying it as skipped
     @unittest.skipIf(not shutil.which('arts'), 'arts not in PATH')
     def test_run_arts(self):
         """Test ARTS system call.
