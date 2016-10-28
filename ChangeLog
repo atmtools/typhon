@@ -1,5 +1,11 @@
 2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/__init__.py: Moved all function definitions to common.
+
+	* typhon/arts/common.py: Definitions for common module functions.
+
+2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/griddedfield.py: Removed debug print().
 
 2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
