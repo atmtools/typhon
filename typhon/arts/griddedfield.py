@@ -231,7 +231,6 @@ class GriddedField(object):
         Returns: :class:`typhon.arts.griddedfield.GriddedField`
 
         """
-        print(kwargs)
         f = interpolate.interp1d(self.grids[axis], self.data,
                                  axis=axis, **kwargs)
 

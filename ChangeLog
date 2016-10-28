@@ -1,5 +1,9 @@
 2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/griddedfield.py: Removed debug print().
+
+2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/__init__.py: Removed refine_grid().
 
 	* typhon/arts/griddedfield.py:
