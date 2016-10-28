@@ -7,7 +7,6 @@ import collections
 import os
 import shutil
 import subprocess
-from scipy import interpolate
 
 from . import sensor
 from . import xml
@@ -19,7 +18,6 @@ __all__ = ['xml',
            'run_arts',
            'atm_fields_compact_get',
            'atm_fields_compact_update',
-           'refine_grid',
            ]
 
 
@@ -157,35 +155,3 @@ def atm_fields_compact_update(abs_species, gf4, vmr):
     gf4.check_dimension()
 
     return gf4
-
-
-def refine_grid(gf, new_grid, axis=0, fill_value='extrapolate'):
-    """Interpolate a :class:`GriddedField` axis to a new grid.
-
-    This function replaces a grid of a GriddField and interpolates all data to
-    match the new coordinates. :func:`scipy.interpolate.interp1d` is used for
-    interpolation.
-
-    Notes:
-        The function manipulates the original GriddedField!
-
-    Parameters:
-        gf (:class:`GriddedField`): GriddedField of arbitrary dimension.
-        new_grid (ndarray): The coordinates of the interpolated values.
-        axis (int): Specifies the axis of data along which to interpolate.
-            Interpolation defaults to the first axis of the GriddedField.
-        fill_value: Defaults to 'extrapolate'.
-            See :func:`scipy.interpolate.interp1d` for futher informaton.
-
-    Returns: :class:`typhon.arts.griddedfield.GriddedField`
-
-    """
-    f = interpolate.interp1d(gf.grids[axis], gf.data,
-                             axis=axis, fill_value=fill_value)
-
-    gf.grids[axis] = new_grid
-    gf.data = f(new_grid)
-
-    gf.check_dimension()
-
-    return gf

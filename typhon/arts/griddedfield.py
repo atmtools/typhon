@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from scipy import interpolate
 
 from .utils import return_if_arts_type, get_arts_typename
 
@@ -53,7 +54,7 @@ class GriddedField(object):
                  name=None):
         """Create a GriddedField object.
 
-        Args:
+        Parameters:
             dimension (int): Dimension of the GriddedField.
             grids (list, tuple, np.ndarray): grids.
             data (np.ndarray): data values.
@@ -117,6 +118,7 @@ class GriddedField(object):
     @property
     def data(self):
         """The data matrix stored in the GriddedField.
+
         Note:
             The data array has to fit the grid dimensions.
         """
@@ -212,6 +214,34 @@ class GriddedField(object):
 
         return True
 
+    def refine_grid(self, new_grid, axis=0, **kwargs):
+        """Interpolate GriddedField axis to a new grid.
+
+        This function replaces a grid of a GriddField and interpolates all
+        data to match the new coordinates. :func:`scipy.interpolate.interp1d`
+        is used for interpolation.
+
+        Parameters:
+            new_grid (ndarray): The coordinates of the interpolated values.
+            axis (int): Specifies the axis of data along which to interpolate.
+                Interpolation defaults to the first axis of the GriddedField.
+            **kwargs:
+                Keyword arguments passed to :func:`scipy.interpolate.interp1d`.
+
+        Returns: :class:`typhon.arts.griddedfield.GriddedField`
+
+        """
+        print(kwargs)
+        f = interpolate.interp1d(self.grids[axis], self.data,
+                                 axis=axis, **kwargs)
+
+        self.grids[axis] = new_grid
+        self.data = f(new_grid)
+
+        self.check_dimension()
+
+        return self
+
     def to_dict(self):
         """Convert GriddedField to dictionary.
 
@@ -220,8 +250,9 @@ class GriddedField(object):
         generated automatically ('grid1', 'grid2', ...). The data can be
         accessed through the 'data' key.
 
-            Returns:
-                Dictionary containing the grids and data.
+        Returns:
+            Dictionary containing the grids and data.
+
         """
         grids, gridnames = self.grids, self.gridnames
 

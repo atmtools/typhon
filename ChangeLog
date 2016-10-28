@@ -1,3 +1,13 @@
+2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/__init__.py: Removed refine_grid().
+
+	* typhon/arts/griddedfield.py:
+
+	Added refine_grid() as instance method for GriddedField.
+
+	Extrapolation is no longer enabled by default.
+
 2016-10-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/__init__.py: Added refine_grid().
