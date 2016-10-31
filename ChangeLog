@@ -1,5 +1,11 @@
 2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/cm.py:
+
+	Also import typhon.plots.colors to mimic the old structure completely.
+
+2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/plots/cm: Moved from typhon/cm.
 
 	* typhon/plots/colors.py:
