@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 
-"""Testing the functions in typhon.cm.
+"""Testing the functions in typhon.plots.colors.
 """
 
 from tempfile import mkstemp
 import numpy as np
 import os
 
-from typhon import cm
+from typhon.plots import colors
 
 
-class TestCM(object):
+class TestColors(object):
     """Testing the cm functions."""
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
@@ -27,7 +27,7 @@ class TestCM(object):
 
         The created file is compare line by line (timestamps are ignored).
         """
-        cm.cmap2cpt('viridis', filename=self.f)
+        colors.cmap2cpt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.cpt')
 
         same = True
@@ -45,7 +45,7 @@ class TestCM(object):
 
         The created file is compare line by line (timestamps are ignored).
         """
-        cm.cmap2txt('viridis', filename=self.f)
+        colors.cmap2txt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.txt')
 
         same = True
@@ -62,6 +62,6 @@ class TestCM(object):
         """Check colormap to RGB conversion."""
         ref = np.loadtxt(os.path.join(self.ref_dir, 'viridis.txt'),
                          comments='%')
-        rgb = cm.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
+        rgb = colors.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
 
         assert np.allclose(ref, rgb)

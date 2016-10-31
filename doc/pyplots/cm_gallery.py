@@ -13,10 +13,10 @@ These colormaps are divided into the following categories:
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import typhon.cm
+from typhon.plots import cm
 
 
-cmaps = sorted([x for x in typhon.cm.cmaps.keys() if not x.endswith('_r')])
+cmaps = sorted([x for x in cm.cmaps.keys() if not x.endswith('_r')])
 
 nrows = len(cmaps)
 gradient = np.linspace(0, 1, 256)

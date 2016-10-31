@@ -1,7 +1,7 @@
-typhon.cm
-===========
+typhon.plots.cm
+===============
 
-.. automodule:: typhon.cm
+.. automodule:: typhon.plots.cm
     :members:
     :undoc-members:
     :show-inheritance:

@@ -7,7 +7,6 @@ API Documentation
    arts
    xml
    atmosphere
-   cm
    config
    constants
    datasets
@@ -19,6 +18,7 @@ API Documentation
    oem
    physics
    plots
+   cm
    utils
 
 Indices and tables

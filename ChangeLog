@@ -1,3 +1,40 @@
+2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/cm: Moved from typhon/cm.
+
+	* typhon/plots/colors.py:
+
+	New module for all color related functions.
+
+	typhon.cm is only used for defining colormaps.
+
+	* typhon/plots/common.py:
+
+	New module for commond functions related to plotting.
+
+	* typhon/plots/plots.py:
+
+	New module to collect functions that actually create plots.
+
+	* typhon/plots/tests/reference, typhon/plots/tests/test_colors.py:
+
+	Moved tests from typhon/cm/tests.
+
+	* typhon/cm.py:
+
+	Alias module to load typhon.plots.cm. A deprecation warning is raised.
+
+	* doc/cm.rst, doc/modules.rst, doc/plots.rst, doc/pyplots/cm_gallery.py,
+	doc/pyplots/plot_density.py, doc/pyplots/plot_phase.py,
+	doc/pyplots/plot_phase_sinus.py, doc/pyplots/plot_qualitative1.py,
+	doc/pyplots/plot_qualitative2.py, doc/pyplots/plot_speed.py,
+	doc/pyplots/plot_temperature.py, doc/pyplots/plot_velocity.py,
+	doc/pyplots/plot_vorticity.py:
+
+	Adapated new structure in the documentation.
+
+	Fixed imports in all plotting scripts.
+
 2016-10-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/__init__.py: Moved all function definitions to common.

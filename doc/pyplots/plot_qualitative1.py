@@ -6,8 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typhon.cm import mpl_colors
-from typhon.plots import figsize
+from typhon.plots import (figsize, mpl_colors)
 
 
 x = np.linspace(0, 10, 100)
