@@ -1,5 +1,15 @@
 2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/__init__.py: Import math.
+
+	* typhon/math/__init__.py: Function definitions moved to common.
+
+	* typhon/math/common.py: Collect common functions for typhon.math.
+
+	Added function nlogspace() to create equally logarithmically spaced arrays.
+
+2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/cm.py:
 
 	Also import typhon.plots.colors to mimic the old structure completely.
