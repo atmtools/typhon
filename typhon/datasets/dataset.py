@@ -267,7 +267,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             end (datetime.datetime): End
                 End datetime.  When omitted, continue to end of dataset.
                 Last granule will start before this datetime, but contents
-                may continue beyond it.
+                may continue beyond it.  Can also be a datetime.timedelta,
+                which will then be interpreted as a length after start.
  
             onerror (str): What to do on errors
                 When reading many files, some files may have problems.  If
@@ -325,6 +326,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
         start = start or self.start_date
         end = end or self.end_date
+        if isinstance(end, datetime.timedelta):
+            end = start + end
 
         #contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
@@ -1411,7 +1414,8 @@ class NetCDFDataset:
                   else (k in fields))])
 
     def _read(self, f, fields="all",
-              pseudo_fields=None):
+              pseudo_fields=None,
+              prim=None):
         if pseudo_fields is None:
             pseudo_fields = {}
         with netCDF4.Dataset(f, 'r') as ds:
@@ -1442,7 +1446,7 @@ class NetCDFDataset:
             cnt = collections.Counter(
                 itertools.chain.from_iterable(
                     allvars[var].dimensions for var in allvars.keys()))
-            prim = cnt.most_common(1)[0][0]
+            prim = prim or cnt.most_common(1)[0][0]
             n = alldims[prim].size
             M = numpy.zeros(shape=(n,),
                 dtype=self._get_dtype_from_vars(alldims, allvars,

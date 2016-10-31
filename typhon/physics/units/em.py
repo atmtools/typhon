@@ -155,15 +155,17 @@ class SRF(FwmuMixin):
         return numpy.average(
             self.frequency, weights=self.W) * self.frequency.units
 
-    def blackbody_radiance(self, T):
+    def blackbody_radiance(self, T, spectral=True):
         """Calculate integrated radiance for blackbody at temperature T
 
         :param T: Temperature [K]
+        :param spectral: Spectral if true, see self.integrate_radiances.
         """
         return self.integrate_radiances(
             self.frequency, planck_f(
                 self.frequency[numpy.newaxis, :],
-                T[:, numpy.newaxis]))
+                T[:, numpy.newaxis]),
+                spectral=spectral)
 
     def make_lookup_table(self):
         """Construct lookup table radiance <-> BT
@@ -189,8 +191,8 @@ class SRF(FwmuMixin):
                                                  bounds_error=False,
                                                  fill_value=0)
 
-    def integrate_radiances(self, f, L):
-        """From a spectrum of radiances and a SRF, calculate channel radiance
+    def integrate_radiances(self, f, L, spectral=True):
+        """From a spectrum of radiances and a SRF, calculate channel (spectral) radiance
 
         The spectral response function may not be specified on the same grid
         as the spectrum of radiances.  Therefore, this function interpolates
@@ -208,26 +210,37 @@ class SRF(FwmuMixin):
             Can be in radiance units of various kinds.  Make sure this is
             consistent with the spectral response function.
             Innermost dimension must correspond to frequencies.
-        :returns: Channel radiance [W m^-2 sr^-1 Hz^-1]
+        :param bool spectral: If true, return spectral radiance
+            [W m^-2 sr^-1 Hz^-1].  If false, return radiance [W m^-2
+            sr^-1].  Defaults to True.
+        :returns: Channel (spectral) radiance according to 'spectral'
         """
         # Interpolate onto common frequency grid.  The spectral response
         # function is more smooth so less harmed by interpolation, so I
         # interpolate the SRF.
         fnc = scipy.interpolate.interp1d(
             self.frequency, self.W, bounds_error=False, fill_value=0.0)
-        w_on_L_grid = fnc(f) * (1 / ureg.Hz)
+        #w_on_L_grid = fnc(f) * (1 / ureg.Hz)
+        w_on_L_grid = ureg.Quantity(fnc(f), ureg.dimensionless)# * (1 / ureg.Hz)
+
+        df = ureg.Quantity(numpy.diff(f), f.u)
+        w1p = w_on_L_grid[1:]
+        L1p = L[:, 1:]
         # ch_BT = (w_on_L_grid * L_f).sum(-1) / (w_on_L_grid.sum())
         # due to numexpr limitation, do sum seperately
         # and due to numexpr bug, explicitly consider zero-dim case
         #     see https://github.com/pydata/numexpr/issues/229
         if L.shape[0] == 0:
-            ch_rad_tot = numpy.empty(dtype="f8", shape=L.shape[:-1])
+            ch_rad = numpy.empty(dtype="f8", shape=L.shape[:-1])
         else:
-            ch_rad_tot = numexpr.evaluate("sum(w_on_L_grid * L, {:d})".format(
+#            ch_rad = numexpr.evaluate("sum(w_on_L_grid * L, {:d})".format(
+            ch_rad = numexpr.evaluate("sum(w1p * L1p * df, {:d})".format(
                 L.ndim - 1))
-        ch_rad_tot = ch_rad_tot * w_on_L_grid.u * L.u
-        ch_rad = ch_rad_tot / w_on_L_grid.sum()
-        return ch_rad
+        ch_rad = ureg.Quantity(ch_rad, w1p.u * L1p.u * df.u)
+        if spectral:
+            return ch_rad / (w1p*df).sum()
+        else:
+            return ch_rad
 
     def channel_radiance2bt(self, L):
         """Convert channel radiance to brightness temperature

@@ -206,6 +206,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
                 raise ValueError("Can't calibrate if not also applying"
                                  " scale factors!")
             (lat, lon) = self.get_pos(scanlines)
+            if not (1 < lat.ptp() <= 180) or not (1 < lon.ptp() <= 360):
+                raise dataset.InvalidDataError(
+                    "Range of latitude {:.1f}°, longitude {:.1f}, suspect!".format(
+                        lat.ptp(), lon.ptp()))
             other = self.get_other(scanlines)
 
 #            cc = scanlines["hrs_calcof"].reshape(n_lines, self.n_channels, 
@@ -289,9 +293,18 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
             header = header_new
             if apply_flags:
                 #scanlines = numpy.ma.masked_array(scanlines)
-                scanlines = self.get_mask_from_flags(header, scanlines)
+                scanlines = self.get_mask_from_flags(header, scanlines,
+                                    max_flagged=max_flagged)
             if apply_filter:
                 scanlines = self.apply_calibcount_filter(scanlines)
+                if cc.ndim == 4:
+                    calibzero = (cc[:, :, 1, :]==0).all(2)
+                if cc.ndim == 3:
+                    calibzero = (cc==0).all(2)
+                scanlines["bt"].mask[...] |= calibzero[:, numpy.newaxis, :19]
+                scanlines["radiance"].mask[...] |= calibzero[:, numpy.newaxis, :20]
+                # if one is masked, so should the other…
+                scanlines["radiance"].mask[:, :, :19] |= scanlines["bt"].mask
             if not (apply_flags or apply_filter):
                 scanlines = scanlines.data # no ma when no flags
         elif apply_flags:
@@ -641,7 +654,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         ...
             
     @abc.abstractmethod
-    def get_mask_from_flags(self, header, lines):
+    def get_mask_from_flags(self, header, lines, max_flagged=0.5):
         """Set mask in lines, based on header and lines info
 
         Given header and lines such as returned by self.read, determine
@@ -1026,8 +1039,39 @@ class HIRSPOD(HIRS):
         return numpy.vstack([h[i] for i in range(1, 20)]).T
 
     # docstring in parent class   
-    def get_mask_from_flags(self, header, lines):
+    def get_mask_from_flags(self, header, lines, max_flagged=0.5):
         # for flag bits, see POD User's Guide, page 4-4 and 4-5.
+
+        # quality indicators
+        qi = lines["hrs_qualind"]
+        qidict = dict(
+            qifatal =    qi & (1<<31),
+            qitimeseqerr =  qi & (1<<30),
+            qidatagap =     qi & (1<<29),
+            qidwell =       qi & (1<<28),
+            qidatafill =    qi & (1<<27),
+            qidacs =        qi & (1<<26),
+            # 25-24: scan type
+            qimirrorlocked =qi & (1<<23),
+            qimirrorpos =   qi & (1<<22),
+            qimirrorrepos = qi & (1<<21),
+            qifiltersync =  qi & (1<<20),
+            qiscanpattern = qi & (1<<19),
+            qicalibration = qi & (1<<18),
+            qinoearth     = qi & (1<<17),
+            qiearthlocΔ   = qi & (1<<16),
+            qibitsync     = qi & (1<<15),
+            qisyncerror   = qi & (1<<14),
+            qiframesync   = qi & (1<<13),
+            qiflywheel    = qi & (1<<12),
+            qibitslip     = qi & (1<<11),
+            qitipparity   = qi & (1<<10),
+            qiauxbiterror = qi & (1<<9),
+            # 8: spare
+            # 0-7: counters
+        )
+
+        # FIXME: minor frame quality, POD User's Guide, page 4-10
         bad_bt = (lines["hrs_qualind"] & 0xcffffe00) != 0
         earthcounts = lines["hrs_qualind"] & 0x03000000 == 0
         calibcounts = ~earthcounts
@@ -1039,7 +1083,26 @@ class HIRSPOD(HIRS):
         # different for non-earth-views
 
         lines["bt"].mask[bad_bt, :, :] = True
+        lines["radiance"].mask[bad_bt, :, :] = True
         lines["counts"].mask[bad_earthcounts|bad_calibcounts, :, :] = True
+
+        if lines["counts"].mask.sum() > lines["counts"].size*max_flagged:
+            raise dataset.InvalidDataError(
+                "Excessive amount of flagged data ({:.2%}). ".format(
+                    lines["counts"].mask.sum()/lines["counts"].size) +
+                ', '.join("{:s} ({:.2%})".format(k[2:], (v!=0).sum()/v.size) for (k, v)
+                    in qidict.items() if (v!=0).sum()/v.size > 0.01))
+#                "Earth not found ({:.2%}), mirror position error ({:.2%}), "
+#                "mirror moved ({:.2%}), DACS QC error ({:.2%}).".format(
+#                    lines["counts"].mask.sum()/lines["counts"].size,
+#                    (qinoearth!=0).sum()/qinoearth.size,
+#                    (qimirrorpos!=0).sum()/qimirrorpos.size,
+#                    (qimirrorrepos!=0).sum()/qimirrorrepos.size))
+#                    (mfmirposerr[:, :self.n_perline]!=0).sum()/
+#                     mfmirposerr[:, :self.n_perline].size,
+#                    (mfmirmoved[:, :self.n_perline]!=0).sum()/
+#                     mfmirmoved[:, :self.n_perline].size))
+
         return lines
 
     # unfinished

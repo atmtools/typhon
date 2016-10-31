@@ -23,6 +23,7 @@ class ERAInterim(dataset.NetCDFDataset, dataset.MultiFileDataset):
         # already in converted format, so will assume NetCDF
         M = super()._read(f, *args,
                           pseudo_fields={"time": self._get_time_from_ds},
+                          prim="t",
                           **kwargs)
         return M
 

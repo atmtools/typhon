@@ -1,3 +1,42 @@
+2016-10-31  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/units/em.py:
+
+	(SRF.blackbody_radiance) (SRF.integrate_radiances):
+
+	- Make internal handling more consistent with correct units.  Now
+	supports returning either radiance or spectral radiance.
+
+	* typhon/datasets/tovs.py:
+
+	(HIRS._read):
+
+	- Add some checks on latitude and longitude ranges.  Those should not
+	be too large but also not too small.
+
+	- Flag cases where calibration data are all zero.
+
+	- Actually use max_flagged flag.
+
+	(HIRSPOD.get_mask_from_flags):
+
+	- Check flags more consistently.  Put each in its own variable for
+	debugging sake.  Enforce max_flagged rule.
+
+	* typhon.datasets.model.py(ERAInterim._read):
+
+	- Explicitly pass `prim='t'`.
+
+	* typhon/datasets/dataset.py:
+	
+	(Dataset.read_period):
+
+	- Allow to pass time period rather than ending date
+
+	(NetCDFDataset._read):
+
+	- Allow to explicitly tell what the primary field is.
+
 2016-10-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/__init__.py: Import math.
