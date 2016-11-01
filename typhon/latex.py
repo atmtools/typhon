@@ -13,7 +13,7 @@ __all__ = [
 
 
 def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
-                  align='r', delimiter=True):
+                  label='tab:matrix', align='r', delimiter=True):
     """Convert a np.ndarray into a LaTeX table.
 
     Note:
@@ -29,6 +29,7 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
             send so stdout.
         caption (str): table caption, if no caption is passed it is left empty.
         heading (list[str]): list of names (str) for each column.
+        label (str): Label to reference the table.
         align (str): specify the alignment of numbers inside the cells.
         delimiter (bool): toggle the separation of cells through lines.
 
@@ -82,10 +83,13 @@ def texify_matrix(a, fmt="%f", filename=None, caption=None, heading=None,
     else:
         out = sys.stdout
 
+    # TODO: Overdo the handling of strings in this function! It seems like
+    # string.format() could be used **way** more often.
+
     # print table header
     out.write('\\begin{table}\n'
               '\\centering\n'
-              '\\caption{' + caption + '}\n'
+              '\\caption{' + caption + '\\label{' + label + '}}\n'
               '\\begin{tabular}{'
               + (dlm + (align + dlm) * a.shape[1])
               + '}' + nwl + '\n')

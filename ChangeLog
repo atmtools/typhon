@@ -1,5 +1,11 @@
 2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/latex.py: Added a keyword to pass a label to the LaTeX table.
+
+	* typhon/tests/reference/matrix.tex: Updated reference file.
+
+2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/plots/plots.py:
 
 	Added a function to create a simple heatmap.
