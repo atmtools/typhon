@@ -1,3 +1,9 @@
+2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/plots.py:
+
+	Added a function to create a simple heatmap.
+
 2016-10-31  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/units/em.py:

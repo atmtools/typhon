@@ -5,13 +5,15 @@
 import collections
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 from typhon.math import stats as tpstats
 
 
 __all__ = [
     'plot_distribution_as_percentiles',
-        ]
+    'heatmap',
+]
 
 
 def plot_distribution_as_percentiles(ax, x, y,
@@ -69,3 +71,40 @@ def plot_distribution_as_percentiles(ax, x, y,
 
         ax.plot(bins, scores[:, i], linestyle=linestyles[i], label=locallab,
                 **kwargs)
+
+
+def heatmap(x, y, nbins=(20, 20), bisectrix=True, ax=None, **kwargs):
+    """Plot a heatmap of two data arrays.
+
+    This function is a simple wrapper for :func:`plt.hist2d`.
+
+    Parameters:
+        x (np.ndarray): x data.
+        y (np.ndarray): y data.
+        nbins (tuple[int]): Number of bins in both dimensions.
+        bisectric (bool): Toggle drawing of the bisectrix.
+        ax (AxesSubplot, optional): Axes to plot in.
+        **kwargs: Additional keyword arguments passed to :func:`plt.hist2d`.
+
+    Returns: AxesImage.
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    # Plot the heatmap.
+    kwargs_defaults = {
+        'cmap': plt.get_cmap('Greys', 8),
+        'rasterized': True,
+        }
+
+    kwargs_defaults.update(kwargs)
+
+    N, xedges, yedges, img = ax.hist2d(x, y, nbins, **kwargs_defaults)
+
+    # Plot the bisectrix.
+    if bisectrix:
+        ax.plot((x.min(), x.max()), (x.min(), x.max()),
+                color='red', linestyle='--', linewidth=2)
+
+    return img
