@@ -73,7 +73,7 @@ def plot_distribution_as_percentiles(ax, x, y,
                 **kwargs)
 
 
-def heatmap(x, y, nbins=(20, 20), bisectrix=True, ax=None, **kwargs):
+def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
     """Plot a heatmap of two data arrays.
 
     This function is a simple wrapper for :func:`plt.hist2d`.
@@ -81,8 +81,23 @@ def heatmap(x, y, nbins=(20, 20), bisectrix=True, ax=None, **kwargs):
     Parameters:
         x (np.ndarray): x data.
         y (np.ndarray): y data.
-        nbins (tuple[int]): Number of bins in both dimensions.
-        bisectric (bool): Toggle drawing of the bisectrix.
+        bins (int | [int, int] | array_like | [array, array]):
+            The bin specification:
+
+            - If int, the number of bins for the two dimensions
+            (nx=ny=bins).
+
+            - If [int, int], the number of bins in each dimension
+            (nx, ny = bins).
+
+            - If array_like, the bin edges for the two dimensions
+            (x_edges=y_edges=bins).
+
+            - If [array, array], the bin edges in each dimension
+            (x_edges, y_edges = bins).
+
+            The default value is 20.
+        bisectrix (bool): Toggle drawing of the bisectrix.
         ax (AxesSubplot, optional): Axes to plot in.
         **kwargs: Additional keyword arguments passed to :func:`plt.hist2d`.
 
@@ -92,7 +107,7 @@ def heatmap(x, y, nbins=(20, 20), bisectrix=True, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    # Plot the heatmap.
+    # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
         'cmap': plt.get_cmap('Greys', 8),
         'rasterized': True,
@@ -100,7 +115,8 @@ def heatmap(x, y, nbins=(20, 20), bisectrix=True, ax=None, **kwargs):
 
     kwargs_defaults.update(kwargs)
 
-    N, xedges, yedges, img = ax.hist2d(x, y, nbins, **kwargs_defaults)
+    # Plot the heatmap.
+    N, xedges, yedges, img = ax.hist2d(x, y, bins, **kwargs_defaults)
 
     # Plot the bisectrix.
     if bisectrix:

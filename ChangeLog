@@ -1,5 +1,11 @@
 2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/plots/plots.py (heatmap):
+
+	Made possible types for `bins` consistent with plt.hist2d().
+
+2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/latex.py: Added a keyword to pass a label to the LaTeX table.
 
 	* typhon/tests/reference/matrix.tex: Updated reference file.
