@@ -1,3 +1,9 @@
+2016-11-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/plots/colors.py (cmap_from_act):
+
+	Respect the number of colors defined in the file.
+
 2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/colors.py: Added function to import Adobe Color Tables.

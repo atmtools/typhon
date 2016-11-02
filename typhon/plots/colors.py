@@ -106,9 +106,14 @@ def cmap_from_act(file, name=None):
     if name is None:
         name = os.path.splitext(os.path.basename(file))[0]
 
-    # Read binary file and scale RGB values.
-    rgb = np.fromfile(file, dtype=np.uint8) / 255
-    cmap = LinearSegmentedColormap.from_list(name, rgb[:768].reshape(256, 3))
+    # Read binary file and determine number of colors
+    rgb = np.fromfile(file, dtype=np.uint8)
+    if rgb.shape[0] >= 770:
+        ncolors = rgb[768] * 2**8 + rgb[769]
+    else:
+        ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+            name, rgb[:ncolors*3].reshape(ncolors, 3) / 255)
 
     plt.register_cmap(cmap=cmap)  # Register colormap.
 
