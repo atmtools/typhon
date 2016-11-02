@@ -2,6 +2,16 @@
 
 	* typhon/plots/colors.py:
 
+	Added a function to export colormaps as Adobe Color Table.
+
+	* typhon/plots/tests/test_colors.py: Test export to Adobe Color Table.
+
+	* typhon/plots/tests/reference/viridis.act: Reference file.
+
+2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
 	Pass the number of colors when creating the LinearSegmentedColormap.
 
 2016-11-02  Oliver Lemke  <olemke@core-dump.info>

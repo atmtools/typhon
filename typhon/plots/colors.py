@@ -11,6 +11,7 @@ import time
 __all__ = ['mpl_colors',
            'cmap2txt',
            'cmap2cpt',
+           'cmap2act',
            'cmap_from_act',
            ]
 
@@ -90,6 +91,22 @@ def cmap2cpt(cmap, filename=None):
             # ... and end color.
             r, g, b = [int(c * 255) for c in colors[n + 1, :3]]
             f.write(right(n + 1, r, g, b))
+
+
+def cmap2act(cmap, filename=None):
+    """Export colormap to Adobe Color Table file.
+
+    Parameters:
+        cmap (str): Colormap name.
+        filename (str): Optional filename.
+            Default: cmap + '.cpt'
+
+    """
+    if filename is None:
+        filename = cmap + '.act'
+
+    colors = mpl_colors(cmap, 256)
+    (colors[:, :3].flatten() * 255).astype(np.uint8).tofile(filename)
 
 
 def cmap_from_act(file, name=None):

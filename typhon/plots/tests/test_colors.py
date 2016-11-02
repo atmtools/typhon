@@ -4,6 +4,7 @@
 """
 
 from tempfile import mkstemp
+import filecmp
 import numpy as np
 import os
 
@@ -57,6 +58,13 @@ class TestColors(object):
                     break
 
         assert same
+
+    def test_cmap2act(self):
+        """Export colormap to act file."""
+        colors.cmap2act('viridis', filename=self.f)
+        ref = os.path.join(self.ref_dir, 'viridis.act')
+
+        assert filecmp.cmp(self.f, ref)
 
     def test_mpl_colors(self):
         """Check colormap to RGB conversion."""
