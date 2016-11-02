@@ -2,13 +2,16 @@
 
 """Utility functions related to plotting.
 """
+import os
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 import time
 
 __all__ = ['mpl_colors',
            'cmap2txt',
            'cmap2cpt',
+           'cmap_from_act',
            ]
 
 
@@ -87,3 +90,26 @@ def cmap2cpt(cmap, filename=None):
             # ... and end color.
             r, g, b = [int(c * 255) for c in colors[n + 1, :3]]
             f.write(right(n + 1, r, g, b))
+
+
+def cmap_from_act(file, name=None):
+    """Import colormap from Adobe Color Table file.
+
+    Parameters:
+        file (str): Path to act file.
+        name (str): Colormap name. Defaults to filename without extension.
+
+    Returns:
+        LinearSegmentedColormap.
+    """
+    # Extract colormap name from filename.
+    if name is None:
+        name = os.path.splitext(os.path.basename(file))[0]
+
+    # Read binary file and scale RGB values.
+    rgb = np.fromfile(file, dtype=np.uint8) / 255
+    cmap = LinearSegmentedColormap.from_list(name, rgb[:768].reshape(256, 3))
+
+    plt.register_cmap(cmap=cmap)  # Register colormap.
+
+    return cmap

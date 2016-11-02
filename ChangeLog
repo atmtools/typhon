@@ -1,3 +1,7 @@
+2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py: Added function to import Adobe Color Tables.
+
 2016-11-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py (heatmap):
