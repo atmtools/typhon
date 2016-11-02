@@ -6,7 +6,6 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
-import time
 
 __all__ = ['mpl_colors',
            'cmap2txt',
@@ -51,8 +50,7 @@ def cmap2txt(cmap, filename=None, comments='%'):
 
     """
     colors = mpl_colors(cmap, 256)
-    date = time.strftime('%c')
-    header = 'Colormap "{}". Created {}'.format(cmap, date)
+    header = 'Colormap "{}"'.format(cmap)
 
     if filename is None:
         filename = cmap + '.txt'
@@ -70,12 +68,11 @@ def cmap2cpt(cmap, filename=None):
 
     """
     colors = mpl_colors(cmap, 256)
-    date = time.strftime('%c')
-    header = ('# Colormap "{}". Created {}\n'
-              '# COLOR_MODEL = RGB\n'.format(cmap, date))
+    header = ('# GMT palette "{}"\n'
+              '# COLOR_MODEL = RGB\n'.format(cmap))
 
-    left = '{:<3d} {:0>3d}/{:0>3d}/{:0>3d} '.format
-    right = '{:<3d} {:0>3d}/{:0>3d}/{:0>3d}\n'.format
+    left = '{:>3d} {:>3d} {:>3d} {:>3d}  '.format
+    right = '{:>3d} {:>3d} {:>3d} {:>3d}\n'.format
 
     if filename is None:
         filename = cmap + '.cpt'

@@ -2,6 +2,23 @@
 
 	* typhon/plots/colors.py:
 
+	Do not include timestamps in cpt and txt files.
+
+	Use blanks instead of "/" in cpt files.
+
+	* typhon/plots/tests/reference/viridis.cpt,
+	* typhon/plots/tests/reference/viridis.txt:
+
+	Updated reference files to new formats.
+
+	* typhon/plots/tests/test_colors.py:
+
+	Use a simple file comparison for export tests.
+
+2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
 	Added a function to export colormaps as Adobe Color Table.
 
 	* typhon/plots/tests/test_colors.py: Test export to Adobe Color Table.

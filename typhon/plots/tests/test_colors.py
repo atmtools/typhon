@@ -24,40 +24,18 @@ class TestColors(object):
         os.remove(self.f)
 
     def test_cmap2cpt(self):
-        """Export colormap to cpt file.
-
-        The created file is compare line by line (timestamps are ignored).
-        """
+        """Export colormap to cpt file."""
         colors.cmap2cpt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.cpt')
 
-        same = True
-
-        with open(self.f) as f1, open(ref) as f2:
-            for l1, l2 in zip(f1.readlines(), f2.readlines()):
-                if 'Created' not in l1 and l1 != l2:
-                    same = False
-                    break
-
-        assert same
+        assert filecmp.cmp(self.f, ref)
 
     def test_cmap2txt(self):
-        """Export colormap to txt file.
-
-        The created file is compare line by line (timestamps are ignored).
-        """
+        """Export colormap to txt file."""
         colors.cmap2txt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.txt')
 
-        same = True
-
-        with open(self.f) as f1, open(ref) as f2:
-            for l1, l2 in zip(f1.readlines(), f2.readlines()):
-                if 'Created' not in l1 and l1 != l2:
-                    same = False
-                    break
-
-        assert same
+        assert filecmp.cmp(self.f, ref)
 
     def test_cmap2act(self):
         """Export colormap to act file."""
