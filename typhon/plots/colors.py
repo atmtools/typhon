@@ -11,6 +11,8 @@ __all__ = ['mpl_colors',
            'cmap2txt',
            'cmap2cpt',
            'cmap2act',
+           'cmap2c3g',
+           'cmap2ggr',
            'cmap_from_act',
            ]
 
@@ -80,7 +82,7 @@ def cmap2cpt(cmap, filename=None):
     with open(filename, 'w') as f:
         f.write(header)
 
-        # For each level spefifz a ...
+        # For each level specify a ...
         for n in range(len(colors) - 1):
             # ... start color ...
             r, g, b = [int(c * 255) for c in colors[n, :3]]
@@ -104,6 +106,77 @@ def cmap2act(cmap, filename=None):
 
     colors = mpl_colors(cmap, 256)
     (colors[:, :3].flatten() * 255).astype(np.uint8).tofile(filename)
+
+
+def cmap2c3g(cmap, filename=None):
+    """Export colormap ass CSS3 gradient.
+
+    Parameters:
+        cmap (str): Colormap name.
+        filename (str): Optional filename.
+            Default: cmap + '.cpt'
+
+    """
+    if filename is None:
+        filename = cmap + '.c3g'
+
+    colors = mpl_colors(cmap, 256)
+
+    header = (
+        '/*'
+        '   CSS3 Gradient "{}"\n'
+        '*/\n\n'
+        'linear-gradient(\n'
+        '  0deg,\n'
+        ).format(cmap)
+
+    color_spec = '  rgb({:>3d},{:>3d},{:>3d}) {:>8.3%}'.format
+
+    with open(filename, 'w') as f:
+        f.write(header)
+
+        ncolors = len(colors)
+        for n in range(ncolors):
+            r, g, b = [int(c * 255) for c in colors[n, :3]]
+            f.write(color_spec(r, g, b, n / (ncolors - 1)))
+            if n < ncolors - 1:
+                f.write(',\n')
+
+        f.write('\n  );')
+
+
+def cmap2ggr(cmap, filename=None):
+    """Export colormap as GIMP gradient.
+
+    Parameters:
+        cmap (str): Colormap name.
+        filename (str): Optional filename.
+            Default: cmap + '.cpt'
+
+    """
+    if filename is None:
+        filename = cmap + '.ggr'
+
+    colors = mpl_colors(cmap, 256)
+    header = ('GIMP Gradient\n'
+              'Name: {}\n'
+              '{}\n').format(cmap, len(colors) - 1)
+
+    line = ('{:.6f} {:.6f} {:.6f} '  # start, middle, stop
+            '{:.6f} {:.6f} {:.6f} {:.6f} '  # RGBA
+            '{:.6f} {:.6f} {:.6f} {:.6f} '  # RGBA next level
+            '0 0\n').format
+
+    def idx(x):
+        return x / (len(colors) - 1)
+
+    with open(filename, 'w') as f:
+        f.write(header)
+
+        for n in range(len(colors) - 1):
+            rgb = colors[n, :]
+            rgb_next = colors[n + 1, :]
+            f.write(line(idx(n), idx(n + 0.5), idx(n + 1), *rgb, *rgb_next))
 
 
 def cmap_from_act(file, name=None):

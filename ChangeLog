@@ -2,6 +2,12 @@
 
 	* typhon/plots/colors.py:
 
+	Added functions to export colormaps as GIMP gradient and CSS3 gradient.
+
+2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
 	Do not include timestamps in cpt and txt files.
 
 	Use blanks instead of "/" in cpt files.
