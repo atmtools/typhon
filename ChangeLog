@@ -1,3 +1,9 @@
+2016-11-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
+	Pass the number of colors when creating the LinearSegmentedColormap.
+
 2016-11-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/plots/colors.py (cmap_from_act):

@@ -112,8 +112,9 @@ def cmap_from_act(file, name=None):
         ncolors = rgb[768] * 2**8 + rgb[769]
     else:
         ncolors = 256
-    cmap = LinearSegmentedColormap.from_list(
-            name, rgb[:ncolors*3].reshape(ncolors, 3) / 255)
+
+    colors = rgb[:ncolors*3].reshape(ncolors, 3) / 255
+    cmap = LinearSegmentedColormap.from_list(name, colors, N=ncolors)
 
     plt.register_cmap(cmap=cmap)  # Register colormap.
 
