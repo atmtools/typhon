@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
+from warnings import warn
 
 __all__ = ['mpl_colors',
            'cmap2txt',
@@ -41,7 +42,7 @@ def mpl_colors(cmap=None, n=10):
     return plt.get_cmap(cmap)(np.linspace(0, 1, n))
 
 
-def cmap2txt(cmap, filename=None, comments='%'):
+def cmap2txt(cmap, filename=None, N=256, comments='%'):
     """Export colormap to txt file.
 
     Parameters:
@@ -49,9 +50,10 @@ def cmap2txt(cmap, filename=None, comments='%'):
         filename (str): Optional filename.
             Default: cmap + '.txt'
         comments (str): Character to start comments with.
+        N (int): Number of colors.
 
     """
-    colors = mpl_colors(cmap, 256)
+    colors = mpl_colors(cmap, N)
     header = 'Colormap "{}"'.format(cmap)
 
     if filename is None:
@@ -60,16 +62,17 @@ def cmap2txt(cmap, filename=None, comments='%'):
     np.savetxt(filename, colors[:, :3], header=header, comments=comments)
 
 
-def cmap2cpt(cmap, filename=None):
+def cmap2cpt(cmap, filename=None, N=256):
     """Export colormap to cpt file.
 
     Parameters:
         cmap (str): Colormap name.
         filename (str): Optional filename.
             Default: cmap + '.cpt'
+        N (int): Number of colors.
 
     """
-    colors = mpl_colors(cmap, 256)
+    colors = mpl_colors(cmap, N)
     header = ('# GMT palette "{}"\n'
               '# COLOR_MODEL = RGB\n'.format(cmap))
 
@@ -83,44 +86,54 @@ def cmap2cpt(cmap, filename=None):
         f.write(header)
 
         # For each level specify a ...
-        for n in range(len(colors) - 1):
+        for n in range(len(colors)):
+            rgb = [int(c * 255) for c in colors[n, :3]]
             # ... start color ...
-            r, g, b = [int(c * 255) for c in colors[n, :3]]
-            f.write(left(n, r, g, b))
+            f.write(left(n, *rgb))
             # ... and end color.
-            r, g, b = [int(c * 255) for c in colors[n + 1, :3]]
-            f.write(right(n + 1, r, g, b))
+            f.write(right(n + 1, *rgb))
 
 
-def cmap2act(cmap, filename=None):
+def cmap2act(cmap, filename=None, N=255):
     """Export colormap to Adobe Color Table file.
 
     Parameters:
         cmap (str): Colormap name.
         filename (str): Optional filename.
             Default: cmap + '.cpt'
+        N (int): Number of colors.
 
     """
     if filename is None:
         filename = cmap + '.act'
 
-    colors = mpl_colors(cmap, 256)
-    (colors[:, :3].flatten() * 255).astype(np.uint8).tofile(filename)
+    if N > 256:
+        N = 256
+        warn('Maximum number of colors is 256.')
+
+    colors = mpl_colors(cmap, N)[:, :3]
+
+    rgb = np.zeros(256 * 3 + 2)
+    rgb[:colors.size] = (colors.flatten() * 255).astype(np.uint8)
+    rgb[768:770] = np.uint8(N // 2**8), np.uint8(N % 2**8)
+
+    rgb.astype(np.uint8).tofile(filename)
 
 
-def cmap2c3g(cmap, filename=None):
+def cmap2c3g(cmap, filename=None, N=256):
     """Export colormap ass CSS3 gradient.
 
     Parameters:
         cmap (str): Colormap name.
         filename (str): Optional filename.
             Default: cmap + '.cpt'
+        N (int): Number of colors.
 
     """
     if filename is None:
         filename = cmap + '.c3g'
 
-    colors = mpl_colors(cmap, 256)
+    colors = mpl_colors(cmap, N)
 
     header = (
         '/*'
@@ -145,19 +158,20 @@ def cmap2c3g(cmap, filename=None):
         f.write('\n  );')
 
 
-def cmap2ggr(cmap, filename=None):
+def cmap2ggr(cmap, filename=None, N=256):
     """Export colormap as GIMP gradient.
 
     Parameters:
         cmap (str): Colormap name.
         filename (str): Optional filename.
             Default: cmap + '.cpt'
+        N (int): Number of colors.
 
     """
     if filename is None:
         filename = cmap + '.ggr'
 
-    colors = mpl_colors(cmap, 256)
+    colors = mpl_colors(cmap, N)
     header = ('GIMP Gradient\n'
               'Name: {}\n'
               '{}\n').format(cmap, len(colors) - 1)
