@@ -1,6 +1,14 @@
 2016-11-03  Lukas Kluft  <lukas.kluft@gmail.com>
 
-	typhon/plots/colors.py:
+	* typhon/plots/cm/_cm.py:
+
+	Adjust the very bright yellow in qualitative2 to be more saturated.
+
+	* doc/pyplots/plot_qualitative1.py: Do not show interpolated colors.
+
+2016-11-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
 
 	It is now possible to pass a number of colors for all colormap export
 	functions.
@@ -9,7 +17,7 @@
 
 	Include number of colors in Adobe Color Tables.
 
-	typhon/plots/tests/reference/viridis.act,
+	* typhon/plots/tests/reference/viridis.act,
 	typhon/plots/tests/reference/viridis.cpt:
 
 	Updated reference files.
