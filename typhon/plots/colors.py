@@ -236,7 +236,7 @@ def cmap_from_txt(file, name=None, comments='%'):
     Values have to be given in [0, 1] range.
 
     Parameters:
-        file (str): Path to act file.
+        file (str): Path to txt file.
         name (str): Colormap name. Defaults to filename without extension.
 
     Returns:

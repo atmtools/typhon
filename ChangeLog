@@ -1,5 +1,9 @@
 2016-11-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/plots/colors.py: Fixed docstring.
+
+2016-11-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/plots/colors.py:
 
 	Set default value for Adobe Color Table export to 256 colors.
