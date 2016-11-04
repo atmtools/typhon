@@ -95,7 +95,7 @@ def cmap2cpt(cmap, filename=None, N=256):
             f.write(right(n + 1, *rgb))
 
 
-def cmap2act(cmap, filename=None, N=255):
+def cmap2act(cmap, filename=None, N=256):
     """Export colormap to Adobe Color Table file.
 
     Parameters:

@@ -2,6 +2,20 @@
 
 	* typhon/plots/colors.py:
 
+	Set default value for Adobe Color Table export to 256 colors.
+
+	* typhon/plots/tests/reference/viridis.act:
+
+	Updated reference file to 256 colors.
+
+	* typhon/plots/tests/test_colors.py:
+
+	Added tests for Adobe Color Table and ASCII import of colormaps.
+
+2016-11-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
 	Added a function to import colormaps from txt files.
 
 	cmap_from_txt() and cmap_from_act() also register the reversed colormap.
