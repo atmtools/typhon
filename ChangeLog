@@ -1,3 +1,15 @@
+2016-11-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py (cmap_from_txt):
+
+	Added keyword to specify the number of colors in the created colormap.
+
+	Fixed documentation.
+
+	* doc/plots.rst:
+
+	Removed typhon.plots.colors from autodoc to prevent duplicates.
+
 2016-11-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/colors.py: Fixed docstring.

@@ -50,8 +50,8 @@ def cmap2txt(cmap, filename=None, N=256, comments='%'):
         cmap (str): Colormap name.
         filename (str): Optional filename.
             Default: cmap + '.txt'
-        comments (str): Character to start comments with.
         N (int): Number of colors.
+        comments (str): Character to start comments with.
 
     """
     colors = mpl_colors(cmap, N)
@@ -229,7 +229,7 @@ def cmap_from_act(file, name=None):
     return cmap
 
 
-def cmap_from_txt(file, name=None, comments='%'):
+def cmap_from_txt(file, name=None, N=-1, comments='%'):
     """Import colormap from txt file.
 
     Reads colormap data (RGB/RGBA) from an ASCII file.
@@ -238,6 +238,9 @@ def cmap_from_txt(file, name=None, comments='%'):
     Parameters:
         file (str): Path to txt file.
         name (str): Colormap name. Defaults to filename without extension.
+        N (int): Number of colors.
+            ``-1`` means all colors (i.e., the complete file).
+        comments (str): Character to start comments with.
 
     Returns:
         LinearSegmentedColormap.
@@ -248,18 +251,19 @@ def cmap_from_txt(file, name=None, comments='%'):
 
     # Read binary file and determine number of colors
     rgb = np.genfromtxt(file, comments=comments)
-    ncolors = np.shape(rgb)[0]
+    if N == -1:
+        N = np.shape(rgb)[0]
 
     if np.min(rgb) < 0 or np.max(rgb) > 1:
         raise Exception('RGB value out of range: [0, 1].')
 
     # Create and register colormap...
-    cmap = LinearSegmentedColormap.from_list(name, rgb, N=ncolors)
+    cmap = LinearSegmentedColormap.from_list(name, rgb, N=N)
     plt.register_cmap(cmap=cmap)
 
     # ... and the reversed colormap.
     cmap_r = LinearSegmentedColormap.from_list(
-            name + '_r', np.flipud(rgb), N=ncolors)
+            name + '_r', np.flipud(rgb), N=N)
     plt.register_cmap(cmap=cmap_r)
 
     return cmap
