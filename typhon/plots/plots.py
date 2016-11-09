@@ -85,23 +85,44 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
             The bin specification:
 
             - If int, the number of bins for the two dimensions
-            (nx=ny=bins).
+              (nx=ny=bins).
 
             - If [int, int], the number of bins in each dimension
-            (nx, ny = bins).
+              (nx, ny = bins).
 
             - If array_like, the bin edges for the two dimensions
-            (x_edges=y_edges=bins).
+              (x_edges=y_edges=bins).
 
             - If [array, array], the bin edges in each dimension
-            (x_edges, y_edges = bins).
+              (x_edges, y_edges = bins).
 
             The default value is 20.
+
         bisectrix (bool): Toggle drawing of the bisectrix.
         ax (AxesSubplot, optional): Axes to plot in.
-        **kwargs: Additional keyword arguments passed to :func:`plt.hist2d`.
+        **kwargs: Additional keyword arguments passed to
+            :func:`matplotlib.pyplot.hist2d`.
 
-    Returns: AxesImage.
+    Returns:
+        AxesImage.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon.plots import heatmap
+
+
+        x = np.random.randn(500)
+        y = x + np.random.randn(x.size)
+
+        fig, ax = plt.subplots()
+        heatmap(x, y, ax=ax)
+
+        plt.show()
 
     """
     if ax is None:

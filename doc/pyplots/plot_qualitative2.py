@@ -11,7 +11,6 @@ from typhon.plots import (figsize, mpl_colors)
 
 fig, ax = plt.subplots(figsize=figsize(10))
 ax.set_prop_cycle(color=mpl_colors('qualitative2', 7))
-np.random.seed(1234)
 for c in np.arange(7):
     X = np.random.randn(100)/2
     Y = np.random.randn(100)/2

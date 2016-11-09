@@ -1,3 +1,23 @@
+2016-11-09  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/conf.py:
+
+	Include sphinx.ext.intersphinx to reference Python, SciPy and matplotlib
+	documentation.
+
+	Set a default plot preamble. Currently only seeding numpy's random number
+	generator to make plots in documentation not so random ;)
+
+	* doc/pyplots/plot_qualitative2.py: Remove np.random.seed().
+
+	* typhon/plots/cm/_cm.py:
+
+	Adjust the bright yellow in qualitative1 to the one used in qualitative2.
+
+	* typhon/plots/plots.py:
+
+	Fixed heatmap() documentation. Also included a small example.
+
 2016-11-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/colors.py (cmap_from_txt):
