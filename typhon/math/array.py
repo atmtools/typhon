@@ -3,7 +3,7 @@
 """
 
 import numpy
-
+import scipy.stats
 
 def localmin(arr):
     """Find local minima for 1-D array
@@ -108,3 +108,64 @@ def parity(v):
         parity[v != 0] += 1
         v &= (v - 1)
     return parity
+
+
+def mad_outliers(arr, cutoff=10, mad0="raise"):
+    """Mask out mad outliers
+
+    Mask out any values that are more than N times the median absolute
+    devitation from the median.
+
+    Although I (Gerrit Holl) came up with this myself, it's also
+    documented at:
+
+    http://eurekastatistics.com/using-the-median-absolute-deviation-to-find-outliers/
+
+    except that I rolled by own approach for "what if mad==0".
+
+    Note: If all values except one are constant, it is not possible to
+    determine whether the remaining one is an outlier or “reasonably
+    close” to the rest, without additional hints.  In this case, some
+    outliers may go unnoticed.
+
+    Arguments:
+
+        arr (numpy.ndarray): n-D array with numeric dtype
+
+        cutoff (int): Maximum tolerable normalised fractional distance
+
+        mad0 (str): What to do if mad=0.  Can be 'raise', 'ignore', or
+            'perc'.  In case of 'perc', will search for the lowest
+            percentile at which the percentile absolute deviation is
+            nonzero, increase the cutoff by the fractional approach toward
+            percentile 100, and use that percentile instead.  So if the
+            first non-zero is at percentile 75%, it will use the
+            75th-percntile-absolute-deviation and increase the cutoff by
+            a factor (100 - 50)/(100 - 75).
+
+    Returns:
+
+        ndarray with bool dtype, True for outliers
+    """
+
+    if arr.ptp() == 0:
+        return numpy.zeros(shape=arr.shape, dtype="?")
+
+    ad = abs(arr - numpy.ma.median(arr))
+    mad = numpy.ma.median(ad)
+    if mad == 0:
+        if mad0 == "raise":
+            raise ValueError("Cannot filter outliers, MAD=0")
+        elif mad0 == "perc":
+            # try other percentiles
+            perc = numpy.r_[
+                numpy.arange(50, 99, 1),
+                numpy.linspace(99, 100, 100)]
+            pad = scipy.stats.scoreatpercentile(ad, perc)
+            if (pad==0).all(): # all constant…?
+                raise ValueError("These data are weird!")
+            p_i = pad.nonzero()[0][0]
+            cutoff *= (100 - 50) / (100 - perc[p_i])
+            return (ad / pad[p_i]) > cutoff
+    else:
+        return (ad / mad) > cutoff

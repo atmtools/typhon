@@ -33,7 +33,7 @@ from . import dataset
 from ..utils import (metaclass, safe_eval)
  
 # from .. import physics
-# from .. import math as pamath
+from .. import math as tpmath
 from ..physics.units import ureg
 from ..physics.units import radiance_units as rad_u
 from ..physics.units import em
@@ -132,7 +132,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
       Mittaz, personal communication).
     """
 
-    name = "hirs"
+    name = section = "hirs"
     format_definition_file = ""
     n_channels = 20
     n_calibchannels = 19
@@ -601,6 +601,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         Source related to HIRS/2 and HIRS/2I, but should be the same for
         HIRS/3 and HIRS/4.  Would be good to confirm this.
 
+        Also flag outliers.
+
         Source: NOAA Polar Satellite Calibration: A System Description.
             NOAA Technical Report, NESDIS 77
 
@@ -616,19 +618,23 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         if counts.ndim == 3:
             tmp = (counts[:, :, :, numpy.newaxis].astype("double") **
                     numpy.arange(1, N)[numpy.newaxis, numpy.newaxis, numpy.newaxis, :])
-            return (fact[:, 0:1] +
+            M = (fact[:, 0:1] +
                         (fact[:, numpy.newaxis, 1:] * tmp).sum(3))
         elif counts.ndim == 2:
             tmp = (counts[..., numpy.newaxis].astype("double") **
                    numpy.arange(1, N).reshape((1,)*counts.ndim + (N-1,))) 
-            return fact[0:1] + (fact[numpy.newaxis, numpy.newaxis, 1:] * tmp).sum(-1)
+            M = fact[0:1] + (fact[numpy.newaxis, numpy.newaxis, 1:] * tmp).sum(-1)
         elif counts.ndim == 1:
             fact = fact.squeeze()
-            return (fact[0] + 
+            M = (fact[0] + 
                     (fact[numpy.newaxis, 1:] * (counts[:, numpy.newaxis].astype("double")
                         ** numpy.arange(1, N)[numpy.newaxis, :])).sum(1))
         else:
             raise NotImplementedError("ndim = {:d}".format(counts.ndim))
+
+        M = numpy.ma.asarray(M)
+        M.mask |= tpmath.array.mad_outliers(M, mad0="perc")
+        return M
 
     @abc.abstractmethod
     def get_wn_c1_c2(self, header):
@@ -849,121 +855,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer,
         return lsc
 
 
-    def extract_calibcounts_and_temp(self, M, srf, ch):
-        """Calculate calibration counts and IWCT temperature
+    # extract_calibcounts_and_temp: relocated to HIRSFCDR
 
-        In the IR, space view temperature can be safely estimated as 0
-        (radiance at 3K is around 10^200 times less than at 300K)
-
-        Arguments:
-
-            M
-
-                ndarray such as returned by self.read, corresponding to
-                scanlines
-
-            srf [typhon.physics.em.SRF]
-
-                SRF object used to estimate IWCT
-
-            ch
-
-                Channel for which counts shall be returned and IWCT
-                temperature shall be calculated.
-        
-        Returns:
-        
-            time
-            
-                time corresponding to remaining arrays
-            
-            L_iwct
-
-                radiance corresponding to IWCT views.  Calculated by
-                assuming ε=1 (blackbody), an arithmetic mean of all
-                temperature sensors on the IWCT, and the SRF passed to the
-                method.
-            
-            counts_iwct
-            
-                counts corresponding to IWCT views
-                
-            counts_space
-            
-                counts corresponding to space views
-        """
-        views_space = M[self.scantype_fieldname] == self.typ_space
-        views_iwct = M[self.scantype_fieldname] == self.typ_iwt
-
-        # select instances where I have both in succession.  Should be
-        # always, unless one of the two is missing or the start or end of
-        # series is in the middle of a calibration.  Take this from
-        # self.dist_space_iwct because for HIRS/2 and HIRS/2I, there is a
-        # views_icct in-between.
-        dsi = self.dist_space_iwct
-        space_followed_by_iwct = (views_space[:-dsi] & views_iwct[dsi:])
-        #M15[1:][views_space[:-1]]["hrs_scntyp"]
-
-        M_space = M[:-dsi][space_followed_by_iwct]
-        M_iwct = M[dsi:][space_followed_by_iwct]
-
-        counts_space = ureg.Quantity(M_space["counts"][:, 8:, ch-1],
-                                     ureg.count)
-        counts_iwct = ureg.Quantity(M_iwct["counts"][:, 8:, ch-1],
-                                    ureg.count)
-
-        T_iwct = ureg.Quantity(
-            M_space["temp_iwt"].mean(-1).mean(-1).astype("f4"), ureg.K)
-
-        L_iwct = srf.blackbody_radiance(T_iwct)
-        L_iwct = ureg.Quantity(L_iwct.astype("f4"), L_iwct.u)
-
-        return (M_space["time"], L_iwct, counts_iwct, counts_space)
-
-
-    def calculate_offset_and_slope(self, M, srf, ch):
-        """Calculate offset and slope.
-
-        Arguments:
-
-            M [ndarray]
-            
-                ndarray with dtype such as returned by self.read.  Must
-                contain enough fields.
-
-            srf [typhon.physics.em.SRF]
-
-                SRF used to estimate slope.  Needs to implement the
-                `blackbody_radiance` method such as `typhon.physics.em.SRF`
-                does.
-
-            ch [int]
-
-                Channel that the SRF relates to.
-
-            tuple with:
-
-            time [ndarray] corresponding to offset and slope
-
-            offset [ndarray] offset calculated at each calibration cycle
-
-            slope [ndarray] slope calculated at each calibration cycle
-
-        """
-
-        (time, L_iwct, counts_iwct, counts_space) = self.extract_calibcounts_and_temp(M, srf, ch)
-        L_space = ureg.Quantity(numpy.zeros_like(L_iwct), L_iwct.u)
-
-        slope = (
-            (L_iwct - L_space)[:, numpy.newaxis] /
-            (counts_iwct - counts_space))
-
-        offset = -slope * counts_space
-
-        return (time,
-                offset,
-                slope)
-
+    # calculate_offset_and_slope: relotade to HIRSFCDR
                 
 
 class HIRSPOD(HIRS):
@@ -1650,7 +1544,7 @@ class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
     'tmpdirb' are set in [main].
     """
 
-    name = "iasi"
+    name = section = "iasi"
     start_date = datetime.datetime(2007, 5,  29, 5, 8, 56)
     end_date = datetime.datetime(2015, 11, 17, 16, 38, 59)
     granule_duration = datetime.timedelta(seconds=6200)
@@ -1747,7 +1641,7 @@ class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
             return M
 
 class IASISub(dataset.HomemadeDataset, dataset.HyperSpectral):
-    name = "iasisub"
+    name = section = "iasisub"
     subdir = "{month}"
     stored_name = "IASI_1C_selection_{year}_{month}_{day}.npz"
     re = r"IASI_1C_selection_(?P<year>\d{4})_(?P<month>\d{1,2})_(?P<day>\d{1,2}).npz"
@@ -1772,7 +1666,7 @@ class IASISub(dataset.HomemadeDataset, dataset.HyperSpectral):
 class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectral):
     """"HIRS-IASI collocations
     """
-    name = "hiasi"
+    name = section = "hiasi"
     subdir = "{year:04d}/{month:02d}"
     re = (r"W_XX-EUMETSAT-Darmstadt,SATCAL\+COLLOC\+LEOLEOIR,"
           r"opa\+HIRS\+M02\+IASI_C_EUMS_(?P<year>\d{4})(?P<month>\d{2})"
@@ -1816,13 +1710,13 @@ class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
 
     A.k.a. MMD05
     """
-    name = "hirshirs"
+    name = section = "hirshirs"
     subdir = "hirs_{prim:s}_{sec:s}"
     re = (r"mmd05_hirs-(?P<prim>.{2,3})_hirs-(?P<sec>.{2,3})_"
           r"(?P<year>\d{4})-(?P<doy>\d{3})_(?P<year_end>\d{4})-"
           r"(?P<doy_end>\d{3})\.nc")
-    start_date = datetime.datetime(2013, 1, 1)
-    end_date = datetime.datetime(2014, 1, 1)
+    start_date = HIRS2.start_date
+    end_date = HIRS4.end_date
   #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
 
 
@@ -1837,15 +1731,20 @@ class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
 
         MM = numpy.zeros(shape=M.shape,
                          dtype=M.dtype.descr +
-                         [("time", "M8[s]", timefields[0][2]
-                            if len(timefields[0])>2 else ())])
+                         [("alltime", "M8[s]", timefields[0][2]
+                            if len(timefields[0])>2 else ()),
+                          ("time", "M8[s]")])
 
-        MM["time"] = (M[timefields[0][0]]*.5+M[timefields[1][0]]*.5).astype("M8[s]")
+        MM["alltime"] = (M[timefields[0][0]]*.5+M[timefields[1][0]]*.5).astype("M8[s]")
+        MM["time"] = MM["alltime"][:, int(MM["alltime"].shape[1]//2+1),
+                                      int(MM["alltime"].shape[2]//2+1)]
+        for fld in M.dtype.fields:
+            MM[fld][...] = M[fld][...]
         return MM
 
 
 class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
-    name = "mhs_l1c"
+    name = section = "mhs_l1c"
     subdir = "{satname:s}_mhs_{year:04d}/{month:02d}/{day:02d}"
     re = (r"(\d*\.)?NSS.MHSX.(?P<satcode>.{2})\.D(?P<year>\d{2})"
           r"(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E"

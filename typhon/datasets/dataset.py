@@ -119,10 +119,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     start_date = None
     end_date = None
     name = ""
+    section = ""
     aliases = {}
     unique_fields = {"time", "lat", "lon"}
     related = {}
     maxsize = 10000*MiB
+    my_pseudo_fields = None
 
     # Make singleton: there is no point in having multiple copies of a
     # dataset-object around when both relate to the same dataset and
@@ -161,6 +163,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         for (k, v) in kwargs.items():
             setattr(self, k, v)
         self.setlocal()
+        if self.my_pseudo_fields is None:
+            self.my_pseudo_fields = {}
 
     def __setattr__(self, k, v):
         if hasattr(self, k) or hasattr(type(self), k):
@@ -172,10 +176,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         """Set local attributes, from config or otherwise.
 
         """
-        if self.name in config.conf:
-            for k in config.conf[self.name]:
-                setattr(self, k, config.conf[self.name][k])
-
+        if self.section in config.conf:
+            for k in config.conf[self.section]:
+                setattr(self, k, config.conf[self.section][k])
 
     @abc.abstractmethod
     def find_granules(self, start=datetime.datetime.min,
@@ -458,7 +461,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     # Cannot use functools.lru_cache because it cannot handle mutable
     # results or arguments
     @utils.cache.mutable_cache(maxsize=10)
-    def read(self, f=None, pseudo_fields=None, **kwargs):
+    def read(self, f=None, fields="all", pseudo_fields=None, **kwargs):
         """Read granule in file and do some other fixes
 
         Shall return an ndarray with at least the fields lat, lon, time.
@@ -489,6 +492,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             f = str(f)
         if pseudo_fields is None:
             pseudo_fields = {}
+        for (k, v) in self.my_pseudo_fields.items():
+            if fields=="all" or k in fields and k not in pseudo_fields:
+                pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
         M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)
         D = {}
@@ -505,7 +511,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         return M
 
     def __str__(self):
-        return "Dataset:" + self.name
+        return "<{self.__class__.__name__:s}:{self.name:s}>".format(self=self)
 
 #   Leave disk-memoisation out of typhon until dependency on joblib has
 #   been decided.
@@ -807,8 +813,18 @@ class MultiFileDataset(Dataset):
     def verify_mandatory_fields(self, extra):
         mandatory = self.get_mandatory_fields()
         found = set(extra.keys())
+        missing = set()
         if not mandatory <= found:
             missing = mandatory - found
+            # I'm deleting elements so I must loop over a copy
+            for elem in missing.copy():
+                try:
+                    extra[elem] = getattr(self, elem)
+                except AttributeError:
+                    pass
+                else:
+                    missing.remove(elem)
+        if missing:
             raise GranuleLocatorError("Missing fields needed to search for "
                 "{self.name:s} files.  Need: {mandatory:s}. "
                 "Found: {found:s}.  Missing: {missing:s}".format(

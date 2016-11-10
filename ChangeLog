@@ -1,3 +1,47 @@
+2016-11-10  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/array.py(mad_outliers):
+
+	- Implement outlier detection based on number of MADS from median,
+	with a percentile-based mechanism if MAD=0
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset): Add attributes 'section' and 'my_pseudo_fields'.  Section
+	replaces name for looking up in .pyatmlabrc.  my_pseudo_fields is used
+	to define object-wide on-the-fly-calculated fields.
+
+	(Dataset.read): Add ability to have my_pseudo_fields attribute on
+	dataset object.  This works like pseudo_fields the fields are passed
+	as normal fields, but in reality calculated on-the-fly.
+
+	(Dataset.verify_mandatory_fields): No need any more to pass on fields
+	if those are already set as attributes.  For example, one can create a
+	noaa12-specific HIRS2-object and will not need to pass satname to
+	individual methods.
+
+	* typhon/datasets/tovs.py:
+
+	(HIRS) (IASIEPS) (IASISub) (HIRSHIRS) (MHS_L1C): Seperate attribute
+	`section` from `name`.  This allows to create different HIRS objects
+	corresponding to different satellites.
+
+	(HIRS._convert_temp): Flag outlier temperatures using
+	typhon.math.array.mad_outliers.
+
+	(HIRS.extract_calibcount_and_temp) (HIRS.calculate_offset_and_slope):
+	Move methods to a subclass at
+	https://github.com/FIDUCEO/FCDR_HIRS/blob/master/FCDR_HIRS/fcdr.py as
+	this is only relevant for the FIDUCEO FCDR creation.
+
+	(HIRSHIRS):
+
+	- Fix start_date and end_date
+
+	(HIRSHIRS._read):
+
+	- Add a time-field that has only one value per collocation
+
 2016-11-09  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/conf.py:
