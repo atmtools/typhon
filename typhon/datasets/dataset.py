@@ -427,8 +427,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     N += cont.size
 #                contents.append(
 #                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
-                    if N > 0:
-                        anygood = True
+                if N > 0:
+                    anygood = True
             if dobar:
                 bar.update(max((g_start-start) / (end-start),0))
         if dobar:

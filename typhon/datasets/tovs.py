@@ -57,9 +57,7 @@ class ATOVS:
                 (scanlines[prefix + "scnlindy"]-1).astype("m8[D]") +
                  scanlines[prefix + "scnlintime"].astype("m8[ms]"))
 
-
-class HIRS(dataset.MultiSatelliteDataset, Radiometer,
-           dataset.MultiFileDataset):
+class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     """High-resolution Infra-Red Sounder.
 
     This class can read HIRS l1b as published in the NOAA CLASS archive.
@@ -1126,8 +1124,16 @@ class HIRS2(HIRSPOD):
     """
     # NOAA-6 and TIROS-N currently not supported due to duplicate ids.  To
     # fix this, would need to improve HIRSPOD.id2no.
-    satellites = {"tirosn", "noaa06", "noaa07", "noaa08", "noaa09", "noaa10",
-                  "noaa11", "noaa12", "noaa14"}
+    satellites = {"tirosn": {"TIROSN", "TN", "tn"},
+                  "noaa06": {"NOAA06", "NOAA6", "N06", "n06", "N6", "n6"},
+                  "noaa07": {"NOAA07", "NOAA7", "N07", "n07", "N7", "n7"},
+                  "noaa08": {"NOAA08", "NOAA8", "N08", "n08", "N8", "n8"},
+                  "noaa09": {"NOAA09", "NOAA9", "N09", "n09", "N9", "n9"},
+                  "noaa10": {"NOAA10", "noaa10", "N10", "n10"},
+                  "noaa11": {"NOAA11", "noaa11", "N11", "n11"},
+                  "noaa12": {"NOAA12", "noaa12", "N12", "n12"},
+                  "noaa13": {"NOAA13", "noaa13", "N13", "n13"},
+                  "noaa14": {"NOAA14", "noaa14", "N14", "n14"}}
     version = 2
 
     channel_order = numpy.asarray(_tovs_defs.HIRS_channel_order[2])
@@ -1479,7 +1485,9 @@ class HIRS3(HIRSKLM):
     pdf_definition_pages = (26, 37)
     version = 3
 
-    satellites = {"noaa15", "noaa16", "noaa17"}
+    satellites = {"noaa15": {"NOAA15", "noaa15", "N15", "n15"},
+                  "noaa16": {"NOAA16", "noaa16", "N16", "n16"},
+                  "noaa17": {"NOAA17", "noaa17", "N17", "n17"}}
 
     header_dtype = _tovs_defs.HIRS_header_dtypes[3]
     line_dtype = _tovs_defs.HIRS_line_dtypes[3]
@@ -1491,7 +1499,10 @@ class HIRS3(HIRSKLM):
 
 # docstring in parent
 class HIRS4(HIRSKLM):
-    satellites = {"noaa18", "noaa19", "metopa", "metopb"}
+    satellites = {"noaa18": {"NOAA18", "noaa18", "N18", "n18"},
+                  "noaa19": {"NOAA19", "noaa19", "N19", "n19"},
+                  "metopa": {"METOPA", "metopa", "MA", "ma"},
+                  "metopb": {"METOPB", "metopb", "MB", "mb"}}
     pdf_definition_pages = (38, 54)
     version = 4
 
@@ -1784,12 +1795,13 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
             MM[f][...] = M[f][...]
         return MM
 
-def which_hirs_fcdr(satname):
-    """Given a satellite, return right HIRS object
-    """
-    for h in {HIRS2FCDR, HIRS3FCDR, HIRS4FCDR}:
-        if satname in h.satellites:
-            return h()
-            break
-    else:
-        raise ValueError("Unknown HIRS satellite: {:s}".format(satname))
+# Now in FCDR_HIRS.fcdr
+#def which_hirs_fcdr(satname):
+#    """Given a satellite, return right HIRS object
+#    """
+#    for h in {HIRS2FCDR, HIRS3FCDR, HIRS4FCDR}:
+#        for (k, v) in h.satellites:
+#            if satname in {k}|v:
+#                return h()
+#    else:
+#        raise ValueError("Unknown HIRS satellite: {:s}".format(satname))

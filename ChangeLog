@@ -1,5 +1,24 @@
 2016-11-10  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/tovs.py:
+	
+	(HIRS):
+
+	Make `satellites` attribute into a dictionary, to list all accepted
+	forms for a particular satellite (NOAA08, noaa08, noaa8, n08, etc.).
+	
+	(which_hirs_fcdr):
+
+	Relocate this function to FCDR_HIRS package.  It never even worked
+	here!  See
+	https://github.com/FIDUCEO/FCDR_HIRS/blob/master/FCDR_HIRS/fcdr.py
+
+	* typhon/datasets/dataset.py(Dataset.read_period):
+
+	Fix bug handling pseudo_fields for empty granules
+
+2016-11-10  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/math/array.py(mad_outliers):
 
 	- Implement outlier detection based on number of MADS from median,
