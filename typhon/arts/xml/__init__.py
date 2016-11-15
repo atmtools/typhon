@@ -37,14 +37,14 @@ def save(var, filename, precision='.7e', format='ascii', comment=None):
         >>> typhon.arts.xml.save(x, 'myvector.xml')
 
     """
-    if filename[:-3] == '.gz':
+    if filename.endswith('.gz'):
         if format != 'ascii':
             raise RuntimeError(
                 'For zipped files, the output format must be "ascii"')
         xmlopen = gzip.open
     else:
         xmlopen = open
-    with xmlopen(filename, mode='w', encoding='UTF-8') as fp:
+    with xmlopen(filename, mode='wt', encoding='UTF-8') as fp:
         if format == 'binary':
             with open(filename + '.bin', mode='wb') as binaryfp:
                 axw = write.ARTSXMLWriter(fp, precision=precision,
@@ -82,7 +82,7 @@ def load(filename):
                [ 2.,  3.]])
 
     """
-    if filename[-3:] == '.gz':
+    if filename.endswith('.gz'):
         xmlopen = gzip.open
     else:
         xmlopen = open
