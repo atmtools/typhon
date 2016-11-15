@@ -1,5 +1,18 @@
 2015-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/math/common.py:
+
+	(promote_maximally): Promote ndarrays to their maximal precision, i.e.
+	ints to i8, floats to f8, etc.  Works for int, float, uint.  Designed
+	to be used with calculate_precisely.
+
+	(calculate_precisely): Wrapper to promote all ndarray arguments of a
+	function to their maximal precision.  Useful when you are losing
+	precision in your mathematical calculations and there is no
+	straightforward way of preventing this by rewriting the algorithm.
+
+2015-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/dataset.py(Dataset.read): Support either single- or
 	double-argument pseudofield function
 
