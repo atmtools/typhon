@@ -164,7 +164,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             setattr(self, k, v)
         self.setlocal()
         if self.my_pseudo_fields is None:
-            self.my_pseudo_fields = {}
+            self.my_pseudo_fields = collections.OrderedDict()
 
     def __setattr__(self, k, v):
         if hasattr(self, k) or hasattr(type(self), k):
@@ -491,15 +491,21 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if isinstance(f, pathlib.PurePath):
             f = str(f)
         if pseudo_fields is None:
-            pseudo_fields = {}
+            pseudo_fields = collections.OrderedDict()
         for (k, v) in self.my_pseudo_fields.items():
             if fields=="all" or k in fields and k not in pseudo_fields:
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
         M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)
-        D = {}
+        D = collections.OrderedDict()
         for (k, fnc) in pseudo_fields.items():
-            D[k] = fnc(M)
+            try:
+                D[k] = fnc(M, D)
+            except TypeError as exc:
+                if "positional argument" in exc.args[0]:
+                    D[k] = fnc(M)
+                else:
+                    raise
         if D != {}:
             newM = numpy.ma.zeros(shape=M.shape,
                 dtype=M.dtype.descr + [(k, v.dtype, v.shape[1:]) for (k,v) in D.items()])

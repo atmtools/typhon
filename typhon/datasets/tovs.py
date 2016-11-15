@@ -1674,7 +1674,34 @@ class IASISub(dataset.HomemadeDataset, dataset.HyperSpectral):
         end = datetime.datetime(year, month, day, 23, 59, 59)
         return (start, end)
 
-class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectral):
+class TOVSCollocatedDataset:
+    """Mixin for any TOVS collocated dataset.  Different because of scanlines.
+
+    Should be mixed in before Dataset
+    """
+
+    def combine(self, M, other_obj, *args, col_field,
+            col_field_slice=slice(None), **kwargs):
+        MM = super().combine(M, other_obj, *args, **kwargs)
+        # do something about entire scanlines being returned
+        scnlin_names = [f[0] for f in MM.dtype.descr 
+            if len(f)>2 and f[2][0]==other_obj.n_perline]
+        # strip out scanline dimension
+        new_dtp = [(f[0], f[1], tuple(i for i in f[2] if i!=other_obj.n_perline))
+                    if f[0] in scnlin_names else f for f in MM.dtype.descr]
+        idx_all = numpy.arange(M.size)
+        MM_new = numpy.ma.zeros(dtype=new_dtp, shape=MM.shape)
+        for fld in MM.dtype.names:
+            if fld in scnlin_names:
+                # see http://stackoverflow.com/a/23435869/974555
+                MM_new[fld][...] = MM[fld][idx_all, 
+                    M[col_field][col_field_slice], ...]
+            else:
+                MM_new[fld][...] = MM[fld][...]
+        return MM_new
+
+
+class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectral):
     """"HIRS-IASI collocations
     """
     name = section = "hiasi"
@@ -1699,24 +1726,11 @@ class HIASI(dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectr
         return MM
 
     def combine(self, M, other_obj, *args, **kwargs):
-        MM = super().combine(M, other_obj, *args, **kwargs)
+        MM = super().combine(M, other_obj, *args, col_field="mon_column", **kwargs)
         # do something about entire scanlines being returned
-        scnlin_names = [f[0] for f in MM.dtype.descr 
-            if len(f)>2 and f[2][0]==other_obj.n_perline]
-        # strip out scanline dimension
-        new_dtp = [(f[0], f[1], tuple(i for i in f[2] if i!=other_obj.n_perline))
-                    if f[0] in scnlin_names else f for f in MM.dtype.descr]
-        idx_all = numpy.arange(M.size)
-        MM_new = numpy.ma.zeros(dtype=new_dtp, shape=MM.shape)
-        for fld in MM.dtype.names:
-            if fld in scnlin_names:
-                # see http://stackoverflow.com/a/23435869/974555
-                MM_new[fld][...] = MM[fld][idx_all, M["mon_column"], ...]
-            else:
-                MM_new[fld][...] = MM[fld][...]
-        return MM_new
+        return MM
 
-class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
+class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDataset):
     """HIRS-HIRS collocations from Brockmann Consult
 
     A.k.a. MMD05
@@ -1728,8 +1742,8 @@ class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
           r"(?P<doy_end>\d{3})\.nc")
     start_date = HIRS2.start_date
     end_date = HIRS4.end_date
-  #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
 
+  #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
 
     def _read(self, f, fields="all"):
         M = super()._read(f, fields)
@@ -1753,6 +1767,9 @@ class HIRSHIRS(dataset.NetCDFDataset, dataset.MultiFileDataset):
             MM[fld][...] = M[fld][...]
         return MM
 
+    def combine(self, M, other_obj, *args, col_field, **kwargs):
+        return super().combine(M, other_obj, *args, col_field=col_field,
+            col_field_slice=(slice(None), 3, 3), **kwargs)
 
 class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
     name = section = "mhs_l1c"
