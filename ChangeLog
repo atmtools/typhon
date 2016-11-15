@@ -1,5 +1,11 @@
 2016-11-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Test the behaviour when reading and writing zipped XML files.
+
+2016-11-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/xml/__init__.py:
 
 	Fixed check for '.gz' file ending. Exception is thrown if one attends to

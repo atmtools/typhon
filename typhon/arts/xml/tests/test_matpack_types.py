@@ -10,6 +10,7 @@ import os
 from tempfile import mkstemp
 
 import numpy as np
+from nose.tools import raises
 
 from typhon.arts import xml
 
@@ -234,6 +235,23 @@ class TestSave(object):
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
+
+    def test_save_gzip(self):
+        """Test writing/reading of gzipped files."""
+        f = self.f + '.gz'
+        ref = np.arange(10)
+
+        xml.save(ref, f)
+
+        assert np.array_equal(ref, xml.load(f))
+
+    @raises(Exception)
+    def test_save_binary_gzip(self):
+        """Check for exception when attempting to write zipped binary file."""
+        f = self.f + '.gz'
+        ref = np.arange(10)
+
+        xml.save(ref, f, format='binary')
 
     def _save_tensor(self, n):
         """Save tensor of dimension n to file, read it and compare data to
