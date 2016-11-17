@@ -104,6 +104,8 @@ def calculate_precisely(f):
     work if function has need to change values in-place.
 
     Experimental function.
+
+    See also: https://github.com/numpy/numpy/issues/593
     """
 
     # NB: this decorator supports pint but does not depend on it

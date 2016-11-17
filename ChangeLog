@@ -1,4 +1,16 @@
-2015-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
+2016-11-17  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/common.py(calculate_precisely):
+
+	- Add reference to old numpy bug that makes this necessary
+
+	* typhon/datasets/dataset.py(Dataset.read):
+
+	- Change syntax for my_pseudo_fields such that it can have
+	dependencies on other fields and pseudo_fields, which are then read as
+	well.
+
+2016-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/math/common.py:
 
@@ -11,7 +23,7 @@
 	precision in your mathematical calculations and there is no
 	straightforward way of preventing this by rewriting the algorithm.
 
-2015-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
+2016-11-15  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset.read): Support either single- or
 	double-argument pseudofield function

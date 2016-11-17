@@ -492,7 +492,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             f = str(f)
         if pseudo_fields is None:
             pseudo_fields = collections.OrderedDict()
-        for (k, v) in self.my_pseudo_fields.items():
+        # expand pseudo_fields with items from my_pseudo_fields not
+        # already there, and also process dependent fields
+        if fields != "all":
+            fields = list(fields)
+            for (k, (deps, v)) in self.my_pseudo_fields.items():
+                for d in deps:
+                    if d not in fields:
+                        fields.append(d)
+        for (k, (deps, v)) in self.my_pseudo_fields.items():
             if fields=="all" or k in fields and k not in pseudo_fields:
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
