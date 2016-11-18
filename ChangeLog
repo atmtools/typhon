@@ -1,3 +1,13 @@
+2016-11-18  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+
+	(HIRS4.get_mask_from_flags):
+
+	- treat channel-specific flags for calibration failures.  Catches some
+	but not all so doesn't solve the problem as far as FIDUCEO is
+	concerened.
+
 2016-11-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* Changes: Added a file to keep track of major changes between releases.

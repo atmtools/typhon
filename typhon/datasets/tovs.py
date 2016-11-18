@@ -1242,20 +1242,13 @@ class HIRSKLM(ATOVS, HIRS):
         cainstmode =    lq & (1<<10)
         camoon =        lq & (1<<9)
 
+        # channel-specific in subclass
+
         # earth location problems
         elbadtime =     lq & (1<<7)
         elquestime =    lq & (1<<6)
         elmargreason =  lq & (1<<5)
         elunreason =    lq & (1<<4)
-
-        # channel quality indicators
-        cq = lines["hrs_chqualflg"]
-        cqbadbb =       cq & (1<<5)
-        cqbadsv =       cq & (1<<4)
-        cqbadprt =      cq & (1<<3)
-        cqmargbb =      cq & (1<<2)
-        cqmargsv =      cq & (1<<1)
-        cqmargprt =     cq & 1
 
         # minor frame
         mf = lines["hrs_mnfrqual"]
@@ -1497,6 +1490,21 @@ class HIRS3(HIRSKLM):
     start_date = datetime.datetime(1999, 1, 1)
     end_date = datetime.datetime(2016, 12, 31) # update as appropriate
 
+    def get_mask_from_flags(self, header, lines, max_flagged=0.5):
+        lines = super().get_mask_from_flags(header, lines,
+            max_flagged=max_flagged)
+
+        # channel quality indicators
+        cq = lines["hrs_chqualflg"][:, numpy.argsort(self.channel_order)]
+        cqbadbb =       cq & (1<<5)
+        cqbadsv =       cq & (1<<4)
+        cqbadprt =      cq & (1<<3)
+        cqmargbb =      cq & (1<<2)
+        cqmargsv =      cq & (1<<1)
+        cqmargprt =     cq & 1
+
+        return lines
+
 # docstring in parent
 class HIRS4(HIRSKLM):
     satellites = {"noaa18": {"NOAA18", "noaa18", "N18", "n18"},
@@ -1543,6 +1551,26 @@ class HIRS4(HIRSKLM):
             header["hrs_h_tttcnttmp"],
             elem[:, 59, 17:22].reshape(elem.shape[0], 1, 5))
         return D
+
+    def get_mask_from_flags(self, header, lines, max_flagged=0.5):
+        lines = super().get_mask_from_flags(header, lines, max_flagged=max_flagged)
+
+        # channel quality indicators
+        cq = lines["hrs_chqualflg"][:, numpy.argsort(self.channel_order)]
+        cqfailed=       cq & (1<<5)
+        cqanom  =       cq & (1<<4)
+        cqslopehcf =    cq & (1<<3)
+        cqbbnedc =      cq & (1<<2)
+        cqspnedc =      cq & (1<<1)
+        cqnotappl =     cq & 1
+
+        #badchan = (cqnotappl!=0) | (cqspnedc!=0) | (cqbbnedc!=0)
+        badchan = (cq & 0x07) != 0
+        
+        for v in ("counts", "bt", "radiance"):
+            lines[v].mask |= badchan[:, numpy.newaxis, :]
+
+        return lines
 
 class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
     """Read IASI from EUMETSAT EPS L1C
