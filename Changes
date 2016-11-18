@@ -1,0 +1,16 @@
+Current changes
+===============
+
+- Fixed writing of zipped XML files.
+  When using typhon.arts.xml.save() appending the '.gz' extension to the
+  filename now leads to properly zipped files.
+
+- Moved typhon.cm to typhon.plots.cm.
+  It is imported automatically when performing
+
+  ```python
+  import typhon.plots
+  ```
+
+- Adjusted the yellow color in the two qualitative colormaps. They now offer
+  more contrast on white background.

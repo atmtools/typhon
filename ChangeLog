@@ -1,3 +1,7 @@
+2016-11-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* Changes: Added a file to keep track of major changes between releases.
+
 2016-11-17  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/math/common.py(calculate_precisely):
