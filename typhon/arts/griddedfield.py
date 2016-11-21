@@ -68,6 +68,13 @@ class GriddedField(object):
         self.gridnames = gridnames
         self.name = name
 
+    def __getitem__(self, index):
+        """Make the data array subscriptable directly.
+
+        ``gf[0, 1]`` is equivalent to ``gf.data[0, 1]``.
+        """
+        return self.data[index]
+
     def __eq__(self, other):
         """Test the equality of GriddedFields."""
         if isinstance(other, self.__class__):
@@ -83,6 +90,11 @@ class GriddedField(object):
         if isinstance(other, self.__class__):
             return not self.__eq__(other)
         return NotImplemented
+
+    @property
+    def shape(self):
+        """Shape of the data array."""
+        return self.data.shape
 
     @property
     def dimension(self):

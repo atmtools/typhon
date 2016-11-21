@@ -1,3 +1,18 @@
+2016-11-21  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py:
+
+	The GriddedField class now offers a ``shape`` property to directly return
+	the shape of the underlying data array.
+
+	GriddedFields are now subsriptable and return the values of the stored data
+	array.
+
+	* Changes:
+
+	Added information on GriddedField changes as they provide a significant
+	improvement in usability.
+
 2016-11-18  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py:

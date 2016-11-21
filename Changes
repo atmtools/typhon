@@ -14,3 +14,6 @@ Current changes
 
 - Adjusted the yellow color in the two qualitative colormaps. They now offer
   more contrast on white background.
+
+- The data array in a GriddedField is now directly subscriptable.
+  This makes ``gf[0, 1]`` equivalent to ``gf.data[0, 1]``.
