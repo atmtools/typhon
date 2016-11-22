@@ -1,3 +1,9 @@
+2016-11-22  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Added test cases for new shape and subscription features.
+
 2016-11-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py:

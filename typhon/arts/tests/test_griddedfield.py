@@ -26,6 +26,8 @@ def _create_tensor(n):
 
 
 class TestGriddedFieldUsage():
+    ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
+
     def test_check_init(self):
         """Test initialisation of GriddedFields."""
         for dim in np.arange(1, 8):
@@ -86,6 +88,18 @@ class TestGriddedFieldUsage():
     def _set_name_of_type(self, name_type):
         gf = griddedfield.GriddedField1()
         gf.name = name_type
+
+    def test_shape(self):
+        """Test return of data shape."""
+        gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
+
+        assert gf3.shape == gf3.data.shape == (2, 2, 2)
+
+    def test_data_subscription(self):
+        """Test direct data subscription."""
+        gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
+
+        assert gf3[0, 1, 0] == gf3.data[0, 1, 0]
 
 
 class TestGriddedFieldLoad():
