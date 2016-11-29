@@ -381,7 +381,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 if cont.size < oldsize:
                     logging.debug("Applying limitations, reducing "
                         "{:d} to {:d}".format(oldsize, cont.size))
-            except DataFileError as exc:
+            except (DataFileError, ValueError) as exc:
                 if onerror == "skip":
                     logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
@@ -496,12 +496,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         # already there, and also process dependent fields
         if fields != "all":
             fields = list(fields)
-            for (k, (deps, v)) in self.my_pseudo_fields.items():
+            for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
                 for d in deps:
                     if d not in fields:
                         fields.append(d)
-        for (k, (deps, v)) in self.my_pseudo_fields.items():
-            if fields=="all" or k in fields and k not in pseudo_fields:
+        for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
+            if (fields=="all" or 
+                    k in fields and k not in pseudo_fields) and (
+                    all(kwargs.get(condfn) == condval
+                            for (condfn, condval) in cond.items())):
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
         M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)

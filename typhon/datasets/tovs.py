@@ -139,7 +139,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     count_start = 2
     count_end = 22
     granules_firstline_file = pathlib.Path("")
-    re = r"(L?\d*\.)?NSS.HIRX.(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
+    re = r"(L?\d*\.)?NSS.HIR[XS].(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
+    satname = None
 
     # For convenience, define scan type codes.  Stores in hrs_scntyp.
     typ_Earth = 0
@@ -332,7 +333,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             return scanlines[0:0]
         return scanlines[scanlines["hrs_scnlin"] > firstline]
 
-    def update_firstline_db(self, satname, start_date=None, end_date=None,
+    def update_firstline_db(self, satname=None, start_date=None, end_date=None,
             overwrite=False):
         """Create / update the firstline database
 
@@ -343,6 +344,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         firstline is set to L+1 where L is the number of lines.
         """
         prev_head = prev_line = None
+        satname = satname or self.satname
         start_date = start_date or self.start_date
         end_date = end_date or self.end_date
         if end_date > datetime.datetime.now():
@@ -1568,7 +1570,7 @@ class HIRS4(HIRSKLM):
         badchan = (cq & 0x07) != 0
         
         for v in ("counts", "bt", "radiance"):
-            lines[v].mask |= badchan[:, numpy.newaxis, :]
+            lines[v].mask |= badchan[:, numpy.newaxis, :lines[v].shape[2]]
 
         return lines
 

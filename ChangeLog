@@ -1,3 +1,44 @@
+2016-11-29  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+
+	(HIRS):
+
+	- Fix regulary expression for HIRS.  Sometimes the second part is HIRX
+	and sometimes it is HIRS.  I don't know why, but let's make sure we
+	catch both.
+
+	- Add satname as attribute, so that users can bypass passing it every
+	time.
+
+	(HIRS.update_firstline_db):
+
+	- Make passing the satname optional, if we already pass it on object
+	creation.
+
+	(get_mask_from_flags):
+
+	- Bugfix in setting flags per channel where counts/bt/radiance do not
+	have the same dimension
+
+	* typhon/datasets/dataset.py:
+	
+	(Dataset.read_period):
+
+	- Also catch cases where reader triggers ValueError.
+
+	(Dataset.read):
+
+	- Change format of my_pseudo_fields.  Now, each value of this
+	dictionary shall be a tuple of three, rather than two, elements,
+	namely `(List[str], function, Mapping[str, Any])`.  The first element
+	indicates the dependencies; the second the function to be called to
+	calculate the pseudo_field, and the third (new) any conditions on
+	keyword arguments passed to the reading routine based upon which this
+	pseudo_field shall be called at all.  For example, for HIRS, we only
+	want to calculate my_pseudo_fields if calibrate=True because the
+	pseudo fields rely on the results of the calibration.
+
 2016-11-29  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/tests/test_geographical.py:
