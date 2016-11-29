@@ -17,4 +17,4 @@ class TestGeographical(object):
         f = np.ones(lon.shape) + np.cos(np.deg2rad(lat))[:, np.newaxis]
         mean = geographical.area_weighted_mean(lon, lat, f)
 
-        assert mean == 1.7852763105888174
+        assert np.allclose(mean, 1.7852763105888174)

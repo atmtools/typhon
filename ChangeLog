@@ -1,3 +1,10 @@
+2016-11-29  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/tests/test_geographical.py:
+
+	Removed check for floating point equality. Use np.allclose() to allow
+	some tolerance.
+
 2016-11-22  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/tests/test_griddedfield.py:
