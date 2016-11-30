@@ -17,3 +17,6 @@ Current changes
 
 - The data array in a GriddedField is now directly subscriptable.
   This makes ``gf[0, 1]`` equivalent to ``gf.data[0, 1]``.
+
+- Added a copy() method to deepcopy GriddedFields. Also copy attributes when
+  passing them to the constructor.

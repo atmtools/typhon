@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 
 import numpy as np
 from scipy import interpolate
@@ -63,9 +64,9 @@ class GriddedField(object):
 
         """
         self._dimension = return_if_arts_type(dimension, 'Index')
-        self.grids = grids
-        self.data = data
-        self.gridnames = gridnames
+        self.grids = copy.deepcopy(grids)
+        self.data = copy.copy(data)
+        self.gridnames = copy.copy(gridnames)
         self.name = name
 
     def __getitem__(self, index):
@@ -225,6 +226,10 @@ class GriddedField(object):
                             .format(tuple(g_dim), self.data.shape))
 
         return True
+
+    def copy(self):
+        """Return a deepcopy of the GriddedField."""
+        return copy.deepcopy(self)
 
     def refine_grid(self, new_grid, axis=0, **kwargs):
         """Interpolate GriddedField axis to a new grid.
@@ -387,47 +392,47 @@ class GriddedField(object):
 class GriddedField1(GriddedField):
     """GriddedField with 1 dimension."""
 
-    def __init__(self):
-        super(GriddedField1, self).__init__(1)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField1, self).__init__(1, *args, **kwargs)
 
 
 class GriddedField2(GriddedField):
     """GriddedField with 2 dimensions."""
 
-    def __init__(self):
-        super(GriddedField2, self).__init__(2)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField2, self).__init__(2, *args, **kwargs)
 
 
 class GriddedField3(GriddedField):
     """GriddedField with 3 dimensions."""
 
-    def __init__(self):
-        super(GriddedField3, self).__init__(3)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField3, self).__init__(3, *args, **kwargs)
 
 
 class GriddedField4(GriddedField):
     """GriddedField with 4 dimensions."""
 
-    def __init__(self):
-        super(GriddedField4, self).__init__(4)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField4, self).__init__(4, *args, **kwargs)
 
 
 class GriddedField5(GriddedField):
     """GriddedField with 5 dimensions."""
 
-    def __init__(self):
-        super(GriddedField5, self).__init__(5)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField5, self).__init__(5, *args, **kwargs)
 
 
 class GriddedField6(GriddedField):
     """GriddedField with 6 dimensions."""
 
-    def __init__(self):
-        super(GriddedField6, self).__init__(6)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField6, self).__init__(6, *args, **kwargs)
 
 
 class GriddedField7(GriddedField):
     """GriddedField with 7 dimensions."""
 
-    def __init__(self):
-        super(GriddedField7, self).__init__(7)
+    def __init__(self, *args, **kwargs):
+        super(GriddedField7, self).__init__(7, *args, **kwargs)

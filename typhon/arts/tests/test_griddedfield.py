@@ -150,6 +150,22 @@ class TestGriddedFieldLoad():
 
         assert a != b
 
+    def test_copy(self):
+        """Test copying of GriddedFields."""
+        a = xml.load(self.ref_dir + 'GriddedField3.xml')
+        b = a.copy()
+
+        # GriddedFields should be equal but not the same object.
+        assert a is not b and a == b
+
+    def test_deepcopy(self):
+        """Test deepcopying of GriddedField attributes."""
+        a = xml.load(self.ref_dir + 'GriddedField3.xml')
+        b = a.copy()
+
+        # Grids should not be the same object.
+        assert a.grids is not b.grids
+
 
 class TestGriddedFieldWrite():
     def setUp(self):

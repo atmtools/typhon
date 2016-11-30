@@ -1,3 +1,23 @@
+2016-11-30  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* Changes:
+
+	Added information on GriddedField.copy() and the new constructor behaviour.
+
+	* typhon/arts/griddedfield.py:
+
+	Implemented a copy() method to return a deepcopy of a GriddedField object.
+
+	Attributes passed to the constructor are now copied to prevent references
+	inside the new GriddedField object.
+
+	Higher level constructors (e.g. GriddedField3) now take all positional and
+	keyword arguments.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Added tests to check the deepcopying of GriddedFields.
+
 2016-11-29  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py:
