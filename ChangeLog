@@ -1,3 +1,16 @@
+2016-12-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/spectroscopy.py:
+
+	Module for spectroscopy related functions. Currently containing a function
+	to calculte the width (full-width at half maximum) of an absorption line.
+
+	* typhon/__init__.py: Import spectroscopy.
+
+	* doc/modules.rstm doc/spectroscopy.rst:
+
+	Added spectroscopy to documentation.
+
 2016-12-07  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/geodesy:

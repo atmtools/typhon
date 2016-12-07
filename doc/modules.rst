@@ -19,6 +19,7 @@ API Documentation
    physics
    plots
    cm
+   spectroscopy
    utils
 
 Indices and tables

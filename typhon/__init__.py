@@ -17,6 +17,7 @@ if not __TYPHON_SETUP__:
     from . import latex
     from . import math
     from . import oem
+    from . import spectroscopy
     from . import utils
 
     def _runtest():
