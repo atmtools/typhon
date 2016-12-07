@@ -31,6 +31,7 @@ __all__ = [
     'great_circle_distance',
     'geographic_mean',
     'cartposlos2geocentric',
+    'geocentricposlos2cart',
 ]
 
 
@@ -625,8 +626,8 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     # Here be dragons!
 
     # Broadcast all input variables to the same shape.
-    if (ppc is not None and za0 is not None and lat0 is not None
-        and aa0 is not None and lon0 is not None):
+    if(ppc is not None and za0 is not None and lat0 is not None and
+       aa0 is not None and lon0 is not None):
         x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0 = np.broadcast_arrays(
             x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0)
     elif ppc is not None:
@@ -657,7 +658,8 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     aa = np.zeros(za.shape)
 
     # Fix zenith and azimuth angle with optional input only when all exists
-    if za0 is not None and lat0 is not None and aa0 is not None and lon0 is not None:
+    if(za0 is not None and lat0 is not None and
+       aa0 is not None and lon0 is not None):
 
         # Determine the type for zenith
         noz = np.logical_or(za0 < 1e-06, za0 > 180 - 1e-06)
@@ -706,3 +708,119 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
         aa[np.logical_and(~fix, dlon < 0)] *= -1
 
     return r, lat, lon, za, aa
+
+
+def geocentricposlos2cart(r, lat, lon, za, aa):
+
+    """
+     GEOCENTRICPOSLOS2CART converts from spherical POS/LOS to cartesian POS/LOS
+
+     See Contents for a defintion of the geocentric coordinate system.
+     The local LOS angles are defined following the EAST-NORTH-UP system:
+
+             za    aa
+
+             90    0   points towards north
+
+             90    90  points towards east
+
+             0     aa  points up
+
+     FORMAT  [x,y,z,dx,dy,dz]=geocentricposlos2cart(r,lat,lon,za,az)
+
+     OUT
+            x    Coordinate in x dimension
+
+            y    Coordinate in y dimension
+
+            z    Coordinate in z dimension
+
+            dx   LOS component in x dimension
+
+            dy   LOS component in y dimension
+
+            dz   LOS
+
+     IN
+            r    Radius
+
+            lat  Latitude
+
+            lon  Longitude
+
+            za   zenith angle
+
+            aa   azimuth angle
+
+     History: created by Bengt Rydberg 2011-10-31
+    """
+
+    if(np.isscalar(r) and np.isscalar(lat) and np.isscalar(lon) and
+       np.isscalar(za) and np.isscalar(aa)):
+        r, lat, lon, za, aa = np.broadcast_arrays([r], lat, lon, za, aa)
+    else:
+        r, lat, lon, za, aa = np.broadcast_arrays(r, lat, lon, za, aa)
+
+    if any(r == 0):
+        raise Exception("This function is not handling the case of r = 0.")
+    if any(lat < -90) or any(lat > 90):
+            raise RuntimeError("The latitude is out of range")
+    if any(lon < -180) or any(lon > 180):
+            raise RuntimeError("The longitude is out of range")
+    if any(za < 0) or any(za > 180):
+            raise RuntimeError("The zenith angle is out of range")
+
+    deg2rad = np.deg2rad(1)
+
+    x = np.empty(r.shape)
+    y = np.empty(r.shape)
+    z = np.empty(r.shape)
+    dx = np.empty(r.shape)
+    dy = np.empty(r.shape)
+    dz = np.empty(r.shape)
+
+    at_pole = abs(lat) > (90 - 1e-8)
+
+    if any(at_pole):
+        s = np.sign(lat[at_pole])
+        x[at_pole] = 0.
+        y[at_pole] = 0.
+        z[at_pole] = s * r[at_pole]
+        dz[at_pole] = s * np.cos(deg2rad*(za[at_pole]))
+        dx[at_pole] = np.sin(deg2rad*(za))
+        dy[at_pole] = dx[at_pole] * np.sin(deg2rad*(aa))
+        dx[at_pole] *= np.cos(deg2rad*(aa))
+
+    not_pole = np.logical_not(at_pole)
+
+    if any(not_pole):
+        latrad = deg2rad * lat[not_pole]
+        lonrad = deg2rad * lon[not_pole]
+        zarad = deg2rad * za[not_pole]
+        aarad = deg2rad * aa[not_pole]
+
+        coslat = np.cos(latrad)
+        sinlat = np.sin(latrad)
+        coslon = np.cos(lonrad)
+        sinlon = np.sin(lonrad)
+        cosza = np.cos(zarad)
+        sinza = np.sin(zarad)
+        cosaa = np.cos(aarad)
+        sinaa = np.sin(aarad)
+
+        x[not_pole] = r[not_pole] * coslat
+        y[not_pole] = x[not_pole] * sinlon
+        x[not_pole] *= coslon
+        z[not_pole] = r[not_pole] * sinlat
+
+        dr = cosza
+        dlat = sinza * cosaa
+        dlon = sinza * sinaa / coslat
+
+        dx[not_pole] = (coslat * coslon * dr - sinlat * coslon * dlat -
+                        coslat * sinlon * dlon)
+        dz[not_pole] = sinlat * dr + coslat * dlat
+        dy[not_pole] = (coslat * sinlon * dr - sinlat * sinlon * dlat +
+                        coslat * coslon * dlon)
+
+    return x, y, z, dx, dy, dz

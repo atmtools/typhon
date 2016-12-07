@@ -1,3 +1,9 @@
+2016-12-07  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/geodesy:
+	
+	Added (geocentricposlos2cart).
+
 2016-11-30  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* Changes:
