@@ -1,3 +1,13 @@
+2016-12-07  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/geodesy:
+	
+	Added (geometric_limb_zenith_angle) and (line_ellipsoid_intersect) as
+	helper functions to get ellipsoid limb zenith  angles when other 
+	satellite parameters are known.  The first is used to get the 
+	geometric limb viewing zenith angle by using the intersection between
+	a line and the ellipsoid of the second function.
+
 2016-12-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/spectroscopy.py:

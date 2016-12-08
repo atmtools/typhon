@@ -218,9 +218,8 @@ def ellipsoid_r_geodetic(ellipsoid, lat):
     else:
         e2 = ellipsoid[1]**2
         sin2 = sind(lat)**2
-        r = (ellipsoid[0] * np.sqrt((1 - e2)**2 * sin2
-             + cosd(lat) ** 2) / np.sqrt(1 - e2 * sin2)
-             )
+        r = (ellipsoid[0] * np.sqrt((1 - e2)**2 * sin2 +
+             cosd(lat) ** 2) / np.sqrt(1 - e2 * sin2))
     return r
 
 
@@ -281,10 +280,7 @@ def ellipsoidcurvradius(ellipsoid, lat_gd, azimuth):
     aterm = 1 - ellipsoid[1]**2 * sind(lat_gd)**2
     rn = 1 / np.sqrt(aterm)
     rm = (1 - ellipsoid[1]**2) * (rn / aterm)
-    e0 = (ellipsoid[0] /
-          (cosd(azimuth)**2.0 / rm
-           + sind(azimuth)**2.0 / rn)
-          )
+    e0 = (ellipsoid[0] / (cosd(azimuth)**2.0 / rm + sind(azimuth)**2.0 / rn))
     e1 = 0
 
     return e0, e1
@@ -538,10 +534,8 @@ def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
 
     .. Ported from atmlab. Original author: Patrick Eriksson
     """
-    a = (sind((lat2 - lat1) / 2)**2
-         + cosd(lat1) * (cosd(lat2))
-         * (sind((lon2 - lon1) / 2)**2)
-         )
+    a = (sind((lat2 - lat1) / 2)**2 + cosd(lat1) * (cosd(lat2)) *
+         (sind((lon2 - lon1) / 2)**2))
 
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
@@ -752,7 +746,7 @@ def geocentricposlos2cart(r, lat, lon, za, aa):
 
             aa   azimuth angle
 
-     History: created by Bengt Rydberg 2011-10-31
+     Ported from atmlab.  Original author: Bengt Rydberg 2011-10-31
     """
 
     if(np.isscalar(r) and np.isscalar(lat) and np.isscalar(lon) and
@@ -824,3 +818,185 @@ def geocentricposlos2cart(r, lat, lon, za, aa):
                         coslat * coslon * dlon)
 
     return x, y, z, dx, dy, dz
+
+
+def get_ellipsoid_semiminor_axis(ellipsoid):
+    """Returns the semiminor axis for the ellipsoid
+    """
+    return ellipsoid[0] * np.sqrt(1.0 - ellipsoid[1]**2)
+
+
+def line_ellipsoid_intersect(x, y, z, dx, dy, dz,
+                             ellipsoid, altitude=0.0):
+    """ Finds positions of intersection of line with ellipsoid
+
+    Solves for d:
+        $$(X/a)**2 + (Y/a)**2 + (Z/b)**2 - 1 = 0$$
+        $$X = x + d * dx$$
+        $$Y = y + d * dy$$
+        $$Z = z + d * dz$$
+    where d is a multiplier of sqrt(dx**2 + dy**2 + dz**2), a is the
+    semimajor axis and b is the semiminor axis. X, Y, Z gives the
+    point of intersection.  If dx, dy, dz is normalized, d is distance
+    in ellipsoid size units.  If no intersect, the code returns np.nan distance
+
+    For real d, the halfway point between the points is the tangent point,
+    though it is below the ellipsoid + altitude surface
+
+    Returns:
+        d: Array of distance parameters, last dimension gives the 2 solutions
+
+    Parameters:
+        x: Geocentric cartesian x-coordinate
+
+        y: Geocentric cartesian y-coordinate
+
+        z: Geocentric cartesian z-coordinate
+
+        dx: Geocentric cartesian dx-view
+
+        dy: Geocentric cartesian dy-view
+
+        dz: Geocentric cartesian dz-view
+
+        elliposid: ellipsoid model [a, e]
+
+        altitude: altitude above elipsoid to intersect at [defaults to zero]
+
+    Todo:
+        Refer to line_sphere_intersect if ellipsoid is sphere
+    """
+
+    # semimajor axis
+    a = ellipsoid[0] + altitude
+
+    # semiminor axis
+    b = get_ellipsoid_semiminor_axis(ellipsoid) + altitude
+
+    # If these are scalars make them arrays
+    if(np.isscalar(x) and np.isscalar(y) and np.isscalar(z) and
+       np.isscalar(dx) and np.isscalar(dy) and np.isscalar(dz)):
+        x, y, z, dx, dy, dz = np.broadcast_arrays([x], y, z, dx, dy, dz)
+    else:
+        x, y, z, dx, dy, dz = np.broadcast_arrays(x, y, z, dx, dy, dz)
+
+    # A*d**2 + B*d + C = 0, solve for d
+    A = ((dx**2 + dy**2) / a**2 + dz**2 / b**2).flatten()
+    B = (2 * ((x * dx + y * dy) / a**2 + z * dz / b**2)).flatten()
+    C = ((y**2 + x**2) / a**2 + z**2 / b**2 - 1.0).flatten()
+
+    d = np.zeros((len(A), 2))
+    for i in range(len(A)):
+        roots = np.roots([A[i], B[i], C[i]])
+        if any(np.isreal(roots)):
+            d[i, 0] = roots[0]
+            d[i, 1] = roots[1]
+        else:
+            d[i, 0] = np.nan
+            d[i, 1] = np.nan
+
+    sh = []
+    for i in x.shape:
+        sh.append(i)
+    sh.append(2)
+
+    return d.reshape(tuple(sh))
+
+
+def geometric_limb_zenith_angle(ellipsoid, r, lat, lon,
+                                aa=0.0, alt=0.0, za_acc=1e-10):
+    """Numerical method to compute the geometric limb zenith angle knowing
+    other satellite parameters
+
+    Assumes the planet is an ellipsoid and calculates the limb by numerically
+    minimizing the distance between adjacent intersections of the ellipsoid.
+
+    The rate of closing in on the right zenith angle should follow 180/30**N,
+    though numerical errors at very exact accuracies are not guarded against.
+
+    Parameters:
+
+        ellipsoid: ellipsoid [a, e]
+
+        r: geocentric radius of satellite
+
+        lat: geocentric latitude of satellite
+
+        lon: geocentric longitude of satellite
+
+        aa: azimuth angle of satellite
+
+        alt: tangent altitude
+
+        za_acc: zenith angle accuracy.  Warning: Endless loop if too small
+
+    Returns:
+
+        za: satellite zenith angle for limb view geometry. Shaped as input
+    """
+
+    if(za_acc == 0):
+        raise RuntimeError("Zenith accuracy cannot be 0")
+
+    if(np.isscalar(r) and np.isscalar(lat) and np.isscalar(lon) and
+       np.isscalar(aa) and np.isscalar(alt)):
+        r, lat, lon, aa, alt = np.broadcast_arrays([r], lat, lon, aa, alt)
+    else:
+        r, lat, lon, aa, alt = np.broadcast_arrays(r, lat, lon, aa, alt)
+
+    # Remember shape because we'll flatten these arrays for easy looping
+    sh = r.shape
+    r = r.flatten()
+    lat = lat.flatten()
+    lon = lon.flatten()
+    aa = aa.flatten()
+    alt = alt.flatten()
+
+    za = np.empty_like(r)
+
+    for i in range(len(r)):
+        za_min = 0.0
+        za_max = 180.0
+
+        while True:  # Until zenith accuracy is reached
+
+            # num=31 means 180/30**N is the number of loops to reach accuracy
+            zenith_angles = np.linspace(za_min, za_max, num=31)
+
+            # Get the Cartesian views for the probing zenith accuracies
+            x, y, z, dx, dy, dz = geocentricposlos2cart(r, lat, lon,
+                                                        zenith_angles, aa)
+
+            # Get intersections with the ellipsoid at the tangent altitude
+            d = line_ellipsoid_intersect(x, y, z, dx, dy, dz,
+                                         ellipsoid, alt)
+
+            # If we have somehow designed a scenario that is impossible or bad
+            if np.isnan(d).all():
+                raise RuntimeError("Not possible to get a tangent point.  " +
+                                   "All tries miss the ellipsoid.")
+            elif not np.isnan(d).any():
+                raise RuntimeError("Not possible to get a tangent point.  " +
+                                   "Inside ellipsoid or atmosphere.")
+
+            # Limb zenith from minimizing distance between intersections
+            D = d[:, 0] - d[:, 1]
+
+            # These are the points of interest
+            these = np.logical_and(D > 0, np.logical_not(np.isnan(D)))
+
+            # The first of the zenith angles hitting the atmosphere is updated
+            za_max = zenith_angles[these][0]
+
+            # The last of the zenith angles missing the atmosphere is updated
+            za_min = zenith_angles[np.logical_not(these)][-1]
+
+            # Are we there yet?
+            if (za_max-za_min) < za_acc:
+                break
+
+        # Note assignment to flat zenith angle array
+        za[i] = za_max
+
+    # Note that we return with the proper shape
+    return za.reshape(sh)
