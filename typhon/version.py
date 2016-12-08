@@ -4,7 +4,7 @@
 def get_version_info():
     VERSION = '0.3.5'
     # Add revision number for development versions
-    DEVBUILD = False
+    DEVBUILD = True
 
     if DEVBUILD:
         from os import path
