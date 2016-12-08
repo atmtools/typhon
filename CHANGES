@@ -1,5 +1,5 @@
-Current changes
-===============
+Changes in 0.3.5
+================
 
 - Fixed writing of zipped XML files.
   When using typhon.arts.xml.save() appending the '.gz' extension to the
