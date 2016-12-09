@@ -321,6 +321,12 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         # - Add other meta-information from TIP
         return (header, scanlines) if return_header else scanlines
        
+    def _add_pseudo_fields(self, M, pseudo_fields):
+        if isinstance(M, tuple):
+            return (M[0], super()._add_pseudo_fields(M[1], pseudo_fields))
+        else:
+            return super()._add_pseudo_fields(M, pseudo_fields)
+
     def filter_firstline(self, header, scanlines):
         """Filter out any scanlines that existed in the previous granule.
         """
@@ -748,7 +754,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             ch = self._convert_temp(
                     self._get_temp_factor(header, "hrs_h_chsgcnttmp"),
                     elem[:, 62, 10]),
-)
+        )
 
     def _reshape_fact(self, name, fact, robust=False):
         if name in self._fact_shapes:

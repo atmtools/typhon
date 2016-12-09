@@ -503,11 +503,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
             if (fields=="all" or 
                     k in fields and k not in pseudo_fields) and (
-                    all(kwargs.get(condfn) == condval
-                            for (condfn, condval) in cond.items())):
+                    all(kwargs.get(condfn) in condval)
+                            for (condfn, condval) in cond.items()):
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
         M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)
+        M = self._add_pseudo_fields(M, pseudo_fields)
+        return M
+
+    def _add_pseudo_fields(self, M, pseudo_fields):
         D = collections.OrderedDict()
         for (k, fnc) in pseudo_fields.items():
             try:
@@ -1048,8 +1052,8 @@ class MultiFileDataset(Dataset):
             logging.warning("Found no directories.  Make sure {self.name:s} has "
                   "coverage in {dt_start:%Y-%m-%d %H:%M:%S} – "
                   "{dt_end:%Y-%m-%d %H:%M:%S} and that you spelt any "
-                  "additional information correctly:".format(self=self,
-                  dt_start=dt_start, dt_end=dt_end) + str(extra) + "Satellite "
+                  "additional information correctly: ".format(self=self,
+                  dt_start=dt_start, dt_end=dt_end) + str(extra) + " Satellite "
                   "names and other fields are case-sensitive!")
         elif not found_any_grans:
             logging.warning("Directories searched appear to contain no matching "

@@ -1,3 +1,16 @@
+2016-12-09  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(Dataset.read, Dataset._add_pseudo_fields):
+
+	- Delegate addition of pseudo-fields to different method so that
+	subclasses can implement specialised versions.
+
+	* typhon/datasets/tovs.py(HIRS._add_pseudo_fields):
+
+	- Implement specialisation considering that HIRS._read might return a
+	tuple (head, lines), which messes up the pre-checks before passing the
+	result from HIRS._read on to functions calculating pseudo fields.
+
 2016-12-08  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.
