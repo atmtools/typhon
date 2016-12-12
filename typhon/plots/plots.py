@@ -2,6 +2,8 @@
 
 """Functions to create plots using matplotlib.
 """
+
+import warnings
 import collections
 import math
 import itertools
@@ -157,7 +159,9 @@ def scatter_density_plot_matrix(M,
         plot_dist_kw={"color": "tan", "ptiles": [5, 25, 50, 75, 95],
             "linestyles": [":", "--", "-", "--", ":"],
             "linewidth": 1.5},
-        ranges={}):
+        ranges={},
+        x_u=None,
+        y_u=None):
     """Plot a scatter density plot matrix
 
     Like a scatter plot matrix but rather than every axes containing a
@@ -185,6 +189,8 @@ def scatter_density_plot_matrix(M,
         ranges (Mapping[str, Tuple[Real, Real]]): 
             For each field in M, can pass a range.  If provided, this
             range will be passed on to hist and hexbin.
+        x_u (str): Unit for x-labels
+        y_u (str): Unit for y-labels
 
     Returns:
         f (matplotlib.figure.Figure): Figure object created.
@@ -213,23 +219,33 @@ def scatter_density_plot_matrix(M,
         else:
             rng = (ranges.get(x_f, (x.min(), x.max())),
                    ranges.get(y_f, (y.min(), y.max())))
+            inrange = ((x>=rng[0][0])&(x<=rng[0][1])&
+                       (y>=rng[1][0])&(y<=rng[1][1]))
+            if not inrange.any():
+                warnings.warn(
+                    "Combination {:s}/{:s} has no valid values".format(
+                        x_f, y_f),
+                    RuntimeWarning)
+                continue
+            x = x[inrange]
+            y = y[inrange]
             # NB: hexbin may be better than hist2d
             a.hexbin(x, y,
                 extent=[rng[0][0], rng[0][1], rng[1][0], rng[1][1]],
                 **hexbin_kw)
-            inrange = ((x>rng[0][0])&(x<rng[0][1])&
-                       (y>rng[1][0])&(y<rng[1][1]))
             plot_distribution_as_percentiles(
                 a,
-                x[inrange], y[inrange],
+                x, y,
                 **plot_dist_kw)
             a.set_xlim(rng[0])
             a.set_ylim(rng[1])
 
         if x_i == 0:
-            a.set_ylabel(y_f)
+            a.set_ylabel("{:s} [{:s}]".format(y_f, y_u)
+                if y_u else y_f)
 
         if y_i == N-1: # NB: 0 is top row, N-1 is bottom row
-            a.set_xlabel(x_f)
+            a.set_xlabel("{:s} [{:s}]".format(x_f, x_u)
+                if x_u else x_f)
 
     return f

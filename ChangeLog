@@ -1,5 +1,15 @@
 2016-12-12  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/plots/plots.py(scatter_density_plot_matrix): 
+
+	- Allow to pass units for x- and y-axes
+
+	- Bugfix in range handling
+
+	- Raise a warning if range is empty for a subplot
+
+2016-12-12  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/plots/plots.py(scatter_density_plot_matrix): Added
 
 	- Like a scatter plot matrix but with a
