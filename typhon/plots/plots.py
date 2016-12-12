@@ -4,6 +4,8 @@
 """
 import collections
 import math
+import itertools
+import scipy.stats
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,6 +15,7 @@ from typhon.math import stats as tpstats
 __all__ = [
     'plot_distribution_as_percentiles',
     'heatmap',
+    'scatter_density_plot_matrix',
 ]
 
 
@@ -145,3 +148,88 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
                 color='red', linestyle='--', linewidth=2)
 
     return img
+
+
+def scatter_density_plot_matrix(M,
+        hist_kw={},
+        hist2d_kw={"cmin": 1, "cmap": "viridis"},
+        hexbin_kw={"mincnt": 1, "cmap": "viridis"},
+        plot_dist_kw={"color": "tan", "ptiles": [5, 25, 50, 75, 95],
+            "linestyles": [":", "--", "-", "--", ":"],
+            "linewidth": 1.5},
+        ranges={}):
+    """Plot a scatter density plot matrix
+
+    Like a scatter plot matrix but rather than every axes containing a
+    scatter plot of M[i] vs. M[j], it contains a 2-D histogram along with
+    the distribution as percentiles.  The 2-D histogram is created using
+    hexbin rather than hist2d, because hexagonal bins are a more
+    appropriate.  For example, see
+    http://www.meccanismocomplesso.org/en/hexagonal-binning/
+
+    On top of the 2-D histogram, shows the distribution using
+    `func:plot_distribution_as_percentiles`.
+
+    Plots regular 1-D histograms in the diagonals.
+
+    Parameters:
+        M (np.ndarray): Structured ndarray.  The fieldnames will be used
+            as the variables to be plotted against each other.  Each field
+            in the structured array shall be single-dimensional and
+            of a numerical dtype.
+        hist_kw (Mapping): Keyword arguments to pass to hist for diagonals.
+        hist2d_kw (Mapping): Keyword arguments to pass to each call of
+            hist2d.
+        plot_dist_kw (Mapping): Keyword arguments to pass to each call of
+            `func:plot_distribution_as_percentiles`.
+        ranges (Mapping[str, Tuple[Real, Real]]): 
+            For each field in M, can pass a range.  If provided, this
+            range will be passed on to hist and hexbin.
+
+    Returns:
+        f (matplotlib.figure.Figure): Figure object created.
+            You will still want to use subplots_adjust, suptitle, perhaps
+            add a colourbar, and other things.
+    """
+
+    N = len(M.dtype.names)
+    (f, ax_all) = plt.subplots(N, N, figsize=(4+3*N, 4+3*N))
+
+    for ((x_i, x_f), (y_i, y_f)) in itertools.product(
+            enumerate(M.dtype.names), repeat=2):
+        # all with the same y-coordinate should have the same x-variable, and
+        # 〃  〃   〃  〃   x-〃         〃     〃   〃  〃   y-〃.
+        #
+        # so at (0, 1) we want (x1, y0), at (0, 2) we want (x2, y0), etc.
+        # hence turn-around y_i and x_i.
+        a = ax_all[y_i, x_i]
+
+        x = M[x_f]
+        y = M[y_f]
+
+        if x_i == y_i:
+            rng = ranges.get(x_f, (x.min(), x.max()))
+            a.hist(x, range=rng, **hist_kw)
+        else:
+            rng = (ranges.get(x_f, (x.min(), x.max())),
+                   ranges.get(y_f, (y.min(), y.max())))
+            # NB: hexbin may be better than hist2d
+            a.hexbin(x, y,
+                extent=[rng[0][0], rng[0][1], rng[1][0], rng[1][1]],
+                **hexbin_kw)
+            inrange = ((x>rng[0][0])&(x<rng[0][1])&
+                       (y>rng[1][0])&(y<rng[1][1]))
+            plot_distribution_as_percentiles(
+                a,
+                x[inrange], y[inrange],
+                **plot_dist_kw)
+            a.set_xlim(rng[0])
+            a.set_ylim(rng[1])
+
+        if x_i == 0:
+            a.set_ylabel(y_f)
+
+        if y_i == N-1: # NB: 0 is top row, N-1 is bottom row
+            a.set_xlabel(x_f)
+
+    return f

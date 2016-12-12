@@ -1,3 +1,10 @@
+2016-12-12  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/plots/plots.py(scatter_density_plot_matrix): Added
+
+	- Like a scatter plot matrix but with a
+	hexbin+plot_distribution_as_percentiles in every off-diagonal.
+
 2016-12-09  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset.read, Dataset._add_pseudo_fields):
