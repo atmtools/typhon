@@ -152,7 +152,7 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
     return img
 
 
-def scatter_density_plot_matrix(M,
+def scatter_density_plot_matrix(M=None,
         hist_kw={},
         hist2d_kw={"cmin": 1, "cmap": "viridis"},
         hexbin_kw={"mincnt": 1, "cmap": "viridis"},
@@ -160,8 +160,8 @@ def scatter_density_plot_matrix(M,
             "linestyles": [":", "--", "-", "--", ":"],
             "linewidth": 1.5},
         ranges={},
-        x_u=None,
-        y_u=None):
+        units=None,
+        **kwargs):
     """Plot a scatter density plot matrix
 
     Like a scatter plot matrix but rather than every axes containing a
@@ -180,7 +180,8 @@ def scatter_density_plot_matrix(M,
         M (np.ndarray): Structured ndarray.  The fieldnames will be used
             as the variables to be plotted against each other.  Each field
             in the structured array shall be single-dimensional and
-            of a numerical dtype.
+            of a numerical dtype.  You should pass either this argument,
+            or additional keyworad arguments (see below).
         hist_kw (Mapping): Keyword arguments to pass to hist for diagonals.
         hist2d_kw (Mapping): Keyword arguments to pass to each call of
             hist2d.
@@ -189,15 +190,70 @@ def scatter_density_plot_matrix(M,
         ranges (Mapping[str, Tuple[Real, Real]]): 
             For each field in M, can pass a range.  If provided, this
             range will be passed on to hist and hexbin.
-        x_u (str): Unit for x-labels
-        y_u (str): Unit for y-labels
+        units (Mapping[str, str]): Unit strings for each of the
+            quantities.  Optional.  If not passed, no unit is shown in the
+            graph, unless the quantities to be plotted are pint quantity
+            objects.
+
+    If not passing `M`, you can instead pass keyword arguments
+    referring to the different fields to be plotted.  In this case,
+    each keyword argument should be a 1-dimensional ndarray with a
+    numeric dtype.  If you use Python 3.6 or later, the order of the
+    keyword arguments should be preserved.
 
     Returns:
         f (matplotlib.figure.Figure): Figure object created.
             You will still want to use subplots_adjust, suptitle, perhaps
             add a colourbar, and other things.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon.plots import scatter_density_plot_matrix
+
+        x = 5*np.random.randn(5000)
+        y = x + 10*np.random.randn(x.size)
+        z = y**2 + x**2 + 20*np.random.randn(x.size)
+
+        scatter_density_plot_matrix(
+            x=x, y=y, z=z,
+            hexbin_kw={"mincnt": 1, "cmap": "viridis", "gridsize": 20},
+            units=dict(x="romans", y="knights", z="rabbits"))
+
+        plt.show()
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon.plots import scatter_density_plot_matrix
+
+        M = np.zeros(shape=(10000,),
+                     dtype="f,f,f,f")
+        M["f0"] = np.random.randn(M.size)
+        M["f1"] = np.random.randn(M.size) + M["f0"]
+        M["f2"] = 2*np.random.randn(M.size) + M["f0"]*M["f1"]
+        M["f3"] = M["f0"] + M["f1"] + M["f2"] + 0.5*np.random.randn(M.size)
+
+        scatter_density_plot_matrix(M,
+            hexbin_kw={"mincnt": 1, "cmap": "viridis", "gridsize": 20})
+
+        plt.show()
     """
 
+    if M is None:
+        M = np.empty(
+            dtype=[(k, v.dtype) for (k, v) in kwargs.items()],
+            shape=kwargs.copy().popitem()[1].shape)
+        for (k, v) in kwargs.items():
+            M[k] = v
+    if units is None:
+        units = {}
     N = len(M.dtype.names)
     (f, ax_all) = plt.subplots(N, N, figsize=(4+3*N, 4+3*N))
 
@@ -241,11 +297,15 @@ def scatter_density_plot_matrix(M,
             a.set_ylim(rng[1])
 
         if x_i == 0:
-            a.set_ylabel("{:s} [{:s}]".format(y_f, y_u)
-                if y_u else y_f)
+            a.set_ylabel(
+                "{:s} [{:s}]".format(y_f, units[y_f]) if y_f in units else
+                "{:s} [{:~}]".format(y_f, y.u) if hasattr(y, "u") else
+                y_f)
 
         if y_i == N-1: # NB: 0 is top row, N-1 is bottom row
-            a.set_xlabel("{:s} [{:s}]".format(x_f, x_u)
-                if x_u else x_f)
+            a.set_xlabel(
+                "{:s} [{:s}]".format(x_f, units[x_f]) if x_f in units else
+                "{:s} [{:~}]".format(x_f, x.u) if hasattr(x, "u") else
+                x_f)
 
     return f
