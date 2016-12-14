@@ -175,12 +175,28 @@ def scatter_density_plot_matrix(M=None,
 
     Plots regular 1-D histograms in the diagonals.
 
+    There are three ways to pass the data:
+
+    1. As a structured ndarray.  This is the preferred way.  The
+       fieldnames will be used for the axes and order is preserved.
+       Each field in the dtype must be scalar (0-d) and numerical.
+
+    2. As keyword arguments.  All extra keyword arguments will be taken as
+       variables.  They must all be 1-D ndarrays of numerical dtype, and
+       they must all have the same size.  Order is preserve from Python
+       3.6 only.
+
+    3. As a regular 2-D numerical ndarray of shape [N × p].  In this case,
+       the innermost dimension will be taken as the quantities to be
+       plotted.  There is no axes labelling.
+
     Parameters:
-        M (np.ndarray): Structured ndarray.  The fieldnames will be used
+        M (np.ndarray): ndarray.  If structured, the fieldnames will be used
             as the variables to be plotted against each other.  Each field
-            in the structured array shall be single-dimensional and
-            of a numerical dtype.  You should pass either this argument,
-            or additional keyworad arguments (see below).
+            in the structured array shall be 0-dimensional and
+            of a numerical dtype.  If not structured, interpreted as 2-D
+            array and the axes will be unlabelled.  You should pass either
+            this argument, or additional keyworad arguments (see below).
         hist_kw (Mapping): Keyword arguments to pass to hist for diagonals.
         hexbin_kw (Mapping): Keyword arguments to pass to each call of
             hexbin.
@@ -251,6 +267,18 @@ def scatter_density_plot_matrix(M=None,
             shape=kwargs.copy().popitem()[1].shape)
         for (k, v) in kwargs.items():
             M[k] = v
+    elif not M.dtype.fields:
+        MM = np.empty(
+            dtype=",".join([M.dtype.descr[0][1]]*M.shape[1]),
+            shape=M.shape[0])
+        for i in range(M.shape[1]):
+            MM["f{:d}".format(i)] = M[:, i]
+        M = MM
+    if len(M.dtype.fields) > 20:
+        raise ValueError("You've given me {:d} fields to plot. "
+            "That would result in {:d} subplots.  I refuse to take "
+            "more than 20 fields.".format(len(M.dtype.fields),
+                len(M.dtype.fields)**2))
     if units is None:
         units = {}
     N = len(M.dtype.names)

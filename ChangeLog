@@ -2,6 +2,13 @@
 
 	* typhon/plots/plots.py(scatter_density_plot_matrix):
 
+	- Permit to pass a regular 2-D array as well (but see warning in
+	documentation).
+
+2016-12-14  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/plots/plots.py(scatter_density_plot_matrix):
+
 	- Removed erroneous reference to hist2d, replaced by hexbin
 
 	* typhon/datasets/tovs.py:
