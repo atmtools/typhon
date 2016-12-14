@@ -16,6 +16,7 @@ import shutil
 import abc
 import pathlib
 import dbm
+import warnings
 import numpy
 try:
     import progressbar
@@ -154,6 +155,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.mandatory_fields |= {"hrs_scnlin"}
         self.granules_firstline_file = pathlib.Path(self.granules_firstline_file)
         if not self.granules_firstline_file.is_absolute():
             self.granules_firstline_file = self.basedir.joinpath(
@@ -309,7 +311,13 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         elif apply_flags:
             raise ValueError("I refuse to apply flags when not calibrating ☹")
         if fields != "all":
-            scanlines = scanlines[fields]
+            with warnings.catch_warnings():
+                # selecting multiple fields from a structured masked array
+                # leads to a FutureWarning, see
+                # https://github.com/numpy/numpy/issues/8383 .
+                # I believe this is a false alert.
+                warnings.filterwarnings("ignore", category=FutureWarning)
+                scanlines = scanlines[fields]
 
         if filter_firstline:
             try:

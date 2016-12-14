@@ -122,6 +122,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     section = ""
     aliases = {}
     unique_fields = {"time", "lat", "lon"}
+    mandatory_fields = None # fields that reader relies upon
     related = {}
     maxsize = 10000*MiB
     my_pseudo_fields = None
@@ -160,6 +161,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         (Python does this, see
         https://docs.python.org/3.5/reference/datamodel.html#object.__new__).
         """
+        self.mandatory_fields = set()
         for (k, v) in kwargs.items():
             setattr(self, k, v)
         self.setlocal()
@@ -381,8 +383,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 if cont.size < oldsize:
                     logging.debug("Applying limitations, reducing "
                         "{:d} to {:d}".format(oldsize, cont.size))
-            except (DataFileError, ValueError) as exc:
-                if onerror == "skip":
+            except DataFileError as exc:
+                if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
                     continue
@@ -500,6 +502,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 for d in deps:
                     if d not in fields:
                         fields.append(d)
+            for mandatory in self.mandatory_fields:
+                if mandatory not in fields:
+                    fields.append(mandatory)
         for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
             if (fields=="all" or 
                     k in fields and k not in pseudo_fields) and (
@@ -507,7 +512,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                             for (condfn, condval) in cond.items()):
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
-        M = self._read(f, **kwargs) if f is not None else self._read(**kwargs)
+        # should not pass pseudo_fields on to reader, it will get confused
+        fields = (fields if fields == "all" else
+                  [f for f in fields if not f in pseudo_fields])
+        M = (self._read(f, fields=fields, **kwargs)
+                if f is not None
+                else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
         return M
 

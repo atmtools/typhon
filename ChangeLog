@@ -1,3 +1,35 @@
+2016-12-14  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/plots/plots.py(scatter_density_plot_matrix):
+
+	- Removed erroneous reference to hist2d, replaced by hexbin
+
+	* typhon/datasets/tovs.py:
+
+	(HIRS.__init__):
+
+	- Inform that hrs_scnlin is always needed
+
+	(HIRS.read_period):
+
+	- Suppress FutureWarning triggered by masked array module when
+	selecting multiple fields from a structured masked array
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset):
+
+	- Add attribute `mandatory_fields`.  When populated, Dataset.read will
+	ensure that those fields are always passed on to the low-level,
+	instrument-specific reading routine.
+
+	(Dataset.read_period):
+
+	- On 29 November I added that ValueError should be caught here.  Undo
+	this; it catches too many false positives.  Instead, ValueError should
+	be caught at a lower level and then chained into a descendent of
+	DataFileError.
+
 2016-12-14  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/oem/__init__.py: Divided package content into submodules.

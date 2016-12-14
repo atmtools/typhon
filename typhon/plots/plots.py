@@ -154,7 +154,6 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
 
 def scatter_density_plot_matrix(M=None,
         hist_kw={},
-        hist2d_kw={"cmin": 1, "cmap": "viridis"},
         hexbin_kw={"mincnt": 1, "cmap": "viridis"},
         plot_dist_kw={"color": "tan", "ptiles": [5, 25, 50, 75, 95],
             "linestyles": [":", "--", "-", "--", ":"],
@@ -183,8 +182,8 @@ def scatter_density_plot_matrix(M=None,
             of a numerical dtype.  You should pass either this argument,
             or additional keyworad arguments (see below).
         hist_kw (Mapping): Keyword arguments to pass to hist for diagonals.
-        hist2d_kw (Mapping): Keyword arguments to pass to each call of
-            hist2d.
+        hexbin_kw (Mapping): Keyword arguments to pass to each call of
+            hexbin.
         plot_dist_kw (Mapping): Keyword arguments to pass to each call of
             `func:plot_distribution_as_percentiles`.
         ranges (Mapping[str, Tuple[Real, Real]]): 
