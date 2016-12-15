@@ -143,6 +143,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     re = r"(L?\d*\.)?NSS.HIR[XS].(?P<satcode>.{2})\.D(?P<year>\d{2})(?P<doy>\d{3})\.S(?P<hour>\d{2})(?P<minute>\d{2})\.E(?P<hour_end>\d{2})(?P<minute_end>\d{2})\.B(?P<B>\d{7})\.(?P<station>.{2})\.gz"
     satname = None
 
+    temperature_fields = None
+
     # For convenience, define scan type codes.  Stores in hrs_scntyp.
     typ_Earth = 0
     typ_space = 1
@@ -162,6 +164,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 self.granules_firstline_file)
 #        self.granules_firstline_db = dbm.open(
 #            str(self.granules_firstline_file), "c")
+        self.temperature_fields = {"iwt", "ict", "fwh", "scanmirror", "primtlscp",
+            "sectlscp", "baseplate", "elec", "patch_full", "scanmotor", "fwm",
+            "ch"}
 
     # docstring in class and parent
     def _read(self, path, fields="all", return_header=False,
@@ -1173,6 +1178,11 @@ class HIRSKLM(ATOVS, HIRS):
     # “distance” between space and IWCT views
     dist_space_iwct = 1
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.temperature_fields |= {"an_rd", "an_baseplate", "an_el",
+            "an_pch", "an_scnm", "an_fwm", "patch_exp", "fsr"}
+
     # docstring in parent
     def seekhead(self, f):
         f.seek(0, io.SEEK_SET)
@@ -1541,6 +1551,10 @@ class HIRS4(HIRSKLM):
 
     start_date = datetime.datetime(2005, 6, 5)
     end_date = datetime.datetime(2016, 12, 31) # update as appropriate
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.temperature_fields.add("terttlscp")
 
     def _get_iwt_info(self, head, elem):
         iwt_counts = numpy.concatenate(
