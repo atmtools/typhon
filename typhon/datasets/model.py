@@ -10,7 +10,7 @@ from . import dataset
 class ERAInterim(dataset.NetCDFDataset, dataset.MultiFileDataset):
     # example path:
     # /badc/ecmwf-era-interim/data/gg/as/2015/01/01/ggas201501011200.nc
-    name = "era_interim"
+    name = section = "era_interim"
     subdir = "data/{AA:s}/{B:s}{C:s}/{year:04d}/{month:02d}/{day:02d}"
     re = (r"(?P<AA>[a-z]{2})(?P<B>[a-z])(?P<C>[a-z])"
           r"(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})"

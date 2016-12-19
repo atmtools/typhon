@@ -167,5 +167,8 @@ def mad_outliers(arr, cutoff=10, mad0="raise"):
             p_i = pad.nonzero()[0][0]
             cutoff *= (100 - 50) / (100 - perc[p_i])
             return (ad / pad[p_i]) > cutoff
+    elif mad is numpy.ma.masked:
+        # all are masked already…
+        return numpy.ones(shape=ad.shape, dtype="?")
     else:
         return (ad / mad) > cutoff

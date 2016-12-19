@@ -373,7 +373,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         count_updated = count_all = 0
         with dbm.open(str(self.granules_firstline_file), "c") as gfd:
             try:
-                bar = progressbar.ProgressBar(maxval=1,
+                bar = progressbar.ProgressBar(max_value=1,
                     widgets=[progressbar.Bar("=", "[", "]"), " ",
                         progressbar.Percentage(), ' (',
                         progressbar.AdaptiveETA(), " -> ",
@@ -1351,7 +1351,7 @@ class HIRSKLM(ATOVS, HIRS):
 
             # Where counts==0, mask individual values
             # WARNING: counts==0 is within the valid range for some channels!
-            lines[v][:, :, :19].mask |= (elem[:, :56, 2:21]==0)
+            lines[v][:, :, :19].mask |= (elem[:, :self.n_perline, 2:21]==0)
 
         if lines["counts"].mask.sum() > lines["counts"].size*max_flagged:
             raise dataset.InvalidDataError(

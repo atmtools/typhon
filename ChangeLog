@@ -1,3 +1,23 @@
+2016-12-19  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Fix creation of array with [masked], shutting up UserWarning
+
+	* typhon/datasets/model.py(ERAInterim):
+
+	- bugfix, needs section attribute as well nowadays
+
+	* typhon/datasets/tovs.py(HIRS):
+
+	- update to modern progressbar usage, shutting up warning
+
+	- use self.n_perline instead of hardcoded 56
+
+	* typhon/math/array.py(mad_outliers):
+
+	- don't fail when all are masked already
+
 2016-12-14  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py:

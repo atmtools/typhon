@@ -1120,7 +1120,7 @@ for sat in "NOAA08 NOAA07 NOAA06 TIROSN".split():
             HIRS_count_to_temp["NOAA09"][fld])
 
 # Fill what's missing with dummies
-dummy = numpy.ma.array([numpy.ma.masked])
+dummy = numpy.ma.masked_all(1)
 for sat in {"TIROSN", "NOAA06", "NOAA07", "NOAA08", "NOAA09", "NOAA10", "NOAA11",
             "NOAA12", "NOAA14", "NOAA15", "NOAA16", "NOAA17"}:
     # first one is filter wheel housing

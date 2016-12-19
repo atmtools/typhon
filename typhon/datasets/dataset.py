@@ -356,7 +356,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 #             contents.append(cont[cont["time"]>=start])
         dobar = sorted and progressbar and sys.stdout.isatty()
         if dobar:
-            bar = progressbar.ProgressBar(maxval=1,
+            bar = progressbar.ProgressBar(max_value=1,
                     widgets=[progressbar.Bar("=", "[", "]"), " ",
                              progressbar.Percentage(),
                              ' (', progressbar.ETA(), ') '])
