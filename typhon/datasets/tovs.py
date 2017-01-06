@@ -350,7 +350,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             logging.warning("Full granule {:s} appears contained in previous one. "
                 "Refusing to return any lines.".format(dataname))
             return scanlines[0:0]
-        return scanlines[scanlines["hrs_scnlin"] > firstline]
+        return scanlines[scanlines["hrs_scnlin"] >= firstline]
 
     def update_firstline_db(self, satname=None, start_date=None, end_date=None,
             overwrite=False):
@@ -402,17 +402,22 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     logging.error("Could not read {!s}: {!s}".format(gran, exc))
                     continue
                 lab = self.get_dataname(cur_head)
-                if lab in gfd:
+                if lab in gfd and not overwrite:
                     logging.debug("Already present: {:s}".format(lab))
                 elif prev_line is not None:
                     # what if prev_line is None?  We don't want to define any
                     # value for the very first granule we process, as we might
                     # be starting to process in the middle...
                     if cur_time[-1] > prev_time[-1]:
-                        first = (cur_time > prev_time[-1]).nonzero()[0][0]
+                        # Bugfix 2017-01-16: do not get confused between
+                        # the index and the hrs_scnlin field.  So far, I'm using
+                        # the index to set firstline but the hrs_scnlin
+                        # field to apply it.
+                        #first = (cur_time > prev_time[-1]).nonzero()[0][0]
+                        first = cur_line["hrs_scnlin"][cur_time > prev_time[-1]][0]
                         logging.debug("{:s}: {:d}".format(lab, first))
                     else:
-                        first = cur_line.shape[0]+1
+                        first = cur_line["hrs_scnlin"][-1]+1
                         logging.info("{:s}: Fully contained in {:s}!".format(
                             lab, self.get_dataname(prev_head)))
                     gfd[lab] = str(first)
