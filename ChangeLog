@@ -2,6 +2,17 @@
 
 	* typhon/datasets/dataset.py(Dataset.read):
 
+	- Bugfix: do not crash if first granule empty or rejected.
+
+	* typhon/datasets/tovs.py(HIRS.filter_firstline):
+
+	- Don't make a copy, just read into memory already.  Certainly don't
+	make a copy every time, this is a dramatic slowdown.
+
+2017-01-09  Gerrit Holl  <g.holl@reading.ac.uk>:
+
+	* typhon/datasets/dataset.py(Dataset.read):
+
 	- when sorted data are requested, verify that granule N starts after
 	granule N-1 finishes.  If this is not the case, raise an error.
 

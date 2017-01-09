@@ -379,6 +379,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 if (sorted and
                     arr is not None and
                     cont.size > 0 and
+                    N>0 and
                     (cont["time"][0] <= arr["time"][N-1])):
                     raise InvalidDataError(
                         "Reading routine for {!s} returned data starting "

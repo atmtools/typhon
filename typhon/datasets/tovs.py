@@ -341,25 +341,35 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         else:
             return super()._add_pseudo_fields(M, pseudo_fields)
 
+    _tmpdir = None
+    _firstline_db = None
     def filter_firstline(self, header, scanlines):
         """Filter out any scanlines that existed in the previous granule.
         """
         dataname = self.get_dataname(header)
-        with contextlib.ExitStack() as stack:
+#        with contextlib.ExitStack() as stack:
+        if self._firstline_db is None:
             try:
-                gfd = stack.enter_context(
-                    dbm.open(str(self.granules_firstline_file), "r"))
-            except dbm.error: # presumably a lock
-                logging.debug("Cannot read GFL DB, presumably in use, making copy")
-                tmpdir = stack.enter_context(
-                    tempfile.TemporaryDirectory())
-                tmp_gfl = str(pathlib.Path(tmpdir,
+    #            gfd = stack.enter_context(
+                self._firstline_db = dbm.open(
+                    str(self.granules_firstline_file), "r")
+            except dbm.error as e: # presumably a lock
+    #                tmpdir = stack.enter_context(
+    #                    tempfile.TemporaryDirectory())
+                tmpdir = tempfile.TemporaryDirectory()
+                self._tmpdir = tmpdir # should be deleted only when object is
+                tmp_gfl = str(pathlib.Path(tmpdir.name,
                     self.granules_firstline_file.name))
+                logging.debug("Cannot read GFL DB at {!s}: {!s}, "
+                    "presumably in use, copying to {!s}".format(
+                        self.granules_firstline_file, e.args, tmp_gfl))
                 shutil.copyfile(str(self.granules_firstline_file),
                     tmp_gfl)
-                gfd = stack.enter_context(dbm.open(tmp_gfl))
-#        with dbm.open(str(self.granules_firstline_file), "r") as gfd:
-            firstline = int(gfd[dataname])
+                self.granules_firstline_file = tmp_gfl
+                #self._firstline_db = stack.enter_context(dbm.open(tmp_gfl))
+                self._firstline_db = dbm.open(tmp_gfl)
+    #        with dbm.open(str(self.granules_firstline_file), "r") as gfd:
+        firstline = int(self._firstline_db[dataname])
         if firstline > scanlines.shape[0]:
             logging.warning("Full granule {:s} appears contained in previous one. "
                 "Refusing to return any lines.".format(dataname))
