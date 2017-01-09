@@ -16,6 +16,7 @@ import shutil
 import abc
 import pathlib
 import dbm
+import contextlib
 import warnings
 import numpy
 try:
@@ -344,7 +345,20 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         """Filter out any scanlines that existed in the previous granule.
         """
         dataname = self.get_dataname(header)
-        with dbm.open(str(self.granules_firstline_file), "r") as gfd:
+        with contextlib.ExitStack() as stack:
+            try:
+                gfd = stack.enter_context(
+                    dbm.open(str(self.granules_firstline_file), "r"))
+            except dbm.error: # presumably a lock
+                logging.debug("Cannot read GFL DB, presumably in use, making copy")
+                tmpdir = stack.enter_context(
+                    tempfile.TemporaryDirectory())
+                tmp_gfl = str(pathlib.Path(tmpdir,
+                    self.granules_firstline_file.name))
+                shutil.copyfile(str(self.granules_firstline_file),
+                    tmp_gfl)
+                gfd = stack.enter_context(dbm.open(tmp_gfl))
+#        with dbm.open(str(self.granules_firstline_file), "r") as gfd:
             firstline = int(gfd[dataname])
         if firstline > scanlines.shape[0]:
             logging.warning("Full granule {:s} appears contained in previous one. "

@@ -376,6 +376,19 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 #logging.debug("Reading {!s}".format(gran))
                 cont = self.read(str(gran), fields=fields,
                     pseudo_fields=pseudo_fields, **reader_args)
+                if (sorted and
+                    arr is not None and
+                    cont.size > 0 and
+                    (cont["time"][0] <= arr["time"][N-1])):
+                    raise InvalidDataError(
+                        "Reading routine for {!s} returned data starting "
+                        "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
+                        "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
+                        "As data are supposed to be sorted, this probably "
+                        "means duplicate removal is not working as it "
+                        "should. ".format(gran,
+                            cont["time"][0].astype(datetime.datetime),
+                            arr["time"][N-1].astype(datetime.datetime)))
                 oldsize = cont.size
                 cont = tpmath.array.limit_ndarray(cont, limits)
                 for f in filters:
@@ -519,6 +532,13 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 if f is not None
                 else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
+        try:
+            if not (M["time"][1:] >= M["time"][:-1]).all():
+                raise InvalidDataError("Reader for {!s} returned data "
+                    "with unsorted time.  This must be fixed.".format(
+                        f))
+        except KeyError: # no time field
+            pass
         return M
 
     def _add_pseudo_fields(self, M, pseudo_fields):
