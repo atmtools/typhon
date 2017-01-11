@@ -311,6 +311,31 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     good = ~scanlines["time"].mask
                     scanlines = scanlines[good]
                     cc = cc[good, :, :]
+            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
+            if not goodorder.all():
+                logging.warning("{!s} has {:d} scanlines are out of "
+                    "order, resorting".format(path, (~goodorder).sum()))
+                neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
+                scanlines = scanlines[neworder]
+                cc = cc[neworder, :, :]
+            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
+            if not goodorder.all():
+                logging.warning("{!s} has {:d} duplicate "
+                    "scanlines, removing".format(path, (~goodorder).sum()))
+                (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
+                                       return_index=True)
+                scanlines = scanlines[ii]
+                cc = cc[ii, :, :]
+
+            goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
+            if not goodtime.all():
+                logging.warning("{!s} (still) has time sequence issues. "
+                    "Dropping {:d} scanlines to be on the safe side. "
+                    "This is probably overconservative.".format(path,
+                    (~goodtime).sum()))
+                scanlines = scanlines[goodtime]
+                cc = cc[goodtime, :, :]
+
             if apply_filter:
                 scanlines = self.apply_calibcount_filter(scanlines)
                 if cc.ndim == 4:
