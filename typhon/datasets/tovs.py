@@ -302,6 +302,15 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 #scanlines = numpy.ma.masked_array(scanlines)
                 scanlines = self.get_mask_from_flags(header, scanlines,
                                     max_flagged=max_flagged)
+                # when time is masked, we should REALLY despair.  We want
+                # to have sequential scanlines.  Throw them out already!
+                if scanlines["time"].mask.any():
+                    logging.warning("Throwing out {:d} scanlines because "
+                        "their times are flagged and not sequential".format(
+                            scanlines["time"].mask.sum()))
+                    good = ~scanlines["time"].mask
+                    scanlines = scanlines[good]
+                    cc = cc[good, :, :]
             if apply_filter:
                 scanlines = self.apply_calibcount_filter(scanlines)
                 if cc.ndim == 4:
@@ -360,7 +369,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 self._tmpdir = tmpdir # should be deleted only when object is
                 tmp_gfl = str(pathlib.Path(tmpdir.name,
                     self.granules_firstline_file.name))
-                logging.debug("Cannot read GFL DB at {!s}: {!s}, "
+                logging.warning("Cannot read GFL DB at {!s}: {!s}, "
                     "presumably in use, copying to {!s}".format(
                         self.granules_firstline_file, e.args, tmp_gfl))
                 shutil.copyfile(str(self.granules_firstline_file),
@@ -1342,10 +1351,29 @@ class HIRSKLM(ATOVS, HIRS):
     
         for fld in set(lines.dtype.names) - {"lat", "lon", "time"}:
             # only for the most serious offences
-            # ...but still leave lat/lon/time intact
+            # ...but normally still leave lat/lon/time intact...
 
             lines[fld].mask |= qidonotuse.reshape(([lines.shape[0]] +
                     [1]*(lines[fld].ndim-1)))!=0
+
+        # If time is no longer sequential we still mask it.   Caller might
+        # want to get rid of the lines altogether.  Remask
+        # qidonotuse-marked times if they do not occur after previous and
+        # before next.  Note that this ONLY takes care of bad times
+        # already marked as qidonotuse; other problematic times need to be
+        # taken care of elsewhere and are out of the scope of this function
+        Δt = numpy.diff(lines["time"])
+        # take care of "too early":
+        # we always accept the time for the very first measurement, so we
+        # call .nonzero() on qidonotuse[1:] and compensate for the
+        # off-by-one-error thus introduced.  
+        #lines["time"].mask[qidonotuse.nonzero()[0][
+        lines["time"].mask[(qidonotuse[1:].nonzero()[0]+1)[
+            (numpy.sign(Δt[(qidonotuse!=0)[1:]].astype(numpy.int64)) != 1)]] = True
+        # take care of "late outliers" (alway accept the very last
+        # measurement)
+        lines["time"].mask[(qidonotuse[:-1].nonzero()[0])[
+            (numpy.sign(Δt[(qidonotuse!=0)[:-1]].astype(numpy.int64)) != 1)]] = True
 
         for fld in ("counts", "bt"):
             # Where a channel is bad, mask the entire scanline

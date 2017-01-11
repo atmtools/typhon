@@ -385,7 +385,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "Reading routine for {!s} returned data starting "
                         "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
                         "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
-                        "As data are supposed to be sorted, this probably "
+                        "As data are supposed to be sorted in time, this probably "
                         "means duplicate removal is not working as it "
                         "should. ".format(gran,
                             cont["time"][0].astype(datetime.datetime),
@@ -538,7 +538,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 raise InvalidDataError("Reader for {!s} returned data "
                     "with unsorted time.  This must be fixed.".format(
                         f))
-        except KeyError: # no time field
+        except (KeyError, TypeError): # no time field or things returned differently
             pass
         return M
 

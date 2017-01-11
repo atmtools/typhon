@@ -1,3 +1,31 @@
+2017-01-10  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset.read):
+
+	- Don't fail on verifying time sorting if our array is too short to do
+	so
+
+	* typhon/datasets/tovs.py(HIRS):
+
+	(._read):
+
+	- Throw out scanlines where the time is bad.  Masking is not enough;
+	time series processing tools such as xarray assume sequential time so
+	enforcing this makes life muc heasier later on
+
+	(.filter_firstline):
+
+	- Change message from debug to warning if GFL DB cannot be read.
+
+	(.apply_flags):
+
+	- Flag times when qidonotuse is set, but do so if and only if the time
+	at that point is inconsistent with either the preceding or the
+	following scanline.  This gets rid of some (perhaps most?) instances
+	where there are outliers in the time axis.
+
 2017-01-09  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon/datasets/dataset.py(Dataset.read):
