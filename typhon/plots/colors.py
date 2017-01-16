@@ -3,12 +3,15 @@
 """Utility functions related to plotting.
 """
 import os
+import re
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 from warnings import warn
 
 __all__ = ['mpl_colors',
+           'colors2cmap',
            'cmap2txt',
            'cmap2cpt',
            'cmap2act',
@@ -41,6 +44,49 @@ def mpl_colors(cmap=None, n=10):
         cmap = plt.rcParams['image.cmap']
 
     return plt.get_cmap(cmap)(np.linspace(0, 1, n))
+
+
+def _to_hex(c):
+    """Convert arbitray color specification to hex string."""
+    ctype = type(c)
+
+    # Convert rgb to hex.
+    if ctype is tuple or ctype is np.ndarray or ctype is list:
+        return colors.rgb2hex(c)
+
+    if ctype is str:
+        # If color is already hex, simply return it.
+        regex = re.compile('^#[A-Fa-f0-9]{6}$')
+        if regex.match(c):
+            return c
+
+        # Convert named color to hex.
+        return colors.cnames[c]
+
+    raise Exception("Can't handle color of type: {}".format(ctype))
+
+
+def colors2cmap(*args, name=None):
+    """Create a colormap from a list of given colors.
+
+    Parameters:
+        *args: Arbitrary number of colors (Named color, HEX or RGB).
+        name (str): Name with which the colormap is registered.
+
+    Returns:
+        LinearSegmentedColormap.
+
+    Examples:
+        >>> colors2cmap('darkorange', 'white', 'darkgreen', name='test')
+    """
+    if len(args) < 2:
+        raise Exception("Give at least two colors.")
+
+    cmap_data = [_to_hex(c) for c in args]
+    cmap = colors.LinearSegmentedColormap.from_list(name, cmap_data)
+    plt.register_cmap(name, cmap)
+
+    return cmap
 
 
 def cmap2txt(cmap, filename=None, N=256, comments='%'):

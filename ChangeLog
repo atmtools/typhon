@@ -1,3 +1,10 @@
+2017-01-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
+	Added new function colors2cmap() to convert a given list of colors (named
+	color, rgb or hex) into a LinearSegmentedColormap.
+
 7-01-10  Gerrit Holl  <g.holl@reading.ac.uk>
 
 201	* typhon/datasets/tovs.py(HIRS):
