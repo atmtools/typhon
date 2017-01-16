@@ -79,11 +79,30 @@ class GriddedField(object):
     def __eq__(self, other):
         """Test the equality of GriddedFields."""
         if isinstance(other, self.__class__):
-            return (self.name == other.name
-                    and self.gridnames == other.gridnames
-                    and self.dimension == other.dimension
-                    and np.all(a == b for a, b in zip(self.grids, other.grids))
-                    and np.allclose(self.data, other.data))
+            # Check each attribute after another for readabilty.
+            # Return as soon as possible for performance.
+            if self.name != other.name:
+                return False
+
+            if self.gridnames != other.gridnames:
+                return False
+
+            if self.dimension != other.dimension:
+                return False
+
+            if self.grids is not None and other.grids is not None:
+                if not np.all(a == b for a, b in zip(self.grids, other.grids)):
+                    return False
+            elif self.grids is not other.grids:
+                return False
+
+            if self.data is not None and other.data is not None:
+                if not np.allclose(self.data, other.data):
+                    return False
+            elif self.data is not other.data:
+                return False
+
+            return True
         return NotImplemented
 
     def __neq__(self, other):

@@ -139,6 +139,14 @@ class TestGriddedFieldLoad():
 
         assert a == b
 
+    def test_equality_empty(self):
+        """Check the equality of two empty GriddedField objects."""
+        # Create two different objects with same content.
+        a = griddedfield.GriddedField3()
+        b = griddedfield.GriddedField3()
+
+        assert a == b
+
     def test_nonequality(self):
         """Check the non-equality of two GriddedField objects."""
         # Create two different objects with same content.
