@@ -6,6 +6,14 @@ typhon.physics
     :undoc-members:
     :show-inheritance:
 
+typhon.physics.metrology
+------------------------
+
+.. automodule:: typhon.physics.metrology
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 typhon.physics.units
 --------------------
 
