@@ -1,3 +1,14 @@
+2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/metrology.py:
+	
+	- We don't want uncertainties expressed in the free symbols if some
+	symbols are arrays; rather, each element of the array needs to have
+	its own uncertainty expression.  This is particularly important if
+	different elements of an array have different units, such as may be
+	the case when the coefficients of a polynomial are represented as an
+	array.  Added a helper function to use for this.
+
 2017-01-20  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/metrology.py:
