@@ -1,5 +1,9 @@
 2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/dataset.py: Small bugfixes
+
+2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/tovs.py(HIRS):
 
 	- Started implementing improved overlap choice.  Work in progress.

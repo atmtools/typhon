@@ -514,7 +514,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             fields = list(fields)
             for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
                 for d in deps:
-                    if d not in fields:
+                    if (d not in fields and
+                            all(kwargs.get(condfn) in condval for (condfn,
+                            condval) in cond.items())):
                         fields.append(d)
             for mandatory in self.mandatory_fields:
                 if mandatory not in fields:
@@ -522,8 +524,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
             if (fields=="all" or 
                     k in fields and k not in pseudo_fields) and (
-                    all(kwargs.get(condfn) in condval)
-                            for (condfn, condval) in cond.items()):
+                    all(kwargs.get(condfn) in condval
+                            for (condfn, condval) in cond.items())):
                 pseudo_fields[k] = v
         logging.debug("Reading {:s}".format(f))
         # should not pass pseudo_fields on to reader, it will get confused
