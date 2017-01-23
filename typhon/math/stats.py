@@ -177,3 +177,39 @@ def adev(x, dim=-1):
     N = x.shape[-1]
     return numpy.sqrt(1 / (2 * (N - 1)) *
                       ((x[..., 1:] - x[..., :-1])**2).sum(-1))
+
+
+from scipy.stats import pearsonr, betai
+
+def corrcoef(mat):
+    """Calculate correlation coefficient with p-values
+
+    Calculate correlation coefficients along with p-values.
+
+    Arguments:
+
+        mat (ndarray): 2-D array [p×N] for which the correlation matrix is
+            calculated
+
+    Returns:
+
+        (r, p) where r is a p×p matrix with the correlation coefficients,
+        obtained with numpy.corrcoef, and p is 
+
+    Attribution:
+    
+        this code, or an earlier version was posted by user 'jingchao' on
+        Stack Overflow at 2014-7-3 at
+        http://stackoverflow.com/a/24547964/974555 and is licensed under
+        CC BY-SA 3.0.  This notice may not be removed.
+    """
+    r = numpy.corrcoef(mat)
+    rf = r[numpy.triu_indices(r.shape[0], 1)]
+    df = mat.shape[1] - 2
+    ts = rf * rf * (df / (1 - rf * rf))
+    pf = scipy.stats.betai(0.5 * df, 0.5, df / (df + ts))
+    p = numpy.zeros(shape=r.shape)
+    p[numpy.triu_indices(p.shape[0], 1)] = pf
+    p[numpy.tril_indices(p.shape[0], -1)] = pf
+    p[numpy.diag_indices(p.shape[0])] = numpy.ones(p.shape[0])
+    return (r, p)
