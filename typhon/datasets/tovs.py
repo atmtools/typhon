@@ -174,7 +174,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     apply_scale_factors=True, calibrate=True,
                     apply_flags=True,
                     radiance_units="si",
-                    filter_firstline=True,
+                    filter_firstline="first",
                     apply_filter=True,
                     max_flagged=0.5):
         if path.endswith(".gz"):
@@ -350,6 +350,18 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 scanlines = scanlines.data # no ma when no flags
         elif apply_flags:
             raise ValueError("I refuse to apply flags when not calibrating ☹")
+        else: # i.e. not calibrating
+            # FIXME: this violates DRY a bit, as those lines also occur
+            # in the If:-block, but hard to do incrementally.  However, I
+            # just rely on times being available too much.
+            scanlines_new = numpy.empty(shape=scanlines.shape,
+                dtype=(scanlines.dtype.descr +
+                    [("time", "M8[ms]")]))
+            scanlines_new["time"] = self._get_time(scanlines)
+            for f in scanlines.dtype.names:
+                scanlines_new[f] = scanlines[f]
+            scanlines = scanlines_new
+
         if fields != "all":
             with warnings.catch_warnings():
                 # selecting multiple fields from a structured masked array
@@ -361,7 +373,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         if filter_firstline:
             try:
-                scanlines = self.filter_firstline(header, scanlines)
+                scanlines = self.filter_overlap(path, header, scanlines,
+                    method=filter_firstline)
             except KeyError as e:
                 raise dataset.InvalidFileError(
                     "Unable to filter firstline: {:s}".format(e.args[0])) from e
@@ -374,6 +387,39 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             return (M[0], super()._add_pseudo_fields(M[1], pseudo_fields))
         else:
             return super()._add_pseudo_fields(M, pseudo_fields)
+
+    def filter_overlap(self, path, header, scanlines,
+            method="first"):
+        if method == "first":
+            return self.filter_firstline(header, scanlines)
+        elif method == "best":
+            return self.filter_bestline(path, header, scanlines)
+        else:
+            raise ValueError("Unknown overlap filter "
+                "method: {:s}.  Expected 'first' or 'best'.".format(method))
+
+    def filter_bestline(self, path, header, scanlines):
+        """Choose best lines in overlap between last/current/next granule
+        """
+
+        # self.read should be using caching already, so no need to keep
+        # track of what I've already read here.  Except that caching only
+        # works if the arguments are identical, which they aren't.
+        # Consider applying caching on a lower level?  But then I need to
+        # store more…
+        prevnext = [
+            self.read(
+                self.find_most_recent_granule_before(
+                    scanlines["time"][idx].astype(datetime.datetime) +
+                        datetime.timedelta(minutes=Δmin)),
+                fields=["hrs_qualind", "hrs_scnlin", "time"],
+                return_header=False,
+                apply_scale_factors=False, calibrate=False, apply_flags=False,
+                filter_firstline=False, apply_filter=False, max_flagged=1.0)
+                        for (idx, Δmin) in [(0, -1), (-1, 1)]]
+
+        #
+        raise NotImplementedError("Not implemented yet beyond this point")
 
     _tmpdir = None
     _firstline_db = None

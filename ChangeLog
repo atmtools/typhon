@@ -1,5 +1,11 @@
 2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/tovs.py(HIRS):
+
+	- Started implementing improved overlap choice.  Work in progress.
+
+2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/math/stats.py(corrcoef):
 
 	- Calculate corrcoef with p-values.  Taken from StackOverflow,
