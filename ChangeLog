@@ -1,3 +1,17 @@
+2017-01-26  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/metrology.py(express_uncertainty):
+
+	- bugfix, don't stop at Function because an expression is also a
+	Function so it will stop immediately, oops.  Also make sure we return
+	immediately if passed a symbol or indexed.
+
+	* typhon/datasets/tovs.py(HIRS.as_xarray_dataset):
+
+	- New method that converts to an xarray dataset.  Still work in
+	progress but appears to work sometimes.  Makes it very easy to write
+	to NetCDF4.
+
 2017-01-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py: Small bugfixes

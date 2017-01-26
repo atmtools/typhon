@@ -44,15 +44,17 @@ def recursive_args(expr, stop_at=None):
     for example, when evaluating uncertainies.
 
     This is mainly a helper for express_uncertainty where we don't want to
-    descend beyond IndexedBase
+    descend beyond Indexed quantities
     """
 
     import sympy
     if stop_at is None:
-        stop_at = {sympy.Symbol, sympy.Indexed, sympy.Function}
+        stop_at = (sympy.Symbol, sympy.Indexed)
     args = set()
+    if isinstance(expr, stop_at):
+        return args
     for arg in expr.args:
-        if any(isinstance(arg, tp) for tp in stop_at):
+        if isinstance(arg, stop_at):
             args.add(arg)
         else:
             args.update(recursive_args(arg, stop_at=stop_at))

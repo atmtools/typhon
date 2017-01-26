@@ -982,11 +982,341 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             
         return lsc
 
+    data_vars_props = dict(
+        hrs_scnlin = (
+            "scanline_number",
+            ("scanline",),
+            {"long_name": "scanline number"}),
+        hrs_scnlinyr = (
+            "year",
+            ("scanline",),
+            {"long_name": "scanline year",
+             "units": "years"}),
+        hrs_scnlindy = (
+            "doy",
+            ("scanline",),
+            {"long_name": "scanline day of year",
+             "units": "ms"}),
+        hrs_clockdrift = (
+            "clockdrift",
+            ("scanline",),
+            {"long_name": "Satellite clock drift delta",
+             "units": "ms"}),
+        hrs_scnlintime = (
+            "scnlintime",
+            ("scanline",),
+            {"long_name": "Scan line time of day",
+             "units": "ms"}),
+        hrs_scnlinf = (
+            "scnlinf",
+            ("scanline",),
+            {"long_name": "Scan line bit field"}),
+        hrs_mjfrcnt = (
+            "majorframe_count",
+            ("scanline",),
+            {"long_name": "Major frame count"}),
+        hrs_scnpos = (
+            "scanline_position",
+            ("scanline",),
+            {"long_name": "Scanline position number in 32 second cycle"}),
+        hrs_scntyp = (
+            "scantype",
+            ("scanline",),
+            {"long_name": "Scan type",
+             "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
+             "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"}),
+        hrs_qualind = (
+            "quality_flags",
+            ("scanline",),
+            {"long_name": "Quality indicator bit field", # FIMXE: flag_meanings
+             "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4")}),
+        hrs_linqualind = (
+            "line_quality_flags",
+            ("scanline",),
+            {"long_name": "Scan line quality flags bit field", # FIXME: flag_meanings
+             "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
+                                           15, 20, 21, 22, 23],
+                                           dtype="u4")}),
+        hrs_chqualflg = (
+            "channel_quality_flags",
+            ("scanline", "channel"),
+            {"long_name": "Channel quality flags bit field",
+             "flag_masks": 1<<numpy.arange(6, dtype="u2")}),
+        hrs_mnfrqual = (
+            "minorframe_quality_flags",
+            ("scanline", "minor_frame"),
+            {"long_name": "Minor frame quality flags bit field",
+             "flag_masks": 1<<numpy.arange(8, dtype="u1")}),
+        hrs_calcof = (
+            "original_calibration_coefficients",
+            ("scanline", "triple_calib"),
+            {"long_name": "Original calibration coefficients (unsorted)",
+             "comment": "As produced by NOAA or EUMETSAT"}),
+        hrs_scalcof = (
+            "second_original_calibration_coefficients",
+            ("scanline", "triple_calib"),
+            {"long_name": "Second original calibration coefficients (unsorted)"}),
+        hrs_navstat = (
+            "navigation_status",
+            ("scanline",),
+            {"long_name": "Navigation status bit field"}),
+        hrs_attangtime = (
+            "attitude_angle_time",
+            ("scanline",),
+            {"long_name": "Time associated with Euler angles"}),
+        hrs_rollang = (
+            "platform_roll_angle",
+            ("scanline",),
+            {"long_name": "Platform roll angle",
+             "units": "degrees"}),
+        hrs_pitchang = (
+            "platform_pitch_angle",
+            ("scanline",),
+            {"long_name": "Platform pitch angle",
+             "units": "degrees"}),
+        hrs_yawang = (
+            "platform_yaw_angle",
+            ("scanline",),
+            {"long_name": "Platform yaw angle",
+             "units": "degrees"}),
+        hrs_scalti = (
+            "platform_altitude",
+            ("scanline",),
+            {"long_name": "Platform altitude",
+             "units": "km"}),
+        hrs_ang = (
+            "scan_angles",
+            ("scanline", "triple_scanpos"),
+            {"long_name": "Scan angles",
+             "units": "degrees"}),
+        hrs_pos = (
+            "earth_location",
+            ("scanline", "double_scanpos"),
+            {"long_name": "Earth location",
+             "units": "degrees"}),
+        hrs_elem = (
+            "elements",
+            ("scanline", "element_no"),
+            {"long_name": "Measurement elements",
+             "units": "counts"}),
+        hrs_digbinvwbf = (
+            "digital_b_flags_bitfield",
+            ("scanline",),
+            {"long_name": "Digital B telemetry flags"}),
+        hrs_digitbwrd = (
+            "digital_b_data_bitfield",
+            ("scanline",),
+            {"long_name": "Digital B data from TIP"}),
+        hrs_aninvwbf = (
+            "analog_telemetry_flags_bitfield",
+            ("scanline",),
+            {"long_name": "Analog telemetry flags bitfield"}),
+        hrs_anwrd = (
+            "analog_telemetry_data",
+            ("scanline", "analog_telemetry_words"),
+            {"long_name": "Analog telemetry data"}),
+        radiance = (
+            "toa_outgoing_radiance_per_unit_wavenumber",
+            ("scanline", "scanpos", "channel"),
+            {"long_name": "Channel radiance, NOAA/EUMETSAT calibrated",
+             "units": "{:~}".format(rad_u["ir"].u)}),
+        counts = (
+            "counts",
+            ("scanline", "scanpos", "channel"),
+            {"long_name": "Counts",
+             "units": "counts"}),
+        bt = (
+            "toa_brightness_temperature",
+            ("scanline", "scanpos", "calibrated_channel"),
+            {"long_name": "Brightness temperature, NOAA/EUMETSAT calibrated",
+             "units": "K"}),
+#        time = (
+#            "time",
+#            ("scanline",),
+#            {}), # FIXME: on writing?
+#        lat = (
+#            "Latitude",
+#            ("scanline", "scanpos"),
+#            {"long_name": "Latitude",
+#             "units": "degrees_north",
+#             "valid_range": [-90, 90]}),
+#        lon = (
+#            "Longitude",
+#            ("scanline", "scanpos"),
+#            {"long_name": "Longitude",
+#             "units": "degrees_east",
+#             "valid_range": [-180, 180]}),
+        calcof_sorted = (
+            "original_calibration_coefficients_sorted",
+            ("scanline", "channel", "n_calcof"),
+            {"long_name": "NOAA/EUMETSAT calibration coefficients, sorted"}),
+        temp_ch = (
+            "temperature_cooler_housing",
+            ("scanline",),
+            {"long_name": "Temperature cooler housing",
+             "units": "K"}),
+        temp_an_fwm = (
+            "temperature_filter_wheel_motor_analog",
+            ("scanline",),
+            {"long_name": "Temperature filter wheel motor (analogue)",
+             "units": "K"}),
+        temp_scanmotor = (
+            "temperature_scanmotor",
+            ("scanline",),
+            {"long_name": "Temperature scan motor",
+             "units": "K"}),
+        temp_fwh = (
+            "temperature_fwh",
+            ("scanline", "prt_number", "prt_reading"),
+            {"long_name": "Temperature filter wheel housing",
+             "units": "K"}),
+        temp_patch_exp = (
+            "temperature_patch_exp",
+            ("scanline", "prt_reading"),
+            {"long_name": "Temperature patch (expanded)",
+             "units": "K"}),
+        temp_an_rd = (
+            "temperature_radiator_analog",
+            ("scanline",),
+            {"long_name": "Temperature radiator (analog)",
+             "units": "K"}),
+        temp_iwt = (
+            "temperature_iwct",
+            ("scanline", "prt_number_iwt", "prt_reading"),
+            {"long_name": "Temperature internal warm calibration target (IWCT)",
+             "units": "K"}),
+        temp_an_baseplate = (
+            "temperature_baseplate_analog",
+            ("scanline",),
+            {"long_name": "Temperature baseplate (analog)",
+             "units": "K"}),
+        temp_an_scnm = (
+            "temperature_scanmirror_analog",
+            ("scanline",),
+            {"long_name": "Temperature scan mirror (analog)",
+             "units": "K"}),
+        temp_an_pch = (
+            "temperature_patch_analog",
+            ("scanline",),
+            {"long_name": "Temperature patch (analog)",
+             "units": "K"}),
+        temp_scanmirror = (
+            "temperature_scanmirror",
+            ("scanline",),
+            {"long_name": "Temperature scan mirror",
+             "units": "K"}),
+             # FIXME: something is being misread as temp_ict which makes
+             # the dimensions wrong, see
+             # https://github.com/FIDUCEO/FCDR_HIRS/issues/46
+#        temp_ict = ( 
+#            "temperature_icct",
+#            ("scanline", "prt_number", "prt_reading"),
+#            {"long_name": "Temperature internal cold calibration target (ICCT)",
+#             "units": "K"}),
+        temp_elec = (
+            "temperatur_electronics",
+            ("scanline",),
+            {"long_name": "Temperature electronics",
+             "units": "K"}),
+        temp_an_el = (
+            "temperature_electronics_analog",
+            ("scanline",),
+            {"long_name": "Temperature electronics (analog)",
+             "units": "K"}),
+        temp_sectlscp = (
+            "temperature_secondary_telescope",
+            ("scanline",),
+            {"long_name": "Temperature secondary telescope",
+             "units": "K"}),
+        temp_baseplate = (
+            "temperature_baseplate",
+            ("scanline",),
+            {"long_name": "Temperature baseplate",
+             "units": "K"}),
+        temp_fwm = (
+            "temperature_filter_wheel_motor",
+            ("scanline",),
+            {"long_name": "Temperature filter wheel motor",
+             "units": "K"}),
+        temp_fsr = (
+            "temperature_first_stage_radiator",
+            ("scanline", "prt_reading"),
+            {"long_name": "Temperature first stage radiator",
+             "units": "K"}),
+        temp_primtlscp = (
+            "temperature_primary_telescope",
+            ("scanline",),
+            {"long_name": "temperature primary telescope",
+             "units": "K"}),
+        temp_patch_full = (
+            "temperature_patch_full",
+            ("scanline",),
+            {"long_name": "temperature patch full",
+             "units": "K"}),
+        sol_za = (
+            "solar_zenith_angle",
+            ("scanline", "scanpos"),
+            {"long_name": "solar zenith angle",
+             "units": "degrees"}),
+        sat_za = (
+            "platform_zenith_angle",
+            ("scanline", "scanpos"),
+            {"long_name": "platform zenith angle",
+             "units": "degrees"}),
+        loc_aa = (
+            "local_azimuth_angle",
+            ("scanline", "scanpos"),
+            {"long_name": "local azimuth angle",
+             "units": "degrees"}),
+        radiance_fid = (
+            "radiance_fiduceo",
+            ("scanline", "scanpos", "calibrated_channel"),
+            {"long_name": "radiance, calibrated by FIDUCEO",
+             "units": "{:~}".format(rad_u["ir"].u)}),
+        bt_fid = (
+            "bt_fiduceo",
+            ("scanline", "scanpos", "calibrated_channel"),
+            {"long_name": "brightness temperature, calibrated by FIDUCEO",
+             "units": "K"}))
 
-    # extract_calibcounts_and_temp: relocated to HIRSFCDR
+    def as_xarray_dataset(self, M):
+        """Convert structured ndarray to xarray dataset
 
-    # calculate_offset_and_slope: relotade to HIRSFCDR
-                
+        From an object with a dtype such as may be returned by self.read,
+        return an xarray dataset.
+
+        This method is in flux and its API is currently not stable.  There
+        needs to be a proper system of defining the variable names etc.
+
+        See tickets 145, 148, 149.
+        """
+
+        import xarray
+        p = self.data_vars_props
+        data_vars = {
+            p[v][0]:
+               (p[v][1],
+                M[v].data,
+                p[v][2])
+            for v in p.keys() & set(M.dtype.names)}
+
+        coords = dict(
+            lon = (("scanline", "scanpos"), M["lon"]),
+            lat = (("scanline", "scanpos"), M["lat"]),
+            time = (("scanline",), M["time"]),
+            scanline = numpy.arange(M.shape[0]),
+            scanpos = numpy.arange(1, self.n_perline+1),
+            channel = numpy.arange(1, self.n_channels+1),
+            calibrated_channel = numpy.arange(1, self.n_calibchannels+1),
+                )
+
+        ds = xarray.Dataset(
+            data_vars,
+            coords,
+            {"title": "HIRS L1C"})
+        
+        return ds
+
 
 class HIRSPOD(HIRS):
     """Read early HIRS such as documented in POD guide.
@@ -1940,18 +2270,38 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
             raise dataset.InvalidFileError("Expected 2 "
                 "fields for time, found {:d}".format(len(timefields)))
 
-        MM = numpy.zeros(shape=M.shape,
+        MM = numpy.ma.zeros(shape=M.shape,
                          dtype=M.dtype.descr +
                          [("alltime", "M8[s]", timefields[0][2]
                             if len(timefields[0])>2 else ()),
                           ("time", "M8[s]")])
 
-        MM["alltime"] = (M[timefields[0][0]]*.5+M[timefields[1][0]]*.5).astype("M8[s]")
+        # Always use primary time so that time is always increasing
+#        MM["alltime"] = (
+#            numpy.ma.masked_less_equal(M[timefields[0][0]], 0)*.5 +
+#            numpy.ma.masked_less_equal(M[timefields[1][0]], 0)*.5
+#                        ).astype("M8[s]")
+        MM["alltime"] = (
+            numpy.ma.masked_less_equal(M[timefields[0][0]], 0)
+                        ).astype("M8[s]")
         MM["time"] = MM["alltime"][:, int(MM["alltime"].shape[1]//2+1),
                                       int(MM["alltime"].shape[2]//2+1)]
         for fld in M.dtype.fields:
             MM[fld][...] = M[fld][...]
-        return MM
+        # it appears there may still have been overlaps in the data that
+        # went into the matchups... try to fix that here
+        ii = numpy.argsort(M[timefields[0][0]][:, 3, 3])
+        Msrt = M[ii]
+        (_, iiu) = numpy.unique(
+            numpy.c_[
+                Msrt[timefields[0][0]][:, 3, 3],
+                Msrt[timefields[1][0]][:, 3, 3]
+                    ].data.view("i4,i4"),
+            return_index=True)
+        if iiu.size < MM.size:
+            logging.warning("There were duplicates in {!s}!  Removing " 
+            "{:%}".format(f, 1-iiu.size/MM.size))
+        return MM[ii][iiu]
 
     def combine(self, M, other_obj, *args, col_field, **kwargs):
         return super().combine(M, other_obj, *args, col_field=col_field,
