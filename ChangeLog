@@ -1,3 +1,21 @@
+2017-01-27  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Move definition of how to encode HIRS in xarray Dataset to the
+	definitions module.
+
+	* typhon/datasets/tovs.py(HIRS.as_xarray_dataset):
+
+	- Make more flexible, can skip dimensions so we can use it with
+	collocations, for example.  Set encoding values for efficient storage
+	in NetCDF4.  Improved documentation.
+
+	* typhon/physics/units/common.py:
+
+	- Fixed bug that caused radiance_units["ir"] to be a Quantity with
+	magnitude 1, rather than a Unit.
+
 2017-01-26  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/metrology.py(express_uncertainty):

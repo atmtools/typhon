@@ -1469,6 +1469,9 @@ class NetCDFDataset:
     ndarray axes, and the rest within structured multidimensional dtype.
 
     USE WITH CARE!  PROVISIONAL API!
+
+    This one should use xarray, of course!  See
+    https://arts.mi.uni-hamburg.de/trac/rt/ticket/145
     """
 
     def _get_dtype_from_vars(self, alldims, allvars, fields, prim):

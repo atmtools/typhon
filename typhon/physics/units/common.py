@@ -26,4 +26,4 @@ ureg.add_context(sp2)
 
 radiance_units = {
     "si": ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
-    "ir": ureg.mW / (ureg.m**2 * ureg.sr * (1 / ureg.cm))}
+    "ir": ureg.mW / (ureg.m**2 * ureg.sr * ureg.cm**-1)}
