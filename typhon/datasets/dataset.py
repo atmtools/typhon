@@ -21,6 +21,8 @@ import numpy.lib.recfunctions
 
 import netCDF4
 
+import xarray
+
 from .. import config
 from .. import utils
 from .. import math as tpmath
@@ -712,6 +714,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             ndarray with fields of M + fld.
         """
         raise NotImplementedError("Must be implemented by child-class")
+
+    def as_xarray_dataset(self):
+        raise NotImplementedError("Dataset {!s} has not implemented "
+            "conversion to xarray".format(self))
 
 class SingleFileDataset(Dataset):
     """Represents a dataset where all measurements are in one file.
@@ -1553,3 +1559,98 @@ class NetCDFDataset:
 # - ProfileDataset
 # - StationaryDataset
 # - HyperSpectral
+
+class DatasetDeque:
+    """A deque-like object sliding through a dataset.
+
+    For a particular dataset, keep data corresponding to time period in
+    memory.  When reading new data, discard a corresponding time period of
+    data in the past.  This should be useful to process longer periods of
+    data that do not fit into memory, to calculate sliding window
+    statistics, or to perform processing where values nearby in time are
+    required.
+    """
+
+    dsobj = window = init_time = center_time = data = None
+    def __init__(self, ds, window, init_time):
+        """Initialise a DatasetDeque
+
+        Arguments:
+
+            ds [Dataset]: Dataset that this belongs to, for example,
+                HIRS().  This dataset must have an implementation of
+                .as_xarray_dataset().
+
+            window [timedelta]: Duration that should be kept in memory.
+                For example, datetime.timedelta(hours=48).
+
+            init_time [datetime]: Instant around which initial window
+                shall be centred.
+        """
+        self.dsobj = ds
+        self.window = window
+        self.init_time = init_time
+        self.center_time = init_time
+
+        self.reset()
+
+    def reset(self):
+        """Reset to initial conditions
+
+        Sets data to self.init_time ± self.window/2
+        """
+        # FIXME: pass additional arguments
+        self.edges = (self.init_time-self.window/2,
+                      self.init_time+self.window/2)
+        self.center_time = self.init_time
+        M = self.dsobj.read_period(
+            *self.edges)
+
+        self.data = self.dsobj.as_xarray_dataset(M)
+            
+    def move(self, period):
+        """Read period on the right, discard period on the left
+
+        This moves the window to the right by `period` by reading `period`
+        new data, appending this on the right, and discarding an equally
+        long period on the left.
+
+        Arguments:
+
+            period [timedelta]: Duration by which to shift.
+                Must be positive.
+        """
+
+        if period > self.window:
+            raise ValueError("Shifting period ({!s}) exceeds window "
+                "length ({!s})!".format(period, self.window))
+        self.center_time += period
+        Mnew = self.dsobj.read_period(
+            self.edges[1],
+            self.edges[1]+period)
+        self.edges = (self.edges[0] + period,
+                      self.edges[1] + period)
+        datanew = self.dsobj.as_xarray_dataset(Mnew)
+
+        # need to convert to ms or it will become int and indexing will
+        # fail, see https://github.com/numpy/numpy/issues/8546
+        # and https://github.com/pydata/xarray/issues/1240
+        newst = self.data["time"][0].values.astype("M8[ms]") + numpy.timedelta64(period)
+        self.data = xarray.concat(
+            (self.data.sel(time=slice(newst, None)),
+             datanew),
+            dim="time")
+
+    def resize(self, window):
+        """Resize window
+        """
+
+        self.window = window
+        self.edges = (self.center_time-window/2, self.center_time+window/2)
+        self.data = self.dsobj.as_xarray_dataset(
+            self.dsobj.read_period(*self.edges))
+
+    def __repr__(self):
+        return "<{:s} {:s} centred at {:%Y-%m-%d %H:%M}>".format(
+            self.__class__.__name__, repr(self.dsobj),
+            self.center_time)

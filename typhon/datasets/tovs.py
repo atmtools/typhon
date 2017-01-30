@@ -18,6 +18,7 @@ import pathlib
 import dbm
 import contextlib
 import warnings
+import xarray
 import numpy
 try:
     import progressbar
@@ -1012,11 +1013,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             rename_dimensions [Mapping[str,str]]
 
                 dimensions that shall be renamed.  For example, for
-                collocations you may want to rename "scanline" to
-                "collocation".
+                collocations you may want to rename "time" to
+                "scanline" or to "collocation".
         """
 
-        import xarray
         p = self._data_vars_props
         data_vars = {
             p[v][0]:
@@ -1026,10 +1026,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             for v in p.keys() & set(M.dtype.names)}
 
         coords = dict(
-            lon = (("scanline", "scanpos"), M["lon"]),
-            lat = (("scanline", "scanpos"), M["lat"]),
-            time = (("scanline",), M["time"]),
-            scanline = (("scanline",), numpy.arange(M.shape[0])),
+            lon = (("time", "scanpos"), M["lon"]),
+            lat = (("time", "scanpos"), M["lat"]),
+            time = (("time",), M["time"]),
+            scanline = (("time",), numpy.arange(M.shape[0])),
             scanpos = (("scanpos",), numpy.arange(1, self.n_perline+1)),
             channel = (("channel",), numpy.arange(1, self.n_channels+1)),
             calibrated_channel = (("calibrated_channel",), numpy.arange(1, self.n_calibchannels+1)),

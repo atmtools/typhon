@@ -1,3 +1,26 @@
+2017-01-30  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* setup.py:
+
+	- Add support for Python 3.6 in addition to Python 3.5
+	- Add dependency on xarray (≥ 0.8, apparently the version in conda)
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Uncomment scale_factor 1, was causing ints to become floats upon
+	unpacking
+	- Rename dimension “scanline” to “time” for more consistent processing
+
+	* typhon/datasets/tovs.py:
+
+	- Rename here too
+
+	* typhon/datasets/dataset.py(DatasetDeque):
+
+	- New class to aid moving through a large dataset in a deque-like
+	way, i.e. when you read additional data at the tail, correspondingly
+	time period of data gets removed at the head.
+
 2017-01-27  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:
