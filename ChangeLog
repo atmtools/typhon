@@ -1,3 +1,9 @@
+2017-02-02  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(DatasetDeque.reset):
+
+	- Reset either to start of time or to new time.
+
 2017-01-30  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* setup.py:

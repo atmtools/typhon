@@ -1594,15 +1594,19 @@ class DatasetDeque:
 
         self.reset()
 
-    def reset(self):
+    def reset(self, newtime=None):
         """Reset to initial conditions
 
-        Sets data to self.init_time ± self.window/2
+        Sets data to indicated time or self.init_time ± self.window/2
+
+        Arguments:
+
+            newtime [datetime.datetime]: optional, time at which to
+            center window.  If not given, reset to initial time.
         """
-        # FIXME: pass additional arguments
         self.edges = (self.init_time-self.window/2,
                       self.init_time+self.window/2)
-        self.center_time = self.init_time
+        self.center_time = newtime or self.init_time
         M = self.dsobj.read_period(
             *self.edges)
 
