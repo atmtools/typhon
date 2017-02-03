@@ -13,6 +13,8 @@ __all__ = [
     'planck_wavenumber',
     'rayleighjeans',
     'rayleighjeans_wavelength',
+    'radiance2planckTb',
+    'radiance2rayleighjeansTb',
     'snell',
     'fresnel',
     'frequency2wavelength',
@@ -116,6 +118,39 @@ def rayleighjeans_wavelength(l, T):
     k = constants.boltzmann
 
     return 2 * c * k * T / l**4
+
+
+def radiance2planckTb(f, r):
+    """Convert spectral radiance to Planck brightness temperture.
+
+    Parameters:
+        f (float or ndarray): Frequency [Hz].
+        r (float or ndarray): Spectral radiance [W/m**-2/sr].
+
+    Returns:
+        float or ndarray: Planck brightness temperature [K].
+    """
+    c = constants.speed_of_light
+    k = constants.boltzmann
+    h = constants.planck
+
+    return h / k * f / np.log(((2 * h / c**2) * f**3) / r + 1)
+
+
+def radiance2rayleighjeansTb(f, r):
+    """Convert spectral radiance to Rayleight-Jeans brightness temperture.
+
+    Parameters:
+        f (float or ndarray): Frequency [Hz].
+        r (float or ndarray): Spectral radiance [W/m**-2/sr].
+
+    Returns:
+        float or ndarray: Rayleigh-Jeans brightness temperature [K].
+    """
+    c = constants.speed_of_light
+    k = constants.boltzmann
+
+    return c**2 / (2 * f**2 * k) * r
 
 
 def snell(n1, n2, theta1):
@@ -247,7 +282,7 @@ def frequency2wavelength(frequency):
 
 
 def frequency2wavenumber(frequency):
-    """Convert frequency to wavelength.
+    """Convert frequency to wavenumber.
 
     Parameters:
         frequency (float or ndarray): Frequency [Hz].

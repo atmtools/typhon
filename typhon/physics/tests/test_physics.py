@@ -35,6 +35,24 @@ class TestEM(object):
         x = physics.rayleighjeans_wavelength(0.01, 273.15)
         assert np.allclose(x, 0.00022611794774492813)
 
+    def test_radiance2planckTb(self):
+        """Test conversion between spectral radiance and Planck Tb."""
+        f = np.linspace(100, 80e12, 100)
+        r = physics.planck(f, 300)
+
+        tb = physics.radiance2planckTb(f, r)
+
+        assert np.allclose(tb, 300)
+
+    def test_radianc2rayleighjeansTb(self):
+        """Test conversion between spectral radiance and Rayleigh-Jeans Tb."""
+        f = np.linspace(100, 80e12, 100)
+        r = physics.rayleighjeans(f, 300)
+
+        tb = physics.radiance2rayleighjeansTb(f, r)
+
+        assert np.allclose(tb, 300)
+
     def test_snell(self):
         """Test Snell's law."""
         x = physics.snell(1, 1, 60)

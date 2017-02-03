@@ -1,3 +1,14 @@
+2017-02-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/physics/em.py:
+
+	Added `radiance2planckTb()` and `radianc2rayleighjeansTb()` to convert
+	radiances to brightness temperatures.
+
+	* typhon/physics/tests/test_physics.py:
+
+	Implemented tests for new functions.
+
 2017-02-02  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(DatasetDeque.reset):
