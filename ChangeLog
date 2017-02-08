@@ -1,3 +1,13 @@
+2017-02-08  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/colors.py:
+
+	All functions that export colormaps to files are now using the number of
+	colors actually defined in the colormap as default.
+
+	Changed the keyword argument in `mpl_colors()` from `n` to `N` for
+	consistency.`
+
 2017-02-03  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/em.py:

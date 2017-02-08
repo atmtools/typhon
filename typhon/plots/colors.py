@@ -22,12 +22,13 @@ __all__ = ['mpl_colors',
            ]
 
 
-def mpl_colors(cmap=None, n=10):
+def mpl_colors(cmap=None, N=None):
     """Return a list of RGB values.
 
     Parameters:
-        cmap (str): Name of a registered colormap
-        n (int): Number of colors to return
+        cmap (str): Name of a registered colormap.
+        N (int): Number of colors to return.
+            If ``None`` use the number of colors defined in the colormap.
 
     Returns:
         np.array: Array with RGB and alpha values.
@@ -43,7 +44,10 @@ def mpl_colors(cmap=None, n=10):
     if cmap is None:
         cmap = plt.rcParams['image.cmap']
 
-    return plt.get_cmap(cmap)(np.linspace(0, 1, n))
+    if N is None:
+        N = plt.get_cmap(cmap).N
+
+    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
 
 
 def _to_hex(c):
@@ -89,7 +93,7 @@ def colors2cmap(*args, name=None):
     return cmap
 
 
-def cmap2txt(cmap, filename=None, N=256, comments='%'):
+def cmap2txt(cmap, filename=None, N=None, comments='%'):
     """Export colormap to txt file.
 
     Parameters:
@@ -109,7 +113,7 @@ def cmap2txt(cmap, filename=None, N=256, comments='%'):
     np.savetxt(filename, colors[:, :3], header=header, comments=comments)
 
 
-def cmap2cpt(cmap, filename=None, N=256):
+def cmap2cpt(cmap, filename=None, N=None):
     """Export colormap to cpt file.
 
     Parameters:
@@ -141,7 +145,7 @@ def cmap2cpt(cmap, filename=None, N=256):
             f.write(right(n + 1, *rgb))
 
 
-def cmap2act(cmap, filename=None, N=256):
+def cmap2act(cmap, filename=None, N=None):
     """Export colormap to Adobe Color Table file.
 
     Parameters:
@@ -153,6 +157,11 @@ def cmap2act(cmap, filename=None, N=256):
     """
     if filename is None:
         filename = cmap + '.act'
+
+    # If the number of color levels to export is not set...
+    if N is None:
+        # ... use the number of colors defined in the colormap.
+        N = plt.get_cmap(cmap).N
 
     if N > 256:
         N = 256
@@ -167,7 +176,7 @@ def cmap2act(cmap, filename=None, N=256):
     rgb.astype(np.uint8).tofile(filename)
 
 
-def cmap2c3g(cmap, filename=None, N=256):
+def cmap2c3g(cmap, filename=None, N=None):
     """Export colormap ass CSS3 gradient.
 
     Parameters:
@@ -205,7 +214,7 @@ def cmap2c3g(cmap, filename=None, N=256):
         f.write('\n  );')
 
 
-def cmap2ggr(cmap, filename=None, N=256):
+def cmap2ggr(cmap, filename=None, N=None):
     """Export colormap as GIMP gradient.
 
     Parameters:
