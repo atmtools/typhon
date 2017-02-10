@@ -17,9 +17,8 @@ __all__ = ['SingleScatteringData',
            ]
 
 PARTICLE_TYPE_GENERAL = 10
-PARTICLE_TYPE_MACROS_ISO = 20
-PARTICLE_TYPE_HORIZ_AL = 30
-PARTICLE_TYPE_SPHERICAL = 40
+PARTICLE_TYPE_TOTALLY_RANDOM = 20
+PARTICLE_TYPE_AZIMUTHALLY_RANDOM = 30
 
 _old_ptype_mapping = {
     10: "general",
@@ -27,11 +26,25 @@ _old_ptype_mapping = {
     30: "horizontally_aligned",
 }
 
-_valid_ptypes = {
-    "general",
-    "macroscopically_isotropic",
-    "horizontally_aligned",
-}
+_valid_ptypes = [
+    [],
+    # version 1
+    [
+        10, 20, 30
+    ],
+    # version 2
+    [
+        "general",
+        "macroscopically_isotropic",
+        "horizontally_aligned",
+    ],
+    # version 3
+    [
+        "general",
+        "totally_random",
+        "azimuthally_random",
+    ],
+]
 
 
 def dict_combine_with_default(in_dict, default_dict):
@@ -75,7 +88,8 @@ class SingleScatteringData:
     calculations are performed in arts_scat.
 
     """
-    defaults = {'ptype': 'macroscopically_isotropic',
+    defaults = {'ptype': 'totally_random',
+                'version': 3,
                 # as defined in optproperties.h
                 'description': 'SingleScatteringData created with Typhon.',
                 'T_grid': np.array([250]),
@@ -85,6 +99,7 @@ class SingleScatteringData:
 
     def __init__(self):
         self._ptype = None
+        self.version = None
         self.description = None
         self.f_grid = None
         self.T_grid = None
@@ -158,14 +173,34 @@ class SingleScatteringData:
     @ptype.setter
     def ptype(self, ptype):
         if isinstance(ptype, int):
-            if ptype not in _old_ptype_mapping.keys():
-                raise RuntimeError('Invalid ptype {}'.format(ptype))
-            ptype = _old_ptype_mapping[ptype]
+            if self.version is None or self.version == 1:
+                if ptype not in _old_ptype_mapping.keys():
+                    raise RuntimeError('Invalid ptype {}'.format(ptype))
+                ptype = _old_ptype_mapping[ptype]
+                self.version = 2
+            else:
+                raise RuntimeError('Integer ptype not allowed for SSD version 2 and later')
         else:
-            if ptype not in _valid_ptypes:
+            if ptype not in _valid_ptypes[self.version]:
                 raise RuntimeError('Invalid ptype {}'.format(ptype))
 
         self._ptype = ptype
+
+    @property
+    def version(self):
+        """str: Particle type"""
+
+        return self._version
+
+    @version.setter
+    def version(self, v):
+        if v is not None:
+            if not isinstance(v, int):
+                raise TypeError('Version number must be type int')
+            if v < 1 or v > 3:
+                raise RuntimeError('Version number must be in the range from 1 to 3')
+
+        self._version = v
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -174,14 +209,21 @@ class SingleScatteringData:
 
         obj = cls()
         if 'version' in xmlelement.attrib.keys():
-            version = int(xmlelement.attrib['version'])
-        else:
-            version = 1
+            obj.version = int(xmlelement.attrib['version'])
 
-        if version == 1:
-            obj.ptype = int(xmlelement[0].value())
+        if obj.version is None or obj.version == 1:
+            obj.version = 2
+            obj.ptype = _valid_ptypes[2][_valid_ptypes[1].index(int(xmlelement[0].value()))]
         else:
             obj.ptype = xmlelement[0].value()
+
+        # Non-azimuthally random data can be directly converted to version 3
+        if obj.version == 2 and obj.ptype != 'horizontally_aligned':
+            obj.version = 3
+            obj.ptype = _valid_ptypes[3][_valid_ptypes[2].index(obj.ptype)]
+
+        if obj.ptype not in _valid_ptypes[obj.version]:
+            raise RuntimeError("Invalid ptype: {}".format(obj.ptype))
 
         obj.description = xmlelement[1].value()
         obj.f_grid = xmlelement[2].value()
@@ -205,6 +247,7 @@ class SingleScatteringData:
         """
 
         d = {'ptype': self.ptype,
+             'version': self.version,
              'description': self.description,
              'f_grid': self.f_grid,
              'T_grid': self.T_grid,
@@ -221,6 +264,11 @@ class SingleScatteringData:
         """Write a SingleScatterinData object to an ARTS XML file.
         """
         self.checksize()
+        if self.version is None or self.version < 2:
+            raise RuntimeError('SingleScatteringData version not supported.')
+        if attr is None:
+            attr = {}
+        attr['version'] = self.version
         xmlwriter.open_tag("SingleScatteringData", attr)
         xmlwriter.write_xml(self.ptype)
         xmlwriter.write_xml(self.description)
@@ -277,10 +325,10 @@ class SingleScatteringData:
         Only implemented for randomly oriented particles.
         """
 
-        if self.ptype != PARTICLE_TYPE_MACROS_ISO:
+        if self.ptype != PARTICLE_TYPE_TOTALLY_RANDOM:
             raise RuntimeError("Slicing implemented only for"
                                "ptype = %d. Found ptype = %d" %
-                               (PARTICLE_TYPE_MACROS_ISO, self.ptype))
+                               (PARTICLE_TYPE_TOTALLY_RANDOM, self.ptype))
         v2 = list(v)
         for i, el in enumerate(v):
             # to preserve the rank of the data, [n] -> [n:n+1]
