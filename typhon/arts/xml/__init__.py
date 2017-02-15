@@ -12,9 +12,12 @@ from os.path import isfile, join, basename, splitext
 from . import read
 from . import write
 
-__all__ = ['load',
-           'save',
-           'load_directory']
+__all__ = [
+    'load',
+    'save',
+    'load_directory',
+    'load_indexed',
+]
 
 
 def save(var, filename, precision='.7e', format='ascii', comment=None):
@@ -82,6 +85,13 @@ def load(filename):
                [ 2.,  3.]])
 
     """
+    # If file is not found, try the gzipped version.
+    if not isfile(filename):
+        if not isfile(filename + '.gz'):
+            raise FileNotFoundError("No such file: '{}'".format(filename))
+        else:
+            filename += '.gz'
+
     if filename.endswith('.gz'):
         xmlopen = gzip.open
     else:
@@ -122,3 +132,51 @@ def load_directory(directory, exclude=None):
                 if basename(f) not in exclude]
 
     return {splitext(basename(f))[0]: load(f) for f in xmlfiles}
+
+
+def load_indexed(filename):
+    """Load all indexed XML files matching the given filename.
+
+    The function searches all files matching the pattern:
+        <filename>.<file_index>.xml or <filename>.<file_index>.xml.gz
+
+    A list with the loaded file contents is returned. The list indices are
+    equivalent to the file indices.
+
+    Parameters:
+        filename (str): Filename.
+
+    Returns:
+        list: List. Each list entry is 
+
+    Example:
+        Load all files matching the pattern ``foo.<file_index>.xml``.
+
+        >>> load_indexed_xml('foo')
+
+    """
+    iidx = -2  # Relative position of fileindex in splitted filename.
+
+    # Get all files matching the indexed filename format.
+    files = glob.glob('{}.*.xml'.format(filename))
+
+    # If no files are found, try the gzipped version.
+    if len(files) == 0:
+        files = glob.glob('{}.*.xml.gz'.format(filename))
+        iidx = -3  # Correct fileindex position for gzipped files.
+
+    # Extract indices from filenames.
+    indices = [int(x.split('.')[iidx]) for x in files]
+
+    # Loop over all indices from 0 to maximum index found.
+    ret = []
+    for i in range(max(indices) + 1):
+        fname = '{}.{}.xml'.format(filename, i)
+        if isfile(fname) or isfile(fname + '.gz'):
+            # Append file content to list.
+            ret.append(load(fname))
+        else:
+            # Append ``None`` for missing files.
+            ret.append(None)
+
+    return ret

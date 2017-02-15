@@ -1,3 +1,25 @@
+2017-02-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/__init__.py:
+
+	(load):
+
+	If the given file is not found, try to add the '.gz' extension.  This is
+	consistent with ARTS.
+
+	(load_indexed):
+
+	Added a convenience function to load indexed XML files. All files matching
+	a given filename pattern are loaded and the results are retunred in a list.
+
+	* typhon/arts/griddedfield.py:
+
+	Added attribute `dataname` to all GriddedField classes. It is now possible
+	to set a proper name for the stored data array.
+
+	If `dataname` is not set, no name is written to XML files. This replaces
+	the old behavior of adding 'Data' as default.
+
 2017-02-10  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/scattering.py (SingleScatteringData):

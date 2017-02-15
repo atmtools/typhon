@@ -52,7 +52,7 @@ class GriddedField(object):
     """
 
     def __init__(self, dimension, grids=None, data=None, gridnames=None,
-                 name=None):
+                 dataname=None, name=None):
         """Create a GriddedField object.
 
         Parameters:
@@ -60,6 +60,7 @@ class GriddedField(object):
             grids (list, tuple, np.ndarray): grids.
             data (np.ndarray): data values.
             gridnames (List[str]): clear names for all grids.
+            dataname (str): name of the data array.
             name (str): name of the GriddedField.
 
         """
@@ -67,6 +68,7 @@ class GriddedField(object):
         self.grids = copy.deepcopy(grids)
         self.data = copy.copy(data)
         self.gridnames = copy.copy(gridnames)
+        self.dataname = dataname
         self.name = name
 
     def __getitem__(self, index):
@@ -161,6 +163,11 @@ class GriddedField(object):
         """Name of the GriddedField."""
         return self._name
 
+    @property
+    def dataname(self):
+        """Name of the data array."""
+        return self._dataname
+
     @grids.setter
     def grids(self, grids):
         if grids is None:
@@ -186,6 +193,10 @@ class GriddedField(object):
     def data(self, data):
         data_type = get_arts_typename(np.ndarray([0] * self.dimension))
         self._data = return_if_arts_type(data, data_type)
+
+    @dataname.setter
+    def dataname(self, dataname):
+        self._dataname = return_if_arts_type(dataname, 'String')
 
     @name.setter
     def name(self, name):
@@ -364,6 +375,8 @@ class GriddedField(object):
                          for x in xmlelement[:-1]]
 
         obj.data = xmlelement[-1].value()
+        if 'name' in xmlelement[-1].attrib:
+            obj.dataname = xmlelement[-1].attrib['name']
 
         obj.check_dimension()
         return obj
@@ -403,7 +416,10 @@ class GriddedField(object):
         for grid, name in zip(self.grids, self.gridnames):
             xmlwriter.write_xml(grid, {'name': name})
 
-        xmlwriter.write_xml(self.data, {'name': 'Data'})
+        if self.dataname is None:
+            xmlwriter.write_xml(self.data)
+        else:
+            xmlwriter.write_xml(self.data, {'name': self.dataname})
 
         xmlwriter.close_tag()
 
