@@ -1,5 +1,11 @@
 2017-02-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/griddedfield.py:
+
+	Fixed class method `to_atmlab_dict` to use the new `dataname` attribute.
+
+2017-02-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/xml/__init__.py:
 
 	(load):

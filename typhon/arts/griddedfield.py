@@ -374,6 +374,7 @@ class GriddedField(object):
                          if 'name' in x.attrib else ''
                          for x in xmlelement[:-1]]
 
+        # Read data (and optional dataname).
         obj.data = xmlelement[-1].value()
         if 'name' in xmlelement[-1].attrib:
             obj.dataname = xmlelement[-1].attrib['name']
@@ -398,7 +399,10 @@ class GriddedField(object):
         d['grids'] = self.grids
         d['gridnames'] = self.gridnames
         d['data'] = self.data
-        d['dataname'] = ''
+        if self.dataname is None:
+            d['dataname'] = ''
+        else:
+            d['dataname'] = self.dataname
 
         return d
 
