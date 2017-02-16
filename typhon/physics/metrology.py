@@ -35,7 +35,7 @@ def express_uncertainty(expr, aliases={}):
         rv += sympy.diff(expr, sym)**2 * u(sym)**2
     return sympy.sqrt(rv)
 
-def recursive_args(expr, stop_at=None):
+def recursive_args(expr, stop_at=None, partial_at=None):
     """Get arguments for `expr`, stopping at certain types
 
     Get all arguments in expression down to the levels in `expr`.  When
@@ -48,14 +48,21 @@ def recursive_args(expr, stop_at=None):
     """
 
     import sympy
+    import sympy.concrete.expr_with_limits
     if stop_at is None:
         stop_at = (sympy.Symbol, sympy.Indexed)
+    if partial_at is None:
+        partial_at = sympy.concrete.expr_with_limits.ExprWithLimits
     args = set()
     if isinstance(expr, stop_at):
         return args
+    if isinstance(expr, partial_at):
+        return recursive_args(expr.args[0])
     for arg in expr.args:
         if isinstance(arg, stop_at):
             args.add(arg)
+        elif isinstance(arg, partial_at):
+            args.update(recursive_args(arg.args[0], stop_at=stop_at))
         else:
             args.update(recursive_args(arg, stop_at=stop_at))
     return args

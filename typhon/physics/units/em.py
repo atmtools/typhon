@@ -88,6 +88,8 @@ class FwmuMixin:
 
 class SRF(FwmuMixin):
     """Respresents a spectral response function
+
+    TODO: representation of uncertainties
     """
 
     T_lookup_table = numpy.arange(100, 370.01, 0.05) * ureg.K
@@ -255,6 +257,29 @@ class SRF(FwmuMixin):
         return self.L_to_T(
             L.to(ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
                  "radiance")) * ureg.K
+
+    def estimate_band_coefficients(self):
+        """Estimate band coefficients for fast/explicit BT calculations
+
+        In some circumstances, a fully integrated SRF may be more
+        expensive than needed.  We can then choose an effective wavelength λ_c
+        along with coefficients α, β such that instead of integrating, we
+        estimate R = B(λ*, T*), with T* = α + β · T_B and λ* a wavelength
+        which may be close to the centroid λ_c (but there is no
+        guarantee).  Such an approximation eliminates the explicit use of
+        an integral which can make analysis easier.
+
+        Returns:
+
+            α (float): Offset in approximation for T*
+            β (float): Slope in approximation for T*
+            λ_eff (float): Effective wavelength
+            Δα (float): Uncertainty in α
+            Δβ (float): Uncertainty in β
+            Δλ_eff (float): Uncertainty in λ_eff
+        """
+
+        raise NotImplementedError("Estimation of band coefficients not implemented yet")
 
     # Methods returning new SRFs with some changes
     def shift(self, amount):
