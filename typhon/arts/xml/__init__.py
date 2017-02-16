@@ -137,8 +137,8 @@ def load_directory(directory, exclude=None):
 def load_indexed(filename):
     """Load all indexed XML files matching the given filename.
 
-    The function searches all files matching the pattern:
-        <filename>.<file_index>.xml or <filename>.<file_index>.xml.gz
+    The function searches all files matching the pattern
+    ``<filename>.<file_index>.xml`` or ``<filename>.<file_index>.xml.gz``.
 
     A list with the loaded file contents is returned. The list indices are
     equivalent to the file indices.
@@ -147,7 +147,7 @@ def load_indexed(filename):
         filename (str): Filename.
 
     Returns:
-        list: List. Each list entry is 
+        list: List of file contents.
 
     Example:
         Load all files matching the pattern ``foo.<file_index>.xml``.
