@@ -1,3 +1,9 @@
+2017-02-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/__init__.py (load_indexed):
+
+	Fixed handling of zero-padding in filenames.
+
 2017-02-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py:

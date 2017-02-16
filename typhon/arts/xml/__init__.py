@@ -166,17 +166,14 @@ def load_indexed(filename):
         iidx = -3  # Correct fileindex position for gzipped files.
 
     # Extract indices from filenames.
-    indices = [int(x.split('.')[iidx]) for x in files]
+    maxindex = max(int(x.split('.')[iidx]) for x in files)
 
-    # Loop over all indices from 0 to maximum index found.
-    ret = []
-    for i in range(max(indices) + 1):
-        fname = '{}.{}.xml'.format(filename, i)
-        if isfile(fname) or isfile(fname + '.gz'):
-            # Append file content to list.
-            ret.append(load(fname))
-        else:
-            # Append ``None`` for missing files.
-            ret.append(None)
+    # Pre-allocate a list according to the maximum index found.
+    ret = (maxindex + 1) * [None]
+
+    # Fill list with file contents (file index matching list index).
+    for f in files:
+        findex = int(f.split('.')[iidx])
+        ret[findex] = load(f)
 
     return ret
