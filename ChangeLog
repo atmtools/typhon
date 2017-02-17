@@ -1,3 +1,15 @@
+2017-02-17  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/metrology.py:
+	
+	(express_uncertainty): Add permissive mode where a single failed
+	derivative does not cause the entire expression to fail (awaiting a
+	fix for the failures).
+
+	(recursive_args): Bugfix, was dropping indexed values completely
+	rather than merely not descending into their index and indexbase.
+
+
 2017-02-16  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/units/em.py(SRF):
