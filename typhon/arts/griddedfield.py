@@ -86,6 +86,9 @@ class GriddedField(object):
             if self.name != other.name:
                 return False
 
+            if self.dataname != other.dataname:
+                return False
+
             if self.gridnames != other.gridnames:
                 return False
 
@@ -311,7 +314,10 @@ class GriddedField(object):
 
         d = {name: grid for name, grid in zip(gridnames, grids)}
 
-        d['data'] = self.data
+        if self.dataname is not None:
+            d[self.dataname] = self.data
+        else:
+            d['data'] = self.data
 
         return d
 

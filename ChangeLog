@@ -1,3 +1,11 @@
+2017-02-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py:
+
+	(__eq__): Consider `dataname` when comparing GriddedField objects.
+
+	(to_dict): If defined, use `dataname` as key for the data array.
+
 2017-02-17  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/metrology.py:
