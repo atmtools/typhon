@@ -49,7 +49,8 @@ def run_arts(controlfile=None, arts='arts', writetxt=False,
     if controlfile is None:
         controlfile = ''
     elif not os.path.exists(controlfile):
-        raise Exception('Controlfile not found at: {}'.format(controlfile))
+        err_msg = 'Controlfile not found at: {}'.format(controlfile)
+        raise FileNotFoundError(err_msg)
 
     opts = []
     for kw, arg in kwargs.items():

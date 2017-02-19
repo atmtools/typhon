@@ -1,3 +1,10 @@
+2017-02-19  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/common.py (run_arts):
+
+	Raise proper `FileNotFoundError` instead of an unspecific `Exception` if
+	controfile is not found.
+
 2017-02-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py:
