@@ -4,23 +4,23 @@ API Documentation
 .. toctree::
    :maxdepth: 3
 
-   arts
-   xml
-   atmosphere
-   config
-   constants
-   datasets
-   files
-   geodesy
-   geographical
-   latex
-   math
-   oem
-   physics
-   plots
-   cm
-   spectroscopy
-   utils
+   typhon.arts
+   typhon.arts.xml
+   typhon.atmosphere
+   typhon.config
+   typhon.constants
+   typhon.datasets
+   typhon.files
+   typhon.geodesy
+   typhon.geographical
+   typhon.latex
+   typhon.math
+   typhon.oem
+   typhon.physics
+   typhon.plots
+   typhon.plots.cm
+   typhon.spectroscopy
+   typhon.utils
 
 Indices and tables
 ------------------
