@@ -1,3 +1,10 @@
+2017-02-21  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py:
+
+	Added `path_append`, `path_prepend` and `path_remove` to conveniently
+	modify colon-separated path variables (e.g. PATH or ARTS_DATA_PATH).
+
 2017-02-20  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/*.rst: Use full module names for rst files.

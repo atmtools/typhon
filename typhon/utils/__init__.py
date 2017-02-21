@@ -2,6 +2,7 @@
 import time
 import ast
 import operator
+import os
 
 import numpy as np
 
@@ -12,6 +13,9 @@ __all__ = ["cache",
            "metaclass",
            "extract_block_diag",
            "Timer",
+           "path_append",
+           "path_prepend",
+           "path_remove",
            ]
 
 
@@ -117,3 +121,64 @@ def _safe_eval_node(node):
         return operators[type(node.op)](_safe_eval_node(node.operand))
     else:
         raise TypeError(node)
+
+
+def path_append(dirname, path='PATH'):
+    """Append a directory to environment path variable.
+
+    Append entries to colon-separated variables (e.g. the system path).
+    If the entry is already in the list, it is moved to the end.
+    A path variable is set, if not existing at function call.
+
+    Parameters:
+        dirname (str): Directory to add to the path.
+        path (str): Name of the path variable to append to.
+            Defaults to the system path 'PATH'.
+    """
+    if path in os.environ:
+        dir_list = os.environ[path].split(os.pathsep)
+        if dirname in dir_list:
+            dir_list.remove(dirname)
+        dir_list.append(dirname)
+        os.environ[path] = os.pathsep.join(dir_list)
+    else:
+        os.environ[path] = dirname
+
+
+def path_prepend(dirname, path='PATH'):
+    """Prepend a directory to environment path variable.
+
+    Append entries to colon-separated variables (e.g. the system path).
+    If the entry is already in the list, it is moved to the end.
+    A path variable is set, if not existing at function call.
+
+    Parameters:
+        dirname (str): Directory to add to the path.
+        path (str): Name of the path variable to append to.
+            Defaults to the system path 'PATH'.
+    """
+    if path in os.environ:
+        dir_list = os.environ[path].split(os.pathsep)
+        if dirname in dir_list:
+            dir_list.remove(dirname)
+        dir_list.insert(0, dirname)
+        os.environ[path] = os.pathsep.join(dir_list)
+    else:
+        os.environ[path] = dirname
+
+
+def path_remove(dirname, path='PATH'):
+    """Remove a directory from environment path variable.
+
+    Remove entries from colon-separated variables (e.g. the system path).
+    If the path variable is not set, nothing is done.
+
+    Parameters:
+        dirname (str): Directory to add to the path.
+        path (str): Name of the path variable to append to.
+            Defaults to the system path 'PATH'.
+    """
+    if path in os.environ:
+        dir_list = os.environ[path].split(os.pathsep)
+        dir_list.remove(dirname)
+        os.environ[path] = os.pathsep.join(dir_list)
