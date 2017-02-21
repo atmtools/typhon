@@ -1,3 +1,10 @@
+2017-02-21  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/math/common.py(promote_maximally):
+
+	- Clarify documentation and tolerate passing in plain Python numbers
+	(for which it will do nothing).
+
 2017-02-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py:

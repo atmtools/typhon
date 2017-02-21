@@ -72,10 +72,20 @@ def nlogspace(start, stop, num=50):
     return np.exp(np.linspace(np.log(start), np.log(stop), num))
 
 def promote_maximally(x):
-    """Return copy of x with highest-precision dtype
+    """Return copy of x with high precision dtype.
 
-    Currently only works for simple dtypes of type float, int, or uint.
+    Converts input of 'f2', 'f4', or 'f8' to 'f8'.  Please don't pass f16.
+    f16 is misleading and naughty.
+
+    Converts input of 'u1', 'u2', 'u4', 'u8' to 'u8'.
+
+    Converts input of 'i1', 'i2', 'i4', 'i8' to 'i8'.
+
+    Naturally, this copies the data and increases memory usage.
+
     Anything else is returned unchanged.
+
+    If you input a pint quantity you will get back a pint quantity.
 
     Experimental function.
     """
@@ -85,7 +95,10 @@ def promote_maximally(x):
     except AttributeError: # not a pint quantity
         q = x
         u = None
-    kind = q.dtype.kind
+    try:
+        kind = q.dtype.kind
+    except AttributeError: # not from numpy
+        return q
     if kind in "fiu":
         newx = q.astype(kind + "8")
         return newx*u if u else newx
