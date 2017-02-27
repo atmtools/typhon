@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """ Common variables to use within the units subpackage.
 """
-from pint import (UnitRegistry, Context)
 
+from pint import (UnitRegistry, Context)
 
 __all__ = [
     'ureg',
@@ -27,3 +27,9 @@ ureg.add_context(sp2)
 radiance_units = {
     "si": ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
     "ir": ureg.mW / (ureg.m**2 * ureg.sr * ureg.cm**-1)}
+
+# add wavenumber/kayser to spectroscopy contexts for use with pint<0.8
+ureg._contexts["spectroscopy"].add_transformation("[length]", "1/[length]",
+    lambda ureg, x, **kwargs: 1/x)
+ureg._contexts["spectroscopy"].add_transformation("1/[length]", "[length]",
+    lambda ureg, x, **kwargs: 1/x)
