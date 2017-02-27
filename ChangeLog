@@ -1,3 +1,11 @@
+2017-02-27  Gerrit Holl  <g.holL@reading.ac.uk>
+
+	* typhon/physics/units/em.py(SRF):
+
+	- Added examples to documentation
+	- Made passing units and ndarrays optional, can now pass unitless or
+	regular python numbers.
+
 2017-02-27  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/units/common.py:

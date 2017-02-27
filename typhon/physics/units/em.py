@@ -97,13 +97,40 @@ class SRF(FwmuMixin):
     L_to_T = None
 
     def __init__(self, f, W):
-        """Initialise SRF object
+        """Initialise SRF object.
 
-        :param ndarray f: Array of frequencies
-        :param ndarray W: Array of associated weights
+        You can either initialise an SRF from scratch, or use the
+        classmethod `fromArtsXML` to read it from a file.
+
+        A toy example on initiating it from scratch:
+
+        >>> from typhon.physics.units.common import ureg
+        >>> from typhon.physics.units.em import SRF
+        >>> srf = SRF(ureg.Quantity(numpy.array([200, 200.1, 200.2, 200.3, 200.4, 200.5]), 'GHz'), numpy.array([0, 0.5, 1, 1, 0.5, 0]))
+        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(300, K))
+        >>> print(R_300)
+        [  3.63716781e-15] watt / hertz / meter ** 2 / steradian
+
+        You can also pass in other spectroscopic units (wavenumber,
+        wavelength) that will be converted internally to frequency:
+
+        >>> srf = SRF(ureg.Quantity(numpy.array([10.8, 10.9, 11.0, 11.1, 11.2, 11.3]), 'um'), numpy.array([0, 0.5, 1, 1, 0.5, 0]))
+        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(atleast_1d(250), 'K'))
+        >>> print(R_300)
+        [  1.61922509e-12] watt / hertz / meter ** 2 / steradian
+        >>> print(R_300.to("cm * mW / m**2 / sr", "radiance"))
+        [ 48.54314703] centimeter * milliwatt / meter ** 2 / steradian
+
+        :param ndarray f: Array of frequencies.  Can be either a pure
+            ndarray, which will be assumed to be in Hz, or a ureg
+            quantity.
+        :param ndarray W: Array of associated weights.
         """
 
-        self.frequency = f
+        try:
+            self.frequency = f.to("Hz", "sp")
+        except AttributeError:
+            self.frequency = ureg.Quantity(f, "Hz")
         self.W = W
 
     def __repr__(self):
@@ -126,7 +153,21 @@ class SRF(FwmuMixin):
         `srf_backend_f` and `srf_backend_response` in the section
         corresponding to instrument `instr` are defined to point to the
         respective files in ArtsXML format.  Within those definitions,
-        {sat:s} will be substituted with the satellite name.
+        {sat:s} will be substituted with the satellite name.  For example,
+        in typhonrc, one might have:
+
+        [hirs]
+        srf_backend_response = /path/to/{sat}_HIRS.backend_channel_response.xml
+        srf_backend_f = /path/to/{sat}_HIRS.f_backend.xml
+
+        so that we can do:
+
+        >>> srf = SRF.fromArtsXML("NOAA15", "hirs", 12)
+        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(atleast_1d(250), 'K')) 
+        >>> print(R_300)
+        [  2.13002925e-13] watt / hertz / meter ** 2 / steradian
+        >>> print(R_300.to("cm * mW / m**2 / sr", "radiance")) 
+        [ 6.38566704] centimeter * milliwatt / meter ** 2 / steradian
 
         Arguments:
 
@@ -160,9 +201,21 @@ class SRF(FwmuMixin):
     def blackbody_radiance(self, T, spectral=True):
         """Calculate integrated radiance for blackbody at temperature T
 
-        :param T: Temperature [K]
-        :param spectral: Spectral if true, see self.integrate_radiances.
+        :param T: Temperature [K].  This can be either a python number, or
+            a numpy ndarray, on a ureg quantity encompassing either.
+        :param spectral: Parameter to control whether to return spectral
+            radiance or radiance.  See self.integrate_radiances for
+            details.
+
+        Returns quantity ndarray with blackbody radiance in desired unit.
+        Note that this is an ndarray with dimension (1,) even if you
+        passin a scalar.
         """
+        try:
+            T = T.to("K")
+        except AttributeError:
+            T = ureg.Quantity(T, "K")
+        T = ureg.Quantity(numpy.atleast_1d(T), T.u)
         return self.integrate_radiances(
             self.frequency, planck_f(
                 self.frequency[numpy.newaxis, :],
