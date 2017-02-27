@@ -2,6 +2,8 @@
 
 """
 
+import numbers
+
 import numpy
 
 import scipy.stats
@@ -164,8 +166,10 @@ def adev(x, dim=-1):
 
     Arguments:
 
-        x (ndarray): n-dim array for Allan calculation
-        dim (int): optional, axis to operate along, defaults to last
+        x (ndarray or xarray DataArray): n-dim array for Allan calculation
+        dim (int or str): optional, axis to operate along, defaults to
+            last.  If you pass a str, x must be a xarray.DataArray and the
+            dimension will be a name.
 
     .. math::
         \sigma = \sqrt{\frac{1}{2(N-1)} \sum_{i=1}^{N-1} (y_{i+1} - y_i)^2}
@@ -173,11 +177,15 @@ def adev(x, dim=-1):
     Equation source: Jon Mittaz, personal communication, April 2016
     """
 
-    x = x.swapaxes(-1, dim)
-    N = x.shape[-1]
-    return numpy.sqrt(1 / (2 * (N - 1)) *
-                      ((x[..., 1:] - x[..., :-1])**2).sum(-1))
-
+    
+    if isinstance(dim, numbers.Integral):
+        x = x.swapaxes(-1, dim)
+        N = x.shape[-1]
+        return numpy.sqrt(1/(2*(N-1)) *
+                          ((x[..., 1:] - x[..., :-1])**2).sum(-1))
+    else:
+        N = x.sizes[dim]
+        return numpy.sqrt((1/(2*(N-1)) * x.diff(dim=dim)**2).sum(dim=dim))
 
 from scipy.stats import pearsonr, betai
 

@@ -307,6 +307,11 @@ class SRF(FwmuMixin):
         Using the lookup table, convert channel radiance to brightness
         temperature.  Will construct lookup table on first call.
 
+        Typhon also registers a pint context “radiance” which can be used
+        to convert between radiance units and brightness temperature (even
+        though this is a different quantity), for example, by using
+        L.to("K", "radiance", srf=srf)
+
         :param L: Radiance [W m^-2 sr^-1 Hz^-1] or compatible
         """
         if self.lookup_table is None:

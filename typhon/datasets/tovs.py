@@ -1022,7 +1022,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             p[v][0]:
                ([rename_dimensions.get(d,d) for d in p[v][1] if d not in skip_dimensions],
                 M[v].data if isinstance(M, numpy.ma.MaskedArray) else M[v],
-                p[v][2])
+                {**p[v][2], **{"orig_name": v}})
             for v in p.keys() & set(M.dtype.names)}
 
         coords = dict(
@@ -1045,7 +1045,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             coords,
             {"title": "HIRS L1C"})
 
-        for v in p.keys():
+        for v in p.keys() & set(M.dtype.names):
             ds[p[v][0]].encoding = p[v][3]
             ds[p[v][0]].values[M[v].mask] = (
                 numpy.nan if M[v].dtype.kind.startswith('f')
