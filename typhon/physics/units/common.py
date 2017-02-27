@@ -17,11 +17,27 @@ sp2 = Context("radiance")
 sp2.add_transformation(
     "[length] * [mass] / [time] ** 3",
     "[mass] / [time] ** 2",
-    lambda ureg, x: x / ureg.speed_of_light)
+    lambda ureg, x, **kwargs: x / ureg.speed_of_light)
 sp2.add_transformation(
     "[mass] / [time] ** 2",
     "[length] * [mass] / [time] ** 3",
-    lambda ureg, x: x * ureg.speed_of_light)
+    lambda ureg, x, **kwargs: x * ureg.speed_of_light)
+def _R_to_bt(ureg, R, srf):
+    """For use by pint, do not call directly, use q.to or SRF class."""
+    if srf.lookup_table is None:
+        srf.make_lookup_table()
+    return ureg.Quantity(srf.L_to_T(R), 'K')
+def _bt_to_R(ureg, T, srf):
+    return ureg.Quantity(srf.blackbody_radiance(T, spectral=True))
+_bt_to_R.__doc__ = _R_to_bt.__doc__
+sp2.add_transformation(
+    "[mass] / [time] ** 2",
+    "[temperature]",
+    _R_to_bt)
+sp2.add_transformation(
+    "[temperature]",
+    "[mass] / [time] ** 2",
+    _bt_to_R)
 ureg.add_context(sp2)
 
 radiance_units = {

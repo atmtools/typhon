@@ -110,6 +110,8 @@ class SRF(FwmuMixin):
         >>> R_300 = srf.blackbody_radiance(ureg.Quantity(300, K))
         >>> print(R_300)
         [  3.63716781e-15] watt / hertz / meter ** 2 / steradian
+        >>> print(R_300.to("K", "radiance", srf=srf))
+        [ 300.] kelvin
 
         You can also pass in other spectroscopic units (wavenumber,
         wavelength) that will be converted internally to frequency:
@@ -120,6 +122,8 @@ class SRF(FwmuMixin):
         [  1.61922509e-12] watt / hertz / meter ** 2 / steradian
         >>> print(R_300.to("cm * mW / m**2 / sr", "radiance"))
         [ 48.54314703] centimeter * milliwatt / meter ** 2 / steradian
+        >>> print(R_300.to("K", "radiance", srf=srf))
+        [ 300.] kelvin
 
         :param ndarray f: Array of frequencies.  Can be either a pure
             ndarray, which will be assumed to be in Hz, or a ureg
