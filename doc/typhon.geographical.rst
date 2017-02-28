@@ -1,7 +1,12 @@
-typhon.geographical
-===================
+geographical
+============
 
 .. automodule:: typhon.geographical
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+.. currentmodule:: typhon.geographical
+
+.. autosummary::
+   :toctree: generated
+
+   area_weighted_mean
+

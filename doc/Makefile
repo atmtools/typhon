@@ -49,7 +49,7 @@ help:
 	@echo "  coverage   to run coverage check of the documentation (if enabled)"
 
 clean:
-	rm -rf $(BUILDDIR)/*
+	rm -rf $(BUILDDIR)/* generated
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
@@ -194,4 +194,7 @@ pseudoxml:
 # OLE: Target used by me to upload the docs to the web server
 upload:
 	rsync -av --delete _build/html/ arts:/srv/www/arts_misc/typhon/doc
+
+devupload:
+	rsync -av --delete _build/html/ arts:/srv/www/arts_misc/typhon/doc-trunk
 

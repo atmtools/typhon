@@ -1,23 +1,47 @@
-typhon.math
-===========
+math
+====
 
 .. automodule:: typhon.math
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.math.array
------------------
+.. currentmodule:: typhon.math
+
+.. autosummary::
+   :toctree: generated
+
+   calculate_precisely
+   integrate_column
+   nlogspace
+   promote_maximally
+   sum_digits
+
+math.array
+==========
 
 .. automodule:: typhon.math.array
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.math.stats
------------------
+.. currentmodule:: typhon.math.array
+
+.. autosummary::
+   :toctree: generated
+
+   limit_ndarray
+   localmin
+   mad_outliers
+   parity
+
+math.stats
+==========
 
 .. automodule:: typhon.math.stats
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.math.stats
+
+.. autosummary::
+   :toctree: generated
+
+   adev
+   bin
+   bin_nd
+   corrcoef
+   get_distribution_as_percentiles
+

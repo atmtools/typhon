@@ -1,7 +1,12 @@
-typhon.atmosphere
-=================
+atmosphere
+==========
 
 .. automodule:: typhon.atmosphere
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+.. currentmodule:: typhon.atmosphere
+
+.. autosummary::
+   :toctree: generated
+
+   iwv
+

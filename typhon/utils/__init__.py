@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+"""This module contains convenience functions for any purposes.
+"""
+
 import time
 import ast
 import operator

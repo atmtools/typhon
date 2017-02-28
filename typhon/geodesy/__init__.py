@@ -378,7 +378,7 @@ def geocentric2cart(r, lat, lon):
 
 
 def cart2geodetic(x, y, z, ellipsoid=None):
-    """Converts from cartesian to geodetic coordinates.
+    """Convert from cartesian to geodetic coordinates.
 
     The geodetic coordinates refer to the reference ellipsoid
     specified by input ellipsoid.
@@ -418,7 +418,7 @@ def cart2geodetic(x, y, z, ellipsoid=None):
 
 
 def geodetic2cart(h, lat, lon, ellipsoid=None):
-    """Converts from geodetic to geocentric cartesian coordinates.
+    """Convert from geodetic to geocentric cartesian coordinates.
 
     The geodetic coordinates refer to the reference ellipsoid
     specified by input ellipsoid.
@@ -455,7 +455,7 @@ def geodetic2cart(h, lat, lon, ellipsoid=None):
 
 
 def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
-    """Converts from geodetic to geocentric coordinates.
+    """Convert from geodetic to geocentric coordinates.
 
     The geodetic coordinates refer to the reference ellipsoid
     specified by input ellipsoid.
@@ -485,7 +485,7 @@ def geodetic2geocentric(h, lat, lon, ellipsoid=None, **kwargs):
 
 
 def geocentric2geodetic(r, lat, lon, ellipsoid=None):
-    """Converts from geocentric to geodetic coordinates.
+    """Convert from geocentric to geodetic coordinates.
 
     The geodetic coordinates refer to the reference ellipsoid
     specified by input ellipsoid.
@@ -580,7 +580,7 @@ def geographic_mean(lat, lon, h=0, ellipsoid=None):
 
 def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
                           lat0=None, lon0=None, za0=None, aa0=None):
-    """Converts cartesian POS/LOS to spherical coordinates.
+    """Convert cartesian POS/LOS to spherical coordinates.
 
     Position is given as (x,y,z), while line-of-sight is given as (dx,dy,dz).
     The corresponding quantities in polar coordinates are (r,lat,lon)
@@ -707,7 +707,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
 def geocentricposlos2cart(r, lat, lon, za, aa):
 
     """
-     GEOCENTRICPOSLOS2CART converts from spherical POS/LOS to cartesian POS/LOS
+     Convert from spherical POS/LOS to cartesian POS/LOS
 
      See Contents for a defintion of the geocentric coordinate system.
      The local LOS angles are defined following the EAST-NORTH-UP system:

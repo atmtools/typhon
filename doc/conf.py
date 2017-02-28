@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
@@ -300,9 +301,11 @@ texinfo_documents = [
 # Explicitly set language.
 highlight_language = 'python3'
 
+autosummary_generate = True
+
 # -- Intersphinx configuration -------------------------------------------
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/dev', None),
+    'python': ('https://docs.python.org/3.5', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
     'matplotlib': ('http://matplotlib.org', None)
 }

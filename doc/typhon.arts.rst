@@ -1,48 +1,106 @@
-typhon.arts
-===========
+arts
+====
 
 .. automodule:: typhon.arts
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.arts.catalogues
-------------------------
+.. currentmodule:: typhon.arts
+
+.. autosummary::
+   :toctree: generated
+
+   atm_fields_compact_get
+   atm_fields_compact_update
+   run_arts
+
+arts.catalogues
+===============
 
 .. automodule:: typhon.arts.catalogues
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.arts.griddedfield
-------------------------
+.. currentmodule:: typhon.arts.catalogues
+
+.. autosummary::
+   :toctree: generated
+
+   ArrayOfLineRecord
+   CIARecord
+   GasAbsLookup
+   LineMixingRecord
+   QuantumIdentifier
+   QuantumNumberRecord
+   QuantumNumbers
+   Sparse
+   SpeciesAuxData
+   SpeciesTag
+ 
+arts.griddedfield
+=================
 
 .. automodule:: typhon.arts.griddedfield
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.arts.retrieval
-----------------------
+.. currentmodule:: typhon.arts.griddedfield
+
+.. autosummary::
+   :toctree: generated
+
+   GriddedField
+   GriddedField1
+   GriddedField2
+   GriddedField3
+   GriddedField4
+   GriddedField5
+   GriddedField6
+
+arts.retrieval
+==============
 
 .. automodule:: typhon.arts.retrieval
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.arts.scattering
-------------------------
+.. currentmodule:: typhon.arts.retrieval
+
+.. autosummary::
+   :toctree: generated
+
+   RetrievalQuantity
+
+arts.scattering
+===============
 
 .. automodule:: typhon.arts.scattering
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.arts.sensor
-----------------------
+.. currentmodule:: typhon.arts.scattering
+
+.. autosummary::
+   :toctree: generated
+
+   SingleScatteringData
+   ScatteringMetaData
+
+arts.sensor
+===========
 
 .. automodule:: typhon.arts.sensor
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.arts.sensor
+
+.. autosummary::
+   :toctree: generated
+
+   get_f_backend_rel_width
+   get_f_backend_const_width
+
+arts.xml
+========
+
+.. automodule:: typhon.arts.xml
+
+.. currentmodule:: typhon.arts.xml
+
+.. autosummary::
+   :toctree: generated
+
+   load
+   load_directory
+   load_indexed
+   save
 

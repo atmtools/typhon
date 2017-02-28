@@ -1,7 +1,12 @@
-typhon.latex
-============
+latex
+=====
 
 .. automodule:: typhon.latex
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.latex
+
+.. autosummary::
+   :toctree: generated
+
+   texify_matrix
+

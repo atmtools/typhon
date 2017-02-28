@@ -1,5 +1,66 @@
 2017-02-28  Oliver Lemke  <olemke@core-dump.info>
 
+	* Completely restructured the documentation layout. Having all
+	functions/classes of a package documented on a single page made it
+	very difficult to get a decent overview.
+
+	Now, a list of functions and classes with short descriptions is
+	generated for each package.
+
+	See http://www.radiativetransfer.org/misc/typhon/doc-trunk
+
+	Unfortunately, due to current limitations in Sphinx, it is not possible
+	to generate these lists completely automatically.
+	Therefore, when you add a function or class, you need to add its name
+	manually to the corresponding rst file in the doc/ folder.
+
+	Note that only top-level packages have their own rst file. Sub-packages
+	are listed in the rst file of their parent package. (Only exception
+	currently is plot.cm since plot and plot.cm contain many examples)
+
+	* doc/typhon.arts.xml.rst: Merged into typhon.arts.
+
+	* doc/conf.py:
+
+	Link to Python 3.5 docs, not the dev version.
+
+	Add autosummary extension.
+
+	* doc/typhon.*.rst:
+
+	Restructured by using the autosummary extensions.
+
+	Added a list of all public functions and classes for each package.
+
+	* typhon/geodesy/__init__.py:
+
+	Cleanup short function descriptions.
+
+	* typhon/utils/__init__.py, typhon/files/__init__.py:
+
+	Move module description from rst file to py file.
+
+	* doc/Makefile:
+
+	Remove generated dir on clean.
+
+	Add devupload target.
+
+	* doc/developer.rst: Add note on adding functions/classes to docs.
+
+	* doc/modules.rst:
+
+	Reduces toc depth to 2. Remove arts.xml.
+
+	Renamed API documentation to Reference.
+
+	* doc/_templates/autosummary/base.rst,
+	doc/_templates/autosummary/class.rst:
+
+	Adapted autosummary templates for our needs.
+
+2017-02-28  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/version.py: Set DEVBUILD back to True after release.
 
 2017-02-28  Oliver Lemke  <olemke@core-dump.info>

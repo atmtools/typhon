@@ -1,11 +1,10 @@
-API Documentation
-=================
+Reference
+=========
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
 
    typhon.arts
-   typhon.arts.xml
    typhon.atmosphere
    typhon.config
    typhon.constants

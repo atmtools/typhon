@@ -1,10 +1,12 @@
-typhon.plots.cm
-===============
+plots.cm
+========
 
 .. automodule:: typhon.plots.cm
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.plots.cm
+
+.. autosummary::
+   :toctree: generated
 
 Example gallery
 ------------------

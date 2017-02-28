@@ -1,7 +1,12 @@
-typhon.config
-=============
+config
+======
 
 .. automodule:: typhon.config
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.config
+
+.. autosummary::
+   :toctree: generated
+
+   get_config
+

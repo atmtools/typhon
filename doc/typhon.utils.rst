@@ -1,25 +1,41 @@
-typhon.utils
-=============
-
-This module contains convenience functions for any purposes.
+utils
+=====
 
 .. automodule:: typhon.utils
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.utils.metaclass
-------------------------
+.. currentmodule:: typhon.utils
+
+.. autosummary::
+   :toctree: generated
+
+   Timer
+   extract_block_diag
+   path_append
+   path_prepend
+   path_remove
+
+utils.metaclass
+===============
 
 .. automodule:: typhon.utils.metaclass
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-typhon.utils.cache
-------------------------
+.. currentmodule:: typhon.utils.metaclass
+
+.. autosummary::
+   :toctree: generated
+
+   AbstractDocStringInheritor
+   DocStringInheritor
+
+utils.cache
+===========
 
 .. automodule:: typhon.utils.cache
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.utils.cache
+
+.. autosummary::
+   :toctree: generated
+
+   mutable_cache
+

@@ -35,6 +35,12 @@ property. Because all access occurs through the property name and never by
 calling the setter function explicitly, documentation put there will never be
 visible. Neither in the ipython interactive help nor in Sphinx.
 
+Adding functions / classes
+--------------------------
+
+When you add a new function or class, you also have to add its name the
+corresponing rst file in the doc/ folder.
+
 Common module names
 -------------------
 

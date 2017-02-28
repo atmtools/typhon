@@ -1,7 +1,12 @@
-typhon.spectroscopy
-===================
+spectroscopy
+============
 
 .. automodule:: typhon.spectroscopy
-    :members:
-    :undoc-members:
-    :show-inheritance:
+
+.. currentmodule:: typhon.spectroscopy
+
+.. autosummary::
+   :toctree: generated
+
+   linewidth
+

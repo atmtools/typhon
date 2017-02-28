@@ -1,7 +1,10 @@
-typhon.constants
-================
+constants
+=========
 
 .. automodule:: typhon.constants
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+.. currentmodule:: typhon.constants
+
+.. autosummary::
+   :toctree: generated
+
