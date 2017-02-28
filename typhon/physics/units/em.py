@@ -107,7 +107,7 @@ class SRF(FwmuMixin):
         >>> from typhon.physics.units.common import ureg
         >>> from typhon.physics.units.em import SRF
         >>> srf = SRF(ureg.Quantity(numpy.array([200, 200.1, 200.2, 200.3, 200.4, 200.5]), 'GHz'), numpy.array([0, 0.5, 1, 1, 0.5, 0]))
-        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(300, K))
+        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(300, 'K'))
         >>> print(R_300)
         [  3.63716781e-15] watt / hertz / meter ** 2 / steradian
         >>> print(R_300.to("K", "radiance", srf=srf))
@@ -117,7 +117,7 @@ class SRF(FwmuMixin):
         wavelength) that will be converted internally to frequency:
 
         >>> srf = SRF(ureg.Quantity(numpy.array([10.8, 10.9, 11.0, 11.1, 11.2, 11.3]), 'um'), numpy.array([0, 0.5, 1, 1, 0.5, 0]))
-        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(atleast_1d(250), 'K'))
+        >>> R_300 = srf.blackbody_radiance(ureg.Quantity(numpy.atleast_1d(250), 'K'))
         >>> print(R_300)
         [  1.61922509e-12] watt / hertz / meter ** 2 / steradian
         >>> print(R_300.to("cm * mW / m**2 / sr", "radiance"))
