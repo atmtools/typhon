@@ -1,3 +1,11 @@
+2017-03-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/constants.py, typhon/physics/units/constants.py:
+
+	Added documentation for all defined constants.
+
+	Removed deprecated constants R_d, R_w, M_d and M_w.
+
 2017-02-28  Oliver Lemke  <olemke@core-dump.info>
 
 	* Completely restructured the documentation layout. Having all

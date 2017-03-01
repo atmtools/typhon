@@ -6,6 +6,93 @@ The magnitudes of the defined constants are taken from
 :mod:`typhon.constants`.
 
 This module adds units defined with pint's UnitRegistry..
+
+Physical constants
+==================
+
+============================  ============================
+``g``                         Earth standard gravity
+``h``                         Planck constant
+``k``                         Boltzmann constant
+``c``                         Speed of light
+``N_A``                       Avogadro constant
+``K``, ``zero_celsius``       Kelvin at 0 Celsius
+``R``                         Universal gas constant
+``molar_mass_dry_air``        Molar mass for dry air
+``molar_mass_water``          Molar mass for water vapor
+``gas_constant_dry_air``      Gas constant for dry air
+``gas_constant_water_vapor``  Gas constant for water vapor
+============================  ============================
+
+Mathematical constants
+======================
+
+==========  ============
+``golden``  Golden ratio
+==========  ============
+
+SI prefixes
+===========
+
+=========  ================
+``yotta``  :math:`10^{24}`
+``zetta``  :math:`10^{21}`
+``exa``    :math:`10^{18}`
+``peta``   :math:`10^{15}`
+``tera``   :math:`10^{12}`
+``giga``   :math:`10^{9}`
+``mega``   :math:`10^{6}`
+``kilo``   :math:`10^{3}`
+``hecto``  :math:`10^{2}`
+``deka``   :math:`10^{1}`
+``deci``   :math:`10^{-1}`
+``centi``  :math:`10^{-2}`
+``milli``  :math:`10^{-3}`
+``micro``  :math:`10^{-6}`
+``nano``   :math:`10^{-9}`
+``pico``   :math:`10^{-12}`
+``femto``  :math:`10^{-15}`
+``atto``   :math:`10^{-18}`
+``zepto``  :math:`10^{-21}`
+=========  ================
+
+Non-SI ratios
+=============
+
+=======  ====================================
+``ppm``  :math:`10^{-6}` `parts per million`
+``ppb``  :math:`10^{-9}` `parts per billion`
+``ppt``  :math:`10^{-12}` `arts per trillion`
+=======  ====================================
+
+Binary prefixes
+===============
+
+=================  ==============
+``kibi``, ``KiB``  :math:`2^{10}`
+``mebi``, ``MiB``  :math:`2^{20}`
+``gibi``           :math:`2^{30}`
+``tebi``           :math:`2^{40}`
+``pebi``           :math:`2^{50}`
+``exbi``           :math:`2^{60}`
+``zebi``           :math:`2^{70}`
+``yobi``           :math:`2^{80}`
+=================  ==============
+
+=================  ==============
+``KB``             :math:`10^3`
+``MB``             :math:`10^6`
+=================  ==============
+
+Earth characteristics
+=====================
+
+================  ===================
+``earth_mass``    Earth mass
+``earth_radius``  Earth radius
+``atm``           Standard atmosphere
+================  ===================
+
 """
 import numpy as np
 
@@ -70,13 +157,4 @@ MB = 10**6
 # Earth characteristics
 earth_mass = constants.earth_mass * ureg.kg
 earth_radius = constants.earth_radius * ureg.m
-
-# Miscellaneous
 atm = atmosphere = constants.atm * ureg.pascal
-
-# Deprecated constants from Wallace and Hobbs.
-# Will be removed in a future version.
-R_d = 287.0 * ureg('J / K / kg')
-R_v = 461.51 * ureg('J / K / kg')
-M_d = 28.97 * ureg('kg / kmol')
-M_w = 18.016 * ureg('kg / kmol')

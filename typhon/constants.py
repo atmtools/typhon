@@ -1,17 +1,108 @@
 # -*- coding: utf-8 -*-
-
 """Collection of physical constants and conversion factors.
+
+Physical constants
+==================
+
+============================  ==============================================
+``g``                         Earth standard gravity in :math:`ms^{-1}`
+``h``                         Planck constant in :math:`Js`
+``k``                         Boltzmann constant in :math:`JK^{-1}`
+``c``                         Speed of light in :math:`ms^{-1}`
+``N_A``                       Avogadro constant in :math:`mol^{-1}`
+``K``, ``zero_celsius``       Kelvin at 0 Celsius
+``R``                         Universal gas constant in
+                              :math:`J mol^{-1}K{^-1}`
+``molar_mass_dry_air``        Molar mass for dry air in :math:`kg\,mol^{-1}`
+``molar_mass_water``          Molar mass for water vapor in
+                              :math:`kg\,mol^{-1}`
+``gas_constant_dry_air``      Gas constant for dry air in
+                              :math:`J K^{-1} kg^{-1}`
+``gas_constant_water_vapor``  Gas constant for water vapor in
+                              :math:`J K^{-1} kg^{-1}`
+============================  ==============================================
+
+Mathematical constants
+======================
+
+==========  ============
+``golden``  Golden ratio
+==========  ============
+
+SI prefixes
+===========
+
+=========  ================
+``yotta``  :math:`10^{24}`
+``zetta``  :math:`10^{21}`
+``exa``    :math:`10^{18}`
+``peta``   :math:`10^{15}`
+``tera``   :math:`10^{12}`
+``giga``   :math:`10^{9}`
+``mega``   :math:`10^{6}`
+``kilo``   :math:`10^{3}`
+``hecto``  :math:`10^{2}`
+``deka``   :math:`10^{1}`
+``deci``   :math:`10^{-1}`
+``centi``  :math:`10^{-2}`
+``milli``  :math:`10^{-3}`
+``micro``  :math:`10^{-6}`
+``nano``   :math:`10^{-9}`
+``pico``   :math:`10^{-12}`
+``femto``  :math:`10^{-15}`
+``atto``   :math:`10^{-18}`
+``zepto``  :math:`10^{-21}`
+=========  ================
+
+Non-SI ratios
+=============
+
+=======  ====================================
+``ppm``  :math:`10^{-6}` `parts per million`
+``ppb``  :math:`10^{-9}` `parts per billion`
+``ppt``  :math:`10^{-12}` `arts per trillion`
+=======  ====================================
+
+Binary prefixes
+===============
+
+=================  ==============
+``kibi``, ``KiB``  :math:`2^{10}`
+``mebi``, ``MiB``  :math:`2^{20}`
+``gibi``           :math:`2^{30}`
+``tebi``           :math:`2^{40}`
+``pebi``           :math:`2^{50}`
+``exbi``           :math:`2^{60}`
+``zebi``           :math:`2^{70}`
+``yobi``           :math:`2^{80}`
+=================  ==============
+
+=================  ==============
+``KB``             :math:`10^3`
+``MB``             :math:`10^6`
+=================  ==============
+
+Earth characteristics
+=====================
+
+================  =================================
+``earth_mass``    Earth mass in :math:`kg`
+``earth_radius``  Earth radius in :math:`m`
+``atm``           Standard atmosphere in :math:`Pa`
+================  =================================
+
 """
 import numpy as np
 import scipy.constants as spc
 
 
-# Physcial constants
+# Physical constants
 g = earth_standard_gravity = spc.g  # m s^-2
 h = planck = spc.Planck  # J s
 k = boltzmann = spc.Boltzmann  # J K^-1
 c = speed_of_light = spc.speed_of_light  # m s^-1
 N_A = avogadro = N = spc.Avogadro  # mol^-1
+K = zero_celsius = 273.15  # Kelvin at 0 Celsius
 R = gas_constant = spc.gas_constant  # J mol^-1 K^-1
 molar_mass_dry_air = 28.9645e-3  # kg mol^-1
 molar_mass_water = 18.01528e-3  # kg mol^-1
@@ -63,14 +154,4 @@ MB = 10**6
 # Earth characteristics
 earth_mass = 5.97237e24  # kg
 earth_radius = 6.3781e6  # m
-
-# Miscellaneous
-K = zero_celsius = 273.15  # Kelvin at 0 Celsius
 atm = atmosphere = 101325  # Pa
-
-# Deprecated constants from Wallace and Hobbs.
-# Will be removed in a future version.
-R_d = 287.0  # J K^-1 kg^-1 (Eq. 3.11)
-R_v = 461.51  # J K^-1 kg^-1 (Eq. 3.13)
-M_d = 28.97  # kg kmol^-1
-M_w = 18.016  # kg kmol^-1
