@@ -1,5 +1,12 @@
 2017-03-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/units/constants.py:
+
+	Removed documentation entry for Kelvin-Celsius-conversion as it is not used
+	when converting values with `pint`.
+
+2017-03-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/constants.py, typhon/physics/units/constants.py:
 
 	Added documentation for all defined constants.

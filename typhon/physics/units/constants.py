@@ -16,7 +16,6 @@ Physical constants
 ``k``                         Boltzmann constant
 ``c``                         Speed of light
 ``N_A``                       Avogadro constant
-``K``, ``zero_celsius``       Kelvin at 0 Celsius
 ``R``                         Universal gas constant
 ``molar_mass_dry_air``        Molar mass for dry air
 ``molar_mass_water``          Molar mass for water vapor
