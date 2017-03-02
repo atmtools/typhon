@@ -1,3 +1,11 @@
+2017-03-02  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/_templates/layout.html, doc/_static/theme.css:
+
+	Add css file to overwrite theme settings.
+
+	Instead of red, use default font color for literals in text.
+
 2017-03-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/units/constants.py:
