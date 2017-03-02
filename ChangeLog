@@ -1,3 +1,9 @@
+2017-03-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/constants.py:
+
+	Use sans-serif font for physical units in documentation.
+
 2017-03-02  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/_templates/layout.html, doc/_static/theme.css:

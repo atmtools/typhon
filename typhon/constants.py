@@ -5,21 +5,22 @@ Physical constants
 ==================
 
 ============================  ==============================================
-``g``                         Earth standard gravity in :math:`ms^{-1}`
-``h``                         Planck constant in :math:`Js`
-``k``                         Boltzmann constant in :math:`JK^{-1}`
-``c``                         Speed of light in :math:`ms^{-1}`
-``N_A``                       Avogadro constant in :math:`mol^{-1}`
+``g``                         Earth standard gravity in :math:`\sf ms^{-1}`
+``h``                         Planck constant in :math:`\sf Js`
+``k``                         Boltzmann constant in :math:`\sf JK^{-1}`
+``c``                         Speed of light in :math:`\sf ms^{-1}`
+``N_A``                       Avogadro constant in :math:`\sf mol^{-1}`
 ``K``, ``zero_celsius``       Kelvin at 0 Celsius
 ``R``                         Universal gas constant in
-                              :math:`J mol^{-1}K{^-1}`
-``molar_mass_dry_air``        Molar mass for dry air in :math:`kg\,mol^{-1}`
+                              :math:`\sf J mol^{-1}K{^-1}`
+``molar_mass_dry_air``        Molar mass for dry air in
+                              :math:`\sf kg\,mol^{-1}`
 ``molar_mass_water``          Molar mass for water vapor in
-                              :math:`kg\,mol^{-1}`
+                              :math:`\sf kg\,mol^{-1}`
 ``gas_constant_dry_air``      Gas constant for dry air in
-                              :math:`J K^{-1} kg^{-1}`
+                              :math:`\sf J K^{-1} kg^{-1}`
 ``gas_constant_water_vapor``  Gas constant for water vapor in
-                              :math:`J K^{-1} kg^{-1}`
+                              :math:`\sf J K^{-1} kg^{-1}`
 ============================  ==============================================
 
 Mathematical constants
@@ -85,11 +86,11 @@ Binary prefixes
 Earth characteristics
 =====================
 
-================  =================================
-``earth_mass``    Earth mass in :math:`kg`
-``earth_radius``  Earth radius in :math:`m`
-``atm``           Standard atmosphere in :math:`Pa`
-================  =================================
+================  =====================================
+``earth_mass``    Earth mass in :math:`\sf kg`
+``earth_radius``  Earth radius in :math:`\sf m`
+``atm``           Standard atmosphere in :math:`\sf Pa`
+================  =====================================
 
 """
 import numpy as np
