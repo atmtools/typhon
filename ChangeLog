@@ -1,3 +1,19 @@
+2017-03-03  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/arts/catalogues.py:  Added helpers for SpeciesAuxData.
+	These make use of property and setter keywords.  Makes version
+	1 SpecisAuxData particularly much more user friendly but version
+	2 SpecisAuxData is still a bit of a hassle.  (Isotopologue ratios
+	are kept in version 1 data so it is now much easier to rescale
+	your jacobian to give proper mixing ratios for different 
+	Isotopologues.  Just load the isotop_ratio data and then access
+	the isotopologue using dictionary operator[].  If you want to
+	update the dictionary position, the @data.setter keywords automatically 
+	aligns this with how the reading/writing routines work.)
+	
+	* typhon/arts/xml/__init__.py:  Added helpers for making many 
+	files binary (e.g., for common folders in arts-xml-data)
+	
 2017-03-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/constants.py:

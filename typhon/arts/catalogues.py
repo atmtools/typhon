@@ -160,6 +160,42 @@ class SpeciesAuxData:
         self.nparam = nparam
         self.data = data
 
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        self._data = data
+        if self.version == 1:
+            self._data_dict = {}
+            self._keys = {}
+            for ii in range(len(data)):
+                iso_data = data[ii]
+                tmp = iso_data.split()
+                self._keys[tmp[1]] = ii
+                self._data_dict[tmp[1]] = float(tmp[2])
+        elif self.version == 2:
+            self._data_dict = {}
+            self._keys = {}
+            for ii in range(len(data)):
+                tmp = data[ii]
+                self._keys[tmp[0]] = ii
+                self._data_dict[tmp[0]] = [tmp[1], tmp[2]]
+
+    def __getitem__(self, key):
+        return self._data_dict[key]
+
+    def __setitem__(self, key, val):
+        self._data_dict[key] = val
+        if self.version == 1:
+            self._data[(self._keys[key])] = '@ ' + key + ' ' + str(val)
+        elif self.version == 2:
+            self._data[(self._keys[key])] = val
+
+    def species(self):
+        return list(self._data_dict.keys())
+
     @classmethod
     def from_xml(cls, xmlelement):
         """Loads a SpeciesAuxData object from an existing file.

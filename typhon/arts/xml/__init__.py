@@ -7,7 +7,7 @@ from __future__ import absolute_import
 
 import gzip
 import glob
-from os.path import isfile, join, basename, splitext
+from os.path import isfile, join, basename, splitext, dirname
 
 from . import read
 from . import write
@@ -177,3 +177,69 @@ def load_indexed(filename):
         ret[findex] = load(f)
 
     return ret
+
+
+def make_binary(filename, out='', absolute_out=False):
+    """Loads xml-file at filename and saves it back in binary format
+
+    Parameters:
+        filename (str): Filename path.
+
+        out (str): Path to save the binary.  Empty causes overwrite of file.
+
+        absolute_out (bool): If true, then write file to out-path rather than
+                             to the relative path out.  Does nothing if file
+                             is in the working folder and out is relative
+
+    Returns:
+        ---
+
+    Example:
+        Load t_field.xml and save it back as binary it as ./binary/t_field.xml
+        and ./binary/t_field.bin
+
+        >>> make_binary('t_field.xml', out='binary')
+    """
+
+    xml_data = load(filename)
+    if absolute_out:
+        save(xml_data, join(out, basename(filename)), format='binary')
+    else:
+        save(xml_data, join(dirname(filename), out,
+                            basename(filename)), format='binary')
+
+
+def make_directory_binary(directory, out='', absolute_out=False):
+    """Loads xml-files in directory and saves them back in binary format
+
+    Parameters:
+        directory (str): Directory path.
+
+        out (str): Path to save the binary.
+
+        absolute_out (bool): If true, then write file to out-path rather than
+                             to the relative path out.  Does nothing if file
+                             is in the working folder and out is relative
+
+    Returns:
+        ---
+
+    Example:
+        Load arts-xml-data/spectroscopy/cia/hitran2011/ and save it back as
+        binary it at arts-xml-data-binary/spectroscopy/cia/hitran2011/
+
+        >>> make_directory_binary('arts-xml-data/spectroscopy/cia/hitran2011',
+            out='arts-xml-data-binary/spectroscopy/cia/hitran2011',
+            absolute_out=True)
+    """
+
+    directory_of_xmls = load_directory(directory)
+
+    if absolute_out:
+        for entry in directory_of_xmls:
+            save(directory_of_xmls[entry],
+                 join(out, entry + '.xml'), format='binary')
+    else:
+        for entry in directory_of_xmls:
+            save(directory_of_xmls[entry],
+                 join(directory, out, entry + '.xml'), format='binary')
