@@ -14,14 +14,20 @@ ureg.define("micro- = 1e-6 = µ-")
 
 # aid conversion between different radiance units
 sp2 = Context("radiance")
+# specrad per frequency → specrad per wavenumber
 sp2.add_transformation(
     "[length] * [mass] / [time] ** 3",
     "[mass] / [time] ** 2",
     lambda ureg, x, **kwargs: x / ureg.speed_of_light)
+# specrad per wavenumber → specrad per frequency
 sp2.add_transformation(
     "[mass] / [time] ** 2",
     "[length] * [mass] / [time] ** 3",
     lambda ureg, x, **kwargs: x * ureg.speed_of_light)
+#sp2.add_transformation(
+#    "[mass] / ([length] * [time] ** 3)",
+#    "[length] * [mass] / [time] ** 3",
+#    lambda ureg, x, **kwargs: )
 def _R_to_bt(ureg, R, srf):
     """For use by pint, do not call directly, use q.to or SRF class."""
     if srf.lookup_table is None:

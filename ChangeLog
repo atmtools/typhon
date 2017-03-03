@@ -1,3 +1,23 @@
+2017-03-03  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/metrology.py(express_uncertainty):
+
+	- Tell user in machine form what args have failed to be
+	differentiated.
+
+	* typhon/physics/units/common.py:
+
+	- Added some clarifying (hopefully) comments
+
+	* typhon/physics/units/tools.py:
+
+	(UnitsAwareDataArray):
+
+	- Support ufuncs that return floats rather than quantities.  Store
+	as string so that it can be valid NetCDF.
+
+	- Add support for __radd__, __rsub__, __rtruediv__, etc.
+
 2017-03-03  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/arts/catalogues.py:  Added helpers for SpeciesAuxData.

@@ -1,11 +1,12 @@
 """Functions related to metrology
 
-All functions need sympy.
+All functions in this module need sympy.
 """
 
 import warnings
 
-def express_uncertainty(expr, aliases={}, on_failure="raise"):
+def express_uncertainty(expr, aliases={}, on_failure="raise",
+        collect_failures=None):
     """For a sympy expression, calculate uncertainty.
 
     Uncertainty is given in the Guides to Uncertainties and Measurements
@@ -27,12 +28,16 @@ def express_uncertainty(expr, aliases={}, on_failure="raise"):
             indexed quantities (see
             https://github.com/sympy/sympy/issues/12191).  Default is
             'raise', but can set to 'warn' instead.
+        collect_failures (set): Pass in a set object where failures will
+            be collected, assuming on_failure is 'warn'.
 
     Returns:
         
         Expression indicating uncertainty
     """
 
+    if collect_failures is None:
+        collect_failures = set()
     import sympy
     u = sympy.Function("u")
     rv = sympy.sympify(0)
@@ -47,6 +52,7 @@ def express_uncertainty(expr, aliases={}, on_failure="raise"):
                 warnings.warn("Unable to complete derivative on {!s}. "
                     "IGNORING uncertainty on {!s}!  Derivative failed with: "
                     "{:s}".format(expr, sym, v.args[0]))
+                collect_failures.add(sym)
     return sympy.sqrt(rv)
 
 def recursive_args(expr, stop_at=None, partial_at=None):
