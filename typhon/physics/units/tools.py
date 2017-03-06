@@ -60,14 +60,14 @@ class UnitsAwareDataArray(xarray.DataArray):
                 ureg.Quantity(other, getattr(other, "units", "1")),
                 ureg.Quantity(1, self.attrs["units"])).u)
 
-    def to(self, new_unit, context=None, **kwargs):
+    def to(self, new_unit, *contexts, **kwargs):
         """Convert to other unit.
 
         See corresponding method in pint.
         """
         x = self.copy()
         x.values = ureg.Quantity(self.values, self.attrs["units"]).to(
-            new_unit, context, **kwargs).m
+            new_unit, *contexts, **kwargs).m
         x.attrs["units"] = str(new_unit)
         return x
 

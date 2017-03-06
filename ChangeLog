@@ -1,3 +1,10 @@
+2017-03-06  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/units/tools.py(UncertaintyAwareDataArray.to):
+
+	Bugfix, adapt signature for contexts to the one used by pint, such
+	that it works when the number of contexts given is not exactly one.
+
 2017-03-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/xml/__init__.py:
