@@ -7,6 +7,7 @@ from __future__ import absolute_import
 
 import gzip
 import glob
+import os
 from os.path import isfile, join, basename, splitext, dirname
 
 from . import read
@@ -17,10 +18,13 @@ __all__ = [
     'save',
     'load_directory',
     'load_indexed',
+    'make_binary',
+    'make_directory_binary',
 ]
 
 
-def save(var, filename, precision='.7e', format='ascii', comment=None):
+def save(var, filename, precision='.7e', format='ascii', comment=None,
+         parents=False):
     """Save a variable to an ARTS XML file.
 
     Args:
@@ -30,6 +34,7 @@ def save(var, filename, precision='.7e', format='ascii', comment=None):
         precision (str): Format for output precision.
         format (str): Output format: 'ascii' (default) or 'binary'.
         comment (str): Comment string included in a tag above data.
+        parents (bool): Create missing parent directories.
 
     Note:
         Python's gzip module is extremely slow in writing. Consider
@@ -40,6 +45,9 @@ def save(var, filename, precision='.7e', format='ascii', comment=None):
         >>> typhon.arts.xml.save(x, 'myvector.xml')
 
     """
+    if parents:
+        os.makedirs(dirname(filename), exist_ok=True)
+
     if filename.endswith('.gz'):
         if format != 'ascii':
             raise RuntimeError(
@@ -109,8 +117,8 @@ def load(filename):
 def load_directory(directory, exclude=None):
     """Load all XML files in a given directory.
 
-    Search given directory  for files with '.xml'-extension and try to load
-    them using :func:`load`.
+    Search given directory  for files with `.xml` or `.xml.gz` extension and
+    try to load them using :func:`load`.
 
     Parameters:
         directory (str): Path to the directory.
@@ -130,6 +138,13 @@ def load_directory(directory, exclude=None):
 
     xmlfiles = [f for f in glob.glob(join(directory, '*.xml'))
                 if basename(f) not in exclude]
+
+    # Append zipped files to list of XML files. Strip the `.gz` extension to
+    # keep the dictionry keys clean, the `load` function finds zipped files
+    # anyway.
+    xmlfiles.extend(splitext(f)[0]
+        for f in glob.glob(join(directory, '*.xml.gz'))
+        if basename(f) not in exclude)
 
     return {splitext(basename(f))[0]: load(f) for f in xmlfiles}
 
@@ -179,50 +194,52 @@ def load_indexed(filename):
     return ret
 
 
-def make_binary(filename, out='', absolute_out=False):
+def make_binary(filename, out='', absolute_out=False, parents=True):
     """Loads xml-file at filename and saves it back in binary format
 
     Parameters:
         filename (str): Filename path.
-
         out (str): Path to save the binary.  Empty causes overwrite of file.
-
         absolute_out (bool): If true, then write file to out-path rather than
-                             to the relative path out.  Does nothing if file
-                             is in the working folder and out is relative
+            to the relative path out.  Does nothing if file is in the working
+            folder and out is relative.
+        parents (bool): Create missing parent directories.
 
     Returns:
-        ---
+        str: Path to the created binary file.
 
     Example:
         Load t_field.xml and save it back as binary it as ./binary/t_field.xml
         and ./binary/t_field.bin
 
         >>> make_binary('t_field.xml', out='binary')
+        'binary/t_field.xml'
     """
 
     xml_data = load(filename)
     if absolute_out:
-        save(xml_data, join(out, basename(filename)), format='binary')
+        outfile = join(out, basename(filename))
+        save(xml_data, outfile, format='binary', parents=parents)
     else:
-        save(xml_data, join(dirname(filename), out,
-                            basename(filename)), format='binary')
+        outfile = join(dirname(filename), out, basename(filename))
+        save(xml_data, outfile, format='binary', parents=parents)
+
+    return outfile
 
 
-def make_directory_binary(directory, out='', absolute_out=False):
+def make_directory_binary(directory, out='', absolute_out=False, parents=True):
     """Loads xml-files in directory and saves them back in binary format
 
     Parameters:
         directory (str): Directory path.
-
         out (str): Path to save the binary.
-
         absolute_out (bool): If true, then write file to out-path rather than
-                             to the relative path out.  Does nothing if file
-                             is in the working folder and out is relative
+            to the relative path out.  Does nothing if file is in the working
+            folder and out is relative.
+        parents (bool): Create missing parent directories.
 
     Returns:
-        ---
+        list[str]: Paths to the created binary files.
 
     Example:
         Load arts-xml-data/spectroscopy/cia/hitran2011/ and save it back as
@@ -231,15 +248,27 @@ def make_directory_binary(directory, out='', absolute_out=False):
         >>> make_directory_binary('arts-xml-data/spectroscopy/cia/hitran2011',
             out='arts-xml-data-binary/spectroscopy/cia/hitran2011',
             absolute_out=True)
+        ['arts-xml-data-binary/spectroscopy/cia/hitran2011/hitran_cia2012_adapted.xml']
     """
 
     directory_of_xmls = load_directory(directory)
+    outfiles = []  # Empty list to store output filepaths.
 
     if absolute_out:
         for entry in directory_of_xmls:
+            outfile = join(out, entry + '.xml')
             save(directory_of_xmls[entry],
-                 join(out, entry + '.xml'), format='binary')
+                 outfile,
+                 format='binary',
+                 parents=parents)
+            outfiles.append(outfile)
     else:
         for entry in directory_of_xmls:
+            outfile = join(directory, out, entry + '.xml')
             save(directory_of_xmls[entry],
-                 join(directory, out, entry + '.xml'), format='binary')
+                 outfile,
+                 format='binary',
+                 parents=parents)
+            outfiles.append(outfile)
+
+    return outfiles

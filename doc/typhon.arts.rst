@@ -103,4 +103,6 @@ arts.xml
    load_directory
    load_indexed
    save
+   make_binary
+   make_directory_binary
 

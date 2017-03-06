@@ -1,3 +1,31 @@
+2017-03-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/__init__.py:
+
+	Added `make_binary` and `make_directory_binary` to `__all__`.
+
+	* (save): Added the new keyword `parents`.
+
+	If `parents` is `True` missing parent directories are created.
+
+	* (load_directory): Include zipped XML files to pattern.
+
+	* (make_binary, make_directory_binary):
+
+	Use the newly implemented `parents` keyword of `save` to create missing
+	parent directories when needed.
+
+	Both functions return the path(s) to the created file(s) to determine where
+	the binary files are located.
+
+	* doc/typhon.arts.rst: Added `make_binary` and `make_directory_binary`.
+
+	* typhon/constants.py, typhon/physics/units/constants.py:
+
+	Fixed typo in docstrings.
+
+	* KNOWN_ISSUES: Removed solved issues.
+
 2017-03-03  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/metrology.py(express_uncertainty):

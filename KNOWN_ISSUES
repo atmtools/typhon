@@ -1,9 +1,1 @@
-* Sphinx documentation build not working for oem module.
 
-* Setting prop_cycle in stylesheet breaks usage of keyword aliases.
-
-The typhon mplstyle sets a default cycle through linestyles and linewidths.
-This breaks the usage of keyword alisases when calling the plot function later.
-The issue is reported on github [0].
-
-[0] https://github.com/matplotlib/matplotlib/issues/6343
