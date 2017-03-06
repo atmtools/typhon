@@ -219,10 +219,10 @@ def make_binary(filename, out='', absolute_out=False, parents=True):
     xml_data = load(filename)
     if absolute_out:
         outfile = join(out, basename(filename))
-        save(xml_data, outfile, format='binary', parents=parents)
     else:
         outfile = join(dirname(filename), out, basename(filename))
-        save(xml_data, outfile, format='binary', parents=parents)
+
+    save(xml_data, outfile, format='binary', parents=parents)
 
     return outfile
 
@@ -255,20 +255,16 @@ def make_directory_binary(directory, out='', absolute_out=False, parents=True):
     outfiles = []  # Empty list to store output filepaths.
 
     if absolute_out:
-        for entry in directory_of_xmls:
-            outfile = join(out, entry + '.xml')
-            save(directory_of_xmls[entry],
-                 outfile,
-                 format='binary',
-                 parents=parents)
-            outfiles.append(outfile)
+        get_outfile = join(out, '{entry}.xml')
     else:
-        for entry in directory_of_xmls:
-            outfile = join(directory, out, entry + '.xml')
-            save(directory_of_xmls[entry],
-                 outfile,
-                 format='binary',
-                 parents=parents)
-            outfiles.append(outfile)
+        get_outfile = join(directory, out, '{entry}.xml')
+
+    for entry in directory_of_xmls:
+        outfile = get_outfile.format(entry=entry)
+        save(directory_of_xmls[entry],
+             outfile,
+             format='binary',
+             parents=parents)
+        outfiles.append(outfile)
 
     return outfiles
