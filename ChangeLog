@@ -1,3 +1,19 @@
+2017-03-08  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Change complevel to 4 as tests show that it gets much slower, but
+	not much faster, at higher complevels
+
+	- Fix typo in two field names
+
+	* typhon/physics/metrology.py: Correct docstring
+
+	* typhon/physics/units/em.py(SRF.as_dataarray): Added method to
+	convert SRF to a data array (NB: using regular DataArray, not
+	UnitAwareDataArray, because I have no way of keeping track of units on
+	coordinates in UnitAwareDataArray at the moment).
+
 2017-03-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/xml/__init__.py: Simplified code around if-conditions.

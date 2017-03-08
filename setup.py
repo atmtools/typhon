@@ -81,7 +81,7 @@ setup(
         'numpy>=1.6',
         'scipy>=0.15.1',
         'setuptools>=0.7.2',
-        "xarray>=0.8",
+        "xarray",
     ],
 
     # List additional groups of dependencies here (e.g. development

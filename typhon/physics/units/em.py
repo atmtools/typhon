@@ -14,6 +14,7 @@ import scipy.interpolate
 
 import numexpr
 import pint
+import xarray
 
 
 from typhon import config
@@ -356,6 +357,16 @@ class SRF(FwmuMixin):
         """
         return self.__class__(self.frequency.to(
             amount.u, "sp") + amount, self.W)
+
+    def as_dataarray(self, coordinate):
+        """Return xarray.DataArray object.
+
+        Coordinate can be "wavelength" (which will be in m), "frequency"
+        (which will be in Hz), or "wavenumber" (which will be in 1/cm).
+        """
+
+        return xarray.DataArray(self.W, dims=(coordinate,),
+            coords={coordinate: getattr(self, coordinate)}, name="SRF")
 
 _specrad_freq = ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz)
 

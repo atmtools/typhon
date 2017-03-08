@@ -17,7 +17,8 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
     want to pass them into aliases {free_symbol:
     indexed_base_symbol[index]} is this is not identified automatically.
 
-    Limitation: currently assumes all input quantities are uncorrelated!
+    Limitation: currently assumes all arguments of the expression have
+    uncorrelated errors!
 
     Arguments:
         
