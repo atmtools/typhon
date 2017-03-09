@@ -9,4 +9,4 @@ atmosphere
    :toctree: generated
 
    iwv
-
+   relative_humidity
