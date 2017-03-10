@@ -17,6 +17,7 @@ __all__ = ["cache",
            "metaclass",
            "extract_block_diag",
            "Timer",
+           "print_timing",
            "path_append",
            "path_prepend",
            "path_remove",
@@ -65,10 +66,9 @@ class Timer(object):
         Timer object:
 
         >>> import time
-        >>> t = Timer.start()
+        >>> t = Timer().start()
         >>> time.sleep(1)
         >>> t.stop()
-        >>> print(t.secs)
         elapsed time: 1.001s
 
     """
@@ -96,6 +96,24 @@ class Timer(object):
             print('elapsed time: {:d}m{:.3f}s'.format(
                 int(self.secs // 60), self.secs % 60))
 
+def print_timing(func):
+    """Decorator to measure time of a function call.
+
+    Examples:
+        >>> @print_timing
+        ... def own_function(s):
+        ...     import time
+        ...     time.sleep(s)
+        >>> own_function(1)
+        elapsed time: 1.001s
+    """
+    def wrapper(*args, **kwargs):
+        t = Timer().start()
+        res = func(*args, **kwargs)
+        t.stop()
+        return res
+
+    return wrapper
 
 # Next part from http://stackoverflow.com/a/9558001/974555
 

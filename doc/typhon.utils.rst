@@ -9,6 +9,7 @@ utils
    :toctree: generated
 
    Timer
+   print_timing
    extract_block_diag
    path_append
    path_prepend

@@ -1,3 +1,13 @@
+2017-03-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py:
+
+	(Timer): Fixed docstring example.
+
+	(print_timing): Added decorator for convenient function benchmarking.
+
+	* doc/typhon.utils.rst: Added `print_timing` to docs.
+
 2017-03-09  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/atmosphere.py (relative_humidty):
