@@ -1,3 +1,19 @@
+2017-03-13  Gerrit Holl  <g.heoll@reading.ac.uk>
+
+	* typhon/datasets/tovs.py(HIRS.as_xarray_dataset):
+
+	Convert ints to floats so that I can use nans for masking, as xarray
+	does not support masking otherwise.
+
+	* typhon/physics/units/em.py(SRF.estimate_band_coefficients):
+
+	- Use band coefficients from file for now, ad-hoc solution.
+
+	* typhon/physics/units/tools.py(UnitsAwareDataArray):
+
+	- Do not attempt to transfer units for ufuncs that return a boolean,
+	like isfinite.
+
 2017-03-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py:

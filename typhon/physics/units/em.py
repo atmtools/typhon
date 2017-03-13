@@ -6,7 +6,7 @@ This module imports typhon.physics.units.common and therefore
 has a soft dependency on the pint units library.
 """
 
-
+import warnings
 import logging
 
 import numpy
@@ -21,6 +21,7 @@ from typhon import config
 from typhon.arts import xml
 from typhon.constants import (h, k, c)
 from typhon.physics.units.common import (ureg, radiance_units)
+from typhon.physics.units.tools import UnitsAwareDataArray as UADA
 
 
 __all__ = [
@@ -321,7 +322,7 @@ class SRF(FwmuMixin):
             L.to(ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
                  "radiance")) * ureg.K
 
-    def estimate_band_coefficients(self):
+    def estimate_band_coefficients(self, sat=None, instr=None, ch=None):
         """Estimate band coefficients for fast/explicit BT calculations
 
         In some circumstances, a fully integrated SRF may be more
@@ -342,7 +343,32 @@ class SRF(FwmuMixin):
             Δλ_eff (float): Uncertainty in λ_eff
         """
 
-        raise NotImplementedError("Estimation of band coefficients not implemented yet")
+        warnings.warn("Obtaining band coefficients from file", UserWarning)
+        srcfile = config.conf[instr]["band_file"].format(sat=sat)
+        M = numpy.genfromtxt(srcfile, usecols=[1, 2, 3]).reshape(19, 5, 3)
+        dims = ("channel", "shift")
+        ds = xarray.Dataset(
+            {"center": (dims, M[..., 0]),
+             "α": (dims, M[..., 1]),
+             "β": (dims, M[..., 2])},
+            coords = {"channel": numpy.arange(1, 20),
+                      "shift": [0, -10, 10, -20, 20]})
+        ds = ds.sel(channel=ch)
+
+        ds0 = ds.sel(shift=0)
+        (α, β, λ_c) = [UADA(v) for v in ds0.data_vars.values()]
+
+        α.attrs["units"] = "1"
+        β.attrs["units"] = "1/K"
+        λ_c.attrs["units"] = "1/cm"
+
+        Δds = ds.sel(shift=10) - ds0
+        (Δα, Δβ, Δλ_c) = [UADA(v) for v in Δds.data_vars.values()]
+        Δα.attrs["units"] = "1"
+        Δβ.attrs["units"] = "1/K"
+        Δλ_c.attrs["units"] = "1/cm"
+
+        return (α, β, λ_c, Δα, Δβ, Δλ_c)
 
     # Methods returning new SRFs with some changes
     def shift(self, amount):

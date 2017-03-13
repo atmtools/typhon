@@ -997,6 +997,15 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         See tickets 145, 148, 149.
 
+        NB: xarray does not support masked arrays (see
+        https://github.com/pydata/xarray/issues/1194).  Therefore, I
+        convert each integer type to float/double.  To prevent a loss of
+        precision, I double the memory allocation for each, as int8
+        always fits in float16, int16 always fits in float32, and int32
+        always fits in float64.  Note that assuming the encoding is set
+        correctly in data_vars_props (such as in _tovs_defs) it will still
+        be stored as the appropriate integer type.
+
         Arguments:
 
             M [ndarray]
@@ -1021,7 +1030,12 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         data_vars = {
             p[v][0]:
                ([rename_dimensions.get(d,d) for d in p[v][1] if d not in skip_dimensions],
-                M[v].data if isinstance(M, numpy.ma.MaskedArray) else M[v],
+                (M[v].data
+                 if isinstance(M, numpy.ma.MaskedArray)
+                 else M[v]).astype( 
+                    M[v].dtype
+                    if M[v].dtype.kind[0] in "MOSUVmcfb"
+                    else "f{:d}".format(M[v].dtype.itemsize*2)),
                 {**p[v][2], **{"orig_name": v}})
             for v in p.keys() & set(M.dtype.names)}
 
@@ -1047,9 +1061,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         for v in p.keys() & set(M.dtype.names):
             ds[p[v][0]].encoding = p[v][3]
-            ds[p[v][0]].values[M[v].mask] = (
-                numpy.nan if M[v].dtype.kind.startswith('f')
-                else p[v][3]["_FillValue"])
+            ds[p[v][0]].values[M[v].mask] = numpy.nan #(
+#                numpy.nan if M[v].dtype.kind.startswith('f')
+#                else p[v][3]["_FillValue"])
         
         return ds
 

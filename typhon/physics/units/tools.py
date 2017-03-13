@@ -4,6 +4,7 @@
 from .common import ureg
 
 import operator
+import numpy
 import xarray
 class UnitsAwareDataArray(xarray.DataArray):
     """Like xarray.DataArray, but transfers units
@@ -20,7 +21,8 @@ class UnitsAwareDataArray(xarray.DataArray):
                 try:
                     u = q.u
                 except AttributeError:
-                    if ureg(self.attrs["units"]).dimensionless:
+                    if (ureg(self.attrs["units"]).dimensionless or
+                        new_var.dtype.kind == "b"):
                         # expected, see # https://github.com/hgrecco/pint/issues/482
                         u = ureg.dimensionless
                     else:
