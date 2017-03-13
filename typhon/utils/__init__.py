@@ -7,6 +7,7 @@ import time
 import ast
 import operator
 import os
+from functools import wraps
 
 import numpy as np
 
@@ -96,6 +97,7 @@ class Timer(object):
             print('elapsed time: {:d}m{:.3f}s'.format(
                 int(self.secs // 60), self.secs % 60))
 
+
 def print_timing(func):
     """Decorator to measure time of a function call.
 
@@ -107,13 +109,14 @@ def print_timing(func):
         >>> own_function(1)
         elapsed time: 1.001s
     """
-    def wrapper(*args, **kwargs):
+    @wraps(func)
+    def func_wrapper(*args, **kwargs):
         t = Timer().start()
         res = func(*args, **kwargs)
         t.stop()
         return res
 
-    return wrapper
+    return func_wrapper
 
 # Next part from http://stackoverflow.com/a/9558001/974555
 

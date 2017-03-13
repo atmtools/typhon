@@ -10,3 +10,4 @@ atmosphere
 
    iwv
    relative_humidity
+   vmr

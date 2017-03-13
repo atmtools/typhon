@@ -10,6 +10,7 @@ from .physics import thermodynamics
 __all__ = [
     'iwv',
     'relative_humidity',
+    'vmr',
 ]
 
 
@@ -46,3 +47,20 @@ def relative_humidity(vmr, p, T):
         float: Integrated water vapor [unitless].
     """
     return vmr * p / thermodynamics.e_eq_water_mk(T)
+
+
+def vmr(RH, p, T):
+    r"""Calculate relative humidity (RH).
+
+    .. math::
+        VMR = \frac{RH \cdot e_s(T)}{p}
+
+    Parameters:
+        vmr (ndarray): Volume mixing ratio,
+        p (float or ndarray): Pressue [Pa].
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float: Integrated water vapor [unitless].
+    """
+    return RH * thermodynamics.e_eq_water_mk(T) / p
