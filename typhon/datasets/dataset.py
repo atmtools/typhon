@@ -1640,10 +1640,14 @@ class DatasetDeque:
         # fail, see https://github.com/numpy/numpy/issues/8546
         # and https://github.com/pydata/xarray/issues/1240
         newst = self.data["time"][0].values.astype("M8[ms]") + numpy.timedelta64(period)
+        # BUG: need workaround for https://github.com/pydata/xarray/issues/1297
+        all_encodings = {k: v.encoding for (k, v) in self.data.data_vars.items()}
         self.data = xarray.concat(
             (self.data.sel(time=slice(newst, None)),
              datanew),
             dim="time")
+        for (k, v) in self.data.data_vars.items():
+            v.encoding = all_encodings[k]
 
     def resize(self, window):
         """Resize window
