@@ -1,3 +1,10 @@
+2017-03-15  Gerrit Holl  <g.holl@reading.ac.uk:
+
+	* typhon/datasets/tovs.py(as_xarray_dataset):
+
+	- Exempt bitfield from forced float conversation, bitfields never need
+	flagging (actually they usually tell why we flagged at all).
+
 2017-03-14  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* datasets/dataset.py(DatasetDeque.move):

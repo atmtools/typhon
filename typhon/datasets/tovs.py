@@ -1034,7 +1034,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                  if isinstance(M, numpy.ma.MaskedArray)
                  else M[v]).astype( 
                     M[v].dtype
-                    if M[v].dtype.kind[0] in "MOSUVmcfb"
+                    if M[v].dtype.kind[0] in "MOSUVmcfb" or "bit" in p[v][0]
                     else "f{:d}".format(M[v].dtype.itemsize*2)),
                 {**p[v][2], **{"orig_name": v}})
             for v in p.keys() & set(M.dtype.names)}
@@ -1061,7 +1061,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         for v in p.keys() & set(M.dtype.names):
             ds[p[v][0]].encoding = p[v][3]
-            ds[p[v][0]].values[M[v].mask] = numpy.nan #(
+            if "bit" not in p[v][0]:
+                ds[p[v][0]].values[M[v].mask] = numpy.nan #(
 #                numpy.nan if M[v].dtype.kind.startswith('f')
 #                else p[v][3]["_FillValue"])
         
