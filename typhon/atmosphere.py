@@ -18,7 +18,7 @@ def iwv(vmr, p, T, z):
     """Calculate the integrated water vapor (IWV).
 
     Parameters:
-        vmr (ndarray): Volume mixing ratio,
+        vmr (float or ndarray): Volume mixing ratio,
         p (float or ndarray): Pressue [Pa].
         T (float or ndarray): Temperature [K].
         z (ndarray): Height [m]. Size must match vmr.
@@ -39,28 +39,48 @@ def relative_humidity(vmr, p, T):
         RH = \frac{VMR \cdot p}{e_s(T)}
 
     Parameters:
-        vmr (ndarray): Volume mixing ratio,
+        vmr (float or ndarray): Volume mixing ratio,
         p (float or ndarray): Pressue [Pa].
         T (float or ndarray): Temperature [K].
 
     Returns:
-        float: Integrated water vapor [unitless].
+        float or ndarray: Relative humiditity [unitless].
+
+    See also:
+        :func:`vmr`
+            Complement function (returns VMR for given RH).
+        :func:`typhon.physics.e_eq_water_mk`
+            Used to calculate the equilibrium water vapor pressure.
+
+    Examples:
+        >>> relative_humidity(0.025, 1013e2, 300)
+        0.71604995533615401
     """
     return vmr * p / thermodynamics.e_eq_water_mk(T)
 
 
 def vmr(RH, p, T):
-    r"""Calculate relative humidity (RH).
+    r"""Calculate the volume mixing ratio (VMR).
 
     .. math::
         VMR = \frac{RH \cdot e_s(T)}{p}
 
     Parameters:
-        vmr (ndarray): Volume mixing ratio,
+        RH (float or ndarray): Relative humidity.
         p (float or ndarray): Pressue [Pa].
         T (float or ndarray): Temperature [K].
 
     Returns:
-        float: Integrated water vapor [unitless].
+        float or ndarray: Volume mixing ratio [unitless].
+
+    See also:
+        :func:`relative_humidity`
+            Complement function (returns RH for given VMR).
+        :func:`typhon.physics.e_eq_water_mk`
+            Used to calculate the equilibrium water vapor pressure.
+
+    Examples:
+        >>> vmr(0.75, 101300, 300)
+        0.026185323887350429
     """
     return RH * thermodynamics.e_eq_water_mk(T) / p
