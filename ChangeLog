@@ -1,5 +1,13 @@
 2017-03-16  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/physics/thermodynamics.py (density):
+
+	Improved docstring with example and cross-reference.
+
+	* typhon/legacy: Removed (empty) legacy directory.
+
+2017-03-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/spectroscopy.py (linewidth):
 
 	Improved docstring and added example.

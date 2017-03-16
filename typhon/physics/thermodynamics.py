@@ -40,7 +40,7 @@ def e_eq_ice_mk(T):
 
     """
     if np.any(T <= 0):
-        raise Exception('Temperatures must be greater than 0K.')
+        raise Exception('Temperatures must be larger than 0 Kelvin.')
 
     # Give the natural log of saturation vapor pressure over ice in Pa
     e = 9.550426 - 5723.265 / T + 3.53068 * np.log(T) - 0.00728332 * T
@@ -76,7 +76,7 @@ def e_eq_water_mk(T):
 
     """
     if np.any(T <= 0):
-        raise Exception('Temperatures must be greater than 0K.')
+        raise Exception('Temperatures must be larger than 0 Kelvin.')
 
     # Give the natural log of saturation vapor pressure over water in Pa
 
@@ -106,5 +106,13 @@ def density(p, T, R=constants.gas_constant_dry_air):
     Returns:
         float or ndarray: Density [kg/m**3].
 
+    See also:
+        :mod:`typhon.constants`
+            Module containing universal gas constant as well
+            as gas constants for dry air and water vapor.
+
+    Examples:
+        >>> density(1013e2, 300)
+        1.1763056653021122
     """
     return p / (R * T)
