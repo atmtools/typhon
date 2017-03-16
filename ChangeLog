@@ -1,5 +1,15 @@
 2017-03-16  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/spectroscopy.py (linewidth):
+
+	Improved docstring and added example.
+
+	* typhon/tests/test_spectroscopy.py:
+
+	Added test method for the calculations of linewidth (FWHM).
+
+2017-03-16  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/atmosphere.py: Fixed input types in all docstrings.
 
 	(vmr, relative_humidity)
