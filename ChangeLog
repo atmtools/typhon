@@ -1,3 +1,10 @@
+2017-03-17  Gerrit Holl  <g.holl@reading.ac.uk:
+
+	* typhon/datasets/dataset.py:
+
+	- Adapt classes such that HomemadeDataset can write to different files
+	than it reads, such as is desirable in the case of FCDR generation.
+
 2017-03-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/atmosphere.py (vmr, relative_humidity):
@@ -37,7 +44,7 @@
 
 	Added test methods for VMR and relative humidity calculations.
 
-2017-03-15  Gerrit Holl  <g.holl@reading.ac.uk:
+2017-03-15  Gerrit Holl  <g.holl@reading.ac.uk>:
 
 	* typhon/datasets/tovs.py(as_xarray_dataset):
 

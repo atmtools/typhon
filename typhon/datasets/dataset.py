@@ -338,7 +338,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
         #contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
-        logging.info("Reading {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
+        logging.info("Reading {self.satname:s} {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
         # some content may be in last granule before starting time
@@ -826,13 +826,16 @@ class MultiFileDataset(Dataset):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        for attr in ("basedir", "subdir", "granule_cache_file"):
-            if (getattr(self, attr) is not None and
-                not isinstance(getattr(self, attr), pathlib.PurePath)):
-                setattr(self, attr, pathlib.Path(getattr(self, attr)))
+        self._str2path("basedir", "subdir", "granule_cache_file")
         self._open_granule_file()
         if self.re is not None:
             self._re = re.compile(self.re)
+
+    def _str2path(self, *args):
+        for attr in args:
+            if (getattr(self, attr) is not None and
+                    not isinstance(getattr(self, attr), pathlib.PurePath)):
+                setattr(self, attr, pathlib.Path(getattr(self, attr)))
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1405,7 +1408,11 @@ class HomemadeDataset(MultiFileDataset):
     NetCDF.
     """
 
-    stored_name = ""
+    stored_name = None
+    write_basedir = write_subdir = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._str2path("write_basedir", "write_subdir", "stored_name")
 
     def find_granule_for_time(self, **kwargs):
         """Find granule for specific time.
@@ -1414,12 +1421,19 @@ class HomemadeDataset(MultiFileDataset):
 
         Arguments (kw only) are passed on to format directories stored in
         self.basedir / self.subdir / self.stored_name, along with
-        self.__dict__.
+        self.__dict__.  One special keyword, "write", can be used when
+        writing data, as some datasets in "production mode" have different
+        files for writing than reading.
 
         Returns path to granule.
         """
 
-        d = self.basedir / self.subdir / self.stored_name
+        if kwargs.get("mode") == "write":
+            d = (getattr(self, "write_basedir", self.basedir) /
+                 getattr(self, "write_subdir", self.subdir) /
+                 self.stored_name)
+        else:
+            d = self.basedir / self.subdir / self.stored_name
         subsdict = self.__dict__.copy()
         subsdict.update(**kwargs)
         nm = pathlib.Path(str(d).format(**subsdict))
