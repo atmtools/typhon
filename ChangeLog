@@ -1,3 +1,10 @@
+2017-03-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/atmosphere.py (vmr, relative_humidity):
+
+	Improved cross-references (use full import path but only show function
+	names in html doc.)
+
 2017-03-16  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/thermodynamics.py (density):

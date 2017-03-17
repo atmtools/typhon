@@ -47,9 +47,9 @@ def relative_humidity(vmr, p, T):
         float or ndarray: Relative humiditity [unitless].
 
     See also:
-        :func:`vmr`
+        :func:`~typhon.atmosphere.vmr`
             Complement function (returns VMR for given RH).
-        :func:`typhon.physics.e_eq_water_mk`
+        :func:`~typhon.physics.e_eq_water_mk`
             Used to calculate the equilibrium water vapor pressure.
 
     Examples:
@@ -74,9 +74,9 @@ def vmr(RH, p, T):
         float or ndarray: Volume mixing ratio [unitless].
 
     See also:
-        :func:`relative_humidity`
+        :func:`~typhon.atmosphere.relative_humidity`
             Complement function (returns RH for given VMR).
-        :func:`typhon.physics.e_eq_water_mk`
+        :func:`~typhon.physics.e_eq_water_mk`
             Used to calculate the equilibrium water vapor pressure.
 
     Examples:
