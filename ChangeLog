@@ -1,3 +1,7 @@
+2017-03-20  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/cm.py: Removed.
+
 2017-03-17  Gerrit Holl  <g.holl@reading.ac.uk:
 
 	* typhon/datasets/dataset.py:
