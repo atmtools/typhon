@@ -1,3 +1,11 @@
+2017-03-22  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/utils/__init__.py(concat_each_time_coordinate):
+
+	- New function.  Taking a collection of xarray.Dataset objects,
+	concatenate them along any dimension with a coordinate with a time
+	dtype.
+
 2017-03-20  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/cm.py: Removed.

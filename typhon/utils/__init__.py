@@ -7,6 +7,8 @@ import time
 import ast
 import operator
 import os
+import xarray
+import itertools
 from functools import wraps
 
 import numpy as np
@@ -207,3 +209,63 @@ def path_remove(dirname, path='PATH'):
         dir_list = os.environ[path].split(os.pathsep)
         dir_list.remove(dirname)
         os.environ[path] = os.pathsep.join(dir_list)
+
+
+def concat_each_time_coordinate(*datasets):
+    """Concatenate xarray datasets along each time coordinate
+
+    Given two or more xarray datasets, concatenate seperately data
+    variables with different time coordinates.  For example, one might
+    have dimensions 'scanline' and 'calibration_cycle' that are each along
+    time coordinates.  Data variables may have dimension either scanline
+    or calibration_cycle or neither, but not both.  Both correspond to
+    coordinates a datetime index.  Ordinary xarray.concat along either
+    dimension will broadcast the other one in a way similar to repmat,
+    thus exploding memory usage (test case for one FCDR HIRS granule: 89
+    MB to 81 GB).  Instead, here, for each data variable, we will
+    concatenate only along at most one time coordinate.
+
+    Arguments:
+
+        *datasets: xarray.Dataset objects to be concatenated
+    """
+
+    time_coords = {k for (k, v) in datasets[0].coords.items() if v.dtype.kind=="M"}
+    # ensure each data-variable has zero or one of those time coordinates
+    # as dimensions
+    for ds in datasets:
+        if not all([len(set(v.dims)&time_coords)<=1
+                for (k, v) in ds.data_vars.items()]):
+            raise ValueError("Found vars with multiple time coords")
+    # split in sub-datasets per time coordinate
+    datasets_per_tc = {tc: [xarray.Dataset(
+            {k: v for (k, v) in ds.data_vars.items() if tc in v.dims},
+            coords=ds.coords, attrs=ds.attrs)
+                for ds in datasets]
+            for tc in time_coords}
+    
+    untimed_vars = [xarray.Dataset(
+        {k: v for (k, v) in ds.data_vars.items()
+              if len(set(v.dims)&time_coords)==0},
+        coords=ds.coords, attrs=ds.attrs)
+            for ds in datasets]
+
+    untimed_vars_plain = [uv.drop([k for (k, v) in
+        uv.coords.items() if
+        len(set(v.dims)&time_coords)>0])
+            for uv in untimed_vars]
+    for v in untimed_vars_plain[1:]:
+        if not untimed_vars_plain[0].equals(v):
+            raise ValueError("Concatenating time-dimensioned variables, "
+                "but some non-time-dimensioned variables are not equal!")
+
+    dataset_per_tc = {tc: xarray.concat(dsall, dim=tc).drop(
+        [coorname for (coorname, coor) in dsall[0].coords.items() if
+            any(d in coor.dims for d in time_coords - {tc})])
+                        for (tc, dsall) in datasets_per_tc.items()}
+
+    ds = xarray.merge(
+        itertools.chain.from_iterable(
+            [untimed_vars_plain, dataset_per_tc.values()]))
+
+    return ds
