@@ -3,6 +3,11 @@
 This module provides colormaps to use for the visualisation of meteorological
 data.
 
+This module heavily bases on the cmocean_ package developed by Kristen Thyng.
+Most colormaps are directly inherited and renamed for meteorological
+applications.
+
+.. _cmocean: http://matplotlib.org/cmocean/
 """
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.cm import register_cmap

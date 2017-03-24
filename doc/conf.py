@@ -313,5 +313,10 @@ intersphinx_mapping = {
 # -- Plots ----------------------------------------------------------------
 plot_pre_code = """
 import numpy as np
+import matplotlib.pyplot as plt
+
 np.random.seed(0)
+
+plt.rcParams['font.size'] = 16
+plt.rcParams['savefig.bbox'] = 'tight'
 """

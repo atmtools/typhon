@@ -45,9 +45,6 @@ Phase
 .. plot:: pyplots/plot_phase.py
     :include-source:
 
-.. plot:: pyplots/plot_phase_sinus.py
-    :include-source:
-
 Qualitative 1
 ^^^^^^^^^^^^^
 .. plot:: pyplots/plot_qualitative1.py

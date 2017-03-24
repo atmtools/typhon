@@ -1,3 +1,29 @@
+2017-03-24  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/cm/__init__.py:
+
+	Give credit to the cmocean package by Kristen Thyng.
+
+	* doc/conf.py:
+
+	Set font size and bounding box inches for all plots created in
+	the documentation.
+
+	* doc/pyplots/plot_phase_sinus.py, doc/typhon.plots.cm.rst:
+
+	Removed the sine example for the phase colormap.
+
+	* doc/pyplots/plot_density.py, doc/pyplots/plot_phase.py,
+	doc/pyplots/plot_speed.py, doc/pyplots/plot_temperature.py,
+	doc/pyplots/plot_velocity.py:
+
+	Improved the appearance of all basemap plots in the
+	documentation.
+
+	In addition the temperature plot is fully colored as an example
+	and the wind direction plot uses a custom ticklabel formatter.
+
+
 2017-03-22  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/utils/__init__.py(concat_each_time_coordinate):
