@@ -14,6 +14,7 @@ import tempfile
 import datetime
 import sys
 import collections
+import warnings
 
 import numpy
 import numpy.lib.arraysetops
@@ -336,26 +337,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if isinstance(end, datetime.timedelta):
             end = start + end
 
-        #contents = []
         finder = self.find_granules_sorted if sorted else self.find_granules
         logging.info("Reading {self.satname:s} {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
-        # some content may be in last granule before starting time
-        # I should do this in the finder, to prevent code duplication
-#         if start > self.start_date:
-#             last_before = self.find_most_recent_granule_before(
-#                 start, **locator_args)
-#             try:
-#                 cont = self.read(str(last_before), fields=fields,
-#                         **reader_args)
-#             except DataFileError as exc:
-#                 if onerror == "skip":
-#                     logging.error("Can not read file {}: {}".format(
-#                         gran, exc.args[0]))
-#                 else:
-#                     raise
-#             contents.append(cont[cont["time"]>=start])
         dobar = sorted and progressbar and sys.stdout.isatty()
         if dobar:
             bar = progressbar.ProgressBar(max_value=1,
@@ -380,7 +365,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     pseudo_fields=pseudo_fields, **reader_args)
                 if (sorted and
                     arr is not None and
-                    cont.size > 0 and
+                    cont["time"].size > 0 and
                     N>0 and
                     (cont["time"][0] <= arr["time"][N-1])):
                     raise InvalidDataError(
@@ -392,13 +377,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "should. ".format(gran,
                             cont["time"][0].astype(datetime.datetime),
                             arr["time"][N-1].astype(datetime.datetime)))
-                oldsize = cont.size
-                cont = tpmath.array.limit_ndarray(cont, limits)
-                for f in filters:
-                    cont = f(cont)
-                if cont.size < oldsize:
-                    logging.debug("Applying limitations, reducing "
-                        "{:d} to {:d}".format(oldsize, cont.size))
+                cont = self._apply_limits_and_filters(cont, limits, filters)
             except DataFileError as exc:
                 if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
@@ -407,42 +386,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else:
                     raise
             else:
-                cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
-                if arr is None:
-                    arr = cont
-                    N = cont.size
-                else:
-                    if (N+cont.size) > arr.size: # need to allocate more
-                        frac_done = max((g_start-start) / (end-start),0)
-                        # suppose all future files have on average the
-                        # same size?  Until we have reached 10%, simply
-                        # double every time.  After that, extrapolate more
-                        # cleverly. 
-                        newsize = (int((N+cont.size)//frac_done)
-                                    if frac_done > 0.1
-                                    else (N+cont.size) * 2)
-                        if newsize * arr.itemsize > self.maxsize:
-                            raise MemoryError("This dataset is too large "
-                                "for typhons little mind.  Continuing might "
-                                "ultimately need {:,.0f} MiB of RAM.  This exceeds my "
-                                "maximum (self.maxsize) of {:,.0f} MiB. "
-                                "Sorry! ".format(
-                                    newsize*arr.itemsize/MiB,
-                                    self.maxsize/MiB))
-                        logging.debug(
-                            "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
-                            "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
-                            "through.  Allocating new: {:d} items, {:,.0f} "
-                            "MiB.  New size: {:d} items, {:,.0f} "
-                            "MiB.".format(N+cont.size,
-                                (cont.nbytes+arr.nbytes)/MiB,
-                                arr.size, arr.nbytes/MiB, frac_done,
-                                newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
-                                newsize, newsize*arr.itemsize/MiB))
-                        arr = numpy.ma.concatenate(
-                            (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
-                    arr[N:(N+cont.size)] = cont
-                    N += cont.size
+                (arr, N) = self._add_gran_to_data(arr, cont, N, start,
+                                end, g_start)
 #                contents.append(
 #                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
                 if N > 0:
@@ -453,9 +398,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             bar.update(1)
             bar.finish()
         if anygood:
-            logging.debug("Correcting overallocation ({:d}->{:d})".format(
-                arr.size, N))
-            arr = arr[:N]
+            arr = self._correct_overallocation(arr, N)
 
             if "flags" in self.related:
                 arr = self.flag(arr)
@@ -463,7 +406,85 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             return arr
         else:
             raise DataFileError("Can not find any valid data!")
-            
+
+    @staticmethod
+    def _apply_limits_and_filters(cont, limits, filters):
+        if isinstance(cont, xarray.Dataset):
+            if len(limits)>0 or len(filters)>0:
+                raise NotImplementedError( 
+                    "limits or filters not implemented on xarray "
+                    "datasets")
+            return cont
+        oldsize = cont.size
+        cont = tpmath.array.limit_ndarray(cont, limits)
+        for f in filters:
+            cont = f(cont)
+        if cont.size < oldsize:
+            logging.debug("Applying limitations, reducing "
+                "{:d} to {:d}".format(oldsize, cont.size))
+        return cont
+
+    def _add_gran_to_data(self, arr, cont, N, start, end, g_start):
+        if isinstance(cont, xarray.Dataset):
+            tm = cont["time"].values.astype("M8[ms]")
+#            inrange = (tm<=end) & (tm>=start)
+#            rng = {}
+            cont = cont.loc[dict.fromkeys(utils.get_time_coordinates(cont),
+                slice(start, end))]
+        else:
+            cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
+        if arr is None:
+            arr = cont
+            N = cont["time"].size
+        else:
+            if isinstance(cont, xarray.Dataset):
+                # FIXME: need to implement this more efficiently
+                warnings.warn("Using slow concatenation as faster "
+                    "is not yet implemented for Dataset", UserWarning)
+                arr = utils.concat_each_time_coordinate(arr, cont)
+            else:
+                if (N+cont.size) > arr.size: # need to allocate more
+                    frac_done = max((g_start-start) / (end-start),0)
+                    # suppose all future files have on average the
+                    # same size?  Until we have reached 10%, simply
+                    # double every time.  After that, extrapolate more
+                    # cleverly. 
+                    newsize = (int((N+cont.size)//frac_done)
+                                if frac_done > 0.1
+                                else (N+cont.size) * 2)
+                    if newsize * arr.itemsize > self.maxsize:
+                        raise MemoryError("This dataset is too large "
+                            "for typhons little mind.  Continuing might "
+                            "ultimately need {:,.0f} MiB of RAM.  This exceeds my "
+                            "maximum (self.maxsize) of {:,.0f} MiB. "
+                            "Sorry! ".format(
+                                newsize*arr.itemsize/MiB,
+                                self.maxsize/MiB))
+                    logging.debug(
+                        "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
+                        "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
+                        "through.  Allocating new: {:d} items, {:,.0f} "
+                        "MiB.  New size: {:d} items, {:,.0f} "
+                        "MiB.".format(N+cont.size,
+                            (cont.nbytes+arr.nbytes)/MiB,
+                            arr.size, arr.nbytes/MiB, frac_done,
+                            newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
+                            newsize, newsize*arr.itemsize/MiB))
+                    arr = numpy.ma.concatenate(
+                        (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
+                arr[N:(N+cont.size)] = cont
+            N += cont["time"].size
+        return arr, N
+
+    @staticmethod
+    def _correct_overallocation(arr, N):
+        if isinstance(arr, xarray.Dataset):
+            # no need (yet), no pre-allocation
+            return arr
+        logging.debug("Correcting overallocation ({:d}->{:d})".format(
+            arr.size, N))
+        return arr[:N]
+
     @abc.abstractmethod
     def _read(self, f, fields="all"):
         """Read granule in file, low-level.
@@ -868,7 +889,7 @@ class MultiFileDataset(Dataset):
 
     def get_mandatory_fields(self):
         fm = string.Formatter()
-        fields = {f[1] for f in fm.parse(str(self.subdir))}
+        fields = {f[1] for f in fm.parse(str(self.basedir / self.subdir))}
         if fields == {None}:
             fields = set()
         return fields - set(self.datefields)
@@ -1400,87 +1421,6 @@ class SingleMeasurementPerFileDataset(MultiFileDataset):
 
         return D
 
-class HomemadeDataset(MultiFileDataset):
-    """For any dataset created by typhon or its dependencies.
-
-    Currently supports only saving to npz, through the save_npz method.
-    Eventually, should also support other file formats, in particular
-    NetCDF.
-    """
-
-    stored_name = None
-    write_basedir = write_subdir = None
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._str2path("write_basedir", "write_subdir", "stored_name")
-
-    def find_granule_for_time(self, **kwargs):
-        """Find granule for specific time.
-
-        May or may not exist.
-
-        Arguments (kw only) are passed on to format directories stored in
-        self.basedir / self.subdir / self.stored_name, along with
-        self.__dict__.  One special keyword, "write", can be used when
-        writing data, as some datasets in "production mode" have different
-        files for writing than reading.
-
-        Returns path to granule.
-        """
-
-        if kwargs.get("mode") == "write":
-            d = (getattr(self, "write_basedir", self.basedir) /
-                 getattr(self, "write_subdir", self.subdir) /
-                 self.stored_name)
-        else:
-            d = self.basedir / self.subdir / self.stored_name
-        subsdict = self.__dict__.copy()
-        subsdict.update(**kwargs)
-        nm = pathlib.Path(str(d).format(**subsdict))
-        return nm
-
-    def _read(self, f, fields="all"):
-        if f.endswith("npz") or f.endswith("npy"):
-            return numpy.load(f)["arr_0"]
-
-        # TODO: implement NetCDF read/write
-        
-        raise NotImplementedError()
-
-#    def find_granules(self, start, end):
-#        raise StopIteration()
-
-#    @abc.abstractmethod
-#    def quicksave(self, f):
-#        """Quick save to file
-#
-#        :param str f: File to save to
-#        """
-
-    def save_npz(self, path, M):
-        """Save to compressed npz
-
-        Arguments:
-
-            path (pathlib.Path): Path to store to
-
-            M (ndarray): Contents of what to store.
-        """
-        p = pathlib.Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        numpy.savez_compressed(str(path), M)
-
-class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
-    satellites = set()
-    @property
-    def valid_field_values(self):
-        return {"satname": self.satellites}
-
-class HyperSpectral(Dataset, em.FwmuMixin):
-    """Superclass for any hyperspectral instrument
-    """
-    freqfile = None
-
 class NetCDFDataset:
     """Mixin for any dataset where the contents are in NetCDF.
 
@@ -1493,6 +1433,8 @@ class NetCDFDataset:
     This one should use xarray, of course!  See
     https://arts.mi.uni-hamburg.de/trac/rt/ticket/145
     """
+
+    read_returns = "ndarray" # can be set to xarray
 
     def _get_dtype_from_vars(self, alldims, allvars, fields, prim):
         """Get dtype from alldims, allvars
@@ -1509,6 +1451,17 @@ class NetCDFDataset:
     def _read(self, f, fields="all",
               pseudo_fields=None,
               prim=None):
+        if self.read_returns == "ndarray":
+            return self._read_ndarray(f, fields, pseudo_fields, prim)
+        elif self.read_returns == "xarray":
+            if fields != "all":
+                warn("Ignoring fields={!s}!='all'".format(fields), UserWarning)
+            if pseudo_fields is not None:
+                warn("Ignoring pseudo-fields", UserWarning)
+            return xarray.open_dataset(f)
+
+    def _read_ndarray(self, f, fields="all", pseudo_fields=None,
+                      prim=None):
         if pseudo_fields is None:
             pseudo_fields = {}
         with netCDF4.Dataset(f, 'r') as ds:
@@ -1567,6 +1520,85 @@ class NetCDFDataset:
                     pass # probably not a numeric type
 
         return M
+
+class HomemadeDataset(NetCDFDataset, MultiFileDataset):
+    """For any dataset created by typhon or its dependencies.
+
+    Currently supports only saving to npz, through the save_npz method.
+    Eventually, should also support other file formats, in particular
+    NetCDF.
+    """
+
+    stored_name = None
+    write_basedir = write_subdir = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._str2path("write_basedir", "write_subdir", "stored_name")
+
+    def find_granule_for_time(self, **kwargs):
+        """Find granule for specific time.
+
+        May or may not exist.
+
+        Arguments (kw only) are passed on to format directories stored in
+        self.basedir / self.subdir / self.stored_name, along with
+        self.__dict__.  One special keyword, "write", can be used when
+        writing data, as some datasets in "production mode" have different
+        files for writing than reading.
+
+        Returns path to granule.
+        """
+
+        if kwargs.get("mode") == "write":
+            d = (getattr(self, "write_basedir", self.basedir) /
+                 getattr(self, "write_subdir", self.subdir) /
+                 self.stored_name)
+        else:
+            d = self.basedir / self.subdir / self.stored_name
+        subsdict = self.__dict__.copy()
+        subsdict.update(**kwargs)
+        nm = pathlib.Path(str(d).format(**subsdict))
+        return nm
+
+    def _read(self, f, fields="all"):
+        if f.endswith("npz") or f.endswith("npy"):
+            return numpy.load(f)["arr_0"]
+        elif f.endswith("nc"):
+            return super()._read(f)
+
+#    def find_granules(self, start, end):
+#        raise StopIteration()
+
+#    @abc.abstractmethod
+#    def quicksave(self, f):
+#        """Quick save to file
+#
+#        :param str f: File to save to
+#        """
+
+    def save_npz(self, path, M):
+        """Save to compressed npz
+
+        Arguments:
+
+            path (pathlib.Path): Path to store to
+
+            M (ndarray): Contents of what to store.
+        """
+        p = pathlib.Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        numpy.savez_compressed(str(path), M)
+
+class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
+    satellites = set()
+    @property
+    def valid_field_values(self):
+        return {"satname": self.satellites}
+
+class HyperSpectral(Dataset, em.FwmuMixin):
+    """Superclass for any hyperspectral instrument
+    """
+    freqfile = None
 
 # Not yet transferred from pyatmlab to typhon, not clean enough:
 #

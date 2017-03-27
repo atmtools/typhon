@@ -211,6 +211,13 @@ def path_remove(dirname, path='PATH'):
         os.environ[path] = os.pathsep.join(dir_list)
 
 
+def get_time_coordinates(ds):
+    """From a xarray dataset or dataarray, get time coordinates
+
+    """
+
+    return {k for (k, v) in ds.coords.items() if v.dtype.kind=="M"}
+
 def concat_each_time_coordinate(*datasets):
     """Concatenate xarray datasets along each time coordinate
 
@@ -230,7 +237,7 @@ def concat_each_time_coordinate(*datasets):
         *datasets: xarray.Dataset objects to be concatenated
     """
 
-    time_coords = {k for (k, v) in datasets[0].coords.items() if v.dtype.kind=="M"}
+    time_coords = get_time_coordinates(datasets[0])
     # ensure each data-variable has zero or one of those time coordinates
     # as dimensions
     for ds in datasets:

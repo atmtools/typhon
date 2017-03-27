@@ -1,3 +1,36 @@
+2017-03-27  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset.read_period):
+
+	- Move some functionality to _apply_limits_and_filters and
+	_add_gran_to_data and _correct_overallocation.
+
+	- In those methods, add support for reading datasets that return
+	xarray.Dataset.  Implementation is currently stupid and needs to be
+	MUCH faster.
+
+	(MultiFileDataset.get_mandatory_fields):
+
+	- Bugfix, fields in subdir mandatory too
+
+	(HomemadeDataset):
+
+	- This is now a subclass of NetCDFDataset
+
+	* typhon/physics/units/em.py (SRF.estimate_band_coefficients):
+
+	- Fix units for α, β, Δα, and Δβ
+
+	* typhon/physics/units/tools.py UnitsAwareDataArray.__rpow__:
+
+	- Add missing return statement
+
+	* typhon/utils/__init__.py (get_time_coordinates):
+
+	- Return all coordinates on a dataset with a datetime64 dtype
+
 2017-03-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/common.py (center_colorbar):

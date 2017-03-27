@@ -358,14 +358,14 @@ class SRF(FwmuMixin):
         ds0 = ds.sel(shift=0)
         (α, β, λ_c) = [UADA(v) for v in ds0.data_vars.values()]
 
-        α.attrs["units"] = "1"
-        β.attrs["units"] = "1/K"
+        α.attrs["units"] = "K"
+        β.attrs["units"] = "1"
         λ_c.attrs["units"] = "1/cm"
 
         Δds = ds.sel(shift=10) - ds0
         (Δα, Δβ, Δλ_c) = [UADA(v) for v in Δds.data_vars.values()]
-        Δα.attrs["units"] = "1"
-        Δβ.attrs["units"] = "1/K"
+        Δα.attrs["units"] = "K"
+        Δβ.attrs["units"] = "1"
         Δλ_c.attrs["units"] = "1/cm"
 
         return (α, β, λ_c, Δα, Δβ, Δλ_c)

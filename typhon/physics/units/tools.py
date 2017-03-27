@@ -61,6 +61,7 @@ class UnitsAwareDataArray(xarray.DataArray):
             x.attrs["units"] = str(pow(
                 ureg.Quantity(other, getattr(other, "units", "1")),
                 ureg.Quantity(1, self.attrs["units"])).u)
+        return x
 
     def to(self, new_unit, *contexts, **kwargs):
         """Convert to other unit.
