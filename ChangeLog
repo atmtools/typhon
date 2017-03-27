@@ -1,3 +1,12 @@
+2017-03-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/common.py (center_colorbar):
+
+	Added convenience function to center diverging colorbars around
+	zero.
+
+	* doc/typhon.plots.rst: Added `center_colorbar`.
+
 2017-03-24  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/cm/__init__.py:

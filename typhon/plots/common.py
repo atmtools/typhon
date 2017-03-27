@@ -9,11 +9,48 @@ import os
 from typhon import constants
 
 
-__all__ = ['figsize',
-           'styles',
-           'get_available_styles',
-           'get_subplot_arrangement',
-           ]
+__all__ = [
+    'center_colorbar',
+    'figsize',
+    'styles',
+    'get_available_styles',
+    'get_subplot_arrangement',
+]
+
+
+def center_colorbar(cb):
+    """Center a diverging colorbar around zero.
+
+    Convenience function to adjust the color limits of a colorbar. The function
+    multiplies the absolute maximum of the data range by ``(-1, 1)`` and uses
+    this range as new color limits.
+
+    Note:
+        The colormap used should be continuous. Resetting the clim for discrete
+        colormaps may produce strange artefacts.
+
+    Parameters:
+        cb (matplotlib.colorbar.Colorbar): Colorbar to center.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon.plots import center_colorbar
+
+
+        fig, ax = plt.subplots()
+        sm = ax.pcolormesh(np.random.randn(10, 10) + 0.75, cmap='difference')
+        cb = fig.colorbar(sm)
+        center_colorbar(cb)
+
+        plt.show()
+    """
+    # Set color limits to +- the absolute maximum of the data range.
+    cb.set_clim(np.multiply((-1, 1), np.max(np.abs(cb.get_clim()))))
 
 
 def figsize(w, portrait=False):
