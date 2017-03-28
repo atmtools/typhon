@@ -5,7 +5,6 @@ ScatteringMetaData.
 
 """
 
-
 import copy
 import numbers
 from io import StringIO
@@ -108,6 +107,37 @@ class SingleScatteringData:
         self.abs_vec_data = None
         self.ext_mat_data = None
         self.pha_mat_data = None
+
+    def __eq__(self, other):
+        """Test the equality of SingleScatteringData."""
+
+        def compare_ndarray(array1, array2, atol):
+            if array1 is not None and array2 is not None:
+                if not np.allclose(array1, array2, atol=1e-12):
+                    return False
+            elif array1 is not array2:
+                return False
+            return True
+
+        if isinstance(other, self.__class__):
+            if self.ptype != other.ptype:
+                return False
+
+            if self.version != other.version:
+                return False
+
+            for member in ('f_grid', 'T_grid', 'za_grid', 'aa_grid'):
+                if not compare_ndarray(getattr(self, member),
+                                       getattr(other, member), atol=1e-6):
+                    return False
+
+            for member in ('abs_vec_data', 'ext_mat_data', 'pha_mat_data'):
+                if not compare_ndarray(getattr(self, member),
+                                       getattr(other, member), atol=1e-12):
+                    return False
+
+            return True
+        return NotImplemented
 
     @classmethod
     def from_data(cls, params=None, **kwargs):

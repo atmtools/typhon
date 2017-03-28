@@ -1,3 +1,9 @@
+2017-03-28  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/scattering.py (SingleScatteringData.__eq__):
+
+	Implement comparison operator.
+
 2017-03-27  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py:
