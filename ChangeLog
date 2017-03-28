@@ -1,5 +1,32 @@
 2017-03-28  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/dataset.py (Dataset._ensure_large_enough):
+
+	- Started work on a pre-allocation version for xarray datasets.  Work
+	in progress.
+
+	* typhon/physics/metrology.py (express_uncertainty):
+
+	- When returning components, don't return the square but the regular
+	version.
+
+	* typhon/physics/em.py (SRF.estimate_band_coefficients):
+
+	- Replaced pretty Δλ by unpretty delta_lambda because some people
+	don't have an easy way to input Greek…
+
+	- Fix bug causing mixup between α, β, and λ
+
+	- Fix bug causing mixup between channels
+
+	* typhon/physics/units/tools.py (UnitsAwareDataArray.__array_wrap__):
+
+	- Fix bug when calling log/exp on UADA that has units that are
+	dimensionless but not "1" (such as m/km).  Should be normalised prior
+	to calling exp or all hell will break loose.
+
+2017-03-28  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/tovs.py:
 
 	- Replace non-ASCII-identifiers

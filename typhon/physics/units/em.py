@@ -326,21 +326,21 @@ class SRF(FwmuMixin):
         """Estimate band coefficients for fast/explicit BT calculations
 
         In some circumstances, a fully integrated SRF may be more
-        expensive than needed.  We can then choose an effective wavelength λ_c
-        along with coefficients α, β such that instead of integrating, we
-        estimate R = B(λ*, T*), with T* = α + β · T_B and λ* a wavelength
-        which may be close to the centroid λ_c (but there is no
+        expensive than needed.  We can then choose an effective wavelength lambda_c
+        along with coefficients alpha, beta such that instead of integrating, we
+        estimate R = B(lambda*, T*), with T* = alpha + beta · T_B and lambda* a wavelength
+        which may be close to the centroid lambda_c (but there is no
         guarantee).  Such an approximation eliminates the explicit use of
         an integral which can make analysis easier.
 
         Returns:
 
-            α (float): Offset in approximation for T*
-            β (float): Slope in approximation for T*
-            λ_eff (float): Effective wavelength
-            Δα (float): Uncertainty in α
-            Δβ (float): Uncertainty in β
-            Δλ_eff (float): Uncertainty in λ_eff
+            alpha (float): Offset in approximation for T*
+            beta (float): Slope in approximation for T*
+            lambda_eff (float): Effective wavelength
+            delta_alpha (float): Uncertainty in alpha
+            delta_beta (float): Uncertainty in beta
+            delta_lambda_eff (float): Uncertainty in lambda_eff
         """
 
         warnings.warn("Obtaining band coefficients from file", UserWarning)
@@ -349,26 +349,23 @@ class SRF(FwmuMixin):
         dims = ("channel", "shift")
         ds = xarray.Dataset(
             {"center": (dims, M[..., 0]),
-             "α": (dims, M[..., 1]),
-             "β": (dims, M[..., 2])},
-            coords = {"channel": numpy.arange(1, 20),
+             "alpha": (dims, M[..., 1]),
+             "beta": (dims, M[..., 2])},
+            coords = {"channel": numpy.roll(numpy.arange(1, 20), 10),
                       "shift": [0, -10, 10, -20, 20]})
         ds = ds.sel(channel=ch)
 
         ds0 = ds.sel(shift=0)
-        (α, β, λ_c) = [UADA(v) for v in ds0.data_vars.values()]
+        lambda_c = UADA(ds0["center"], attrs={"units": "1/cm"})
+        alpha = UADA(ds0["alpha"], attrs={"units": "K"})
+        beta = UADA(ds0["beta"], attrs={"units": "1"})
 
-        α.attrs["units"] = "K"
-        β.attrs["units"] = "1"
-        λ_c.attrs["units"] = "1/cm"
+        delta_ds = ds.sel(shift=10) - ds0 # that's 10 nm
+        delta_lambda_c = abs(UADA(delta_ds["center"], attrs={"units": "1/cm"}))
+        delta_alpha = abs(UADA(delta_ds["alpha"], attrs={"units": "K"}))
+        delta_beta = abs(UADA(delta_ds["beta"], attrs={"units": "1"}))
 
-        Δds = ds.sel(shift=10) - ds0
-        (Δα, Δβ, Δλ_c) = [UADA(v) for v in Δds.data_vars.values()]
-        Δα.attrs["units"] = "K"
-        Δβ.attrs["units"] = "1"
-        Δλ_c.attrs["units"] = "1/cm"
-
-        return (α, β, λ_c, Δα, Δβ, Δλ_c)
+        return (alpha, beta, lambda_c, delta_alpha, delta_beta, delta_lambda_c)
 
     # Methods returning new SRFs with some changes
     def shift(self, amount):

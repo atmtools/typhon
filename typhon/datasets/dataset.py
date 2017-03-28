@@ -476,6 +476,23 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             N += cont["time"].size
         return arr, N
 
+    def _ensure_large_enough(self, arr, cont, N, newsize):
+        # work in progress, so far unused
+        
+        if isinstance(cont, xarray.Dataset):
+            # when filling with zeroes, I cannot assign coordinates yet,
+            # that will need to be do upon putting actual content
+            ts = dsbig.coords["time"].size
+            dsbig = xarray.Dataset(
+                {k: (v.dims,
+                     numpy.zeros([(x*newsize//ts
+                                   if v.coords[d].dtype.kind=="M"
+                                   else x)
+                                        for (x,d) in zip(v.shape,v.dims)],
+                                dtype=v.dtype))
+                     for (k, v) in ds.data_vars.items()})
+
+
     @staticmethod
     def _correct_overallocation(arr, N):
         if isinstance(arr, xarray.Dataset):

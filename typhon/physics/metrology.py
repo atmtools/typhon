@@ -58,7 +58,7 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
             comp = sigma**2 * u(sym)**2
             rv += comp 
             sensitivities[sym] = sigma
-            components[sym] = comp
+            components[sym] = sympy.sqrt(comp)
         except ValueError as v:
             if on_failure == "raise" or not "derivative" in v.args[0]:
                 raise

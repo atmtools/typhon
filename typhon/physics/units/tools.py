@@ -27,8 +27,11 @@ class UnitsAwareDataArray(xarray.DataArray):
                         u = ureg.dimensionless
                     else:
                         raise
+                    # for exp and log, values are not set correctly.  I'm
+                    # not sure why.  Perhaps related to
+                    # https://github.com/hgrecco/pint/issues/493
+                    new_var.values = context[0](ureg.Quantity(self.values, self.units))
                 new_var.attrs["units"] = str(u)
-                #new_var.attrs["units"] = context[0](ureg(self.attrs.get("units"))).u
             else: # unary operators always retain units?
                 new_var.attrs["units"] = str(self.attrs.get("units"))
         return new_var
