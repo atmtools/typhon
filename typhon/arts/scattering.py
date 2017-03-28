@@ -113,7 +113,7 @@ class SingleScatteringData:
 
         def compare_ndarray(array1, array2, atol):
             if array1 is not None and array2 is not None:
-                if not np.allclose(array1, array2, atol=1e-12):
+                if not np.allclose(array1, array2, atol=atol):
                     return False
             elif array1 is not array2:
                 return False
