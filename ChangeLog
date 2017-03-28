@@ -1,5 +1,11 @@
 2017-03-28  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/scattering.py (SingleScatteringData.__neq__):
+
+	Implement not equal comparison operator.
+
+2017-03-28  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/scattering.py (SingleScatteringData.__eq__):
 
 	Replace fixed atol value in allclose call.

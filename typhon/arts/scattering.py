@@ -139,6 +139,12 @@ class SingleScatteringData:
             return True
         return NotImplemented
 
+    def __neq__(self, other):
+        """Test the non-equality of SingleScatteringData."""
+        if isinstance(other, self.__class__):
+            return not self.__eq__(other)
+        return NotImplemented
+
     @classmethod
     def from_data(cls, params=None, **kwargs):
         """ Constructor
