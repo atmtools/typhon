@@ -1,3 +1,15 @@
+2017-03-28  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+
+	- Replace non-ASCII-identifiers
+
+	* typhon/physics/metrology.py(express_uncertainty):
+
+	- Replace non-ASCII-identifiers
+	- Optionally also return sensitivities and individual components, as a
+	mapping.
+
 2017-03-28  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/scattering.py (SingleScatteringData.__neq__):

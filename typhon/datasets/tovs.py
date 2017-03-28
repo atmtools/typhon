@@ -1162,7 +1162,7 @@ class HIRSPOD(HIRS):
             qiscanpattern = qi & (1<<19),
             qicalibration = qi & (1<<18),
             qinoearth     = qi & (1<<17),
-            qiearthlocΔ   = qi & (1<<16),
+            qiearthloc_delta   = qi & (1<<16),
             qibitsync     = qi & (1<<15),
             qisyncerror   = qi & (1<<14),
             qiframesync   = qi & (1<<13),
@@ -1514,18 +1514,18 @@ class HIRSKLM(ATOVS, HIRS):
         # before next.  Note that this ONLY takes care of bad times
         # already marked as qidonotuse; other problematic times need to be
         # taken care of elsewhere and are out of the scope of this function
-        Δt = numpy.diff(lines["time"])
+        delta_t = numpy.diff(lines["time"])
         # take care of "too early":
         # we always accept the time for the very first measurement, so we
         # call .nonzero() on qidonotuse[1:] and compensate for the
         # off-by-one-error thus introduced.  
         #lines["time"].mask[qidonotuse.nonzero()[0][
         lines["time"].mask[(qidonotuse[1:].nonzero()[0]+1)[
-            (numpy.sign(Δt[(qidonotuse!=0)[1:]].astype(numpy.int64)) != 1)]] = True
+            (numpy.sign(delta_t[(qidonotuse!=0)[1:]].astype(numpy.int64)) != 1)]] = True
         # take care of "late outliers" (alway accept the very last
         # measurement)
         lines["time"].mask[(qidonotuse[:-1].nonzero()[0])[
-            (numpy.sign(Δt[(qidonotuse!=0)[:-1]].astype(numpy.int64)) != 1)]] = True
+            (numpy.sign(delta_t[(qidonotuse!=0)[:-1]].astype(numpy.int64)) != 1)]] = True
 
         for fld in ("counts", "bt"):
             # Where a channel is bad, mask the entire scanline

@@ -6,7 +6,8 @@ All functions in this module need sympy.
 import warnings
 
 def express_uncertainty(expr, aliases={}, on_failure="raise",
-        collect_failures=None):
+        collect_failures=None, return_sensitivities=False,
+        return_components=False):
     """For a sympy expression, calculate uncertainty.
 
     Uncertainty is given in the Guides to Uncertainties and Measurements
@@ -31,6 +32,12 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
             'raise', but can set to 'warn' instead.
         collect_failures (set): Pass in a set object where failures will
             be collected, assuming on_failure is 'warn'.
+        return_sensitivities (boolean): If True, return dictionary with
+            sensitivity coefficients (as expressions).  Defaults to False.
+        return_components (boolean): If True, return dictionary with
+            component of evaluated uncertainty per argument/effect.
+            Only considers uncorrelated part (which is the only thing
+            implemented so far anyway).
 
     Returns:
         
@@ -42,10 +49,16 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
     import sympy
     u = sympy.Function("u")
     rv = sympy.sympify(0)
+    sensitivities = {}
+    components = {}
     for sym in recursive_args(expr):
         sym = aliases.get(sym, sym)
         try:
-            rv += sympy.diff(expr, sym)**2 * u(sym)**2
+            sigma = sympy.diff(expr, sym)
+            comp = sigma**2 * u(sym)**2
+            rv += comp 
+            sensitivities[sym] = sigma
+            components[sym] = comp
         except ValueError as v:
             if on_failure == "raise" or not "derivative" in v.args[0]:
                 raise
@@ -54,7 +67,15 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
                     "IGNORING uncertainty on {!s}!  Derivative failed with: "
                     "{:s}".format(expr, sym, v.args[0]))
                 collect_failures.add(sym)
-    return sympy.sqrt(rv)
+    unc = sympy.sqrt(rv)
+    if return_sensitivities and return_components:
+        return (unc, sensitivities, components)
+    elif return_sensitivities:
+        return (unc, sensitivities)
+    elif return_components:
+        return (unc, components)
+    else:
+        return unc
 
 def recursive_args(expr, stop_at=None, partial_at=None):
     """Get arguments for `expr`, stopping at certain types
