@@ -1,3 +1,9 @@
+2017-03-29  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/scattering.py (ScatteringMetaData.{__eq__, __neq__}):
+
+	Add comparison operators for ScatteringMetaData.
+
 2017-03-28  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py (Dataset._ensure_large_enough):

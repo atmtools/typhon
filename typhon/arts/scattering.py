@@ -501,6 +501,34 @@ class ScatteringMetaData:
         self.diameter_volume_equ = diameter_volume_equ
         self.diameter_area_equ_aerodynamical = diameter_area_equ_aerodynamical
 
+    def __eq__(self, other):
+        """Test the equality of ScatteringMetaData."""
+
+        if isinstance(other, self.__class__):
+            if self.refr_index != other.refr_index:
+                return False
+
+            if np.isclose(self.mass, other.mass):
+                return False
+
+            if np.isclose(self.diameter_max, other.diameter_max):
+                return False
+
+            if np.isclose(self.diameter_volume_equ, other.diameter_volume_equ):
+                return False
+
+            if np.isclose(self.diameter_area_equ_aerodynamical, other.diameter_area_equ_aerodynamical):
+                return False
+
+            return True
+        return NotImplemented
+
+    def __neq__(self, other):
+        """Test the non-equality of SingleScatteringData."""
+        if isinstance(other, self.__class__):
+            return not self.__eq__(other)
+        return NotImplemented
+
     @property
     def description(self):
         """Free-form description of the scattering element, holding information
