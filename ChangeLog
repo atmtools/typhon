@@ -1,5 +1,11 @@
 2017-03-29  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/scattering.py (ScatteringMetaData.__neq__):
+
+	Fix docstring.
+
+2017-03-29  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/scattering.py (ScatteringMetaData.{__eq__, __neq__}):
 
 	Add comparison operators for ScatteringMetaData.

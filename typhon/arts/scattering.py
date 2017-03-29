@@ -524,7 +524,7 @@ class ScatteringMetaData:
         return NotImplemented
 
     def __neq__(self, other):
-        """Test the non-equality of SingleScatteringData."""
+        """Test the non-equality of ScatteringMetaData."""
         if isinstance(other, self.__class__):
             return not self.__eq__(other)
         return NotImplemented
