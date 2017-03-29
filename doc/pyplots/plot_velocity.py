@@ -24,9 +24,9 @@ m.drawcoastlines()
 m.drawcountries()
 m.drawmeridians(np.arange(0, 20, 2), labels=[0, 0, 0, 1])
 m.drawparallels(np.arange(45, 60, 2), labels=[1, 0, 0, 0])
-m.pcolormesh(lon, lat, v, latlon=True,
-             cmap=plt.get_cmap('velocity', 11), vmin=-5, vmax=5)
-m.colorbar(label='Meridional wind [m/s]')
+m.pcolormesh(lon, lat, v, latlon=True, cmap='velocity')
+cb = m.colorbar(label='Meridional wind [m/s]')
+typhon.plots.center_colorbar(cb)
 
 fig.tight_layout()
 plt.show()

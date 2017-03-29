@@ -1,3 +1,16 @@
+2017-03-29  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/pyplots/_data/test_data.nc:
+
+	Use the lowest ICON pressure level instead of the highest. This
+	adds much more features resulting in more interesting example
+	plots.
+
+	* doc/pyplots/plot_velocity.py:
+
+	Use this example as additional example for the
+	`typhon.plots.center_colorbar()` function.
+
 2017-03-29  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/scattering.py (ScatteringMetaData.__neq__):
