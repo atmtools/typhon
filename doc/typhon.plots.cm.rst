@@ -20,24 +20,9 @@ Density
 .. plot:: pyplots/plot_density.py
     :include-source:
 
-Temperature
-^^^^^^^^^^^
-.. plot:: pyplots/plot_temperature.py
-    :include-source:
-
-Speed
-^^^^^
-.. plot:: pyplots/plot_speed.py
-    :include-source:
-
-Velocity
-^^^^^^^^
-.. plot:: pyplots/plot_velocity.py
-    :include-source:
-
-Vorticity
-^^^^^^^^^
-.. plot:: pyplots/plot_vorticity.py
+Difference
+^^^^^^^^^^
+.. plot:: pyplots/plot_difference.py
     :include-source:
 
 Phase
@@ -53,4 +38,24 @@ Qualitative 1
 Qualitative 2
 ^^^^^^^^^^^^^
 .. plot:: pyplots/plot_qualitative2.py
+    :include-source:
+
+Speed
+^^^^^
+.. plot:: pyplots/plot_speed.py
+    :include-source:
+
+Temperature
+^^^^^^^^^^^
+.. plot:: pyplots/plot_temperature.py
+    :include-source:
+
+Velocity
+^^^^^^^^
+.. plot:: pyplots/plot_velocity.py
+    :include-source:
+
+Vorticity
+^^^^^^^^^
+.. plot:: pyplots/plot_vorticity.py
     :include-source:

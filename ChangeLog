@@ -1,3 +1,24 @@
+2017-03-30  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/pyplots/plot_difference.py:
+
+	Added example plot for the "difference" colormap.
+
+	* doc/pyplots/plot_phase.py:
+
+	Improved the overall appearance of the plot by adding a colorbar
+	and decreasing the number of quivers to draw.
+
+	* doc/pyplots/plot_qualitative1.py:
+
+	Set xlimits to improve the look of the example plot.
+
+	* doc/typhon.plots.cm.rst:
+
+	Added the example plot for the "difference" colormap.
+
+	Alphabetized the order of the example plots.
+
 2017-03-29  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/pyplots/_data/test_data.nc:
