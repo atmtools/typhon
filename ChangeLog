@@ -1,3 +1,19 @@
+2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py:
+
+	* (check_atm_fields_compact):
+
+	Started to implement a method to check, if a GriddedField fits
+	the requirements of an atm_fields_compact.
+
+	* (__repr__):
+
+	Improved the robustness of the function. It now works even if
+	the GriddedField name or the dataname is not set.
+
+	* typhon/arts/scattering.py: Minor PEP8 fixes.
+
 2017-03-31  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/arts/catalogues.py:  Added ARTSCAT5-class.  Added

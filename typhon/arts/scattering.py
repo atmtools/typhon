@@ -215,7 +215,8 @@ class SingleScatteringData:
                 ptype = _old_ptype_mapping[ptype]
                 self.version = 2
             else:
-                raise RuntimeError('Integer ptype not allowed for SSD version 2 and later')
+                raise RuntimeError(
+                    'Integer ptype not allowed for SSD version 2 and later')
         else:
             if ptype not in _valid_ptypes[self.version]:
                 raise RuntimeError('Invalid ptype {}'.format(ptype))
@@ -234,7 +235,8 @@ class SingleScatteringData:
             if not isinstance(v, int):
                 raise TypeError('Version number must be type int')
             if v < 1 or v > 3:
-                raise RuntimeError('Version number must be in the range from 1 to 3')
+                raise RuntimeError(
+                    'Version number must be in the range from 1 to 3')
 
         self._version = v
 
@@ -517,7 +519,8 @@ class ScatteringMetaData:
             if np.isclose(self.diameter_volume_equ, other.diameter_volume_equ):
                 return False
 
-            if np.isclose(self.diameter_area_equ_aerodynamical, other.diameter_area_equ_aerodynamical):
+            if np.isclose(self.diameter_area_equ_aerodynamical,
+                          other.diameter_area_equ_aerodynamical):
                 return False
 
             return True

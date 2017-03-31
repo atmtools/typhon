@@ -117,12 +117,14 @@ class GriddedField(object):
         return NotImplemented
 
     def __repr__(self):
-        out = "GriddedField" + str(self._dimension) + ": " + self._name + "\n"
-        for i in range(self._dimension):
-            out += self._gridnames[i] + " " + \
-                str(self.grids[i].shape) + ": " + str(self.grids[i]) + "\n"
-        out += self.dataname + " " + str(self.data.shape) + ": " + \
-            str(self._data.flatten())
+        out = "GriddedField{}: {}\n".format(self.dimension, self.name)
+        for i in range(self.dimension):
+            out += "{} {}: {}\n".format(self.gridnames[i],
+                                        self.grids[i].shape,
+                                        self.grids[i])
+        out += "{} {}: {}\n".format(self.dataname,
+                                    self.data.shape,
+                                    self.data.flatten())
         return out
 
     @property
@@ -266,6 +268,49 @@ class GriddedField(object):
             raise Exception(('Dimension mismatch between data and grids. '
                              'Grid dimension is {0} but data {1}')
                             .format(tuple(g_dim), self.data.shape))
+
+        return True
+
+    def check_atm_fields_compact(self, check_gridnames=False):
+        """Checks the consistency of grids and data.
+
+        This functions check if the dimensions defined by the grids fit to the
+        dimension of the passed data.
+        Also check if the number of gridnames fits the number of grids.
+
+        Note:
+            The last three gridnames are expected to be 'Pressure', 'Latitude'
+            and 'Longitude'. This is more strict than the ARTS checks, but good
+            behavior.
+
+        Returns:
+            True if successful.
+
+        Raises:
+            Exception:
+                - If not GriddedField4.
+                - If the pressure grid is not decreasing.
+
+        """
+        if self.dimension != 4:
+            raise Exception('atm_fields_compact have to be GriddedField4.')
+
+        if check_gridnames:
+            if self.gridnames[1] != 'Pressure':
+                err = "Second grid has to be 'Pressure' not '{}'."
+                raise Exception(err.format(self.gridnames[1]))
+            elif self.gridnames[2] != 'Latitude':
+                err = "Third grid has to be 'Latitude' not '{}'."
+                raise Exception(err.format(self.gridnames[2]))
+            elif self.gridnames[3] != 'Longitude':
+                err = "Fourth grid has to be 'Longitude' not '{}'."
+                raise Exception(err.format(self.gridnames[3]))
+
+        if not get_arts_typename(self.grids[0]) == 'ArrayOfString':
+            raise Exception('First grid has to be ArrayOfString.')
+
+        if not all(np.diff(self.grids[1]) < 0):
+            raise Exception('Pressure grid has to be strictly decreasing.')
 
         return True
 
