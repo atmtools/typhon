@@ -1,3 +1,62 @@
+2017-03-31  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/arts/catalogues.py:  Added ARTSCAT5-class.  Added
+	some functionality to QuantumIdentifier, QuantumNumberRecord,
+	and QuantumNumbers making them dictionaries with special rules
+	and logic.  
+	
+	Also added Rational-class based on fractions.Fraction with special
+	__repr__ rules to mimic ARTS Rational-class reading
+	
+	The logic in the quantum classes are such that == means all 
+	quantum numbers are equal and no quantum numbers are missing, <=
+	means all quantum numbers in the LHS are in RHS but that there could
+	be more numbers in RHS that are ignored, and < means that there 
+	has to be more numbers in RHS than LHS.  In all cases, the numbers
+	that do exist must be consistent for truth. (!=, >= and > behave 
+	as expected from the previous rules in a reverse manner.)
+	This is different from pure numerical manipulation and is 
+	more in line with set theory.  I.e., the logic asks for 
+	complete overlap, some overlap, or strictly partial overlap of the 
+	sets
+	
+	Likewise, mathematical operations += and -= are interpreted to mean 
+	adding a new quantum number or removing and existing quantum number 
+	rather than adding or removing a numerical value to the set
+	
+	This additions allows manipulation of LineRecord data via keys in 
+	ARTSCAT5.changeForQN() with a few options
+	
+	Example: 
+	
+	cat = arts.xml.load('hitran2012.xml').as_ARTSCAT5(),
+	cat.changeForQN(kind='keep', spec='O2', afgl=66,  qns={'v1': 0})
+	cat.changeForQN(kind='add', information={'QN': {'S': 1}})
+	arts.xml.save(cat, 'o2-groundstate.xml') 
+	
+	takes an xml-file throws away all lines  that are not 'O2-66' 
+	lines with 'v1' quantum number of 0 in both upper and lower state 
+	and then adds S=1 to all lines in both the upper and the lower
+	levels list of quantum numbers.  Of course, such manipulation 
+	only works when quantum numbers are known in the  first place.
+	It also fails when the xml-file is not of ARTSCAT-5 type ---
+	this can likely be easily fixed since both ARTSCAT-4 and 
+        ARTSCAT-3 translates perfectly to ARTSCAT-5 but I have 
+        not bothered with such implementation because I consider these
+        other two formats unnecessary because of the compatibility.
+	
+	Question: Should these classes really be in this folder?
+	ARTSCAT5 is a derived type and Rational is an internal type of 
+	ARTS required to understand QuantumNumbers.  Neither is really
+	a 'catalogue' or possible to catalogue-ize in xml-files
+	
+	* typhon/arts/griddedfield.py:  Changed gridded fields __repr__
+	function to write the data, shapes, and grids on screen for 
+	easier data sanity checks.  Uses the numpy printer options so
+	by default the output is sane and if you are using less sane
+	printer options you are probably aware of not evoking __repr__
+	much
+
 2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/: Ignore `generated` directory in svn.
