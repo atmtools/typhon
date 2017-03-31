@@ -1,5 +1,9 @@
 2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* doc/typhon.arts.rst: Included `ARTSCAT5`.
+
+2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/griddedfield.py:
 
 	* (check_atm_fields_compact):

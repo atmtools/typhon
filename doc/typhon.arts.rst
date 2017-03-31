@@ -23,6 +23,7 @@ arts.catalogues
    :toctree: generated
 
    ArrayOfLineRecord
+   ARTSCAT5
    CIARecord
    GasAbsLookup
    LineMixingRecord
