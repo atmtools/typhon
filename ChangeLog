@@ -1,3 +1,7 @@
+2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/: Ignore `generated` directory in svn.
+
 2017-03-31  Oliver Lemke  <olemke@core-dump.info>
 
 	* doc/_templates/autosummary/class.rst:
