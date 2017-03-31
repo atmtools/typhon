@@ -1,3 +1,9 @@
+2017-03-31  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/_templates/autosummary/class.rst:
+
+	Avoid nested generated/generated folder structure.
+
 2017-03-30  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/pyplots/plot_difference.py:
