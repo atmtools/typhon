@@ -66,6 +66,24 @@ class UnitsAwareDataArray(xarray.DataArray):
                 ureg.Quantity(1, self.attrs["units"])).u)
         return x
 
+    def _reduce(self, attr, *args, **kwargs):
+        # unit on diff, sum etc. is a bit involved as it should depend on the
+        # coordinates of the dimension along which the reduction is taken, but
+        # as it is all discrete I consider the unit to stay the same
+        u = self.attrs.get("units")
+        d = getattr(super(), attr)(*args, **kwargs)
+        if u is not None:
+            d.attrs["units"] = u
+        return d
+
+    # not sure if I can/should define those in a loop.  Should also have
+    # std, min, max, mean, probably others.
+    def diff(self, *args, **kwargs):
+        return self._reduce("diff", *args, **kwargs)
+
+    def sum(self, *args, **kwargs):
+        return self._reduce("sum", *args, **kwargs)
+
     def to(self, new_unit, *contexts, **kwargs):
         """Convert to other unit.
 

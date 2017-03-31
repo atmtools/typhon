@@ -1,3 +1,18 @@
+2017-03-31  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset(SatDataset._add_gran_to_data):
+
+	- Proceeded with preparations for handling xarray datasets.  Work in
+	progress.
+
+	* typhon/math/stats.py(adev): Added clarifying comments
+
+	* typhon/physics/units/tools.py(UnitsAwareDataArray):
+
+	- Added methods for handling reducing operations, starting with sum
+	and diff but should probably be generalised to std, min, max, mean,
+	and others.
+
 2017-03-31  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/typhon.arts.rst: Included `ARTSCAT5`.
@@ -108,6 +123,7 @@
 
 	Alphabetized the order of the example plots.
 
+>>>>>>> .r10390
 2017-03-29  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/pyplots/_data/test_data.nc:

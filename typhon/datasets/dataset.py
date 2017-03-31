@@ -70,6 +70,7 @@ class InvalidDataError(DataFileError):
 all_datasets = {}
 
 class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
+
     """Represents a dataset.
 
     This is an abstract class.  More specific subclasses are
@@ -443,55 +444,116 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     "is not yet implemented for Dataset", UserWarning)
                 arr = utils.concat_each_time_coordinate(arr, cont)
             else:
-                if (N+cont.size) > arr.size: # need to allocate more
+                if (N+cont["time"].size) > arr["time"].size: # need to allocate more
                     frac_done = max((g_start-start) / (end-start),0)
                     # suppose all future files have on average the
                     # same size?  Until we have reached 10%, simply
                     # double every time.  After that, extrapolate more
                     # cleverly. 
-                    newsize = (int((N+cont.size)//frac_done)
+                    newsize = (int((N+cont["time"].size)//frac_done)
                                 if frac_done > 0.1
-                                else (N+cont.size) * 2)
-                    if newsize * arr.itemsize > self.maxsize:
-                        raise MemoryError("This dataset is too large "
-                            "for typhons little mind.  Continuing might "
-                            "ultimately need {:,.0f} MiB of RAM.  This exceeds my "
-                            "maximum (self.maxsize) of {:,.0f} MiB. "
-                            "Sorry! ".format(
-                                newsize*arr.itemsize/MiB,
-                                self.maxsize/MiB))
-                    logging.debug(
-                        "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
-                        "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
-                        "through.  Allocating new: {:d} items, {:,.0f} "
-                        "MiB.  New size: {:d} items, {:,.0f} "
-                        "MiB.".format(N+cont.size,
-                            (cont.nbytes+arr.nbytes)/MiB,
-                            arr.size, arr.nbytes/MiB, frac_done,
-                            newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
-                            newsize, newsize*arr.itemsize/MiB))
-                    arr = numpy.ma.concatenate(
-                        (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
-                arr[N:(N+cont.size)] = cont
+                                else (N+cont["time"].size) * 2)
+                    arr = self._ensure_large_enough(arr, cont, N, newsize,
+                        frac_done)
+                self._add_cont_to_arr(arr, N, cont)
             N += cont["time"].size
         return arr, N
 
-    def _ensure_large_enough(self, arr, cont, N, newsize):
-        # work in progress, so far unused
+    def _ensure_large_enough(self, arr, cont, N, newsize, frac_done):
+        """Allocate new space while adding gran to data
+        
+        Helper for _add_gran_to_data, part of the read_period family of
+        helpers"""
         
         if isinstance(cont, xarray.Dataset):
+            # we don't really have an 'itemsize' but we can still
+            # approximate the average size per time-coordinate, by
+            # considering how much larger we become if we add 1000
+            # elements the time dimension, i.e. the marginal increase in
+            # size, on average, per time, which is:
+            #   - 0 for anything without a time dimension
+            #   - size of non-time dimensions for any data var with a time
+            #     dimension
+            time_dim_names = [d for d in cont.dims if
+                cont.coords[d].dtype.kind == "M"]
+            # construct mapping where all data vars with time dimension,
+            # we say which dimension is the time dimension
+            time_dim_vars = {varname: (set(time_dim_names)&set(da.dims))
+                for da in cont.data_vars.values()}
+            time_dim_vars = {k: v.pop() for (k, v) in
+                time_dim_vars.items() if len(v)>0}
+
+            itemsize = numpy.sum([
+                numpy.product(
+                    [1 if d in time_dims else da.coords[d]
+                        for d in da.dims])
+                * da.dtype.itemsize
+                * cont.dims[time_dim_vars[dn]]/cont.dims["time"]
+                    for (dn, da) in cont.data_vars.items()])
+
+            if newsize * itemsize > self.maxsize:
+                raise MemoryError("Bla bla bla")
+        
             # when filling with zeroes, I cannot assign coordinates yet,
             # that will need to be do upon putting actual content
             ts = dsbig.coords["time"].size
-            dsbig = xarray.Dataset(
+            arr_new = xarray.Dataset(
                 {k: (v.dims,
                      numpy.zeros([(x*newsize//ts
                                    if v.coords[d].dtype.kind=="M"
                                    else x)
                                         for (x,d) in zip(v.shape,v.dims)],
                                 dtype=v.dtype))
-                     for (k, v) in ds.data_vars.items()})
+                     for (k, v) in cont.data_vars.items()})
+            
+            # copy over from arr into dsbig
+            for (dn, da) in cont.data_vars.items():
+                if dn in time_dim_vars.keys():
+                    tdv = time_dim_var[dn]
+                    selec = {tdv: slice(0, cont.dims[dn])}
+                    arr_new[dn][selec] = cont[dn][selec]
+                else:
+                    arr_new[dn].values[...] = cont.values[...]
+            return arr_new
+        else:
+            if newsize * arr.itemsize > self.maxsize:
+                raise MemoryError("This dataset is too large "
+                    "for typhons little mind.  Continuing might "
+                    "ultimately need {:,.0f} MiB of RAM.  This exceeds my "
+                    "maximum (self.maxsize) of {:,.0f} MiB. "
+                    "Sorry! ".format(
+                        newsize*arr.itemsize/MiB,
+                        self.maxsize/MiB))
+            logging.debug(
+                "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
+                "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
+                "through.  Allocating new: {:d} items, {:,.0f} "
+                "MiB.  New size: {:d} items, {:,.0f} "
+                "MiB.".format(N+cont.size,
+                    (cont.nbytes+arr.nbytes)/MiB,
+                    arr.size, arr.nbytes/MiB, frac_done,
+                    newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
+                    newsize, newsize*arr.itemsize/MiB))
+            arr = numpy.ma.concatenate(
+                (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
+        return arr
 
+    def _add_cont_to_arr(self, arr, N, cont):
+        """Changes arr in-situ, does not return"""
+        if isinstance(cont, xarray.DataArray):
+            # we should already know it's large enough
+            # for arr["time"] I start at N
+            # for the other time coordinates at the relative "speed" they
+            # are behind N
+            # but this is not guaranteed to be regular so I would need to
+            # keep trac of each individually, or inspect it on-the-fly
+            # this approximation may be good enough for pre-allocation
+            # (which is approximate anyway), when actually storing we need
+            # to do a better job… for each time coordinate, check when it
+            # “dies”
+            raise NotImplementedError("Wat nu groene koe?")
+        else:
+            arr[N:(N+cont.size)] = cont
 
     @staticmethod
     def _correct_overallocation(arr, N):

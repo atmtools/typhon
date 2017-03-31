@@ -179,11 +179,13 @@ def adev(x, dim=-1):
 
     
     if isinstance(dim, numbers.Integral):
+        # dimension by number, probably ndarray
         x = x.swapaxes(-1, dim)
         N = x.shape[-1]
         return numpy.sqrt(1/(2*(N-1)) *
                           ((x[..., 1:] - x[..., :-1])**2).sum(-1))
     else:
+        # dimension by name, should be xarray.Dataarray
         N = x.sizes[dim]
         return numpy.sqrt((1/(2*(N-1)) * x.diff(dim=dim)**2).sum(dim=dim))
 
