@@ -116,6 +116,15 @@ class GriddedField(object):
             return not self.__eq__(other)
         return NotImplemented
 
+    def __repr__(self):
+        out = "GriddedField" + str(self._dimension) + ": " + self._name + "\n"
+        for i in range(self._dimension):
+            out += self._gridnames[i] + " " + \
+                str(self.grids[i].shape) + ": " + str(self.grids[i]) + "\n"
+        out += self.dataname + " " + str(self.data.shape) + ": " + \
+            str(self._data.flatten())
+        return out
+
     @property
     def shape(self):
         """Shape of the data array."""
