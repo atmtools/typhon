@@ -1,3 +1,11 @@
+2017-04-03  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py (__repr__):
+
+	The old implementation failed to inspect the shape of non-array
+	grids. Fixed this bug to allow the representation of lists
+	(e.g. species in atm_fields_compact).
+
 2017-03-31  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset(SatDataset._add_gran_to_data):

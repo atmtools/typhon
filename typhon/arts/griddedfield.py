@@ -120,7 +120,7 @@ class GriddedField(object):
         out = "GriddedField{}: {}\n".format(self.dimension, self.name)
         for i in range(self.dimension):
             out += "{} {}: {}\n".format(self.gridnames[i],
-                                        self.grids[i].shape,
+                                        np.shape(self.grids[i]),
                                         self.grids[i])
         out += "{} {}: {}\n".format(self.dataname,
                                     self.data.shape,
