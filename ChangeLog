@@ -1,3 +1,12 @@
+2017-04-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py (image2mpeg):
+
+	Wrapper for external command `ffmpeg` to convert a set of
+	images into a video.
+
+	* doc/typhon.utils.rst: Added `image2mpeg` to documentation.
+
 2017-04-03  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py (__repr__):

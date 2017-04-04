@@ -14,6 +14,7 @@ utils
    path_append
    path_prepend
    path_remove
+   image2mpeg
 
 utils.metaclass
 ===============

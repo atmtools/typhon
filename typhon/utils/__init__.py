@@ -3,28 +3,32 @@
 """This module contains convenience functions for any purposes.
 """
 
-import time
 import ast
+import itertools
 import operator
 import os
-import xarray
-import itertools
+import shutil
+import subprocess
+import time
 from functools import wraps
 
+import xarray
 import numpy as np
 
 from . import cache
 from . import metaclass
 
-__all__ = ["cache",
-           "metaclass",
-           "extract_block_diag",
-           "Timer",
-           "print_timing",
-           "path_append",
-           "path_prepend",
-           "path_remove",
-           ]
+__all__ = [
+    "cache",
+    "metaclass",
+    "extract_block_diag",
+    "Timer",
+    "print_timing",
+    "path_append",
+    "path_prepend",
+    "path_remove",
+    "image2mpeg",
+]
 
 
 def extract_block_diag(M, n):
@@ -120,8 +124,8 @@ def print_timing(func):
 
     return func_wrapper
 
-# Next part from http://stackoverflow.com/a/9558001/974555
 
+# Next part from http://stackoverflow.com/a/9558001/974555
 operators = {ast.Add: operator.add,
              ast.Sub: operator.sub,
              ast.Mult: operator.mul,
@@ -216,7 +220,8 @@ def get_time_coordinates(ds):
 
     """
 
-    return {k for (k, v) in ds.coords.items() if v.dtype.kind=="M"}
+    return {k for (k, v) in ds.coords.items() if v.dtype.kind == "M"}
+
 
 def concat_each_time_coordinate(*datasets):
     """Concatenate xarray datasets along each time coordinate
@@ -241,8 +246,8 @@ def concat_each_time_coordinate(*datasets):
     # ensure each data-variable has zero or one of those time coordinates
     # as dimensions
     for ds in datasets:
-        if not all([len(set(v.dims)&time_coords)<=1
-                for (k, v) in ds.data_vars.items()]):
+        if not all([len(set(v.dims) & time_coords) <= 1
+                    for (k, v) in ds.data_vars.items()]):
             raise ValueError("Found vars with multiple time coords")
     # split in sub-datasets per time coordinate
     datasets_per_tc = {tc: [xarray.Dataset(
@@ -250,20 +255,20 @@ def concat_each_time_coordinate(*datasets):
             coords=ds.coords, attrs=ds.attrs)
                 for ds in datasets]
             for tc in time_coords}
-    
+
     untimed_vars = [xarray.Dataset(
         {k: v for (k, v) in ds.data_vars.items()
-              if len(set(v.dims)&time_coords)==0},
+         if len(set(v.dims) & time_coords) == 0},
         coords=ds.coords, attrs=ds.attrs)
             for ds in datasets]
 
-    untimed_vars_plain = [uv.drop([k for (k, v) in
-        uv.coords.items() if
-        len(set(v.dims)&time_coords)>0])
-            for uv in untimed_vars]
+    untimed_vars_plain = [uv.drop([k for (k, v) in uv.coords.items()
+                          if len(set(v.dims) & time_coords) > 0])
+                          for uv in untimed_vars]
     for v in untimed_vars_plain[1:]:
         if not untimed_vars_plain[0].equals(v):
-            raise ValueError("Concatenating time-dimensioned variables, "
+            raise ValueError(
+                "Concatenating time-dimensioned variables, "
                 "but some non-time-dimensioned variables are not equal!")
 
     dataset_per_tc = {tc: xarray.concat(dsall, dim=tc).drop(
@@ -276,3 +281,44 @@ def concat_each_time_coordinate(*datasets):
             [untimed_vars_plain, dataset_per_tc.values()]))
 
     return ds
+
+
+def image2mpeg(glob, outfile, framerate=12):
+    """Combine image files to a video using ``ffmpeg``.
+
+    Notes:
+        The function is tested for ``ffmpeg`` versions 2.8.6 and 3.2.2.
+
+    Parameters:
+        glob (str): Glob pattern for input files.
+        outfile (str): Path to output file.
+            The file fileformat is determined by the extension.
+        framerate (int or str): Number of frames per second.
+
+    Returns:
+        int: Return code of the ``ffmpeg`` command.
+        ``0`` if everything is ok, other if not.
+
+    Example:
+        >>> image2mpeg('foo_*.png', 'foo.mp4')
+        0
+    """
+    if not shutil.which('ffmpeg'):
+        raise Exception('``ffmpeg`` not found.')
+
+    p = subprocess.run(
+        ['ffmpeg',
+         '-framerate', str(framerate),
+         '-pattern_type', 'glob', '-i', glob,
+         '-s:v', '1280x720',
+         '-c:v', 'libx264',
+         '-profile:v', 'high',
+         '-crf', '20',
+         '-pix_fmt', 'yuv420p',
+         '-y', outfile
+         ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        )
+
+    return p.returncode
