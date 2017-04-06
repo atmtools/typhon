@@ -9,4 +9,6 @@ spectroscopy
    :toctree: generated
 
    linewidth
-
+   doppler_broadening
+   boltzmann_level
+   stimulated_emission

@@ -4,13 +4,15 @@
 """
 import numpy as np
 from scipy import interpolate
-try:
-    from . import constants
-except:
-    import typhon.constants as constants
+
+import typhon.constants as constants
+
 
 __all__ = [
     'linewidth',
+    'doppler_broadening',
+    'boltzmann_level',
+    'stimulated_emission',
 ]
 
 
@@ -62,7 +64,7 @@ def boltzmann_level(elow, t, t0):
     .. math::
         K_1 = \\exp\\left(\\frac{E_l \\left[T-T_0\\right]}{k_B T T_0}\\right),
 
-    where k_B is the Boltzmann constant.
+    where :math:`k_B` is the Boltzmann constant.
 
     All ndarrays must be of same size, any of the inputs can be ndarray
 
@@ -89,7 +91,7 @@ def stimulated_emission(f0, t, t0):
         K_2 = \\frac{1 - \\exp\\left( - \\frac{h f_0}{k_B T}\\right)}
         {1 - \\exp\\left( - \\frac{h f_0}{k_B T_0}\\right)},
 
-    where h is the Planck constant and k_B is the Boltzmann constant
+    with Planck constant :math:`h` and Boltzmann constant :math:`k_B`.
 
     Parameters:
         f0 (float or ndarray): Line frequency [Hz]
@@ -106,4 +108,3 @@ def stimulated_emission(f0, t, t0):
     """
     return (1. - np.exp(- constants.planck * f0/(constants.boltzmann * t))) / \
         (1. - np.exp(- constants.planck * f0/(constants.boltzmann * t0)))
-

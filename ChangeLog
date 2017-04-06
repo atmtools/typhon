@@ -1,3 +1,19 @@
+2017-04-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/spectroscopy.py:
+
+	Added `doppler_broadegning()`, `boltzmann_level()` and
+	`stimulated_emission()` to the list of public functions.
+
+	Removed try-except statement around import of constants.
+
+	Small improvement of math typesetting in docstrings.
+
+	* doc/typhon.spectroscopy.rst:
+
+	Added `doppler_broadegning()`, `boltzmann_level()` and
+	`stimulated_emission()` to the list of public functions.
+
 2017-04-06  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/constants.py:  Added atomic mass unit to list of constants
