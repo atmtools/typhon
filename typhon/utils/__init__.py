@@ -216,11 +216,12 @@ def path_remove(dirname, path='PATH'):
 
 
 def get_time_coordinates(ds):
-    """From a xarray dataset or dataarray, get time coordinates
+    """From a xarray dataset or dataarray, get coordinates with at least 1 time dimension
 
     """
 
-    return {k for (k, v) in ds.coords.items() if v.dtype.kind == "M"}
+    time_dims = {k for (k, v) in ds.coords.items() if k in ds.dims and v.dtype.kind == "M"}
+    return {k for (k, v) in ds.coords.items() if set(v.dims)&time_dims}
 
 
 def concat_each_time_coordinate(*datasets):
@@ -243,44 +244,95 @@ def concat_each_time_coordinate(*datasets):
     """
 
     time_coords = get_time_coordinates(datasets[0])
+    time_dims = time_coords & datasets[0].dims.keys()
     # ensure each data-variable has zero or one of those time coordinates
     # as dimensions
     for ds in datasets:
         if not all([len(set(v.dims) & time_coords) <= 1
                     for (k, v) in ds.data_vars.items()]):
             raise ValueError("Found vars with multiple time coords")
-    # split in sub-datasets per time coordinate
-    datasets_per_tc = {tc: [xarray.Dataset(
-            {k: v for (k, v) in ds.data_vars.items() if tc in v.dims},
-            coords=ds.coords, attrs=ds.attrs)
-                for ds in datasets]
-            for tc in time_coords}
 
-    untimed_vars = [xarray.Dataset(
-        {k: v for (k, v) in ds.data_vars.items()
-         if len(set(v.dims) & time_coords) == 0},
-        coords=ds.coords, attrs=ds.attrs)
-            for ds in datasets]
+    new_sizes = {k: sum(g.dims[k] for g in datasets)
+                     if k in time_coords
+                     else datasets[0].dims[k]
+                 for k in datasets[0].dims.keys()}
+    # note data vars per time coordinate
+    time_vars = {k: (set(v.dims)&time_coords).pop() for (k, v) in datasets[0].items() if set(v.dims)&time_coords}
+    time_vars_per_time_dim = {k: {vn for (vn, dn) in time_vars.items() if dn==k} for k in time_coords}
+    untimed_vars = datasets[0].keys() - time_vars.keys()
 
-    untimed_vars_plain = [uv.drop([k for (k, v) in uv.coords.items()
-                          if len(set(v.dims) & time_coords) > 0])
-                          for uv in untimed_vars]
-    for v in untimed_vars_plain[1:]:
-        if not untimed_vars_plain[0].equals(v):
-            raise ValueError(
-                "Concatenating time-dimensioned variables, "
-                "but some non-time-dimensioned variables are not equal!")
+    # allocate new
+    new = xarray.Dataset(
+        {k: (v.dims,
+             np.zeros(shape=[new_sizes[d] for d in v.dims],
+                         dtype=v.dtype))
+                for (k, v) in datasets[0].data_vars.items()})
+    # coordinates cannot be set in the same way so need to be allocated
+    # separately
+    new_coords = {k: xarray.DataArray(
+                        np.zeros(shape=[new_sizes[d] for d in v.dims],
+                                 dtype=datasets[0][k].dtype),
+                        dims=v.dims)
+                    for (k, v) in datasets[0].coords.items()}
 
-    dataset_per_tc = {tc: xarray.concat(dsall, dim=tc).drop(
-        [coorname for (coorname, coor) in dsall[0].coords.items() if
-            any(d in coor.dims for d in time_coords - {tc})])
-                        for (tc, dsall) in datasets_per_tc.items()}
+    # copy over untimed vars
+    for v in untimed_vars:
+        new[v].values[...] = datasets[0][v].values
 
-    ds = xarray.merge(
-        itertools.chain.from_iterable(
-            [untimed_vars_plain, dataset_per_tc.values()]))
+    # and untimed coords
+    for c in datasets[0].coords.keys() - time_coords:
+        new_coords[c][...] = datasets[0].coords[c]
 
-    return ds
+    # keep track of progress per time dimension
+    n_per_dim = dict.fromkeys(time_coords, 0)
+    # copy timed vars dataset by dataset
+    for ds in datasets:
+        for (v, timedim) in time_vars.items():
+            ncur = n_per_dim[timedim]
+            nnew_cur = ds.dims[timedim]
+            slc = {dim: slice(ncur, ncur+nnew_cur)
+                        if dim==timedim else slice(None)
+                   for dim in ds[v].dims}
+            if v in time_coords: # time coordinate
+                new_coords[v][slc] = ds[v]
+            else:
+                new[v].loc[slc] = ds[v]
+        for timedim in time_dims:
+            n_per_dim[timedim] += ds.dims[timedim]
+    return new.assign_coords(**new_coords)
+
+#    # split in sub-datasets per time coordinate
+#    datasets_per_tc = {tc: [xarray.Dataset(
+#            {k: v for (k, v) in ds.data_vars.items() if tc in v.dims},
+#            coords=ds.coords, attrs=ds.attrs)
+#                for ds in datasets]
+#            for tc in time_coords}
+#
+#    untimed_vars = [xarray.Dataset(
+#        {k: v for (k, v) in ds.data_vars.items()
+#         if len(set(v.dims) & time_coords) == 0},
+#        coords=ds.coords, attrs=ds.attrs)
+#            for ds in datasets]
+#
+#    untimed_vars_plain = [uv.drop([k for (k, v) in uv.coords.items()
+#                          if len(set(v.dims) & time_coords) > 0])
+#                          for uv in untimed_vars]
+#    for v in untimed_vars_plain[1:]:
+#        if not untimed_vars_plain[0].equals(v):
+#            raise ValueError(
+#                "Concatenating time-dimensioned variables, "
+#                "but some non-time-dimensioned variables are not equal!")
+#
+#    dataset_per_tc = {tc: xarray.concat(dsall, dim=tc).drop(
+#        [coorname for (coorname, coor) in dsall[0].coords.items() if
+#            any(d in coor.dims for d in time_coords - {tc})])
+#                        for (tc, dsall) in datasets_per_tc.items()}
+#
+#    ds = xarray.merge(
+#        itertools.chain.from_iterable(
+#            [untimed_vars_plain, dataset_per_tc.values()]))
+#
+#    return ds
 
 
 def image2mpeg(glob, outfile, framerate=12):

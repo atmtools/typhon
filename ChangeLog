@@ -1,3 +1,34 @@
+2017-04-06  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):
+
+	- Further preparation for supporting xarray
+
+	* typhon/datasets/tovs.py(HIRS.filter_firstline):
+
+	- Did I just fix or introduce an off-by-one-bug?  Either way, this
+	method is ultimately on its way out in favour of filter_bestline still
+	to be implemented, so I will accept the risk of a off-by-minus-one bug
+	for now.  But I seemed to be getting one duplicate line between
+	adjecent granules.  I don't understand why.  Perhaps related to the
+	work I've done on Dataset._add_gran_to_data and friends.
+
+	* typhon/physics/units/tools.py(UnitsAwareDataArray.to_root_units):
+
+	- Like in pint.
+
+	* typhon/utils/__init__.py:
+
+	(get_time_coordinates): Bugfix.  Was only getting time *dimensions*,
+	not time coordinates that are not also dimensions.
+
+	(concat_each_time_coordinate): Much increased speed for larger arrays,
+	although still much slower than concatenating ordinary ndarrays.  Now
+	on CEMS it takes around 22 seconds to concatenate xarray datasets that
+	end up being almost 9 GB.  NB: I will use this for the
+	_add_gran_to_data crowd of methods for now instead of the increasingly
+	complex approach I've been trying before.
+
 2017-04-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/spectroscopy.py:

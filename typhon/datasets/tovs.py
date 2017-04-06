@@ -457,7 +457,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             logging.warning("Full granule {:s} appears contained in previous one. "
                 "Refusing to return any lines.".format(dataname))
             return scanlines[0:0]
-        return scanlines[scanlines["hrs_scnlin"] >= firstline]
+        return scanlines[scanlines["hrs_scnlin"] > firstline]
 
     def update_firstline_db(self, satname=None, start_date=None, end_date=None,
             overwrite=False):

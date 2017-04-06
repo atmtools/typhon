@@ -15,6 +15,7 @@ import datetime
 import sys
 import collections
 import warnings
+import math
 
 import numpy
 import numpy.lib.arraysetops
@@ -70,7 +71,6 @@ class InvalidDataError(DataFileError):
 all_datasets = {}
 
 class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
-
     """Represents a dataset.
 
     This is an abstract class.  More specific subclasses are
@@ -438,24 +438,24 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             arr = cont
             N = cont["time"].size
         else:
-            if isinstance(cont, xarray.Dataset):
-                # FIXME: need to implement this more efficiently
-                warnings.warn("Using slow concatenation as faster "
-                    "is not yet implemented for Dataset", UserWarning)
-                arr = utils.concat_each_time_coordinate(arr, cont)
-            else:
-                if (N+cont["time"].size) > arr["time"].size: # need to allocate more
-                    frac_done = max((g_start-start) / (end-start),0)
-                    # suppose all future files have on average the
-                    # same size?  Until we have reached 10%, simply
-                    # double every time.  After that, extrapolate more
-                    # cleverly. 
-                    newsize = (int((N+cont["time"].size)//frac_done)
-                                if frac_done > 0.1
-                                else (N+cont["time"].size) * 2)
-                    arr = self._ensure_large_enough(arr, cont, N, newsize,
-                        frac_done)
-                self._add_cont_to_arr(arr, N, cont)
+#            if isinstance(cont, xarray.Dataset):
+#                # FIXME: need to implement this more efficiently
+#                warnings.warn("Using slow concatenation as faster "
+#                    "is not yet implemented for Dataset", UserWarning)
+#                arr = utils.concat_each_time_coordinate(arr, cont)
+#            else:
+            if (N+cont["time"].size) > arr["time"].size: # need to allocate more
+                frac_done = max((g_start-start) / (end-start),0)
+                # suppose all future files have on average the
+                # same size?  Until we have reached 10%, simply
+                # double every time.  After that, extrapolate more
+                # cleverly. 
+                newsize = (int((N+cont["time"].size)//frac_done)
+                            if frac_done > 0.1
+                            else (N+cont["time"].size) * 2)
+                arr = self._ensure_large_enough(arr, cont, N, newsize,
+                    frac_done)
+            self._add_cont_to_arr(arr, N, cont)
             N += cont["time"].size
         return arr, N
 
@@ -463,7 +463,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         """Allocate new space while adding gran to data
         
         Helper for _add_gran_to_data, part of the read_period family of
-        helpers"""
+        helpers.  Does NOT add cont to arr!"""
         
         if isinstance(cont, xarray.Dataset):
             # we don't really have an 'itemsize' but we can still
@@ -479,41 +479,65 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             # construct mapping where all data vars with time dimension,
             # we say which dimension is the time dimension
             time_dim_vars = {varname: (set(time_dim_names)&set(da.dims))
-                for da in cont.data_vars.values()}
+                for (varname, da) in cont.data_vars.items()}
             time_dim_vars = {k: v.pop() for (k, v) in
                 time_dim_vars.items() if len(v)>0}
 
-            itemsize = numpy.sum([
-                numpy.product(
-                    [1 if d in time_dims else da.coords[d]
-                        for d in da.dims])
-                * da.dtype.itemsize
-                * cont.dims[time_dim_vars[dn]]/cont.dims["time"]
-                    for (dn, da) in cont.data_vars.items()])
+            # for each addition of the 'time' dimension, how much does
+            # each variable increase?
+            time_dim_vars_marginal_relsize = {dn:
+                da.coords[time_dim_vars[dn]].size/cont["time"].size
+                    for (dn, da) in cont.data_vars.items()
+                    if dn in time_dim_vars.keys()}
+            marginal_itemsize = numpy.sum(
+                [(
+                (da.coords[time_dim_vars[dn]].size *
+                 da.dtype.itemsize *
+                 time_dim_vars_marginal_relsize[dn])
+                    if dn in time_dim_vars.keys()
+                    else 0)
+                for (dn, da) in cont.data_vars.items()])
 
-            if newsize * itemsize > self.maxsize:
+            if newsize * marginal_itemsize > self.maxsize:
                 raise MemoryError("Bla bla bla")
         
-            # when filling with zeroes, I cannot assign coordinates yet,
-            # that will need to be do upon putting actual content
-            ts = dsbig.coords["time"].size
+            # when filling with zeroes, I cannot assign meaningful
+            # coordinates yet, # that will need to be do upon putting
+            # actual content
             arr_new = xarray.Dataset(
-                {k: (v.dims,
-                     numpy.zeros([(x*newsize//ts
-                                   if v.coords[d].dtype.kind=="M"
-                                   else x)
-                                        for (x,d) in zip(v.shape,v.dims)],
-                                dtype=v.dtype))
-                     for (k, v) in cont.data_vars.items()})
+                {dn: (da.dims,
+                     numpy.zeros([(math.ceil(time_dim_vars_marginal_relsize[dn]*newsize)
+                                   if da.coords[d].dtype.kind=="M"
+                                   else s)
+                                        for (s, d) in zip(da.shape,da.dims)],
+                                dtype=da.dtype))
+                     for (dn, da) in cont.data_vars.items()})
+            # instead I put zeroes
+            arr_new = arr_new.assign_coords(
+                **{cn: (arr.coords[cn].dims,
+                        numpy.zeros(dtype=cv.dtype,
+                                    shape=[arr_new.dims[d]
+                                           for d in arr.coords[cn].dims]))
+                        for (cn, cv) in arr.coords.items()})
             
-            # copy over from arr into dsbig
-            for (dn, da) in cont.data_vars.items():
-                if dn in time_dim_vars.keys():
-                    tdv = time_dim_var[dn]
-                    selec = {tdv: slice(0, cont.dims[dn])}
-                    arr_new[dn][selec] = cont[dn][selec]
+            # copy over from arr into arr_new
+            new_coords = {}
+            for cn in cont.coords.keys():
+                # FIXME: how about multi-dimensional coords?
+                if cn in time_dim_names:
+                    new_coords[cn] = numpy.concatenate(
+                        (arr.coords[cn],
+                         arr_new[cn][:(arr_new[cn].size-arr[cn].size)]))
                 else:
-                    arr_new[dn].values[...] = cont.values[...]
+                    new_coords[cn] = arr.coords[cn]
+            arr_new.assign_coords(**new_coords)
+            for dn in cont.data_vars.keys():
+                if dn in time_dim_vars.keys():
+                    tdv = time_dim_vars[dn]
+                    selec = {tdv: slice(0, arr.dims[tdv])}
+                    arr_new[dn][selec] = arr[dn][selec]
+                else:
+                    arr_new[dn] = arr[dn]
             return arr_new
         else:
             if newsize * arr.itemsize > self.maxsize:
@@ -540,7 +564,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
     def _add_cont_to_arr(self, arr, N, cont):
         """Changes arr in-situ, does not return"""
-        if isinstance(cont, xarray.DataArray):
+        if isinstance(cont, xarray.Dataset):
             # we should already know it's large enough
             # for arr["time"] I start at N
             # for the other time coordinates at the relative "speed" they

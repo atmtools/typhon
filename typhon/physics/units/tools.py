@@ -95,6 +95,15 @@ class UnitsAwareDataArray(xarray.DataArray):
         x.attrs["units"] = str(new_unit)
         return x
 
+    def to_root_units(self):
+        """Equivalent of pint's Quantity.to_root_units
+        """
+        x = self.copy()
+        q = ureg.Quantity(self.values, self.attrs["units"]).to_root_units()
+        x.values = q.m
+        x.attrs["units"] = str(q.u)
+        return x
+
 tp_all = ["add", "sub", "mul", "matmul", "truediv", "floordiv", "mod",
           "divmod"]
 for tp in tp_all + ["r"+x for x in tp_all]:
