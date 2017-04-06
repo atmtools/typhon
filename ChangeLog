@@ -1,3 +1,23 @@
+2017-04-06  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/constants.py:  Added atomic mass unit to list of constants
+	
+	* typhon/spectroscopy.py:  Added doppler_broadening, boltzmann_level,
+	and stimulated_emission functions to help compute parameters needed
+	for line shapes and line strengths
+	
+	* typhon/arts/catalogues.py: Changed ARTSCAT5 to have a single append-
+	method.  Added some descriptions to its methods.  Also added a 
+	cross_section method to give a view of the cross section expected
+	from the lines in the ARTSCAT5.  
+	
+	Made __repr__ for SpeciesAuxData.
+	
+	Added two ARTS internal classes LineMixing and PressureBroadening
+	which deals with ARTSCAT5-style line mixing and pressure broadening.
+	Both have copies of the computation routines in ARTS.  Neither is 
+	extensively tested
+
 2017-04-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py (image2mpeg):

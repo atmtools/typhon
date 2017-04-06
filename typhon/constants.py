@@ -109,6 +109,7 @@ molar_mass_dry_air = 28.9645e-3  # kg mol^-1
 molar_mass_water = 18.01528e-3  # kg mol^-1
 gas_constant_dry_air = R / molar_mass_dry_air  # J K^-1 kg^-1
 gas_constant_water_vapor = R / molar_mass_water  # J K^-1 kg^-1
+amu = spc.m_u
 
 # Mathematical constants
 golden = golden_ratio = (1 + np.sqrt(5)) / 2

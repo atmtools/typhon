@@ -6,12 +6,18 @@ Implementation of classes to handle various catalogue information.
 
 try:
     from .utils import return_if_arts_type
+    from .. import constants
+    from .. import spectroscopy
 except:
     from typhon.arts.utils import return_if_arts_type
+    import typhon.constants as constants
+    import typhon.spectroscopy as spectroscopy
 
 
 import numpy as np
 import scipy.sparse
+import scipy.interpolate as _ip
+from scipy.special import wofz as _Faddeeva_
 from fractions import Fraction as _R
 
 __all__ = ['ArrayOfLineRecord',
@@ -139,7 +145,7 @@ class ARTSCAT5:
     _qn_ind = 10
     _lm_ind = 11
 
-    def __init__(self, linerecord_array=None):
+    def __init__(self, init_data=None):
         self._dictionaries = np.array([], dtype=dict)
         self._n = 0
         self.LineRecordData = {
@@ -153,17 +159,12 @@ class ARTSCAT5:
                 'ein': np.array([]),
                 't0': np.array([])}
 
-        if linerecord_array is None:
+        if init_data is None:
             return
 
-        if linerecord_array.version != 'ARTSCAT-5':
-            raise RuntimeError("linerecord_array not version 5")
+        self.append(init_data, sort=False)
 
-        for linerecord_str in linerecord_array:
-            self.append_linestr(linerecord_str)
-        self._assert_sanity_()
-
-    def append_linestr(self, linerecord_str):
+    def _append_linestr_(self, linerecord_str):
         """Takes an arts-xml catalog string and appends info to the class data
         """
         lr = linerecord_str.split()
@@ -214,8 +215,11 @@ class ARTSCAT5:
                     self._dictionaries[-1][key]["Type"] = this
             i += 1
         self._dictionaries[-1]['QN'] = QuantumNumberRecord.from_str(qnr)
+        self._dictionaries[-1]['LM'] = LineMixing(self._dictionaries[-1]['LM'])
+        self._dictionaries[-1]['PB'] = \
+            PressureBroadening(self._dictionaries[-1]['PB'])
 
-    def append_line(self, line):
+    def _append_line_(self, line):
         """Appends a line from data
         """
         self.LineRecordData['spec'] = np.append(self.LineRecordData['spec'],
@@ -242,20 +246,47 @@ class ARTSCAT5:
                                         'LM': line[self._lm_ind]})
         self._n += 1
 
-    def append_ArrayOfLineRecord(self, array_of_linerecord, sort=True):
+    def _append_ArrayOfLineRecord_(self, array_of_linerecord, sort=True):
         """Appends lines in ArrayOfLineRecord to ARTSCAT5
+
+        By default sorts all lines by frequency before finishing
         """
         assert array_of_linerecord.version == 'ARTSCAT-5', "Only for ARTSCAT-5"
         for l in array_of_linerecord:
-            self.append_linestr(l)
-        self._assert_sanity_()
-        self.sort()
+            self._append_linestr(l)
 
-    def append_ARTSCAT5(self, artscat5, sort=True):
+    def _append_ARTSCAT5_(self, artscat5, sort=True):
         """Appends all the lines of another artscat5 to this
+
+        By default sorts all lines by frequency before finishing
         """
         for line in artscat5:
-            self.append_line(line)
+            self._append_line_(line)
+
+    def append(self, other, sort=True):
+        """Appends data to ARTSCAT5.  Used at initialization
+
+        Parameters:
+            other (str, ARTSCAT5, ArrayOfLineRecord, tuple): Data to append,
+            Must fit with internal structures.  Easiest to guarantee if other
+            is another ARTSCAT5 or an ArrayOfLineRecord containing ARTSCAT-5
+            data
+
+            sort: Sorts the lines by frequency if True
+        """
+        if type(other) is str:
+            self._append_linestr_(other)
+        elif type(other) is ARTSCAT5:
+            self._append_ARTSCAT5_(other)
+        elif type(other) is tuple:  # For lines --- this easily fails
+            self._append_line_(other)
+        elif type(other) is ArrayOfLineRecord:
+            self._append_ArrayOfLineRecord_(other)
+        elif type(other) in [list, np.ndarray]:
+            for x in other:
+                self.append(x)
+        else:
+            assert False, "Unknown type"
         self._assert_sanity_()
         if sort:
             self.sort()
@@ -263,7 +294,38 @@ class ARTSCAT5:
     def sort(self, kind='freq', ascending=True):
         """Sorts the ARTSCAT5 data by kind.  Set ascending to False for
         descending sorting
+
+        Parameters:
+            kind (str): The key to LineRecordData
+
+            ascending (bool): True sorts ascending, False sorts descending
+
+        Examples:
+            Sort by descending frequnecy
+
+            >>> cat = typhon.arts.xml.load('C2H2.xml').as_ARTSCAT5()
+            >>> cat.LineRecordData['freq']
+            array([  5.94503434e+10,   1.18899907e+11,   1.78347792e+11, ...,
+                     2.25166734e+12,   2.31051492e+12,   2.36933091e+12])
+            >>> cat.sort(ascending=False)
+            >>> cat.LineRecordData['freq']
+            array([  2.36933091e+12,   2.31051492e+12,   2.25166734e+12, ...,
+                     1.78347792e+11,   1.18899907e+11,   5.94503434e+10])
+
+            Sort by line strength
+
+            >>> cat = typhon.arts.xml.load('C2H2.xml').as_ARTSCAT5()
+            >>> cat.LineRecordData['str']
+            array([  9.02281290e-21,   7.11410308e-20,   2.34380510e-19, ...,
+                     4.77325112e-19,   3.56443438e-19,   2.63222798e-19])
+            >>> cat.sort(kind='str')
+            >>> cat.LineRecordData['str']
+            array([  9.02281290e-21,   7.11410308e-20,   2.34380510e-19, ...,
+                     1.09266008e-17,   1.10644138e-17,   1.10939452e-17])
+
         """
+        assert kind in self.LineRecordData, "kind must be in LineRecordData"
+
         i = np.argsort(self.LineRecordData[kind])
         if not ascending:
             i = i[::-1]
@@ -275,20 +337,57 @@ class ARTSCAT5:
     def remove(self, upper_limit=None, lower_limit=None, kind='freq'):
         """Removes lines not within limits of kind
 
-        examples: remove(upper_limit=1e12) removes all lines with frequency
-        above 1 THz. remove(lower_limit=1e-27, kind='str') removes all lines
-        with line strength below 1e-27
+        This loops over all lines in self and only keeps those fulfilling
+
+        .. math::
+            l \\leq x \\leq u,
+
+        where l is a lower limit, u is an upper limit, and x is a parameter
+        in self.LineRecordData
+
+        Parameters:
+            upper_limit (float): value to use for upper limit [-]
+
+            lower_limit (float): value to use for lower limit [-]
+
+            kind (str): keyword for determining x.  Must be key in
+            self.LineRecordData
+
+        Returns:
+            None: Only changes self
+
+        Examples:
+            Remove lines below 1 THz and above 1.5 THz
+
+            >>> cat = typhon.arts.xml.load('C2H2.xml').as_ARTSCAT5()
+            >>> cat
+            ARTSCAT-5 with 40 lines. Species: ['C2H2']
+            >>> cat.remove(lower_limit=1000e9, upper_limit=1500e9)
+            >>> cat
+            ARTSCAT-5 with 9 lines. Species: ['C2H2']
+
+            Remove weak lines
+
+            >>> cat = typhon.arts.xml.load('C2H2.xml').as_ARTSCAT5()
+            >>> cat
+            ARTSCAT-5 with 40 lines. Species: ['C2H2']
+            >>> cat.remove(lower_limit=1e-18, kind='str')
+            >>> cat
+            ARTSCAT-5 with 31 lines. Species: ['C2H2']
         """
         assert upper_limit is not None or lower_limit is not None, \
             "Cannot remove lines when the limits are undeclared"
+        assert kind in self.LineRecordData, "Needs kind in LineRecordData"
         remove_these = []
         for i in range(self._n):
             if lower_limit is not None:
                 if self.LineRecordData[kind][i] < lower_limit:
                     remove_these.append(i)
-            elif upper_limit is not None:
+                    continue
+            if upper_limit is not None:
                 if self.LineRecordData[kind][i] > upper_limit:
                     remove_these.append(i)
+                    continue
 
         for i in remove_these[::-1]:
             self.remove_line(i)
@@ -318,7 +417,6 @@ class ARTSCAT5:
     def __getitem__(self, index):
         """Returns a single line as tuple --- TODO: create LineRecord class?
         """
-        assert abs(index) < self._n, "Out of bounds"
         return (self.LineRecordData['spec'][index],
                 self.LineRecordData['afgl'][index],
                 self.LineRecordData['freq'][index],
@@ -344,15 +442,15 @@ class ARTSCAT5:
         s += ' ' + str(l[self._ein_ind])
         s += ' ' + str(l[self._glow_ind])
         s += ' ' + str(l[self._gupp_ind])
-        if l[self._pb_ind]['Type'] is not None:
-            s += ' PB ' + l[self._pb_ind]['Type']
-            for p in l[self._pb_ind]['Data']:
-                s += ' ' + str(p)
-        s += str(self.quantumnumbers(index))
-        if l[self._lm_ind]['Type'] is not None:
-            s += 'LM ' + l[self._lm_ind]['Type']
-            for p in l[self._lm_ind]['Data']:
-                s += ' ' + str(p)
+        text = str(self.pressurebroadening(index))
+        if len(text) > 0:
+            s += ' PB ' + text
+        text = str(self.quantumnumbers(index))
+        if len(text) > 0:
+            s += ' QN ' + text
+        text = str(self.linemixing(index))
+        if len(text) > 0:
+            s += ' LM ' + text
         return s
 
     def pressurebroadening(self, index):
@@ -374,8 +472,7 @@ class ARTSCAT5:
         return "Mis-matching length of vectors/lists storing line information"
 
     def as_ArrayOfLineRecord(self):
-        """Turns ARTSCAT5 into array of line records that can be stored to
-        file
+        """Turns ARTSCAT5 into ArrayOfLineRecord that can be stored to file
         """
         out = []
         for i in range(self._n):
@@ -414,6 +511,44 @@ class ARTSCAT5:
 
         Output:
             None, only changes the class instance itself
+
+        Examples:
+            Add S = 1 to both levels quantum numbers by adding information to
+            all lines
+
+            >>> cat = typhon.arts.xml.load('O2.xml').as_ARTSCAT5()
+            >>> cat.quantumnumbers(0)
+            UP v1 0 J 32 F 61/2 N 32 LO v1 0 J 32 F 59/2 N 32
+            >>> cat.changeForQN(information={'QN': {'S': 1}}, kind='add')
+            >>> cat.quantumnumbers(0)
+            UP S 1 v1 0 J 32 F 61/2 N 32 LO S 1 v1 0 J 32 F 59/2 N 32
+
+            Remove all lines not belonging to a specific isotopologue and band
+            by giving the band quantum numbers
+
+            >>> cat = typhon.arts.xml.load('O2.xml').as_ARTSCAT5()
+            >>> cat
+            ARTSCAT-5 with 6079 lines. Species: ['O2']
+            >>> cat.changeForQN(kind='keep', afgl=66, qns={'LO': {'v1': 0},
+                                                           'UP': {'v1': 0}})
+            >>> cat
+            ARTSCAT-5 with 187 lines. Species: ['O2']
+
+            Change the frequency of the 119 GHz line to 3000 THz by giving a
+            full and unique quantum number match
+
+            >>> cat = typhon.arts.xml.load('O2.xml').as_ARTSCAT5()
+            >>> cat.sort()
+            >>> cat.LineRecordData['freq']
+            array([  9.00e+03,   2.35e+04,   4.01e+04, ...,   2.99e+12,
+                     2.99e+12,   2.99e+12])
+            >>> cat.changeForQN(afgl=66, qns={'LO': {'v1': 0, 'J': 0, 'N': 1},
+                                              'UP': {'v1': 0, 'J': 1, 'N': 1}},
+                                information={'freq': 3000e9})
+            >>> cat.sort()
+            >>> cat.LineRecordData['freq']
+            array([  9.00e+03,   2.35e+04,   4.01e+04, ...,   2.99e+12,
+                     2.99e+12,   3.00e+12])
         """
         if qid is not None:
             assert spec is None and afgl is None and qns is None, \
@@ -481,11 +616,15 @@ class ARTSCAT5:
             # If spec is None, then all species, otherwise this should match
             if spec is not None:
                 if not spec == self.LineRecordData['spec'][i]:
+                    if keep:
+                        remove_these.append(i)
                     continue
 
             # If afgl is None, then all isotopes, otherwise this should match
             if afgl is not None:
                 if not afgl == self.LineRecordData['afgl'][i]:
+                    if keep:
+                        remove_these.append(i)
                     continue
 
             # Test which levels match and which do not --- partial matching
@@ -548,26 +687,26 @@ class ARTSCAT5:
                     if change:
                         self._dictionaries[i][info_key] = info
                     elif add:
-                        assert info['Type'] == \
-                            self._dictionaries[i][info_key]['Type'], \
+                        assert info.kind == \
+                            self._dictionaries[i][info_key].kind, \
                             "Can only add to matching type"
-                        self._dictionaries[i][info_key]['Data'] += info
+                        self._dictionaries[i][info_key].data += info
                     elif sub:
-                        assert info['Type'] == \
-                            self._dictionaries[i][info_key]['Type'], \
+                        assert info.kind == \
+                            self._dictionaries[i][info_key].kind, \
                             "Can only sub from matching type"
-                        self._dictionaries[i][info_key]['Data'] -= info
+                        self._dictionaries[i][info_key].data -= info
                     else:
                         assert False, "Programmer error?"
                 else:
                     if not all(test):
                         continue
                     if change:
-                        self.LineRecodData[info_key][i] = info
+                        self.LineRecordData[info_key][i] = info
                     elif add:
-                        self.LineRecodData[info_key][i] += info
+                        self.LineRecordData[info_key][i] += info
                     elif sub:
-                        self.LineRecodData[info_key][i] -= info
+                        self.LineRecordData[info_key][i] -= info
                     else:
                         assert False, "Programmer error?"
 
@@ -579,9 +718,6 @@ class ARTSCAT5:
     def remove_line(self, index):
         """Remove line at index from line record
         """
-        assert index < self._n, "index out of bounds"
-        assert index > -1, "index must be above 0"
-
         for key in self.LineRecordData:
             t1 = self.LineRecordData[key][:index]
             t2 = self.LineRecordData[key][(index+1):]
@@ -594,6 +730,185 @@ class ARTSCAT5:
 
         self._n -= 1
         self._assert_sanity_()
+
+    def cross_section(self, temperature=None, pressure=None,
+                      vmrs=None, mass=None, isotopologue_ratios=None,
+                      partition_functions=None, f=None):
+        """Provides an estimation of the cross-section in the provided
+        frequency range
+
+        Computes the following estimate (summing over all lines):
+
+        .. math::
+            \\sigma(f) = \\sum_{k=0}^{k=n-1}
+            r_k S_{0, k}(T_0) K_1 K_2 \\frac{Q(T_0)}{Q(T)}
+            \\frac{1 + G_k \\; p^2 + iY_k \\; p }{\\gamma_{D,k}\\sqrt{\\pi}}
+            \\; F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
+
+        where there are n lines,
+        r is the isotopologue ratio,
+        S_0 is the line strength,
+        K_1 is the boltzman level statistics,
+        K_2 is the stimulated emission,
+        Q is the partition sum, G is the second
+        order line mixing coefficient,
+        p is pressure,
+        Y is the first order line mixing coefficient,
+        f_0 is the line frequency,
+        Delta-f is the second order line mixing frequency shift,
+        delta-f is the first order pressure shift,
+        gamma_p is the pressure broadening half width,
+        gamma_D is the Doppler half width, and
+        F is assumed to be the Faddeeva function
+
+        Note 1: this is only meant for quick-and-dirty estimates.  If data is
+        lacking, very simplistic assumptions are made to complete the
+        calculations.
+        Lacking VMR for a species assumes 1.0 vmr of the line species itself,
+        lacking mass assumes dry air mass,
+        lacking isotopologue ratios means assuming a ratio of unity,
+        lacking partition functions means the calculations are performed at
+        line temperatures,
+        lacking frequency means computing 1000 frequencies from lowest
+        frequency line minus its pressure broadening to the highest frequency
+        line plus its pressure broadening,
+        lacking pressure means computing at 1 ATM, and
+        lacking temperature assumes atmospheric temperatures the same as the
+        first line temperature.  If input f is None then the return
+        is (f, sigma), else the return is (sigma)
+
+        Warning: Use only as an estimation, this function is neither optimized
+        and is only tested for a single species in arts-xml-data to be within
+        1% of the ARTS computed value
+
+        Parameters:
+            temperature (float): Temperature [Kelvin]
+
+            pressure (float): Pressure [Pascal]
+
+            vmrs (dict-like): Volume mixing ratios.  See PressureBroadening for
+            use [-]
+
+            mass (dict-like): Mass of isotopologue [kg]
+
+            isotopologue_ratios (dict-like):  Isotopologue ratios of the
+            different species [-]
+
+            partition_functions (dict-like):  Partition function estimator,
+            should compute partition function by taking temperature as the only
+            argument [-]
+
+            f (ndarray): Frequency [Hz]
+
+        Returns:
+            (f, xsec) or xsec depending on f
+
+        Examples:
+            Plot cross-section making no assumptions on the atmosphere or
+            species, i.e., isotopologue ratios is 1 for all isotopologue
+            (will not agree with ARTS)
+
+            >>> import matplotlib.pyplot as plt
+            >>> cat = typhon.arts.xml.load('O2.xml').as_ARTSCAT5()
+            >>> (f, x) = cat.cross_section()
+            >>> plt.plot(f, x)
+
+            Plot cross-sections by specifying limited information on the
+            species (will agree reasonably with ARTS)
+
+            >>> import matplotlib.pyplot as plt
+            >>> cat = typhon.arts.xml.load('O2.xml').as_ARTSCAT5()
+            >>> cat.changeForQN(afgl=66, kind='keep')
+            >>> f, x = cat.cross_section(mass={"O2-66": 31.9898*constants.amu},
+                                         isotopologue_ratios={"O2-66": 0.9953})
+            >>> plt.plot(f, x)
+
+        """
+        if temperature is None:
+            temperature = self.LineRecordData['t0'][0]
+
+        if pressure is None:
+            pressure = constants.atm
+
+        if vmrs is None:
+            vmrs = {}
+
+        if mass is None:
+            mass = {}
+
+        if f is None:
+            return_f = True
+            f0 = self.pressurebroadening(0).compute_pressurebroadening_params(
+                    temperature, self.LineRecordData['t0'][0],
+                    pressure, vmrs)[0]
+            f0 = self.LineRecordData['freq'][0] - f0
+            f1 = self.pressurebroadening(-1).compute_pressurebroadening_params(
+                    temperature, self.LineRecordData['t0'][-1],
+                    pressure, vmrs)[0]
+            f1 = self.LineRecordData['freq'][-1] - f1
+            f = np.linspace(f0, f1, num=1000)
+        else:
+            return_f = False
+
+        if isotopologue_ratios is None:
+            isotopologue_ratios = {}
+
+        if partition_functions is None:
+            partition_functions = {}
+
+        # Cross-section
+        sigma = np.zeros_like(f)
+
+        for i in range(self._n):
+            spec_key = self.LineRecordData['spec'][i] + '-' + \
+                          str(self.LineRecordData['afgl'][i])
+
+            if spec_key in mass:
+                m = mass[spec_key]
+            else:
+                m = constants.molar_mass_dry_air / constants.avogadro
+            gamma_D = \
+                spectroscopy.doppler_broadening(temperature,
+                                                self.LineRecordData['freq'][i],
+                                                m)
+            (G, Df,
+             Y) = self.linemixing(i).compute_linemixing_params(temperature)
+
+            (gamma_p,
+             delta_f) = \
+                self.pressurebroadening(i).compute_pressurebroadening_params(
+                temperature, self.LineRecordData['t0'][i], pressure, vmrs)
+
+            K1 = spectroscopy.boltzmann_level(self.LineRecordData['elow'][i],
+                                              temperature,
+                                              self.LineRecordData['t0'][i])
+            K2 = spectroscopy.stimulated_emission(
+                    self.LineRecordData['freq'][i],
+                    temperature,
+                    self.LineRecordData['t0'][i])
+
+            if spec_key in partition_functions:
+                Q = partition_functions[spec_key]
+            else:
+                Q = np.ones_like
+
+            if spec_key in isotopologue_ratios:
+                r = isotopologue_ratios[spec_key]
+            else:
+                r = 1.0
+
+            S = r * self.LineRecordData['str'][i] * K1 * K2 * \
+                Q(self.LineRecordData['t0'][i]) / Q(temperature)
+
+            lm = 1 + G * pressure**2 + 1j * Y * pressure
+            z = (f - self.LineRecordData['freq'][i] -
+                 delta_f - Df * pressure**2 + 1j * gamma_p) / gamma_D
+            sigma += (S * (lm * _Faddeeva_(z) / np.sqrt(np.pi) / gamma_D)).real
+        if return_f:
+            return f, sigma
+        else:
+            return sigma
 
     def write_xml(self, xmlwriter, attr=None):
         """Write an ARTSCAT5 object to an ARTS XML file.
@@ -696,6 +1011,10 @@ class SpeciesAuxData:
         self.version = version
         self.nparam = nparam
         self.data = data
+
+    def __repr__(self):
+        return "SpeciesAuxData Version " + str(self.version) + ' ' + \
+            'for ' + str(len(self.species())) + ' species'
 
     @property
     def data(self):
@@ -1213,10 +1532,13 @@ class QuantumNumberRecord:
         self._qns['LO'] = return_if_arts_type(lower, 'QuantumNumbers')
 
     def __repr__(self):
-        return "UP " + str(self._qns['UP']) + " LO " + str(self._qns['LO'])
+        if len(self._qns['UP']) == 0 and len(self._qns['LO']) == 0:
+            return 'No Quantum-Numbers'
+        else:
+            return "UP " + str(self._qns['UP']) + " LO " + str(self._qns['LO'])
 
     def __str__(self):
-        if self._qns['UP'] is None or self._qns['UP'] is None:
+        if len(self._qns['UP']) == 0 and len(self._qns['LO']) == 0:
             return ''
         else:
             return self.__repr__()
@@ -1501,15 +1823,17 @@ class QuantumNumbers:
         return iter(self.numbers)
 
     def __eq__(self, qns):
-        """Tests for complete equality
+        """Tests for complete equality ==
         """
         return self <= qns and len(qns) == self.nelem
 
     def __ne__(self, qns):
-        return not self.__eq__(qns)
+        """Tests for lacking complete equality !=
+        """
+        return not self == qns
 
     def __le__(self, qns):
-        """Tests for all in self being in qns
+        """Tests for all in self being in qns <=
         """
         try:
             for qn in self:
@@ -1520,7 +1844,7 @@ class QuantumNumbers:
             return False
 
     def __ge__(self, qns):
-        """Tests for all in qns being in self
+        """Tests for all in qns being in self >=
         """
         try:
             for qn in qns:
@@ -1531,12 +1855,12 @@ class QuantumNumbers:
             return False
 
     def __lt__(self, qns):
-        """Tests for all in self being in qns and if there is more in qns
+        """Tests for all in self being in qns and if there is more in qns <
         """
         return self <= qns and self.nelem < len(qns)
 
     def __gt__(self, qns):
-        """Tests for all in self being in qns and if there is more in self
+        """Tests for all in self being in qns and if there is more in self >
         """
         return qns <= self and len(qns) < self.nelem
 
@@ -1585,7 +1909,6 @@ class QuantumNumbers:
         elif numbers is None:
             self._numbers = {}
         else:
-            print(numbers)
             assert False, "Expected dict or String for QuantumNumbers"
         # OLD: self._numbers = return_if_arts_type(numbers, 'String')
 
@@ -1632,7 +1955,7 @@ class LineMixingRecord:
 
         self.tag = tag
         self.quantumnumberrecord = quantumnumberrecord
-        self.data = data
+        self.data = LineMixing(data)
 
     @property
     def tag(self):
@@ -1657,6 +1980,10 @@ class LineMixingRecord:
 
         self._tag = SpeciesTag(tag)
 
+    def __repr__(self):
+        return self.tag + ' ' + str(self.quantumnumberrecord) + ' ' + \
+            str(self.data)
+
     @quantumnumberrecord.setter
     def quantumnumberrecord(self, quantumnumberrecord):
         self._quantumnumberrecord = return_if_arts_type(
@@ -1664,7 +1991,7 @@ class LineMixingRecord:
 
     @data.setter
     def data(self, data):
-        self._data = return_if_arts_type(data, 'Vector')
+        self._data = return_if_arts_type(data, 'LineMixing')
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -1674,7 +2001,7 @@ class LineMixingRecord:
         obj = cls()
         obj.tag = xmlelement[0].value()
         obj.quantumnumberrecord = xmlelement[1].value()
-        obj.data = xmlelement[2].value()
+        obj.data = LineMixing(xmlelement[2].value())
 
         return obj
 
@@ -1687,5 +2014,462 @@ class LineMixingRecord:
         xmlwriter.open_tag("LineMixingRecord", attr)
         xmlwriter.write_xml(self.tag)
         xmlwriter.write_xml(self.quantumnumberrecord)
-        xmlwriter.write_xml(self.data)
+        xmlwriter.write_xml(self.data.data)
         xmlwriter.close_tag()
+
+
+class LineMixing:
+    """Helper class to hold linemixing data
+    """
+
+    _none = None
+    _first_order = "L1"
+    _second_order = "L2"
+    _lblrtm = "LL"
+    _lblrtm_nonresonant = "NR"
+    _for_band = "BB"
+    _possible_kinds = [_none, _first_order, _second_order, _lblrtm,
+                       _lblrtm_nonresonant, _for_band]
+
+    def __init__(self, data=None, kind=None):
+        self.data = data
+        if kind is not None:
+            self.kind = kind
+
+        self._assert_sanity_()
+        self._make_data_as_in_arts_()
+
+    def _assert_sanity_(self):
+        if self._type is self._none:
+            assert len(self._data) == 0, "Data available for none-type"
+        elif self._type is self._first_order:
+            assert len(self._data) == 3, "Data mismatching first order"
+        elif self._type is self._second_order:
+            assert len(self._data) == 10, "Data mismatching second order"
+        elif self._type is self._lblrtm:
+            assert len(self._data) == 12, "Data mismatching LBLRTM data"
+        elif self._type is self._lblrtm_nonresonant:
+            assert len(self._data) == 1, "Data mismatching LBLRTM data"
+        elif self._type is self._for_band:
+            assert len(self._data) == 1, "Data mismatching band data"
+        else:
+            assert False, "Cannot recognize data type at all"
+
+    def _make_data_as_in_arts_(self):
+        if self._type in [self._none, self._for_band]:
+            return
+        elif self._type is self._first_order:
+            self._t0 = self._data[0]
+            self._y0 = self._data[1]
+            self._n0 = self._data[2]
+        elif self._type is self._second_order:
+            self._t0 = self._data[6]
+
+            self._y0 = self._data[0]
+            self._y1 = self._data[1]
+            self._ey = self._data[7]
+
+            self._g0 = self._data[2]
+            self._g1 = self._data[3]
+            self._eg = self._data[8]
+
+            self._f0 = self._data[4]
+            self._f1 = self._data[5]
+            self._ef = self._data[9]
+        elif self._type is self._lblrtm:
+            self._y = _ip.interp1d(self._data[:4], self._data[4:8])
+            self._g = _ip.interp1d(self._data[:4], self._data[8:])
+        else:
+            assert False, "Unknown data type"
+
+    def __repr__(self):
+        out = ''
+        if self._type is self._none:
+            return "No Line-Mixing"
+        elif self._type in self._possible_kinds:
+            out += self._type
+        else:
+            assert False, "Cannot recognize kind"
+        for i in self.data:
+            out += ' ' + str(i)
+        return out
+
+    def __str__(self):
+        out = ''
+        if self._type is self._none:
+            return out
+        elif self._type in self._possible_kinds:
+            out += self._type
+        else:
+            assert False, "Cannot recognize kind"
+        for i in self.data:
+            out += ' ' + str(i)
+        return out
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __setitem__(self, index, val):
+        self.data[index] = val
+        self._make_data_as_in_arts_()
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def kind(self):
+        return self._type
+
+    @kind.setter
+    def kind(self, val):
+        found = False
+        for i in self._possible_kinds:
+            if i == val:
+                self._type = i
+                found = True
+                break
+        assert found, "Cannot recognize kind"
+
+    @data.setter
+    def data(self, val):
+        self._data = val
+        if self._data is None:
+            self._data = np.array([], dtype=float)
+            self._type = self._none
+        elif type(self._data) is dict:
+            if self._data['Type'] is None:
+                self._type = self._none
+            else:
+                self.kind = self._data['Type']
+            self._data = self._data['Data']
+        else:
+            if len(self._data) == 10:
+                self._type = self._second_order
+            elif len(self._data) == 3:
+                self._type = self._first_order
+            elif len(self._data) == 12:
+                self._type = self._lblrtm
+            elif len(self._data) == 0:
+                self._type = self._none
+            else:
+                assert False, "Cannot recognize data type automatically"
+
+    def compute_linemixing_params(self, temperature):
+        """Returns the line mixing parameters for given temperature(s)
+
+        Cross-section is found from summing all lines
+
+        .. math::
+            \\sigma(f) \\propto \sum_{k=0}^{k=n-1}
+            \\left[1 + G_k \\; p^2 + iY_k \\; p\\right] \\;
+            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
+
+        where k indicates line dependent variables.  This function returns
+        the line mixing parameters G, Y, and Delta-f.  The non-line
+        mixing parameters are gamma_D as the Doppler broadening,  gamma_p
+        as the pressure broadening, f as frequency,
+        f_0 as the line frequency, delta-f as the first order pressure induced
+        frequency shift, and p as pressure.  The function F(···) is the
+        Faddeeva function and gives the line shape.  Many scaling factors are
+        ignored in the equation above...
+
+        Note 1: that for no line mixing, this function returns all zeroes
+
+        Developer note: the internal variables used emulates the theory for
+        each type of allowed line mixing.  Thus it should be easy to extend
+        this for other types and for partial derivatives
+
+        Input:
+            temperature (float or ndarray) in Kelvin
+
+        Output:
+            G(temperature), Delta-f(temperature), Y(temperature)
+        """
+        if self._type is self._none:
+            return np.zeros_like(temperature), np.zeros_like(temperature), \
+                np.zeros_like(temperature)
+        elif self._type is self._for_band:
+            return np.zeros_like(temperature) * np.nan, \
+                np.zeros_like(temperature) * np.nan, \
+                np.zeros_like(temperature) * np.nan
+        elif self._type is self._lblrtm:
+            return self._g(temperature), np.zeros_like(temperature), \
+                self._y(temperature)
+        elif self._type is self._first_order:
+            return np.zeros_like(temperature), np.zeros_like(temperature), \
+                self._y0 * (self._t0/temperature) ** self._ey
+        elif self._type is self._lblrtm_nonresonant:
+            return np.full_like(temperature, self._data[0]), \
+                np.zeros_like(temperature), np.zeros_like(temperature)
+        elif self._type is self._second_order:
+            th = self._t0 / temperature
+            return (self._g0 + self._g1 * (th - 1)) * th ** self._eg, \
+                (self._f0 + self._f1 * (th - 1)) * th ** self._ef, \
+                (self._y0 + self._y1 * (th - 1)) * th ** self._ey
+
+
+class PressureBroadening:
+    """Helper class to hold pressurebroadening data
+    """
+
+    _none = None
+    _air = "N2"
+    _air_and_water = "WA"
+    _all_planets = "AP"
+    _possible_kinds = [_none, _air, _air_and_water, _all_planets]
+
+    def __init__(self, data=None, kind=None):
+        self.data = data
+        if kind is not None:
+            self.kind = kind
+
+        self._assert_sanity_()
+        self._make_data_as_in_arts_()
+
+    def _assert_sanity_(self):
+        if self._type is self._none:
+            assert len(self._data) == 0, "Data available for none-type"
+        elif self._type is self._air:
+            assert len(self._data) == 10, "mismatching air broadening "
+        elif self._type is self._air_and_water:
+            assert len(self._data) == 9, "mismatching air and water broadening"
+        elif self._type is self._all_planets:
+            assert len(self._data) == 20, "mismatching all planets data"
+        else:
+            assert False, "Cannot recognize data type at all"
+
+    def _make_data_as_in_arts_(self):
+        if self._type is self._none:
+            return
+        elif self._type is self._air:
+            self._sgam = self._data[0]
+            self._sn = self._data[1]
+            self._sdel = 0
+
+            self._agam = self._data[2]
+            self._an = self._data[3]
+            self._adel = self._data[4]
+
+            self._dsgam = self._data[5]
+            self._dnself = self._data[6]
+
+            self._dagam = self._data[7]
+            self._dnair = self._data[8]
+
+            self._dadel = self._data[9]
+        elif self._type is self._air_and_water:
+            self._sgam = self._data[0]
+            self._sn = self._data[1]
+            self._sdel = self._data[2]
+
+            self._agam = self._data[3]
+            self._an = self._data[4]
+            self._adel = self._data[5]
+
+            self._wgam = self._data[6]
+            self._wn = self._data[7]
+            self._wdel = self._data[8]
+        elif self._type is self._all_planets:
+            self._sgam = self._data[0]
+            self._sn = self._data[7]
+            self._sdel = 0
+            self._gam = {'N2': self._data[1], 'O2': self._data[2],
+                         'H2O': self._data[3], 'CO2': self._data[4],
+                         'H2': self._data[5], 'He': self._data[6]}
+            self._n = {'N2': self._data[8], 'O2': self._data[9],
+                       'H2O': self._data[10], 'CO2': self._data[11],
+                       'H2': self._data[12], 'He': self._data[13]}
+            self._delta_f = {'N2': self._data[14], 'O2': self._data[15],
+                             'H2O': self._data[16], 'CO2': self._data[17],
+                             'H2': self._data[18], 'He': self._data[19]}
+        else:
+            assert False, "Unknown data type"
+
+    def __repr__(self):
+        out = ''
+        if self._type is self._none:
+            return "No Pressure-Broadening"
+        elif self._type in self._possible_kinds:
+            out += self._type
+        else:
+            assert False, "Cannot recognize kind"
+        for i in self.data:
+            out += ' ' + str(i)
+        return out
+
+    def __str__(self):
+        out = ''
+        if self._type is self._none:
+            return out
+        elif self._type in self._possible_kinds:
+            out += self._type
+        else:
+            assert False, "Cannot recognize kind"
+        for i in self.data:
+            out += ' ' + str(i)
+        return out
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __setitem__(self, index, val):
+        self.data[index] = val
+        self._make_data_as_in_arts_()
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def kind(self):
+        return self._type
+
+    @kind.setter
+    def kind(self, val):
+        found = False
+        for i in self._possible_kinds:
+            if i == val:
+                self._type = i
+                found = True
+                break
+        assert found, "Cannot recognize kind"
+
+    @data.setter
+    def data(self, val):
+        self._data = val
+        if self._data is None:
+            self._data = np.array([], dtype=float)
+            self._type = self._none
+        elif type(self._data) is dict:
+            if self._data['Type'] is None:
+                self._type = self._none
+            else:
+                self.kind = self._data['Type']
+            self._data = self._data['Data']
+        else:
+            if len(self._data) == 10:
+                self._type = self._air
+            elif len(self._data) == 9:
+                self._type = self._air_and_water
+            elif len(self._data) == 20:
+                self._type = self._all_planets
+            elif len(self._data) == 0:
+                self._type = self._none
+            else:
+                assert False, "Cannot recognize data type automatically"
+
+    def compute_pressurebroadening_params(self, temperature, line_temperature,
+                                          pressure, vmrs):
+        """Computes the pressure broadening parameters for the given atmosphere
+
+        Cross-section is found from summing all lines
+
+        .. math::
+            \\sigma(f) \\propto \\sum_{k=1}^{k=n-1}
+            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
+
+        where k indicates line dependent variables.  This function returns
+        the pressure broadening parameters p*gamma_p and p*delta-f.  The non-
+        pressure broadening parameters are gamma_D as the Doppler broadening,
+        f as frequency, f_0 as the line frequency, delta-f as the first order
+        pressure induced frequency shift, and p as pressure.  The function
+        F(···) is the Faddeeva function and gives the line shape.  Many scaling
+        factors are ignored in the equation above...
+
+        The pressure broadening parameters are summed from the contribution of
+        each individual perturber so that for i perturbers
+
+        .. math::
+            \\gamma_pp = \\sum_i \\gamma_{p,i} p_i
+
+        and
+
+        .. math::
+            \\delta f_pp = \\sum_i \\delta f_{p,i} p_i
+
+        Parameters:
+            temperature (float or ndarray): Temperature [Kelvin]
+
+            line_temperature (float): Line temperature [Kelvin]
+
+            pressure (float or like temperature): Total pressure [Pascal]
+
+            vmrs (dict):  Volume mixing ratio of atmospheric species.
+            dict should be {'self': self_vmr} for 'N2', {'self': self_vmr,
+            'H2O': h2o_vmr} for kind 'WA', and each species of 'AP' should be
+            represented in the same manner.  When 'self' is one of the list of
+            species, then vmrs['self'] should not exist.  Missing data is
+            treated as a missing species.  No data at all is assumed to mean
+            1.0 VMR of self (len(vmrs) == 0 must evaluate as True).  The
+            internal self_vmr, h2o_vmr, etc., variables must have sime size
+            as pressure or be constants
+
+        Returns:
+            p · gamma0_p, p · delta-f0
+        """
+        theta = line_temperature / temperature
+        if len(vmrs) == 0:
+            return self._sgam * theta ** self._sn * pressure, \
+                self._sdel * theta ** (0.25 + 1.5 * self._sn) * pressure
+
+        sum_vmrs = 0.0
+        gamma = np.zeros_like(temperature)
+        delta_f = np.zeros_like(temperature)
+
+        if self._type is self._none:
+            return np.zeros_like(temperature), np.zeros_like(temperature)
+        elif self._type is self._air:
+            for species in vmrs:
+                if species == 'self':
+                    gamma += self._sgam * theta ** self._sn * \
+                        pressure * vmrs[species]
+                    delta_f += self._sdel * \
+                        theta ** (0.25 + 1.5 * self._sn) * \
+                        pressure * vmrs[species]
+                    sum_vmrs += vmrs[species]
+            gamma += self._agam * theta ** self._an * \
+                pressure * (1 - sum_vmrs)
+            delta_f += self._adel * theta ** (0.25 + 1.5 * self._an) * \
+                pressure * (1 - sum_vmrs)
+        elif self._type is self._air_and_water:
+            for species in vmrs:
+                if species == 'self':
+                    gamma += self._sgam * theta ** self._sn * \
+                        pressure * vmrs[species]
+                    delta_f += self._sdel * \
+                        theta ** (0.25 + 1.5 * self._sn) * \
+                        pressure * vmrs[species]
+                    sum_vmrs += vmrs[species]
+                elif species == 'H2O':
+                    gamma += self._wgam * theta ** self._wn * \
+                        pressure * vmrs[species]
+                    delta_f += self._wdel * \
+                        theta ** (0.25 + 1.5 * self._wn) * \
+                        pressure * vmrs[species]
+                    sum_vmrs += vmrs[species]
+            gamma += self._agam * theta ** self._an * \
+                pressure * (1 - sum_vmrs)
+            delta_f += self._adel * theta ** (0.25 + 1.5 * self._an) * \
+                pressure * (1 - sum_vmrs)
+        elif self._type is self._all_planets:
+            for species in vmrs:
+                if species == 'self':
+                    gamma += self._sgam * theta ** self._sn * \
+                        pressure * vmrs[species]
+                    delta_f += self._sdel * \
+                        theta ** (0.25 + 1.5 * self._sn) * \
+                        pressure * vmrs[species]
+                    sum_vmrs += vmrs[species]
+                elif species in self._gam:
+                    gamma += self._gam[species] * theta ** self._n[species] * \
+                        pressure * vmrs[species]
+                    delta_f += self._del[species] * \
+                        theta ** (0.25 + 1.5 * self._n[species]) * \
+                        pressure * vmrs[species]
+                    sum_vmrs += vmrs[species]
+            gamma /= sum_vmrs
+            delta_f /= sum_vmrs
+        return gamma, delta_f
