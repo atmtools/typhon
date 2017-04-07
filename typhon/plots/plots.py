@@ -7,9 +7,10 @@ import warnings
 import collections
 import math
 import itertools
-import scipy.stats
+
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 from typhon.math import stats as tpstats
 
@@ -18,6 +19,10 @@ __all__ = [
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
+    'fmt_hectopascal',
+    'profile_p',
+    'profile_p_log',
+    'profile_z',
 ]
 
 
@@ -152,12 +157,13 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
     return img
 
 
-def scatter_density_plot_matrix(M=None,
+def scatter_density_plot_matrix(
+        M=None,
         hist_kw={},
         hexbin_kw={"mincnt": 1, "cmap": "viridis"},
         plot_dist_kw={"color": "tan", "ptiles": [5, 25, 50, 75, 95],
-            "linestyles": [":", "--", "-", "--", ":"],
-            "linewidth": 1.5},
+                      "linestyles": [":", "--", "-", "--", ":"],
+                      "linewidth": 1.5},
         ranges={},
         units=None,
         **kwargs):
@@ -202,7 +208,7 @@ def scatter_density_plot_matrix(M=None,
             hexbin.
         plot_dist_kw (Mapping): Keyword arguments to pass to each call of
             `func:plot_distribution_as_percentiles`.
-        ranges (Mapping[str, Tuple[Real, Real]]): 
+        ranges (Mapping[str, Tuple[Real, Real]]):
             For each field in M, can pass a range.  If provided, this
             range will be passed on to hist and hexbin.
         units (Mapping[str, str]): Unit strings for each of the
@@ -275,10 +281,11 @@ def scatter_density_plot_matrix(M=None,
             MM["f{:d}".format(i)] = M[:, i]
         M = MM
     if len(M.dtype.fields) > 20:
-        raise ValueError("You've given me {:d} fields to plot. "
+        raise ValueError(
+            "You've given me {:d} fields to plot. "
             "That would result in {:d} subplots.  I refuse to take "
             "more than 20 fields.".format(len(M.dtype.fields),
-                len(M.dtype.fields)**2))
+                                          len(M.dtype.fields)**2))
     if units is None:
         units = {}
     N = len(M.dtype.names)
@@ -302,8 +309,8 @@ def scatter_density_plot_matrix(M=None,
         else:
             rng = (ranges.get(x_f, (x.min(), x.max())),
                    ranges.get(y_f, (y.min(), y.max())))
-            inrange = ((x>=rng[0][0])&(x<=rng[0][1])&
-                       (y>=rng[1][0])&(y<=rng[1][1]))
+            inrange = ((x >= rng[0][0]) & (x <= rng[0][1]) &
+                       (y >= rng[1][0]) & (y <= rng[1][1]))
             if not inrange.any():
                 warnings.warn(
                     "Combination {:s}/{:s} has no valid values".format(
@@ -314,8 +321,8 @@ def scatter_density_plot_matrix(M=None,
             y = y[inrange]
             # NB: hexbin may be better than hist2d
             a.hexbin(x, y,
-                extent=[rng[0][0], rng[0][1], rng[1][0], rng[1][1]],
-                **hexbin_kw)
+                     extent=[rng[0][0], rng[0][1], rng[1][0], rng[1][1]],
+                     **hexbin_kw)
             plot_distribution_as_percentiles(
                 a,
                 x, y,
@@ -329,10 +336,169 @@ def scatter_density_plot_matrix(M=None,
                 "{:s} [{:~}]".format(y_f, y.u) if hasattr(y, "u") else
                 y_f)
 
-        if y_i == N-1: # NB: 0 is top row, N-1 is bottom row
+        if y_i == N-1:  # NB: 0 is top row, N-1 is bottom row
             a.set_xlabel(
                 "{:s} [{:s}]".format(x_f, units[x_f]) if x_f in units else
                 "{:s} [{:~}]".format(x_f, x.u) if hasattr(x, "u") else
                 x_f)
 
     return f
+
+
+@FuncFormatter
+def fmt_hectopascal(x, pos):
+    """Creates hPa labels for Pa input.
+
+    This function can be used to create axis labels on the hectopascal scale
+    for values plotted in pascals. It is handy in combination with plotting in
+    logscale.
+    """
+    return '{:g}'.format(x / 1e2)
+
+
+def profile_p(p, x, ax=None, **kwargs):
+    """Plot atmospheric profile against pressure in log space.
+
+    Parameters:
+        p (ndarray): Pressure [Pa].
+        x (ndarray): Atmospheric property.
+        ax (AxesSubplot): Axes to plot in.
+        **kwargs: Additional keyword arguments passed to `plt.plot`.
+
+    See also:
+            :func:`~typhon.plots.profile_p_log`
+                Plot profile against pressure in log space.
+            :func:`~typhon.plots.profile_z`
+                Plot profile against height.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon.plots
+
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 500)
+        x = np.sin(np.log(p / 25e2))
+
+        fig, ax = plt.subplots()
+        typhon.plots.profile_p(p, x, ax=ax)
+
+        plt.show()
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    # Determine min/max pressure of data in plot. The current axis limits are
+    # also taken into account. This ensures complete data coverage when using
+    # the function iteratively on the same axis.
+    pmin = np.min((np.min(p), *ax.get_ylim()))
+    pmax = np.max((np.max(p), *ax.get_ylim()))
+    ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
+
+    # Label and format for yaxis.
+    ax.yaxis.set_major_formatter(fmt_hectopascal)
+    if ax.is_first_col():
+        ax.set_ylabel('Pressure [hPa]')
+
+    # Actual plot.
+    return ax.plot(x, p, **kwargs)
+
+
+def profile_p_log(p, x, ax=None, **kwargs):
+    """Plot atmospheric profile against pressure in log space.
+
+    This function is a wrapper for :func:`~typhon.plots.profile_p`:
+    The input values as well as additional keyword arguments are passed through
+    and the yscale is set to "log".
+
+    Parameters:
+        p (ndarray): Pressure [Pa].
+        x (ndarray): Atmospheric property.
+        ax (AxesSubplot): Axes to plot in.
+        **kwargs: Additional keyword arguments passed to `plt.plot`.
+
+    See also:
+            :func:`~typhon.plots.profile_p`
+                Plot profile against pressure in linear space.
+            :func:`~typhon.plots.profile_z`
+                Plot profile against height.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon.plots
+
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 500)
+        x = np.sin(np.log(p / 25e2))
+
+        fig, ax = plt.subplots()
+        typhon.plots.profile_p_log(p, x, ax=ax)
+
+        plt.show()
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    ax.set_yscale('log')
+    return profile_p(p, x, ax=ax, **kwargs)
+
+
+def profile_z(z, x, ax=None, **kwargs):
+    """Plot atmospheric profile of arbitrary property against height (in km).
+
+    Parameters:
+        z (ndarray): Height [m].
+        x (ndarray): Atmospheric property.
+        ax (AxesSubplot): Axes to plot in.
+        **kwargs: Additional keyword arguments passed to `plt.plot`.
+
+    See also:
+            :func:`~typhon.plots.profile_p`
+                Plot profile against pressure in linear space.
+            :func:`~typhon.plots.profile_p_log`
+                Plot profile against pressure in log space.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon.plots
+
+        z = np.linspace(0, 80e3, 500)
+        x = np.sin(z / 5e3)
+
+        fig, ax = plt.subplots()
+        typhon.plots.profile_z(z, x, ax=ax)
+
+        plt.show()
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    z_scaled = z / 1e3  # Scale m to km
+
+    # Determine min/max pressure of data in plot. The current axis limits are
+    # also taken into account. This ensures complete data coverage when using
+    # the function iteratively on the same axis.
+    zmin = np.min((np.min(z_scaled), *ax.get_ylim()))
+    zmax = np.max((np.max(z_scaled), *ax.get_ylim()))
+    ax.set_ylim(zmin, zmax)
+
+    # Label and format for yaxis.
+    if ax.is_first_col():
+        ax.set_ylabel('Height [km]')
+
+    # Actual plot.
+    return ax.plot(x, z_scaled, **kwargs)

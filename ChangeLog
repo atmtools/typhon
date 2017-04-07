@@ -1,3 +1,17 @@
+2017-04-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/plots.py:
+
+	* (profile_p, profile_p_log, profile_z):
+
+	Added functions for basic atomspheric profile plots.
+
+	* (fmt_hectopascal):
+
+	Formatter to create pretty hectopascal labels for profile plots.
+
+	* doc/typhon.plots.rst: Added new functions to documentation.
+
 2017-04-06  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):
