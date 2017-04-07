@@ -19,6 +19,7 @@ import scipy.sparse
 import scipy.interpolate as _ip
 from scipy.special import wofz as _Faddeeva_
 from fractions import Fraction as _R
+from numpy.polynomial import Polynomial as _P
 
 __all__ = ['ArrayOfLineRecord',
            'ARTSCAT5',
@@ -56,7 +57,7 @@ class ArrayOfLineRecord:
         """Returns manipulable ARTSCAT5 class of this linerecord array
         """
         assert self.version == 'ARTSCAT-5', "Only for ARTSCAT-5 data"
-        return ARTSCAT5(linerecord_array=self)
+        return ARTSCAT5(self)
 
     @property
     def version(self):
@@ -253,7 +254,7 @@ class ARTSCAT5:
         """
         assert array_of_linerecord.version == 'ARTSCAT-5', "Only for ARTSCAT-5"
         for l in array_of_linerecord:
-            self._append_linestr(l)
+            self._append_linestr_(l)
 
     def _append_ARTSCAT5_(self, artscat5, sort=True):
         """Appends all the lines of another artscat5 to this
@@ -1100,6 +1101,93 @@ class SpeciesAuxData:
                 for element in sub_list:
                     xmlwriter.write_xml(element)
             xmlwriter.close_tag()
+
+    def as_partition_functions(self):
+        return partition_functions(self)
+
+
+class partition_functions:
+    """Class to compute partition functions given ARTS-like partition functions
+    """
+    _default_test = 296.0
+
+    def __init__(self, init_data=None):
+        self._data = {}
+        self.append(init_data)
+        self._assert_sanity_()
+
+    def append(self, data):
+        if type(data) is SpeciesAuxData:
+            self._from_species_aux_data_(data)
+        elif type(data) is dict:
+            self._from_dict_(data)
+        elif type(data) is list:
+            self._from_list_(data)
+        elif type(data) is partition_functions:
+            self.data = partition_functions.data
+        elif data is not None:
+            assert False, "Cannot recognize the initialization data type"
+
+    def _from_species_aux_data_(self, sad):
+        assert sad.version == 2, "Must be version 2 data"
+        self._from_dict_(sad._data_dict)
+
+    def _from_dict_(self, d):
+        for k in d:
+            assert type(d[k]) is list, "lowest level data must be list"
+            self._from_list_(d[k], k)
+
+    def _from_list_(self, l, k):
+        if l[0] == 'PART_TFIELD':
+            self.data[k] = _ip.interp1d(l[1][0].grids[0], l[1][0].data)
+        elif l[0] == 'PART_COEFF':
+            self.data[k] = _P(l[1][0].data)
+        else:
+            raise RuntimeError("Unknown or not implemented " +
+                               "partition_functions type encountered")
+
+    def _assert_sanity_(self):
+        assert type(self.data) is dict, "Sanity check fail, calss is wrong"
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, data):
+        if type(data) is list:
+            self._from_list_(data, key)
+        elif type(data) in [_P, _ip.interp1d]:
+            self.data[key] = data
+        else:
+            try:
+                data(self._default_test)
+                self.data[key] = data
+            except:
+                raise RuntimeError("Cannot determine type")
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __repr__(self):
+        return "partition functions for " + str(len(self)) + " species"
+
+    def keys(self):
+        return self.data.keys()
+    species = keys
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, val):
+        assert type(val) is dict, "new values must be dictionary type"
+        self._data = val
 
 
 class GasAbsLookup:

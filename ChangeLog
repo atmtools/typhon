@@ -1,3 +1,16 @@
+2017-04-07  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/arts/catalogues.py:  Fixed an error I introduced in last
+	entry.  Also added a partition_functions class to compute 
+	partition sums the same way as in ARTS using the cross_section method
+	of ARTSCAT5.  Can be initialized directly from SpeciesAuxData 
+	(load arts-xml-data tips.xml).  Fun pass time: load some
+	ARTSCAT5 lines from arts-xml-data (the Perrin-folder),
+	also load the tips.xml file, and then run the cross-section
+	calculations for a few temperatures, plotting the results, 
+	to clearly see the distribution of line strengths shift from
+	low to high frequencies as temperature increases
+
 2017-04-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py:
