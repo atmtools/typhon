@@ -345,23 +345,27 @@ class SRF(FwmuMixin):
 
         warnings.warn("Obtaining band coefficients from file", UserWarning)
         srcfile = config.conf[instr]["band_file"].format(sat=sat)
-        M = numpy.genfromtxt(srcfile, usecols=[1, 2, 3]).reshape(19, 5, 3)
-        dims = ("channel", "shift")
+        rxp = r"(.{6})_ch(\d\d?)_shift([+-]\d+)pm\.nc\s+([\d.]+)\s+(-?[\d.]+)\s+([\d.]+)"
+        dtp = [("satname", "S6"), ("channel", "u1"), ("shift", "i2"),
+               ("centre", "f4"), ("alpha", "f4"), ("beta", "f4")]
+        M = numpy.fromregex(srcfile, rxp, dtp).reshape(19, 7)
+        dims = ("channel", "shiftno")
         ds = xarray.Dataset(
-            {"center": (dims, M[..., 0]),
-             "alpha": (dims, M[..., 1]),
-             "beta": (dims, M[..., 2])},
-            coords = {"channel": numpy.roll(numpy.arange(1, 20), 10),
-                      "shift": [0, -10, 10, -20, 20]})
+            {"centre": (dims, M["centre"]),
+             "alpha": (dims, M["alpha"]),
+             "beta": (dims, M["beta"]),
+             "shift": (dims, M["shift"])},
+            coords = {"channel": M["channel"][:, 0]})
+
         ds = ds.sel(channel=ch)
 
-        ds0 = ds.sel(shift=0)
-        lambda_c = UADA(ds0["center"], attrs={"units": "1/cm"})
+        ds0 = ds.sel(shiftno=0) # varies 1.1 – 15.2 nm depending on channel
+        lambda_c = UADA(ds0["centre"], attrs={"units": "1/cm"})
         alpha = UADA(ds0["alpha"], attrs={"units": "K"})
         beta = UADA(ds0["beta"], attrs={"units": "1"})
 
-        delta_ds = ds.sel(shift=10) - ds0 # that's 10 nm
-        delta_lambda_c = abs(UADA(delta_ds["center"], attrs={"units": "1/cm"}))
+        delta_ds = ds.sel(shiftno=1) - ds0
+        delta_lambda_c = abs(UADA(delta_ds["centre"], attrs={"units": "1/cm"}))
         delta_alpha = abs(UADA(delta_ds["alpha"], attrs={"units": "K"}))
         delta_beta = abs(UADA(delta_ds["beta"], attrs={"units": "1"}))
 

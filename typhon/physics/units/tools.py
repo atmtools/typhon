@@ -109,6 +109,19 @@ tp_all = ["add", "sub", "mul", "matmul", "truediv", "floordiv", "mod",
 for tp in tp_all + ["r"+x for x in tp_all]:
     meth = "__{:s}__".format(tp)
     def func(self, other, meth=meth, tp=tp):
+        rat = (ureg.Quantity(1, getattr(self, "units", "1")) /
+               ureg.Quantity(1, getattr(other, "units", "1")))
+        if (rat.u.dimensionless and rat.m != 1
+#        if (ureg.Quantity(1, getattr(self, "units", "1")) /
+#            ureg.Quantity(1, getattr(other, "units", "1")))
+#        if (ureg.Quantity(1, getattr(self, "units", "1")).to_root_units()
+#            == ureg.Quantity(1, getattr(other, "units", "1")).to_root_units()
+#            and ureg.Quantity(1, self.units).m != ureg.Quantity(1, self.units).to("1").m
+#            and ureg.Quantity(1, self.units).m != ureg.Quantity(1, self.units).to("1").m
+#            and getattr(self, "units", "1") != getattr(other, "units", "1")
+            and meth[2:-2] not in ("mul", "rmul", "floordiv", "truediv")):
+            raise NotImplementedError("Do not add arrays with same units "
+                "but different prefixes, currently buggy, see #150.")
         x = getattr(super(UnitsAwareDataArray, self), meth)(other)
         if tp.startswith("r"):
             return self._apply_rbinary_op_to_units(getattr(operator, tp[1:]), other, x)

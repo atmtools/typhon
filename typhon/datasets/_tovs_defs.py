@@ -434,13 +434,22 @@ _temp_coding = _coding.copy()
 _temp_coding.update({
     "_FillValue": numpy.iinfo("u2").max,
     "scale_factor": 0.01,
+    "least_significant_digit": 2,
     "dtype": "u2"})
 
 _ang_coding = _coding.copy()
 _ang_coding.update({
     "_FillValue": numpy.iinfo("i2").min,
     "scale_factor": 0.01,
+    "least_significant_digit": 2,
     "dtype": "i2"})
+    
+_latlon_coding = _ang_coding.copy()
+_latlon_coding.update({
+    "_FillValue": numpy.iinfo("i4").min,
+    "scale_factor": 1e-7,
+    "least_significant_digit": 3,
+    "dtype": "i4"})
 
 _count_coding = _coding.copy()
 _count_coding.update({
@@ -468,6 +477,13 @@ _u4_coding.update({
 
 _alt_coding = _u1_coding.copy()
 _alt_coding["offset"] = 700
+
+_cal_coding = _coding.copy()
+_cal_coding.update({
+    "calendar": "proleptic_gregorian",
+    "_FillValue": numpy.iinfo("i4").min,
+    "dtype": "i4"})
+
 
 HIRS_data_vars_props[3] = dict(
     hrs_scnlin = (
@@ -526,7 +542,7 @@ HIRS_data_vars_props[3] = dict(
         ("time",),
         {"long_name": "Quality indicator bit field", # FIMXE: flag_meanings
          "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4")},
-         _u2_coding),
+         _u4_coding),
     hrs_linqualflgs = (
         "line_quality_flags",
         ("time",),
@@ -534,7 +550,7 @@ HIRS_data_vars_props[3] = dict(
          "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
                                        15, 20, 21, 22, 23],
                                        dtype="u4")},
-       _u2_coding),
+       _u4_coding),
     hrs_chqualflg = (
         "channel_quality_flags",
         ("time", "channel"),
@@ -648,22 +664,25 @@ HIRS_data_vars_props[3] = dict(
         {"long_name": "Brightness temperature, NOAA/EUMETSAT calibrated",
          "units": "K"},
          _temp_coding),
-#        time = (
-#            "time",
-#            ("time",),
-#            {}), # FIXME: on writing?
-#        lat = (
-#            "Latitude",
-#            ("time", "scanpos"),
-#            {"long_name": "Latitude",
-#             "units": "degrees_north",
-#             "valid_range": [-90, 90]}),
-#        lon = (
-#            "Longitude",
-#            ("time", "scanpos"),
-#            {"long_name": "Longitude",
-#             "units": "degrees_east",
-#             "valid_range": [-180, 180]}),
+    time = (
+        "time",
+        ("time",),
+        {"long_name": "time"}, # rest on writing
+        _cal_coding),
+    lat = (
+        "Latitude",
+        ("time", "scanpos"),
+        {"long_name": "Latitude",
+         "units": "degrees_north",
+         "valid_range": [-90, 90]},
+        _latlon_coding),
+    lon = (
+        "Longitude",
+        ("time", "scanpos"),
+        {"long_name": "Longitude",
+         "units": "degrees_east",
+         "valid_range": [-180, 180]},
+        _latlon_coding),
     calcof_sorted = (
         "original_calibration_coefficients_sorted",
         ("time", "channel", "n_calcof"),
@@ -796,7 +815,7 @@ HIRS_data_vars_props[3] = dict(
         ("time", "scanpos"),
         {"long_name": "solar zenith angle",
          "units": "degrees"},
-         _ang_coding),
+        _ang_coding),
     sat_za = (
         "platform_zenith_angle",
         ("time", "scanpos"),

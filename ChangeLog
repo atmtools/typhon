@@ -1,3 +1,16 @@
+2017-04-11  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py: Add least_siginficant_digit hint, fix
+	calendar coding
+
+	* typhon/datasets/dataset.py: Reading period of xarray now works!
+
+	* typhon/datasets/tovs.py: Some bugfixes
+
+	* typhon/physics/units/em.py: Bugfixes
+
+	* typhon/physics/units/tools.py: Bugfixes
+	
 2017-04-07  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/arts/catalogues.py:  Fixed an error I introduced in last

@@ -1055,13 +1055,13 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 for (k, v) in coords.items() if k not in skip_dimensions}
 
         ds = xarray.Dataset(
-            data_vars,
+            {k:v for (k,v) in data_vars.items() if not k in coords.keys()},
             coords,
             {"title": "HIRS L1C"})
 
         for v in p.keys() & set(M.dtype.names):
             ds[p[v][0]].encoding = p[v][3]
-            if "bit" not in p[v][0]:
+            if "bit" not in p[v][0] and ds[p[v][0]].dtype.kind not in "Mm":
                 ds[p[v][0]].values[M[v].mask] = numpy.nan #(
 #                numpy.nan if M[v].dtype.kind.startswith('f')
 #                else p[v][3]["_FillValue"])

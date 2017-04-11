@@ -339,7 +339,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             end = start + end
 
         finder = self.find_granules_sorted if sorted else self.find_granules
-        logging.info("Reading {self.satname:s} {self.name:s} for period {start:%Y-%m-%d %H:%M:%S} "
+        logging.info("Reading {self.satname:s} {self.name:s} "
+                     "for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
         dobar = sorted and progressbar and sys.stdout.isatty()
@@ -368,14 +369,14 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     arr is not None and
                     cont["time"].size > 0 and
                     N>0 and
-                    (cont["time"][0] <= arr["time"][N-1])):
+                    (cont["time"][0] <= latest)):
                     raise InvalidDataError(
                         "Reading routine for {!s} returned data starting "
                         "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
                         "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
-                        "As data are supposed to be sorted in time, this probably "
-                        "means duplicate removal is not working as it "
-                        "should. ".format(gran,
+                        "As data are supposed to be sorted in time, this "
+                        "probably means duplicate removal is not working "
+                        "as it should. ".format(gran,
                             cont["time"][0].astype(datetime.datetime),
                             arr["time"][N-1].astype(datetime.datetime)))
                 cont = self._apply_limits_and_filters(cont, limits, filters)
@@ -387,8 +388,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else:
                     raise
             else:
-                (arr, N) = self._add_gran_to_data(arr, cont, N, start,
-                                end, g_start)
+                (arr, N, latest) = self._add_gran_to_data(arr, cont, N, start,
+                                     end, g_start)
 #                contents.append(
 #                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
                 if N > 0:
@@ -399,7 +400,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             bar.update(1)
             bar.finish()
         if anygood:
-            arr = self._correct_overallocation(arr, N)
+            arr = self._finalise_arr(arr, N)
 
             if "flags" in self.related:
                 arr = self.flag(arr)
@@ -426,38 +427,42 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         return cont
 
     def _add_gran_to_data(self, arr, cont, N, start, end, g_start):
+        # first ensure we only add the segment we actually want
         if isinstance(cont, xarray.Dataset):
             tm = cont["time"].values.astype("M8[ms]")
-#            inrange = (tm<=end) & (tm>=start)
-#            rng = {}
-            cont = cont.loc[dict.fromkeys(utils.get_time_coordinates(cont),
+            cont = cont.loc[dict.fromkeys(
+                utils.get_time_coordinates(cont)&cont.dims.keys(),
                 slice(start, end))]
         else:
             cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
-        if arr is None:
-            arr = cont
-            N = cont["time"].size
+        if isinstance(cont, xarray.Dataset):
+            if arr is None:
+                arr = [cont]
+                N = cont["time"].size
+            else:
+                arr.append(cont)
+                N += cont["time"].size
+            latest = arr[-1]["time"][-1]
         else:
-#            if isinstance(cont, xarray.Dataset):
-#                # FIXME: need to implement this more efficiently
-#                warnings.warn("Using slow concatenation as faster "
-#                    "is not yet implemented for Dataset", UserWarning)
-#                arr = utils.concat_each_time_coordinate(arr, cont)
-#            else:
-            if (N+cont["time"].size) > arr["time"].size: # need to allocate more
-                frac_done = max((g_start-start) / (end-start),0)
-                # suppose all future files have on average the
-                # same size?  Until we have reached 10%, simply
-                # double every time.  After that, extrapolate more
-                # cleverly. 
-                newsize = (int((N+cont["time"].size)//frac_done)
-                            if frac_done > 0.1
-                            else (N+cont["time"].size) * 2)
-                arr = self._ensure_large_enough(arr, cont, N, newsize,
-                    frac_done)
-            self._add_cont_to_arr(arr, N, cont)
-            N += cont["time"].size
-        return arr, N
+            if arr is None:
+                arr = cont
+                N = cont.size
+            else:
+                if (N+cont.size) > arr.size: # need to allocate more
+                    frac_done = max((g_start-start) / (end-start),0)
+                    # suppose all future files have on average the
+                    # same size?  Until we have reached 10%, simply
+                    # double every time.  After that, extrapolate more
+                    # cleverly. 
+                    newsize = (int((N+cont["time"].size)//frac_done)
+                                if frac_done > 0.1
+                                else (N+cont["time"].size) * 2)
+                    arr = self._ensure_large_enough(arr, cont, N, newsize,
+                        frac_done)
+                self._add_cont_to_arr(arr, N, cont)
+                N += cont["time"].size
+            latest = arr["time"][N-1]
+        return arr, N, latest
 
     def _ensure_large_enough(self, arr, cont, N, newsize, frac_done):
         """Allocate new space while adding gran to data
@@ -466,79 +471,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         helpers.  Does NOT add cont to arr!"""
         
         if isinstance(cont, xarray.Dataset):
-            # we don't really have an 'itemsize' but we can still
-            # approximate the average size per time-coordinate, by
-            # considering how much larger we become if we add 1000
-            # elements the time dimension, i.e. the marginal increase in
-            # size, on average, per time, which is:
-            #   - 0 for anything without a time dimension
-            #   - size of non-time dimensions for any data var with a time
-            #     dimension
-            time_dim_names = [d for d in cont.dims if
-                cont.coords[d].dtype.kind == "M"]
-            # construct mapping where all data vars with time dimension,
-            # we say which dimension is the time dimension
-            time_dim_vars = {varname: (set(time_dim_names)&set(da.dims))
-                for (varname, da) in cont.data_vars.items()}
-            time_dim_vars = {k: v.pop() for (k, v) in
-                time_dim_vars.items() if len(v)>0}
-
-            # for each addition of the 'time' dimension, how much does
-            # each variable increase?
-            time_dim_vars_marginal_relsize = {dn:
-                da.coords[time_dim_vars[dn]].size/cont["time"].size
-                    for (dn, da) in cont.data_vars.items()
-                    if dn in time_dim_vars.keys()}
-            marginal_itemsize = numpy.sum(
-                [(
-                (da.coords[time_dim_vars[dn]].size *
-                 da.dtype.itemsize *
-                 time_dim_vars_marginal_relsize[dn])
-                    if dn in time_dim_vars.keys()
-                    else 0)
-                for (dn, da) in cont.data_vars.items()])
-
-            if newsize * marginal_itemsize > self.maxsize:
-                raise MemoryError("Bla bla bla")
-        
-            # when filling with zeroes, I cannot assign meaningful
-            # coordinates yet, # that will need to be do upon putting
-            # actual content
-            arr_new = xarray.Dataset(
-                {dn: (da.dims,
-                     numpy.zeros([(math.ceil(time_dim_vars_marginal_relsize[dn]*newsize)
-                                   if da.coords[d].dtype.kind=="M"
-                                   else s)
-                                        for (s, d) in zip(da.shape,da.dims)],
-                                dtype=da.dtype))
-                     for (dn, da) in cont.data_vars.items()})
-            # instead I put zeroes
-            arr_new = arr_new.assign_coords(
-                **{cn: (arr.coords[cn].dims,
-                        numpy.zeros(dtype=cv.dtype,
-                                    shape=[arr_new.dims[d]
-                                           for d in arr.coords[cn].dims]))
-                        for (cn, cv) in arr.coords.items()})
-            
-            # copy over from arr into arr_new
-            new_coords = {}
-            for cn in cont.coords.keys():
-                # FIXME: how about multi-dimensional coords?
-                if cn in time_dim_names:
-                    new_coords[cn] = numpy.concatenate(
-                        (arr.coords[cn],
-                         arr_new[cn][:(arr_new[cn].size-arr[cn].size)]))
-                else:
-                    new_coords[cn] = arr.coords[cn]
-            arr_new.assign_coords(**new_coords)
-            for dn in cont.data_vars.keys():
-                if dn in time_dim_vars.keys():
-                    tdv = time_dim_vars[dn]
-                    selec = {tdv: slice(0, arr.dims[tdv])}
-                    arr_new[dn][selec] = arr[dn][selec]
-                else:
-                    arr_new[dn] = arr[dn]
-            return arr_new
+            raise NotImplementedError("Not used for xarray datasets. "
+                "But see version history at "
+                "https://arts.mi.uni-hamburg.de/trac/rt/browser/typhon/trunk/typhon/datasets/dataset.py?rev=10396#L462 "
+                "if there is a wish to reimplemented!")
         else:
             if newsize * arr.itemsize > self.maxsize:
                 raise MemoryError("This dataset is too large "
@@ -575,15 +511,24 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             # (which is approximate anyway), when actually storing we need
             # to do a better job… for each time coordinate, check when it
             # “dies”
-            raise NotImplementedError("Wat nu groene koe?")
+            raise NotImplementedError("This is not used for xarrays. "
+                "But see comment in source-code for some thoughts.")
         else:
             arr[N:(N+cont.size)] = cont
+            #arr = self._finalise_arr(arr, N)
+
+    def _finalise_arr(self, arr, N):
+        if isinstance(arr, list):
+            logging.debug("Concatenating {N:d} DataArrays...".format(N=N))
+            return utils.concat_each_time_coordinate(*arr)
+            logging.debug("Done!")
+        else:
+            return self._correct_overallocation(arr, N)
 
     @staticmethod
     def _correct_overallocation(arr, N):
         if isinstance(arr, xarray.Dataset):
-            # no need (yet), no pre-allocation
-            return arr
+            raise RuntimeError("We shouldn't be here.  Ever.")
         logging.debug("Correcting overallocation ({:d}->{:d})".format(
             arr.size, N))
         return arr[:N]
