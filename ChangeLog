@@ -1,3 +1,8 @@
+2017-04-12  Oliver Lemke  <olemke@core-dump.info>
+
+	* Dummy commit to test build trigger to automatically run test suite on
+	typhon commits.
+
 2017-04-12  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py (print_timing):
