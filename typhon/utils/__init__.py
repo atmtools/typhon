@@ -4,6 +4,7 @@
 """
 
 import ast
+import contextlib
 import itertools
 import operator
 import os
@@ -23,7 +24,6 @@ __all__ = [
     "metaclass",
     "extract_block_diag",
     "Timer",
-    "print_timing",
     "path_append",
     "path_prepend",
     "path_remove",
@@ -52,7 +52,7 @@ def extract_block_diag(M, n):
     return [np.split(m, n, axis=1)[i] for i, m in enumerate(np.split(M, n))]
 
 
-class Timer(object):
+class Timer(contextlib.ContextDecorator):
     """Provide a simple time profiling utility.
 
     Timer class adapted from blog entry [0].
@@ -63,19 +63,28 @@ class Timer(object):
         verbose: Print results after stopping the timer.
 
     Examples:
-        Timer in with block:
+        Timer in with statement:
 
         >>> import time
         >>> with Timer():
         ...     time.sleep(1)
         elapsed time: 1.001s
 
-        Timer object:
+        Timer as object:
 
         >>> import time
         >>> t = Timer().start()
         >>> time.sleep(1)
         >>> t.stop()
+        elapsed time: 1.001s
+
+        As function decorator:
+
+        >>> @Timer()
+        ... def own_function(s):
+        ...     import time
+        ...     time.sleep(s)
+        >>> own_function(1)
         elapsed time: 1.001s
 
     """
@@ -102,27 +111,6 @@ class Timer(object):
         if self.verbose:
             print('elapsed time: {:d}m{:.3f}s'.format(
                 int(self.secs // 60), self.secs % 60))
-
-
-def print_timing(func):
-    """Decorator to measure time of a function call.
-
-    Examples:
-        >>> @print_timing
-        ... def own_function(s):
-        ...     import time
-        ...     time.sleep(s)
-        >>> own_function(1)
-        elapsed time: 1.001s
-    """
-    @wraps(func)
-    def func_wrapper(*args, **kwargs):
-        t = Timer().start()
-        res = func(*args, **kwargs)
-        t.stop()
-        return res
-
-    return func_wrapper
 
 
 # Next part from http://stackoverflow.com/a/9558001/974555
