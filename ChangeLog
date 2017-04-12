@@ -1,5 +1,11 @@
 2017-04-12  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/atmosphere.py (relative_humidity):
+
+	Intentional temporary breakage to test hudson failure mail.
+
+2017-04-12  Oliver Lemke  <olemke@core-dump.info>
+
 	* Dummy commit to test build trigger to automatically run test suite on
 	typhon commits.
 
