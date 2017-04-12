@@ -1,5 +1,9 @@
 2017-04-12  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/atmosphere.py (relative_humidity): Test successful.
+
+2017-04-12  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/atmosphere.py (relative_humidity):
 
 	Intentional temporary breakage to test hudson failure mail.

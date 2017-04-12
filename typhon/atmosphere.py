@@ -56,7 +56,7 @@ def relative_humidity(vmr, p, T):
         >>> relative_humidity(0.025, 1013e2, 300)
         0.71604995533615401
     """
-    return 2*vmr * p / thermodynamics.e_eq_water_mk(T)
+    return vmr * p / thermodynamics.e_eq_water_mk(T)
 
 
 def vmr(RH, p, T):
