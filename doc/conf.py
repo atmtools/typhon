@@ -305,8 +305,9 @@ autosummary_generate = True
 
 # -- Intersphinx configuration -------------------------------------------
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.5', None),
+    'python': ('https://docs.python.org/3.6', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy', None),
     'matplotlib': ('http://matplotlib.org', None)
 }
 

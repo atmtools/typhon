@@ -16,21 +16,30 @@ __all__ = [
 ]
 
 
-def integrate_column(x, z=None, axis=0):
+def integrate_column(y, x=None, axis=0):
     """Integrate array along an arbitrary axis.
 
     Note:
-        This function is just a wrapper for ``np.trapz``.
+        This function is just a wrapper for :func:`numpy.trapz`.
 
     Parameters:
-        x (ndarray): Data array.
-        z (ndarray): Height levels.
+        y (ndarray): Data array.
+        x (ndarray): Coordinate array.
         axis (int): Axis to integrate along for multidimensional input.
 
     Returns:
         float or ndarray: Column integral.
+
+    Examples:
+        >>> import numpy as np
+        >>> x = np.linspace(0, 1, 5)
+        >>> y = np.arange(5)
+        >>> integrate_column(y)
+        8.0
+        >>> integrate_column(y, x)
+        2.0
     """
-    return np.trapz(x, z, axis=axis)
+    return np.trapz(y, x, axis=axis)
 
 
 def interpolate_halflevels(x, axis=0):

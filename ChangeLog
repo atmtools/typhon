@@ -1,5 +1,16 @@
 2017-04-13  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* doc/conf.py: Added numpy yo list of interpshinx packages.
+
+	Intersphinx now links to the Python 3.6 documentation.
+
+	* typhon/math/common.py (integrate_column):
+
+	Improved documentation of input parameters. Added an example to
+	the docstring.
+
+2017-04-13  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/math/common.py:
 
 	* (integrate_column): Use `np.trapz` for integration.
