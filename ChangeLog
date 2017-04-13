@@ -1,3 +1,26 @@
+2017-04-13  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/math/common.py:
+
+	* (integrate_column): Use `np.trapz` for integration.
+
+	This allows more flexible usage of the function (e.g.
+	multidimensional input).
+
+	* (interpolate_halflayers):
+
+	Function to return linear interpolated values for halflayers.
+
+	* typhon/atmosphere.py (iwv): Support multidimensional input.
+
+	* typhon/tests/test_atmosphere.py:
+
+	Added a test for mutlidimensional input to `atmosphere.iwv()`.
+
+	* doc/typhon.math.rst: Added `interpolate_halfleves`.
+
+	* doc/typhon.utils.rst: Removed `print_timing`.
+
 2017-04-12  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/atmosphere.py (relative_humidity): Test successful.

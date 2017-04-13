@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-def iwv(vmr, p, T, z):
+def iwv(vmr, p, T, z, axis=0):
     """Calculate the integrated water vapor (IWV).
 
     Parameters:
@@ -22,14 +22,15 @@ def iwv(vmr, p, T, z):
         p (float or ndarray): Pressue [Pa].
         T (float or ndarray): Temperature [K].
         z (ndarray): Height [m]. Size must match vmr.
+        axis (int): Axis to intergrate along.
 
     Returns:
         float: Integrated water vapor [kg/m**2].
     """
     R_v = constants.gas_constant_water_vapor
-    rho = thermodynamics.density(p, T, R=R_v)
+    rho = thermodynamics.density(p, T, R=R_v)  # Water vapor density.
 
-    return math.integrate_column(vmr * rho, z)
+    return math.integrate_column(vmr * rho, z, axis=axis)
 
 
 def relative_humidity(vmr, p, T):

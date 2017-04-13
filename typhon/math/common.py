@@ -8,28 +8,47 @@ import functools
 
 __all__ = [
     'integrate_column',
+    'interpolate_halflevels',
     'sum_digits',
     'nlogspace',
-    "promote_maximally",
-    "calculate_precisely"
+    'promote_maximally',
+    'calculate_precisely'
 ]
 
 
-def integrate_column(y, z, axis=None):
-    """Calculate the column integral of given data.
+def integrate_column(x, z=None, axis=0):
+    """Integrate array along an arbitrary axis.
+
+    Note:
+        This function is just a wrapper for ``np.trapz``.
 
     Parameters:
-        y (np.array): Data array.
-        z (np.array): Height levels.
+        x (ndarray): Data array.
+        z (ndarray): Height levels.
+        axis (int): Axis to integrate along for multidimensional input.
 
     Returns:
-        float: Column integral.
-
+        float or ndarray: Column integral.
     """
-    # TODO: Find a clean way to handle multidimensional input.
-    y_level = (y[1:] + y[:-1]) / 2
+    return np.trapz(x, z, axis=axis)
 
-    return np.nansum(y_level * np.diff(z), axis=axis)
+
+def interpolate_halflevels(x, axis=0):
+    """Returns the linear inteprolated halflevels for given array.
+
+    Parameters:
+        x (ndarray): Data array.
+        axis (int): Axis to interpolate along.
+
+    Returns:
+        ndarray: Values at halflevels.
+
+    Examples:
+        >>> interpolate_halflevels([0, 1, 2, 4])
+        array([ 0.5,  1.5,  3. ])
+    """
+    return (np.take(x, range(1, np.shape(x)[axis]), axis=axis) +
+            np.take(x, range(0, np.shape(x)[axis] - 1), axis=axis)) / 2
 
 
 def sum_digits(n):
@@ -71,6 +90,7 @@ def nlogspace(start, stop, num=50):
     """
     return np.exp(np.linspace(np.log(start), np.log(stop), num))
 
+
 def promote_maximally(x):
     """Return copy of x with high precision dtype.
 
@@ -92,18 +112,19 @@ def promote_maximally(x):
     try:
         q = x.m
         u = x.u
-    except AttributeError: # not a pint quantity
+    except AttributeError:  # not a pint quantity
         q = x
         u = None
     try:
         kind = q.dtype.kind
-    except AttributeError: # not from numpy
+    except AttributeError:  # not from numpy
         return q
     if kind in "fiu":
         newx = q.astype(kind + "8")
         return newx*u if u else newx
     else:
         return x
+
 
 def calculate_precisely(f):
     """Raise all arguments to their highest numpy precision.

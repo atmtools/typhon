@@ -10,6 +10,7 @@ math
 
    calculate_precisely
    integrate_column
+   interpolate_halflevels
    nlogspace
    promote_maximally
    sum_digits

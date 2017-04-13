@@ -21,6 +21,17 @@ class TestAtmosphere(object):
 
         assert np.allclose(iwv, 27.3551036)
 
+    def test_iwv_multi(self):
+        """Test multidimensional IWV calculation."""
+        p = np.linspace(1000, 10, 10)
+        T = 300 * np.ones(p.shape)
+        z = np.linspace(0, 75000, 10)
+        vmr = 0.1 * np.ones((5, *p.shape))
+
+        iwv = atmosphere.iwv(vmr, p, T, z, axis=1)
+
+        assert np.allclose(iwv, np.repeat(27.3551036, 5))
+
     def test_relative_humidity(self):
         """Test the relative humidity calculation."""
         rh = atmosphere.relative_humidity(0.025, 1013e2, 300)
