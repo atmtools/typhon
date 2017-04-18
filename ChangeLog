@@ -1,3 +1,9 @@
+2017-04-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/math/tests, typhon/math/tests/test_math.py:
+
+	Added tests for most common math functions.
+
 2017-04-18  Richard Larsson  <ric.larsson@gmail.com>
 
 	* typhon/arts/internals.py: Added and moved internal classes over
