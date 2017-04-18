@@ -1,3 +1,16 @@
+2017-04-18  Richard Larsson  <ric.larsson@gmail.com>
+
+	* typhon/arts/internals.py: Added and moved internal classes over
+	
+	* typhon/arts/utils.py: Moved as_quantumnumbers here
+	
+	* typhon/arts/catalogues.py: Removed ARTSCAT5, PartitionFunctions,
+	LineMixing, PressureBroadening, Rational and all imports not related
+	to these
+	
+	* {typhon/arts/types.py,doc/typhon.arts.rst}: mimics catalogues for 
+	internals.py classes
+
 2017-04-13  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/conf.py: Added numpy yo list of interpshinx packages.

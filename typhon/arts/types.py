@@ -25,6 +25,12 @@ from .catalogues import (ArrayOfLineRecord,
                          SpeciesAuxData,
                          SpeciesTag,
                          )
+from .internals import (ARTSCAT5,
+                        Rational,
+                        PressureBroadening,
+                        LineMixing,
+                        PartitionFunctions,
+                        )
 
 __all__ = []
 
@@ -49,4 +55,9 @@ classes = {
     'Sparse': Sparse,
     'SpeciesAuxData': SpeciesAuxData,
     'SpeciesTag': SpeciesTag,
+    'ARTSCAT5': ARTSCAT5,
+    'Rational': Rational,
+    'PressureBroadening': PressureBroadening,
+    'LineMixing': LineMixing,
+    'PartitionFunctions': PartitionFunctions,
 }

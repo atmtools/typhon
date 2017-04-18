@@ -23,7 +23,6 @@ arts.catalogues
    :toctree: generated
 
    ArrayOfLineRecord
-   ARTSCAT5
    CIARecord
    GasAbsLookup
    LineMixingRecord
@@ -51,6 +50,22 @@ arts.griddedfield
    GriddedField4
    GriddedField5
    GriddedField6
+   
+arts.internals
+===============
+
+.. automodule:: typhon.arts.internals
+
+.. currentmodule:: typhon.arts.internals
+
+.. autosummary::
+   :toctree: generated
+   
+   LineMixing
+   ARTSCAT5
+   Rational
+   PartitionFunctions
+   PressureBroadening
 
 arts.retrieval
 ==============
