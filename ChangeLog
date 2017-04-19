@@ -1,3 +1,22 @@
+2017-04-19  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+	
+	(Dataset.add_gran_to_data):
+
+	- Always load contents
+	- Fix bug when too many files are empty
+
+	(NetCDFDataset._read):
+
+	- When returning xarray dataset, subselect fields as required.
+	Pseudo-fields still not supported.
+
+	(HomemadeDataset._read):
+
+	- Make sure we delegate the .read(...) method fields argument.
+
+
 2017-04-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/math/tests, typhon/math/tests/test_math.py:

@@ -436,13 +436,23 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         else:
             cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
         if isinstance(cont, xarray.Dataset):
+            # xarray reads lazily, but we want to merge all granules into
+            # a single object at the end, so have to load it into memory
+            # anyway; rather do it now than all at once later, so that we
+            # can keep track of how fast things are going
+            cont.load()
             if arr is None:
                 arr = [cont]
                 N = cont["time"].size
             else:
                 arr.append(cont)
                 N += cont["time"].size
-            latest = arr[-1]["time"][-1]
+            for i in range(len(arr)):
+                if arr[-i]["time"].size > 0:
+                    latest = arr[-1]["time"][-1]
+                    break
+            else:
+                latest = numpy.datetime64(0, "ms")
         else:
             if arr is None:
                 arr = cont
@@ -461,7 +471,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         frac_done)
                 self._add_cont_to_arr(arr, N, cont)
                 N += cont["time"].size
-            latest = arr["time"][N-1]
+            if arr["time"].size > 0:
+                latest = arr["time"][N-1]
+            else:
+                latest = numpy.datetime64(0, "ms")
         return arr, N, latest
 
     def _ensure_large_enough(self, arr, cont, N, newsize, frac_done):
@@ -1502,11 +1515,12 @@ class NetCDFDataset:
         if self.read_returns == "ndarray":
             return self._read_ndarray(f, fields, pseudo_fields, prim)
         elif self.read_returns == "xarray":
+            ds = xarray.open_dataset(f)
             if fields != "all":
-                warn("Ignoring fields={!s}!='all'".format(fields), UserWarning)
+                ds = ds[fields]
             if pseudo_fields is not None:
-                warn("Ignoring pseudo-fields", UserWarning)
-            return xarray.open_dataset(f)
+                warnings.warn("Ignoring pseudo-fields", UserWarning)
+            return ds
 
     def _read_ndarray(self, f, fields="all", pseudo_fields=None,
                       prim=None):
@@ -1610,9 +1624,11 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
 
     def _read(self, f, fields="all"):
         if f.endswith("npz") or f.endswith("npy"):
+            if fields != "all":
+                warnings.warn("Ignoring fields≠'all'!", UserWarning)
             return numpy.load(f)["arr_0"]
         elif f.endswith("nc"):
-            return super()._read(f)
+            return super()._read(f, fields=fields)
 
 #    def find_granules(self, start, end):
 #        raise StopIteration()
