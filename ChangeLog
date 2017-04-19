@@ -1,5 +1,11 @@
 2017-04-19  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/utils/__init__.py(concat_each_time_coordinate):
+
+	- Do not lose attributes, please.
+
+2017-04-19  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/dataset.py:
 	
 	(Dataset.add_gran_to_data):

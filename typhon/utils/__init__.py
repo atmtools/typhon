@@ -287,40 +287,11 @@ def concat_each_time_coordinate(*datasets):
                 new[v].loc[slc] = ds[v]
         for timedim in time_dims:
             n_per_dim[timedim] += ds.dims[timedim]
+    # copy attributes
+    new.attrs.update(**datasets[0].attrs)
+    for k in new.keys():
+        new[k].attrs.update(**datasets[0][k].attrs)
     return new.assign_coords(**new_coords)
-
-#    # split in sub-datasets per time coordinate
-#    datasets_per_tc = {tc: [xarray.Dataset(
-#            {k: v for (k, v) in ds.data_vars.items() if tc in v.dims},
-#            coords=ds.coords, attrs=ds.attrs)
-#                for ds in datasets]
-#            for tc in time_coords}
-#
-#    untimed_vars = [xarray.Dataset(
-#        {k: v for (k, v) in ds.data_vars.items()
-#         if len(set(v.dims) & time_coords) == 0},
-#        coords=ds.coords, attrs=ds.attrs)
-#            for ds in datasets]
-#
-#    untimed_vars_plain = [uv.drop([k for (k, v) in uv.coords.items()
-#                          if len(set(v.dims) & time_coords) > 0])
-#                          for uv in untimed_vars]
-#    for v in untimed_vars_plain[1:]:
-#        if not untimed_vars_plain[0].equals(v):
-#            raise ValueError(
-#                "Concatenating time-dimensioned variables, "
-#                "but some non-time-dimensioned variables are not equal!")
-#
-#    dataset_per_tc = {tc: xarray.concat(dsall, dim=tc).drop(
-#        [coorname for (coorname, coor) in dsall[0].coords.items() if
-#            any(d in coor.dims for d in time_coords - {tc})])
-#                        for (tc, dsall) in datasets_per_tc.items()}
-#
-#    ds = xarray.merge(
-#        itertools.chain.from_iterable(
-#            [untimed_vars_plain, dataset_per_tc.values()]))
-#
-#    return ds
 
 
 def image2mpeg(glob, outfile, framerate=12):
