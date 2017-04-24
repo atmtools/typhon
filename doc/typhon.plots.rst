@@ -18,10 +18,11 @@ plots
    colors2cmap
    center_colorbar
    figsize
-   fmt_hectopascal
    get_available_styles
    get_subplot_arrangement
    heatmap
+   HectoPascalFormatter
+   HectoPascalLogFormatter
    mpl_colors
    plot_distribution_as_percentiles
    profile_p

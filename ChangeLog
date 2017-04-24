@@ -1,3 +1,15 @@
+2017-04-24  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/plots.py:
+
+	* (HectoPascalFormatter, HectoPascalLogFormatter):
+
+	Added two Formatter to create labels for profile plots.
+
+	* (profile_p, profile_p_log): Use newly implemented Formatter.
+
+	* doc/typhon.plots.rst: Added Formatter to documentation.
+
 2017-04-19  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/utils/__init__.py(concat_each_time_coordinate):

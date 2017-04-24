@@ -10,7 +10,7 @@ import itertools
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import LogFormatter, FuncFormatter
 
 from typhon.math import stats as tpstats
 
@@ -19,7 +19,8 @@ __all__ = [
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
-    'fmt_hectopascal',
+    'HectoPascalFormatter',
+    'HectoPascalLogFormatter',
     'profile_p',
     'profile_p_log',
     'profile_z',
@@ -346,14 +347,23 @@ def scatter_density_plot_matrix(
 
 
 @FuncFormatter
-def fmt_hectopascal(x, pos):
-    """Creates hPa labels for Pa input.
+def HectoPascalFormatter(x, pos):
+    """Creates hectopascal labels for pascal input."""
+    return '{:g}'.format(x / 1e2)
 
-    This function can be used to create axis labels on the hectopascal scale
-    for values plotted in pascals. It is handy in combination with plotting in
+
+class HectoPascalLogFormatter(LogFormatter):
+    """Creates logarithmic hectopascal labels for pascal input.
+
+    This class can be used to create axis labels on the hectopascal scale for
+    values plotted in pascals. It is handy in combination with plotting in
     logscale.
     """
-    return '{:g}'.format(x / 1e2)
+    # TODO (lkluft): This is an easy hack to preserve the automatic toggling of
+    # minor ticks for log-scales introduced in matplotlib 2.0.
+    # Could be replaced with a decent Formatter subclass in the future.
+    def _num_to_string(self, x, vmin, vmax):
+        return '{:g}'.format(x / 1e2)
 
 
 def profile_p(p, x, ax=None, **kwargs):
@@ -380,8 +390,8 @@ def profile_p(p, x, ax=None, **kwargs):
         import matplotlib.pyplot as plt
         import typhon.plots
 
-        p = typhon.math.nlogspace(1000e2, 0.1e2, 500)
-        x = np.sin(np.log(p / 25e2))
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)
+        x = np.exp(p / p[0])
 
         fig, ax = plt.subplots()
         typhon.plots.profile_p(p, x, ax=ax)
@@ -398,9 +408,11 @@ def profile_p(p, x, ax=None, **kwargs):
     pmin = np.min((np.min(p), *ax.get_ylim()))
     pmax = np.max((np.max(p), *ax.get_ylim()))
     ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
+    print(pmax, pmin)
 
     # Label and format for yaxis.
-    ax.yaxis.set_major_formatter(fmt_hectopascal)
+    ax.yaxis.set_major_formatter(HectoPascalFormatter)
+    ax.yaxis.set_minor_formatter(HectoPascalFormatter)
     if ax.is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 
@@ -436,8 +448,8 @@ def profile_p_log(p, x, ax=None, **kwargs):
         import matplotlib.pyplot as plt
         import typhon.plots
 
-        p = typhon.math.nlogspace(1000e2, 0.1e2, 500)
-        x = np.sin(np.log(p / 25e2))
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)
+        x = np.exp(p / p[0])
 
         fig, ax = plt.subplots()
         typhon.plots.profile_p_log(p, x, ax=ax)
@@ -448,8 +460,14 @@ def profile_p_log(p, x, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    ax.set_yscale('log')
-    return profile_p(p, x, ax=ax, **kwargs)
+    ax.set_yscale('log')  # Call *before* plt.plot() to ensure non-zero ylims.
+    ret = profile_p(p, x, ax=ax, **kwargs)
+
+    # Set logarithmic scale.
+    ax.yaxis.set_major_formatter(HectoPascalLogFormatter())
+    ax.yaxis.set_minor_formatter(HectoPascalLogFormatter())
+
+    return ret
 
 
 def profile_z(z, x, ax=None, **kwargs):
@@ -476,7 +494,7 @@ def profile_z(z, x, ax=None, **kwargs):
         import matplotlib.pyplot as plt
         import typhon.plots
 
-        z = np.linspace(0, 80e3, 500)
+        z = np.linspace(0, 80e3, 50)
         x = np.sin(z / 5e3)
 
         fig, ax = plt.subplots()
