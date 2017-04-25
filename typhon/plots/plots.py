@@ -408,7 +408,6 @@ def profile_p(p, x, ax=None, **kwargs):
     pmin = np.min((np.min(p), *ax.get_ylim()))
     pmax = np.max((np.max(p), *ax.get_ylim()))
     ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
-    print(pmax, pmin)
 
     # Label and format for yaxis.
     ax.yaxis.set_major_formatter(HectoPascalFormatter)

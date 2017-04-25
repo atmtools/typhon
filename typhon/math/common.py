@@ -96,6 +96,10 @@ def nlogspace(start, stop, num=50):
             Default is 50. Must be non-negative.
 
     Returns: ndarray.
+
+    Examples:
+        >>> nlogspace(10, 1000, 3)
+        array([  10.,  100., 1000.])
     """
     return np.exp(np.linspace(np.log(start), np.log(stop), num))
 

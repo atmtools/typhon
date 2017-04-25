@@ -1,3 +1,31 @@
+2017-04-25  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/stylelib/typhon.mplstyle:
+
+	Adapted the typhon stylesheet to fit well with the changing
+	defaults in matplotlib 2.0.
+
+	* typhon/plots/stylelib/typhon-classic.mplstyle:
+
+	The old typhon stylesheet.
+
+	* typhon/plots/stylelib/typhon-fullcycler.mplstyle,
+	  typhon/plots/stylelib/typhon-geometry.mplstyle:
+
+	Removed the separate geoemetry and color-cycler as they are
+	probably unused.
+
+	* doc/pyplots/stylesheet_gallery.py:
+
+	Modified the test script for better appearance.
+
+	Plot more lines to show the cycling through linestyles even
+	when using the larger color-cycler in matplotlib 2.0.
+
+	* typhon/math/common.py (nlogspace): Added example.
+
+	* typhon/plots/plots.py: Removed forgotten debug `print()`.
+
 2017-04-24  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py:
