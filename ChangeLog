@@ -1,5 +1,11 @@
 2017-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/xml/tests/test_xml.py:
+
+	Fixed path to reference files.
+
+2017-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/arts/xml/__init__.py (load_directory):
 
 	Improved inline and docstring documentation.
