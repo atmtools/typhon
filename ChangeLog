@@ -1,3 +1,9 @@
+2017-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/__init__.py (load_directory):
+
+	Improved readability and general function structure.
+
 2017-04-25  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/stylelib/typhon.mplstyle:

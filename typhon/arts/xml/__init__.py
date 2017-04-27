@@ -7,6 +7,7 @@ from __future__ import absolute_import
 
 import gzip
 import glob
+import itertools
 import os
 from os.path import isfile, join, basename, splitext, dirname
 
@@ -122,7 +123,7 @@ def load_directory(directory, exclude=None):
 
     Parameters:
         directory (str): Path to the directory.
-        exclude (list[str]): Filenames to exlude.
+        exclude (Container[str]): Filenames to exclude.
 
     Returns:
         dictionary: Dictionary, filenames without extension are used as key.
@@ -133,20 +134,25 @@ def load_directory(directory, exclude=None):
         >>> load_directory('foo', exclude=['abs_lookup.xml'])
 
     """
-    if exclude is None:
-        exclude = []
+    def includefile(f):
+        """Check if to include file."""
+        return basename(f) not in exclude if exclude is not None else True
 
-    xmlfiles = [f for f in glob.glob(join(directory, '*.xml'))
-                if basename(f) not in exclude]
+    def stripext(f):
+        """Strip the extension of a filename."""
+        return splitext(f)[0]
 
-    # Append zipped files to list of XML files. Strip the `.gz` extension to
-    # keep the dictionry keys clean, the `load` function finds zipped files
-    # anyway.
-    xmlfiles.extend(splitext(f)[0]
-        for f in glob.glob(join(directory, '*.xml.gz'))
-        if basename(f) not in exclude)
+    xmlfiles = filter(includefile, glob.iglob(join(directory, '*.xml')))
 
-    return {splitext(basename(f))[0]: load(f) for f in xmlfiles}
+    # Also find zipped XML files. Strip the `.gz` extension to keep the
+    # dictionry keys clean, the `load` function finds zipped files anyway.
+    gzfiles = map(
+        stripext,
+        filter(includefile, glob.iglob(join(directory, '*.xml.gz')))
+        )
+
+    return {stripext(basename(f)): load(f)
+            for f in itertools.chain(xmlfiles, gzfiles)}
 
 
 def load_indexed(filename):
