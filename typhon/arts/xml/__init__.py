@@ -118,21 +118,21 @@ def load(filename):
 def load_directory(directory, exclude=None):
     """Load all XML files in a given directory.
 
-    Search given directory  for files with `.xml` or `.xml.gz` extension and
-    try to load them using :func:`load`.
+    Search given directory  for files with ``.xml`` or ``.xml.gz`` extension
+    and try to load them using :func:`load`.
 
     Parameters:
         directory (str): Path to the directory.
         exclude (Container[str]): Filenames to exclude.
 
     Returns:
-        dictionary: Dictionary, filenames without extension are used as key.
+        dict: Filenames without extension are keys for the file content.
 
     Example:
-        Load all files in foo except for the lookup table in abs_lookup.xml.
+        Load all files in ``foo`` except for the lookup table in
+        ``abs_lookup.xml.``
 
         >>> load_directory('foo', exclude=['abs_lookup.xml'])
-
     """
     def includefile(f):
         """Check if to include file."""
@@ -142,15 +142,15 @@ def load_directory(directory, exclude=None):
         """Strip the extension of a filename."""
         return splitext(f)[0]
 
+    # Create a generator yielding all XML files to load (not excluded).
     xmlfiles = filter(includefile, glob.iglob(join(directory, '*.xml')))
 
-    # Also find zipped XML files. Strip the `.gz` extension to keep the
-    # dictionry keys clean, the `load` function finds zipped files anyway.
-    gzfiles = map(
-        stripext,
-        filter(includefile, glob.iglob(join(directory, '*.xml.gz')))
-        )
+    # Remove extension from zipped files to keep dictionary keys clean.
+    # The `load` function looks for zipped files anyway.
+    gzfiles = filter(includefile, glob.iglob(join(directory, '*.xml.gz')))
+    gzfiles = map(stripext, gzfiles)
 
+    # Store XML file contents in a dictionary, using the filename as key.
     return {stripext(basename(f)): load(f)
             for f in itertools.chain(xmlfiles, gzfiles)}
 

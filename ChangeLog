@@ -2,6 +2,17 @@
 
 	* typhon/arts/xml/__init__.py (load_directory):
 
+	Improved inline and docstring documentation.
+
+	* typhon/arts/xml/tests/test_xml.py:
+
+	Added tests for high-level XML functions.
+	Currently containing two test for `load_directory()`.
+
+2017-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/xml/__init__.py (load_directory):
+
 	Improved readability and general function structure.
 
 2017-04-25  Lukas Kluft  <lukas.kluft@gmail.com>
