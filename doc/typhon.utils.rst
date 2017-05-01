@@ -9,6 +9,7 @@ utils
    :toctree: generated
 
    Timer
+   deprecated
    extract_block_diag
    path_append
    path_prepend

@@ -1,3 +1,16 @@
+2017-05-01  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py (deprecated):
+
+	Decorator to raise a simple deprecation warning.
+
+	* typhon/utils/tests, typhon/utils/tests/test_utils.py:
+
+	Test module for `typhon.utils` functions. Currently containing a
+	test for deprecation warnings.
+
+	* doc/typhon.utils.rst: Added `deprecated` to documentation.
+
 2017-04-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/xml/tests/test_xml.py:

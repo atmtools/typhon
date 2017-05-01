@@ -5,12 +5,12 @@
 
 import ast
 import contextlib
-import itertools
 import operator
 import os
 import shutil
 import subprocess
 import time
+from warnings import warn
 from functools import wraps
 
 import xarray
@@ -21,6 +21,7 @@ from . import metaclass
 
 __all__ = [
     "cache",
+    "deprecated",
     "metaclass",
     "extract_block_diag",
     "Timer",
@@ -29,6 +30,27 @@ __all__ = [
     "path_remove",
     "image2mpeg",
 ]
+
+
+def deprecated(func):
+    """Decorator which can be used to mark functions as deprecated.
+
+    Examples:
+        Calling ``foo()`` will raise a ``DeprecationWarning``.
+
+        >>> @deprecated
+        ... def foo(x):
+        ...     pass
+    """
+    # TODO: Make passing additional information possible.
+    @wraps(func)
+    def newFunc(*args, **kwargs):
+        warn('Call to deprecated function {name}.'.format(name=func.__name__),
+             category=DeprecationWarning,
+             stacklevel=2,
+             )
+        return func(*args, **kwargs)
+    return newFunc
 
 
 def extract_block_diag(M, n):
