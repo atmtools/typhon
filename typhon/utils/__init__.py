@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import time
 from warnings import warn
-from functools import wraps
+from functools import (partial, wraps)
 
 import xarray
 import numpy as np
@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 
-def deprecated(func):
+def deprecated(func=None, message=None):
     """Decorator which can be used to mark functions as deprecated.
 
     Examples:
@@ -41,16 +41,32 @@ def deprecated(func):
         >>> @deprecated
         ... def foo(x):
         ...     pass
+
+        Display message with additional information:
+
+        >>> @deprecated(message='Additional information message.')
+        ... def foo(x):
+        ...     pass
     """
-    # TODO: Make passing additional information possible.
+    # Return partial when no arguments are passed.
+    # This allows a plain call of the decorator.
+    if func is None:
+        return partial(deprecated, message=message)
+
+    # Build warning message (with optional information).
+    msg = 'Call to deprecated function {name}.'
+    if message is not None:
+        msg = '\n'.join((msg, message))
+
+    # Wrapper that prints the warning before calling the deprecated function.
     @wraps(func)
-    def newFunc(*args, **kwargs):
-        warn('Call to deprecated function {name}.'.format(name=func.__name__),
+    def wrapper(*args, **kwargs):
+        warn(msg.format(name=func.__name__, message=message),
              category=DeprecationWarning,
-             stacklevel=2,
+             stacklevel=2,  # This ensures more useful stack information.
              )
         return func(*args, **kwargs)
-    return newFunc
+    return wrapper
 
 
 def extract_block_diag(M, n):

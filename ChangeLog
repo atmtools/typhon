@@ -1,3 +1,9 @@
+2017-05-02  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py (deprecated):
+
+	Allow to pass additional information message to the decorator.
+
 2017-05-01  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py (deprecated):
