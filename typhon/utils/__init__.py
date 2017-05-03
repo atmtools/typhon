@@ -285,7 +285,7 @@ def concat_each_time_coordinate(*datasets):
     # note data vars per time coordinate
     time_vars = {k: (set(v.dims)&time_coords).pop() for (k, v) in datasets[0].items() if set(v.dims)&time_coords}
     time_vars_per_time_dim = {k: {vn for (vn, dn) in time_vars.items() if dn==k} for k in time_coords}
-    untimed_vars = datasets[0].keys() - time_vars.keys()
+    untimed_vars = datasets[0].data_vars.keys() - time_vars.keys()
 
     # allocate new
     new = xarray.Dataset(

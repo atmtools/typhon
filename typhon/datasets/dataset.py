@@ -1617,7 +1617,9 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
                  self.stored_name)
         else:
             d = self.basedir / self.subdir / self.stored_name
-        subsdict = self.__dict__.copy()
+        # next line inspired by http://stackoverflow.com/a/32196401/974555
+        subsdict = {attr: getattr(self, attr) 
+                    for attr in dir(self)}
         subsdict.update(**kwargs)
         nm = pathlib.Path(str(d).format(**subsdict))
         return nm

@@ -1,3 +1,30 @@
+2017-05-03  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Replace fill values by the standard NetCDF ones, except for floats
+	and doubles, where we keep nan.  This is for within the FIDUCEO
+	project.
+
+	- Added data vars props for HIRS2.  I think processing HIRS2 now
+	works again.
+
+	- Renamed hrs_satloc for HIRS2, instead extract directly with height
+	and lza.
+
+	* typhon/datasets/dataset.py(HomemadeDataset.find_granule_for_time):
+
+	- When estimating filename, pass on information for any attributes,
+	not only the ones defined within the present class.
+
+	* typhon/datasets/tovs.py(HIRSPOD.get_other):
+
+	- Adapt lza_approx now that we extract height and lza individually.
+
+	* typhon/utils/__init__.py(concat_each_time_coordinate):
+
+	- Untimed vars should only be the data vars, not the coordinates.
+
 2017-05-02  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py (deprecated):

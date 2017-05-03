@@ -1036,7 +1036,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     M[v].dtype
                     if M[v].dtype.kind[0] in "MOSUVmcfb" or "bit" in p[v][0]
                     else "f{:d}".format(M[v].dtype.itemsize*2)),
-                {**p[v][2], **{"orig_name": v}})
+                {**p[v][2], **{"source": "copied from NOAA native L1B format",
+                               "original_name_l1b": v}})
             for v in p.keys() & set(M.dtype.names)}
 
         coords = dict(
@@ -1125,14 +1126,10 @@ class HIRSPOD(HIRS):
         if not (cc[:, :, 0, :]==0).all():
             raise dataset.InvalidDataError("Found non-zero values for manual coefficient! "
                 "Usually those are zero but when they aren't, I don't know "
-                "which ones to use.  Giving up ☹. ")
+                "which ones to use.  Giving up. ")
 
         # This is apparently calibrated in units of mW/m2-sr-cm-1.
         rad = ureg.Quantity(rad, rad_u["ir"])
-            #ureg.mW / (ureg.m**2 * ureg.sr * (1/ureg.cm)))
-        # Convert to SI base units (not needed anymore with pint)
-#        rad = rad.to(ureg.W / (ureg.m**2 * ureg.sr * (1/ureg.m)),
-#            "radiance")
 
         return rad
 
@@ -1294,7 +1291,8 @@ class HIRSPOD(HIRS):
                 ("lza_approx", "f4", self.n_perline),
                 ])
         M["scantype"] = (scanlines["hrs_qualind"] & 0x03000000)>>24
-        M["lza_approx"] = ((scanlines["hrs_satloc"][:, 1]/128)
+        #M["lza_approx"] = ((scanlines["hrs_satloc"][:, 1]/128)
+        M["lza_approx"] = ((scanlines["hrs_lza"][:]/128)
             / self.ref_lza[0])[:, numpy.newaxis] * self.ref_lza[numpy.newaxis, :]
         return M
 

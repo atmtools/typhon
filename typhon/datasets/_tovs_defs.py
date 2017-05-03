@@ -432,46 +432,43 @@ _coding = {
 
 _temp_coding = _coding.copy()
 _temp_coding.update({
-    "_FillValue": numpy.iinfo("u2").max,
+    "_FillValue": 65535,
     "scale_factor": 0.01,
-    "least_significant_digit": 2,
     "dtype": "u2"})
 
 _ang_coding = _coding.copy()
 _ang_coding.update({
-    "_FillValue": numpy.iinfo("i2").min,
+    "_FillValue": -32767,
     "scale_factor": 0.01,
-    "least_significant_digit": 2,
     "dtype": "i2"})
     
 _latlon_coding = _ang_coding.copy()
 _latlon_coding.update({
-    "_FillValue": numpy.iinfo("i4").min,
-    "scale_factor": 1e-7,
-    "least_significant_digit": 3,
+    "_FillValue": -2147483647,
+    "scale_factor": 1e-3,
     "dtype": "i4"})
 
 _count_coding = _coding.copy()
 _count_coding.update({
-    "_FillValue": numpy.iinfo("i2").min,
+    "_FillValue": -32767,
     #"scale_factor": 1,
-    "dtype": "u2"})
+    "dtype": "i2"})
 
 _u2_coding = _coding.copy()
 _u2_coding.update({
-    "_FillValue": numpy.iinfo("u2").max,
+    "_FillValue": 65535,
     #"scale_factor": 1,
     "dtype": "u2"})
 
 _u1_coding = _coding.copy()
 _u1_coding.update({
-    "_FillValue": numpy.iinfo("u1").max,
+    "_FillValue": 255,
     #"scale_factor": 1,
     "dtype": "u1"})
 
 _u4_coding = _coding.copy()
 _u4_coding.update({
-    "_FillValue": numpy.iinfo("u4").max,
+    "_FillValue": 4294967295,
     #"scale_factor": 1,
     "dtype": "u4"})
 
@@ -481,139 +478,73 @@ _alt_coding["offset"] = 700
 _cal_coding = _coding.copy()
 _cal_coding.update({
     "calendar": "proleptic_gregorian",
-    "_FillValue": numpy.iinfo("i4").min,
+    "_FillValue": -2147483647,
     "dtype": "i4"})
 
+# ('hrs_scnlin',
+# 'hrs_scnlintime',
+# 'hrs_qualind',
+# 'hrs_earthlocdelta',
+# 'hrs_calcof',
+# 'hrs_satloc',
+# 'hrs_pos',
+# 'hrs_elem',
+# 'hrs_mnfrqual',
+# 'hrs_filler0',
+# 'radiance',
+# 'counts',
+# 'bt',
+# 'time',
+# 'lat',
+# 'lon',
+# 'calcof_sorted',
+# 'temp_ch',
+# 'temp_patch_exp',
+# 'temp_patch_full',
+# 'temp_fsr',
+# 'temp_primtlscp',
+# 'temp_scanmotor',
+# 'temp_ict',
+# 'temp_scanmirror',
+# 'temp_iwt',
+# 'temp_elec',
+# 'temp_baseplate',
+# 'temp_fwm',
+# 'temp_fwh',
+# 'temp_sectlscp',
+# 'scantype',
+# 'lza_approx')
 
-HIRS_data_vars_props[3] = dict(
+_hirs_data_vars_props_common = dict(
     hrs_scnlin = (
         "scanline_number",
         ("time",),
         {"long_name": "scanline number"},
         _u2_coding),
-    hrs_scnlinyr = (
-        "year",
-        ("time",),
-        {"long_name": "scanline year",
-         "units": "years"},
-         _u2_coding),
-    hrs_scnlindy = (
-        "doy",
-        ("time",),
-        {"long_name": "scanline day of year",
-         "units": "ms"},
-         _u2_coding),
-    hrs_clockdrift = (
-        "clockdrift",
-        ("time",),
-        {"long_name": "Satellite clock drift delta",
-         "units": "ms"},
-         _u2_coding),
     hrs_scnlintime = (
         "scnlintime",
         ("time",),
         {"long_name": "Scan line time of day",
          "units": "ms"},
          _u4_coding),
-    hrs_scnlinf = (
-        "scnlinf",
-        ("time",),
-        {"long_name": "Scan line bit field"},
-        _u2_coding),
-    hrs_mjfrcnt = (
-        "majorframe_count",
-        ("time",),
-        {"long_name": "Major frame count"},
-        _count_coding),
-    hrs_scnpos = (
-        "scanline_position",
-        ("time",),
-        {"long_name": "Scanline position number in 32 second cycle"},
-        _u2_coding),
-    hrs_scntyp = (
-        "scantype",
-        ("time",),
-        {"long_name": "Scan type",
-         "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
-         "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"},
-         _u1_coding),
     hrs_qualind = (
         "quality_flags",
         ("time",),
         {"long_name": "Quality indicator bit field", # FIMXE: flag_meanings
          "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4")},
          _u4_coding),
-    hrs_linqualflgs = (
-        "line_quality_flags",
-        ("time",),
-        {"long_name": "Scan line quality flags bit field", # FIXME: flag_meanings
-         "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
-                                       15, 20, 21, 22, 23],
-                                       dtype="u4")},
-       _u4_coding),
-    hrs_chqualflg = (
-        "channel_quality_flags",
-        ("time", "channel"),
-        {"long_name": "Channel quality flags bit field",
-         "flag_masks": 1<<numpy.arange(6, dtype="u2")},
-         _u2_coding),
-    hrs_mnfrqual = (
-        "minorframe_quality_flags",
-        ("time", "minor_frame"),
-        {"long_name": "Minor frame quality flags bit field",
-         "flag_masks": 1<<numpy.arange(8, dtype="u1")},
-         _u1_coding),
     hrs_calcof = (
         "original_calibration_coefficients",
         ("time", "triple_calib"),
         {"long_name": "Original calibration coefficients (unsorted)",
          "comment": "As produced by NOAA or EUMETSAT"},
          _coding),
-    hrs_scalcof = (
-        "second_original_calibration_coefficients",
-        ("time", "triple_calib"),
-        {"long_name": "Second original calibration coefficients (unsorted)"},
-        _coding),
-    hrs_navstat = (
-        "navigation_status",
-        ("time",),
-        {"long_name": "Navigation status bit field"},
-        _u4_coding),
-    hrs_attangtime = (
-        "attitude_angle_time",
-        ("time",),
-        {"long_name": "Time associated with Euler angles"},
-        _u4_coding),
-    hrs_rollang = (
-        "platform_roll_angle",
-        ("time",),
-        {"long_name": "Platform roll angle",
-         "units": "degrees"},
-         _ang_coding),
-    hrs_pitchang = (
-        "platform_pitch_angle",
-        ("time",),
-        {"long_name": "Platform pitch angle",
-         "units": "degrees"},
-         _ang_coding),
-    hrs_yawang = (
-        "platform_yaw_angle",
-        ("time",),
-        {"long_name": "Platform yaw angle",
-         "units": "degrees"},
-         _ang_coding),
     hrs_scalti = (
         "platform_altitude",
         ("time",),
         {"long_name": "Platform altitude",
          "units": "km"},
          _alt_coding),
-    hrs_ang = (
-        "scan_angles",
-        ("time", "triple_scanpos"),
-        {"long_name": "Scan angles",
-         "units": "degrees"},
-         _ang_coding),
     hrs_pos = (
         "earth_location",
         ("time", "double_scanpos"),
@@ -626,26 +557,12 @@ HIRS_data_vars_props[3] = dict(
         {"long_name": "Measurement elements",
          "units": "counts"},
          _count_coding),
-    hrs_digbinvwbf = (
-        "digital_b_flags_bitfield",
-        ("time",),
-        {"long_name": "Digital B telemetry flags"},
-        _u2_coding),
-    hrs_digitbwrd = (
-        "digital_b_data_bitfield",
-        ("time",),
-        {"long_name": "Digital B data from TIP"},
-        _u2_coding),
-    hrs_aninvwbf = (
-        "analog_telemetry_flags_bitfield",
-        ("time",),
-        {"long_name": "Analog telemetry flags bitfield"},
-        _u4_coding),
-    hrs_anwrd = (
-        "analog_telemetry_data",
-        ("time", "analog_telemetry_words"),
-        {"long_name": "Analog telemetry data"},
-        _u2_coding),
+    hrs_mnfrqual = (
+        "minorframe_quality_flags",
+        ("time", "minor_frame"),
+        {"long_name": "Minor frame quality flags bit field",
+         "flag_masks": 1<<numpy.arange(8, dtype="u1")},
+         _u1_coding),
     radiance = (
         "toa_outgoing_radiance_per_unit_frequency",
         ("time", "scanpos", "channel"),
@@ -670,16 +587,16 @@ HIRS_data_vars_props[3] = dict(
         {"long_name": "time"}, # rest on writing
         _cal_coding),
     lat = (
-        "Latitude",
+        "latitude",
         ("time", "scanpos"),
-        {"long_name": "Latitude",
+        {"long_name": "latitude",
          "units": "degrees_north",
          "valid_range": [-90, 90]},
         _latlon_coding),
     lon = (
-        "Longitude",
+        "longitude",
         ("time", "scanpos"),
-        {"long_name": "Longitude",
+        {"long_name": "longitude",
          "units": "degrees_east",
          "valid_range": [-180, 180]},
         _latlon_coding),
@@ -692,12 +609,6 @@ HIRS_data_vars_props[3] = dict(
         "temperature_cooler_housing",
         ("time",),
         {"long_name": "Temperature cooler housing",
-         "units": "K"},
-         _temp_coding),
-    temp_an_fwm = (
-        "temperature_filter_wheel_motor_analog",
-        ("time",),
-        {"long_name": "Temperature filter wheel motor (analogue)",
          "units": "K"},
          _temp_coding),
     temp_scanmotor = (
@@ -716,62 +627,6 @@ HIRS_data_vars_props[3] = dict(
         "temperature_patch_exp",
         ("time", "prt_reading"),
         {"long_name": "Temperature patch (expanded)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_rd = (
-        "temperature_radiator_analog",
-        ("time",),
-        {"long_name": "Temperature radiator (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_iwt = (
-        "temperature_iwct",
-        ("time", "prt_number_iwt", "prt_reading"),
-        {"long_name": "Temperature internal warm calibration target (IWCT)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_baseplate = (
-        "temperature_baseplate_analog",
-        ("time",),
-        {"long_name": "Temperature baseplate (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_scnm = (
-        "temperature_scanmirror_analog",
-        ("time",),
-        {"long_name": "Temperature scan mirror (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_pch = (
-        "temperature_patch_analog",
-        ("time",),
-        {"long_name": "Temperature patch (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_scanmirror = (
-        "temperature_scanmirror",
-        ("time",),
-        {"long_name": "Temperature scan mirror",
-         "units": "K"},
-         _temp_coding),
-         # FIXME: something is being misread as temp_ict which makes
-         # the dimensions wrong, see
-         # https://github.com/FIDUCEO/FCDR_HIRS/issues/46
-#        temp_ict = ( 
-#            "temperature_icct",
-#            ("time", "prt_number", "prt_reading"),
-#            {"long_name": "Temperature internal cold calibration target (ICCT)",
-#             "units": "K"}),
-    temp_elec = (
-        "temperature_electronics",
-        ("time",),
-        {"long_name": "Temperature electronics",
-         "units": "K"},
-         _temp_coding),
-    temp_an_el = (
-        "temperature_electronics_analog",
-        ("time",),
-        {"long_name": "Temperature electronics (analog)",
          "units": "K"},
          _temp_coding),
     temp_sectlscp = (
@@ -808,6 +663,197 @@ HIRS_data_vars_props[3] = dict(
         "temperature_patch_full",
         ("time",),
         {"long_name": "temperature patch full",
+         "units": "K"},
+         _temp_coding),
+    temp_elec = (
+        "temperature_electronics",
+        ("time",),
+        {"long_name": "Temperature electronics",
+         "units": "K"},
+         _temp_coding),
+    temp_scanmirror = (
+        "temperature_scanmirror",
+        ("time",),
+        {"long_name": "Temperature scan mirror",
+         "units": "K"},
+         _temp_coding))
+
+HIRS_data_vars_props[2] = _hirs_data_vars_props_common.copy()
+HIRS_data_vars_props[2].update(
+    hrs_earthlocdelta = (
+        "earth_location_delta",
+        ("time",),
+        {"long_name": "Earth location delta",
+         "description": "The Earth location delta is the time difference between the scan time code and the time code associated with the Earth location data appended to this record.",
+         "units": "ms"},
+         _u4_coding),
+    temp_ict = ( 
+        "temperature_icct",
+        ("time", "prt_number", "prt_reading"),
+        {"long_name": "Temperature internal cold calibration target (ICCT)",
+         "units": "K"},
+        _temp_coding),
+    calcof_sorted = (
+        HIRS_data_vars_props[2]["calcof_sorted"][0],
+        ("time", "channel", "n_calcof", "tp_calcof"), # manual, auto, normalisation
+        HIRS_data_vars_props[2]["calcof_sorted"][2],
+        HIRS_data_vars_props[2]["calcof_sorted"][3]))
+
+HIRS_data_vars_props[3] = _hirs_data_vars_props_common.copy()
+HIRS_data_vars_props[3].update(
+    hrs_scnlinyr = (
+        "year",
+        ("time",),
+        {"long_name": "scanline year",
+         "units": "years"},
+         _u2_coding),
+    hrs_scnlindy = (
+        "doy",
+        ("time",),
+        {"long_name": "scanline day of year",
+         "units": "ms"},
+         _u2_coding),
+    hrs_clockdrift = (
+        "clockdrift",
+        ("time",),
+        {"long_name": "Satellite clock drift delta",
+         "units": "ms"},
+         _u2_coding),
+    hrs_scnlinf = (
+        "scnlinf",
+        ("time",),
+        {"long_name": "Scan line bit field"},
+        _u2_coding),
+    hrs_mjfrcnt = (
+        "majorframe_count",
+        ("time",),
+        {"long_name": "Major frame count"},
+        _count_coding),
+    hrs_scnpos = (
+        "scanline_position",
+        ("time",),
+        {"long_name": "Scanline position number in 32 second cycle"},
+        _u2_coding),
+    hrs_scntyp = (
+        "scantype",
+        ("time",),
+        {"long_name": "Scan type",
+         "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
+         "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"},
+         _u1_coding),
+    hrs_linqualflgs = (
+        "line_quality_flags",
+        ("time",),
+        {"long_name": "Scan line quality flags bit field", # FIXME: flag_meanings
+         "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
+                                       15, 20, 21, 22, 23],
+                                       dtype="u4")},
+       _u4_coding),
+    hrs_chqualflg = (
+        "channel_quality_flags",
+        ("time", "channel"),
+        {"long_name": "Channel quality flags bit field",
+         "flag_masks": 1<<numpy.arange(6, dtype="u2")},
+         _u2_coding),
+    hrs_scalcof = (
+        "second_original_calibration_coefficients",
+        ("time", "triple_calib"),
+        {"long_name": "Second original calibration coefficients (unsorted)"},
+        _coding),
+    hrs_navstat = (
+        "navigation_status",
+        ("time",),
+        {"long_name": "Navigation status bit field"},
+        _u4_coding),
+    hrs_attangtime = (
+        "attitude_angle_time",
+        ("time",),
+        {"long_name": "Time associated with Euler angles"},
+        _u4_coding),
+    hrs_rollang = (
+        "platform_roll_angle",
+        ("time",),
+        {"long_name": "Platform roll angle",
+         "units": "degrees"},
+         _ang_coding),
+    hrs_pitchang = (
+        "platform_pitch_angle",
+        ("time",),
+        {"long_name": "Platform pitch angle",
+         "units": "degrees"},
+         _ang_coding),
+    hrs_yawang = (
+        "platform_yaw_angle",
+        ("time",),
+        {"long_name": "Platform yaw angle",
+         "units": "degrees"},
+         _ang_coding),
+    hrs_ang = (
+        "scan_angles",
+        ("time", "triple_scanpos"),
+        {"long_name": "Scan angles",
+         "units": "degrees"},
+         _ang_coding),
+    hrs_digbinvwbf = (
+        "digital_b_flags_bitfield",
+        ("time",),
+        {"long_name": "Digital B telemetry flags"},
+        _u2_coding),
+    hrs_digitbwrd = (
+        "digital_b_data_bitfield",
+        ("time",),
+        {"long_name": "Digital B data from TIP"},
+        _u2_coding),
+    hrs_aninvwbf = (
+        "analog_telemetry_flags_bitfield",
+        ("time",),
+        {"long_name": "Analog telemetry flags bitfield"},
+        _u4_coding),
+    hrs_anwrd = (
+        "analog_telemetry_data",
+        ("time", "analog_telemetry_words"),
+        {"long_name": "Analog telemetry data"},
+        _u2_coding),
+    temp_an_fwm = (
+        "temperature_filter_wheel_motor_analog",
+        ("time",),
+        {"long_name": "Temperature filter wheel motor (analogue)",
+         "units": "K"},
+         _temp_coding),
+    temp_an_rd = (
+        "temperature_radiator_analog",
+        ("time",),
+        {"long_name": "Temperature radiator (analog)",
+         "units": "K"},
+         _temp_coding),
+    temp_iwt = (
+        "temperature_iwct",
+        ("time", "prt_number_iwt", "prt_reading"),
+        {"long_name": "Temperature internal warm calibration target (IWCT)",
+         "units": "K"},
+         _temp_coding),
+    temp_an_baseplate = (
+        "temperature_baseplate_analog",
+        ("time",),
+        {"long_name": "Temperature baseplate (analog)",
+         "units": "K"},
+         _temp_coding),
+    temp_an_scnm = (
+        "temperature_scanmirror_analog",
+        ("time",),
+        {"long_name": "Temperature scan mirror (analog)",
+         "units": "K"},
+         _temp_coding),
+    temp_an_pch = (
+        "temperature_patch_analog",
+        ("time",),
+        {"long_name": "Temperature patch (analog)",
+         "units": "K"},
+         _temp_coding),
+    temp_an_el = (
+        "temperature_electronics_analog",
+        ("time",),
+        {"long_name": "Temperature electronics (analog)",
          "units": "K"},
          _temp_coding),
     sol_za = (
@@ -856,6 +902,7 @@ HIRS_data_vars_props[4]["hrs_digitbupdatefg"] = (
     {"long_name": "Digital B telemetry update flags bit field"},
     _u2_coding
     )
+
 
 HIRS_line_dtypes[4] = numpy.dtype([('hrs_scnlin', '>i2', 1),
       ('hrs_scnlinyr', '>i2', 1),
@@ -924,6 +971,8 @@ HIRS_channel_order[4] = HIRS_channel_order[3].copy()
 # Prior to 1995-01-01, the record size was 4256.  Starting 1995-01-01, the
 # record size was 4259.  This applies to all HIRS/2.  See also AAPP source
 # code, AAPP/src/tools/bin/hirs2_class_to_aapp.F 
+#
+# Probably also related: https://arts.mi.uni-hamburg.de/trac/rt/ticket/148
 
 # Source: POD User's Guide, Table 2.0.4-1.
 HIRS_header_dtypes[2] = {x: numpy.dtype([
@@ -952,7 +1001,9 @@ HIRS_line_dtypes[2] = {x: numpy.dtype([('hrs_scnlin', '>i2', 1),
       ('hrs_qualind', '>i4', 1),
       ('hrs_earthlocdelta', '>i4', 1),
       ('hrs_calcof', '>i4', 60*3),
-      ('hrs_satloc', '>i2', 2),
+      ("hrs_scalti", ">i2", 1),
+      ("hrs_lza", ">i2", 1),
+      #('hrs_satloc', '>i2', 2),
       ('hrs_pos', '>i2', 112),
       ('hrs_elem', '>i2', 1408),
       ('hrs_mnfrqual', '>i1', 64),
