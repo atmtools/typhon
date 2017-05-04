@@ -1,3 +1,13 @@
+2017-05-04  Gerrit Holl  <g.holl@reading.ca.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+	
+	- Some bugfixes, HIRS2 processing might work soon.
+
+	* typhon/datasets/tovs.py(HIRS.as_xarray_dataset):
+
+	- Add attributes to coordinates as well as data variables.
+
 2017-05-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py (HectoPascalFormatter):

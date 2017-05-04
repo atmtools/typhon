@@ -1027,6 +1027,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         """
 
         p = self._data_vars_props
+        add_to_all = {"source": "copied from NOAA native L1B format"}
+        origvar = "original_name_l1b"
         data_vars = {
             p[v][0]:
                ([rename_dimensions.get(d,d) for d in p[v][1] if d not in skip_dimensions],
@@ -1036,8 +1038,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     M[v].dtype
                     if M[v].dtype.kind[0] in "MOSUVmcfb" or "bit" in p[v][0]
                     else "f{:d}".format(M[v].dtype.itemsize*2)),
-                {**p[v][2], **{"source": "copied from NOAA native L1B format",
-                               "original_name_l1b": v}})
+                {**p[v][2],
+                 **add_to_all,
+                 **{origvar: v}})
             for v in p.keys() & set(M.dtype.names)}
 
         coords = dict(
@@ -1052,7 +1055,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         coords = {rename_dimensions.get(k, k):
                 ([rename_dimensions.get(d, d) for d in v[0] if d not in skip_dimensions],
-                 v[1])
+                 v[1],
+                 {**(p[k][2] if k in p else {}),
+                  **(add_to_all if k in M.dtype.names else {}),
+                  **({origvar: k} if k in M.dtype.names else {})})
                 for (k, v) in coords.items() if k not in skip_dimensions}
 
         ds = xarray.Dataset(

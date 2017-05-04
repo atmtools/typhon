@@ -676,6 +676,12 @@ _hirs_data_vars_props_common = dict(
         ("time",),
         {"long_name": "Temperature scan mirror",
          "units": "K"},
+         _temp_coding),
+    temp_iwt = (
+        "temperature_iwct",
+        ("time", "prt_number_iwt", "prt_reading"),
+        {"long_name": "Temperature internal warm calibration target (IWCT)",
+         "units": "K"},
          _temp_coding))
 
 HIRS_data_vars_props[2] = _hirs_data_vars_props_common.copy()
@@ -697,7 +703,14 @@ HIRS_data_vars_props[2].update(
         HIRS_data_vars_props[2]["calcof_sorted"][0],
         ("time", "channel", "n_calcof", "tp_calcof"), # manual, auto, normalisation
         HIRS_data_vars_props[2]["calcof_sorted"][2],
-        HIRS_data_vars_props[2]["calcof_sorted"][3]))
+        HIRS_data_vars_props[2]["calcof_sorted"][3]),
+    scantype = (
+        "scantype",
+        ("time",),
+        {"long_name": "Scan type",
+         "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
+         "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"},
+         _u1_coding))
 
 HIRS_data_vars_props[3] = _hirs_data_vars_props_common.copy()
 HIRS_data_vars_props[3].update(
@@ -734,13 +747,7 @@ HIRS_data_vars_props[3].update(
         ("time",),
         {"long_name": "Scanline position number in 32 second cycle"},
         _u2_coding),
-    hrs_scntyp = (
-        "scantype",
-        ("time",),
-        {"long_name": "Scan type",
-         "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
-         "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"},
-         _u1_coding),
+    hrs_scntyp = HIRS_data_vars_props[2]["scantype"],
     hrs_linqualflgs = (
         "line_quality_flags",
         ("time",),
@@ -824,12 +831,6 @@ HIRS_data_vars_props[3].update(
         "temperature_radiator_analog",
         ("time",),
         {"long_name": "Temperature radiator (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_iwt = (
-        "temperature_iwct",
-        ("time", "prt_number_iwt", "prt_reading"),
-        {"long_name": "Temperature internal warm calibration target (IWCT)",
          "units": "K"},
          _temp_coding),
     temp_an_baseplate = (
