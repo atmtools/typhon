@@ -3,10 +3,11 @@
 """Functions to create plots using matplotlib.
 """
 
-import warnings
 import collections
-import math
+import functools
 import itertools
+import math
+import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -347,9 +348,15 @@ def scatter_density_plot_matrix(
 
 
 @FuncFormatter
-def HectoPascalFormatter(x, pos):
+def _HectoPascalFormatter(x, pos):
     """Creates hectopascal labels for pascal input."""
     return '{:g}'.format(x / 1e2)
+
+
+# In general, FuncFormatter returns an object that can be used directly.
+# The workaround using `functools.partial` allows to call the
+# `HectoPascalFormatter` like all other Formatter around ensuring consistency.
+HectoPascalFormatter = functools.partial(lambda x: x, _HectoPascalFormatter)
 
 
 class HectoPascalLogFormatter(LogFormatter):
@@ -410,8 +417,8 @@ def profile_p(p, x, ax=None, **kwargs):
     ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
 
     # Label and format for yaxis.
-    ax.yaxis.set_major_formatter(HectoPascalFormatter)
-    ax.yaxis.set_minor_formatter(HectoPascalFormatter)
+    ax.yaxis.set_major_formatter(HectoPascalFormatter())
+    ax.yaxis.set_minor_formatter(HectoPascalFormatter())
     if ax.is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 

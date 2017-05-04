@@ -22,3 +22,8 @@ class TestUtils():
         with warnings.catch_warnings():
             warnings.simplefilter('error')
             func()
+
+    @raises(Exception)
+    def test_image2mpeg(self):
+        """Test the behavior when no files are found."""
+        utils.image2mpeg(glob='', outfile='foo.mp4')

@@ -1,3 +1,18 @@
+2017-05-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/plots.py (HectoPascalFormatter):
+
+	Implemented a workaround to make the Formatter callable. This
+	ensures consistent usage with other formatters.
+
+	* typhon/utils/__init__.py (image2mpeg):
+
+	Raise an exception if the `ffmpeg` subprocess fails.
+
+	* typhon/utils/tests/test_utils.py:
+
+	Test the behaviour of `test_utils` when no input is found.
+
 2017-05-03  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:

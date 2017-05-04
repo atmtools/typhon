@@ -344,13 +344,12 @@ def image2mpeg(glob, outfile, framerate=12):
             The file fileformat is determined by the extension.
         framerate (int or str): Number of frames per second.
 
-    Returns:
-        int: Return code of the ``ffmpeg`` command.
-        ``0`` if everything is ok, other if not.
+    Raises:
+        Exception: The function raises an exception if the
+            underlying ``ffmpeg`` process returns a non-zero exit code.
 
     Example:
         >>> image2mpeg('foo_*.png', 'foo.mp4')
-        0
     """
     if not shutil.which('ffmpeg'):
         raise Exception('``ffmpeg`` not found.')
@@ -368,6 +367,9 @@ def image2mpeg(glob, outfile, framerate=12):
          ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        universal_newlines=True
         )
 
-    return p.returncode
+    # If the subprocess fails, raise exception including error message.
+    if p.returncode != 0:
+        raise Exception(p.stderr)
