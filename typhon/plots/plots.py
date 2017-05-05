@@ -4,7 +4,6 @@
 """
 
 import collections
-import functools
 import itertools
 import math
 import warnings
@@ -349,16 +348,13 @@ def scatter_density_plot_matrix(
     return f
 
 
-@FuncFormatter
-def _HectoPascalFormatter(x, pos):
+def HectoPascalFormatter():
     """Creates hectopascal labels for pascal input."""
-    return '{:g}'.format(x / 1e2)
+    @FuncFormatter
+    def _HectoPascalFormatter(x, pos):
+        return '{:g}'.format(x / 1e2)
 
-
-# In general, FuncFormatter returns an object that can be used directly.
-# The workaround using `functools.partial` allows to call the
-# `HectoPascalFormatter` like all other Formatter around ensuring consistency.
-HectoPascalFormatter = functools.partial(lambda x: x, _HectoPascalFormatter)
+    return _HectoPascalFormatter
 
 
 class HectoPascalLogFormatter(LogFormatter):
@@ -376,7 +372,7 @@ class HectoPascalLogFormatter(LogFormatter):
 
 
 def profile_p(p, x, ax=None, **kwargs):
-    """Plot atmospheric profile against pressure in log space.
+    """Plot atmospheric profile against pressure in linear space.
 
     Parameters:
         p (ndarray): Pressure [Pa].
@@ -603,10 +599,11 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
             band_centers += [center - off1, center + off1]
             band_widths += [width, width]
 
-        # A zero offset is only allowed for the first band.
-        if off2 != 0:
-            band_centers += [center - off2, center + off2]
-            band_widths += [width, width]
+            # If second passband is given, add offset to the last two passbands
+            if off2 != 0:
+                for bc in band_centers[-2:]:
+                    band_centers += [bc - off2, bc + off2]
+                    band_widths += [width, width]
 
     patches = []
     for center, width in zip(band_centers, band_widths):
