@@ -1,3 +1,11 @@
+2017-05-05  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/plots.py (channels):
+
+	Function to plot instrument channels for passband-type sensors.
+
+	* doc/typhon.plots.rst: Include `typhon.plots.channels`.
+
 2017-05-04  Gerrit Holl  <g.holl@reading.ca.uk>
 
 	* typhon/datasets/_tovs_defs.py:

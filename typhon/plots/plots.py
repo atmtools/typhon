@@ -11,6 +11,7 @@ import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 from matplotlib.ticker import LogFormatter, FuncFormatter
 
 from typhon.math import stats as tpstats
@@ -25,6 +26,7 @@ __all__ = [
     'profile_p',
     'profile_p_log',
     'profile_z',
+    'channels',
 ]
 
 
@@ -526,3 +528,88 @@ def profile_z(z, x, ax=None, **kwargs):
 
     # Actual plot.
     return ax.plot(x, z_scaled, **kwargs)
+
+
+def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
+    """Plot instrument channels for passband-type sensors.
+
+    Parameters:
+        met_mm_backend (ndarray): Backend description for meteorological
+            millimeter sensors with passbands. See ARTS_ documentation.
+        ylim (tuple): A tuple-like container with the lower and upper y-limits
+            for the rectangles.
+        ax (AxesSubplot): Axes to plot in.
+        **kwargs: Additional keyword arguments passed
+            to :class:`~matplotlib.patches.Rectangle`.
+
+    Returns:
+        list[matplotlib.patches.Rectangle]: List of all rectangles drawn.
+
+    Note:
+        :class:`matplotlib.patches.Patch` do not set the axis limits.
+        If this function is used without other data in the plot, you have
+        to set the axis limits to an appropriate value. Otherwise the drawn
+        channels might not be seen.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon.plots
+
+        met_mm_backend = np.array([
+            [89.000e9, 0., 0., 2800e6],
+            [157.000e9, 0., 0., 2800e6],
+            [183.311e9, 1.00e9, 0., 500e6],
+            [183.311e9, 3.00e9, 0., 1000e6],
+            [190.311e9, 0., 0., 2200e6],
+            ])
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        typhon.plots.channels(met_mm_backend / 1e9, ylim=(0.2, 0.8))
+        ax.set_xlim(80, 200)  # mpl.patches do **not** autoscale axis limits!
+        ax.set_xlabel('Frequency [GHz]')
+
+        plt.show()
+
+    .. _ARTS: http://arts.mi.uni-hamburg.de/docserver-trunk/variables/met_mm_backend
+    """
+    # TODO: mpl.patch.Patch do not set the axis limits properly. Consider
+    # adding a small convenience code to adjust limits automatically.
+
+    if ax is None:
+        ax = plt.gca()
+
+    if ylim is None:
+        ylim = ax.get_ylim()
+    ymin, ymax = ylim
+
+    def plot_band(center, width, ymin, ymax):
+        """Plot a single instrument band."""
+        xy = (center - 0.5 * width, ymin)
+        height = ymax - ymin
+        return ax.add_patch(Rectangle(xy, width, height, **kwargs))
+
+    band_centers = []
+    band_widths = []
+    for center, off1, off2, width in met_mm_backend:
+        if off1 == 0:
+            band_centers += [center]
+            band_widths += [width]
+        else:
+            band_centers += [center - off1, center + off1]
+            band_widths += [width, width]
+
+        # A zero offset is only allowed for the first band.
+        if off2 != 0:
+            band_centers += [center - off2, center + off2]
+            band_widths += [width, width]
+
+    patches = []
+    for center, width in zip(band_centers, band_widths):
+        patches.append(plot_band(center, width, ymin, ymax))
+
+    return patches
