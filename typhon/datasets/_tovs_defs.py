@@ -526,13 +526,13 @@ _hirs_data_vars_props_common = dict(
         ("time",),
         {"long_name": "Scan line time of day",
          "units": "ms"},
-         _u4_coding),
+         _u4_coding.copy()), # copy because I will change it later
     hrs_qualind = (
         "quality_flags",
         ("time",),
         {"long_name": "Quality indicator bit field", # FIMXE: flag_meanings
          "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4")},
-         _u4_coding),
+         _u4_coding.copy()),
     hrs_calcof = (
         "original_calibration_coefficients",
         ("time", "triple_calib"),
@@ -557,12 +557,6 @@ _hirs_data_vars_props_common = dict(
         {"long_name": "Measurement elements",
          "units": "counts"},
          _count_coding),
-    hrs_mnfrqual = (
-        "minorframe_quality_flags",
-        ("time", "minor_frame"),
-        {"long_name": "Minor frame quality flags bit field",
-         "flag_masks": 1<<numpy.arange(8, dtype="u1")},
-         _u1_coding),
     radiance = (
         "toa_outgoing_radiance_per_unit_frequency",
         ("time", "scanpos", "channel"),
@@ -692,7 +686,7 @@ HIRS_data_vars_props[2].update(
         {"long_name": "Earth location delta",
          "description": "The Earth location delta is the time difference between the scan time code and the time code associated with the Earth location data appended to this record.",
          "units": "ms"},
-         _u4_coding),
+         _u4_coding.copy()),
     temp_ict = ( 
         "temperature_icct",
         ("time", "prt_number", "prt_reading"),
@@ -710,7 +704,33 @@ HIRS_data_vars_props[2].update(
         {"long_name": "Scan type",
          "flag_values": numpy.array([0, 1, 2, 3], dtype="u2"),
          "flag_meanings": "Earth_view space_view ICCT_view IWCT_view"},
-         _u1_coding))
+         _u1_coding),
+    lza_approx = (
+        "platform_zenith_angle",
+        ("time", "scanpos"),
+        {"long_name": "platform zenith angle",
+         "units": "degrees",
+         "note": ("original data contain zenith angle only "
+                  "for first scan position.  Rest is estimated.")},
+         _ang_coding),
+    sol_za = (
+        "solar_zenith_angle",
+        (),
+        {"long_name": "solar zenith angle",
+         "note": "Not available for HIRS/2",
+         "units": "degrees"},
+        _coding),
+    loc_aa = (
+        "local_azimuth_angle",
+        (),
+        {"long_name": "local azimuth angle",
+         "note": "Not available for HIRS/2",
+         "units": "degrees"},
+         _coding))
+
+# workaround for #102
+HIRS_data_vars_props[2]["hrs_scnlintime"][3]["dtype"] = "|S6"
+HIRS_data_vars_props[2]["hrs_scnlintime"][3]["_FillValue"] = b""
 
 HIRS_data_vars_props[3] = _hirs_data_vars_props_common.copy()
 HIRS_data_vars_props[3].update(
@@ -755,13 +775,19 @@ HIRS_data_vars_props[3].update(
          "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
                                        15, 20, 21, 22, 23],
                                        dtype="u4")},
-       _u4_coding),
+       _u4_coding.copy()),
     hrs_chqualflg = (
         "channel_quality_flags",
         ("time", "channel"),
         {"long_name": "Channel quality flags bit field",
          "flag_masks": 1<<numpy.arange(6, dtype="u2")},
          _u2_coding),
+    hrs_mnfrqual = (
+        "minorframe_quality_flags",
+        ("time", "minor_frame"),
+        {"long_name": "Minor frame quality flags bit field",
+         "flag_masks": 1<<numpy.arange(8, dtype="u1")},
+         _u1_coding),
     hrs_scalcof = (
         "second_original_calibration_coefficients",
         ("time", "triple_calib"),
@@ -771,12 +797,12 @@ HIRS_data_vars_props[3].update(
         "navigation_status",
         ("time",),
         {"long_name": "Navigation status bit field"},
-        _u4_coding),
+        _u4_coding.copy()),
     hrs_attangtime = (
         "attitude_angle_time",
         ("time",),
         {"long_name": "Time associated with Euler angles"},
-        _u4_coding),
+        _u4_coding.copy()),
     hrs_rollang = (
         "platform_roll_angle",
         ("time",),
@@ -815,7 +841,7 @@ HIRS_data_vars_props[3].update(
         "analog_telemetry_flags_bitfield",
         ("time",),
         {"long_name": "Analog telemetry flags bitfield"},
-        _u4_coding),
+        _u4_coding.copy()),
     hrs_anwrd = (
         "analog_telemetry_data",
         ("time", "analog_telemetry_words"),
@@ -886,7 +912,8 @@ HIRS_data_vars_props[3].update(
         ("time", "scanpos", "calibrated_channel"),
         {"long_name": "brightness temperature, calibrated by FIDUCEO",
          "units": "K"},
-         _temp_coding))
+         _temp_coding),
+         )
 
 HIRS_data_vars_props[4] = HIRS_data_vars_props[3].copy()
 del HIRS_data_vars_props[4]["hrs_aninvwbf"]
@@ -895,7 +922,7 @@ HIRS_data_vars_props[4]["hrs_analogupdatefg"] = (
     "analog_telemetry_update_flags_bitfield",
     ("time",),
     {"long_name": "analog telemetry update flags bit field"},
-    _u4_coding
+    _u4_coding.copy()
     )
 HIRS_data_vars_props[4]["hrs_digitbupdatefg"] = (
     "digital_b_telemetry_update_flags_bitfield",

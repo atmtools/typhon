@@ -4,6 +4,15 @@
 
 	Increase width to prevent plots from being scaled down.
 
+2017-05-05  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Rather make copies of the coding dicts so I don't inadvertently
+	change where I don't want to.
+
+	- minorframe_quality_flags and angles only for HIRS/3/4
+
 2017-05-05  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py:
