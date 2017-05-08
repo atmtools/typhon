@@ -101,6 +101,15 @@ class TestGriddedFieldUsage():
 
         assert gf3[0, 1, 0] == gf3.data[0, 1, 0]
 
+    def test_slicing(self):
+        """Test GriddedField slicing."""
+        gf3 = xml.load(self.ref_dir + 'GriddedField3.xml')
+
+        # Create new GriddedField which is a sliced subset of the initial one.
+        gf_sliced = gf3.extract_slice(slice(1, None), axis=1)
+
+        assert np.allclose(gf3.data[:, 1:, :], gf_sliced.data)
+
 
 class TestGriddedFieldLoad():
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")

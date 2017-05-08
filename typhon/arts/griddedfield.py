@@ -318,6 +318,25 @@ class GriddedField(object):
         """Return a deepcopy of the GriddedField."""
         return copy.deepcopy(self)
 
+    def extract_slice(self, s=slice(None), axis=0):
+        """Return a new GriddedField containing a slice of the current one.
+
+        Parameters:
+            s (slice): Slice.
+            axis (int): Axis to slice along.
+
+        Returns:
+            :class:`typhon.arts.griddedfield.GriddedField`:
+                GriddedField containing sliced grids and data.
+        """
+        gf = self.copy()
+        gf.grids[axis] = gf.grids[axis][s]
+        slices = [slice(None) for i in range(self.dimension)]
+        slices[axis] = s
+        gf.data = gf.data[slices]
+
+        return gf
+
     def refine_grid(self, new_grid, axis=0, **kwargs):
         """Interpolate GriddedField axis to a new grid.
 
