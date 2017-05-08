@@ -1,3 +1,9 @@
+2017-05-08  Oliver Lemke  <olemke@core-dump.info>
+
+	* doc/_static/increased_width.css:
+
+	Increase width to prevent plots from being scaled down.
+
 2017-05-05  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/plots.py:
