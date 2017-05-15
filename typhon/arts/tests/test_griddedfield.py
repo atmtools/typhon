@@ -110,6 +110,14 @@ class TestGriddedFieldUsage():
 
         assert np.allclose(gf3.data[:, 1:, :], gf_sliced.data)
 
+    def test_repr(self):
+        """Test string represenation of GriddedField objects."""
+        str(xml.load(self.ref_dir + 'GriddedField3.xml'))
+
+    def test_repr_empty(self):
+        """Test string represenation of empty GriddedField objects."""
+        str(griddedfield.GriddedField1())
+
 
 class TestGriddedFieldLoad():
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")

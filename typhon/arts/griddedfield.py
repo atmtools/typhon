@@ -117,15 +117,20 @@ class GriddedField(object):
         return NotImplemented
 
     def __repr__(self):
-        out = "GriddedField{}: {}\n".format(self.dimension, self.name)
-        for i in range(self.dimension):
-            out += "{} {}: {}\n".format(self.gridnames[i],
-                                        np.shape(self.grids[i]),
-                                        self.grids[i])
-        out += "{} {}: {}\n".format(self.dataname,
-                                    self.data.shape,
-                                    self.data.flatten())
-        return out
+        try:
+            out = "GriddedField{}: {}\n".format(self.dimension, self.name)
+            for i in range(self.dimension):
+                out += "{} {}: {}\n".format(self.gridnames[i],
+                                            np.shape(self.grids[i]),
+                                            self.grids[i])
+            out += "{} {}: {}\n".format(self.dataname,
+                                        self.data.shape,
+                                        self.data.flatten())
+            return out
+        except:
+            # If representation fails, fall back to default.
+            # Known issues: Empty GriddedFields.
+            return '<{0} at {1}>'.format(type(self).__name__, hex(id(self)))
 
     @property
     def shape(self):

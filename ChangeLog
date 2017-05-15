@@ -1,3 +1,16 @@
+2017-05-15  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* Fixed string representation of GriddedFields objects.
+
+	* typhon/arts/griddedfield.py (GriddedField.__repr__):
+
+	Catch all errors when creating the string representation for a
+	GriddedField object. Use a default-like style as fallback.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Test string representation for empty and non-empty GriddedField.
+
 2017-05-08  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py (GriddedField.extract_slice):
