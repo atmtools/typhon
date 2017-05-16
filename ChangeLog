@@ -1,3 +1,58 @@
+2017-05-16  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Added dictionary with NOAA satellite numbers.  Made something up for
+	tirosn, metopa, metopb.
+	
+	* typhon/datasets/dataset.py:
+
+	(Dataset):
+
+	- Added attributes read_returns (set to either ndarray or xarray) and
+	concat_coor (if the concatenation coordinate for xarray datasets is
+	not the time one).
+
+	(Dataset.read_period):
+
+	- Bugfix in logging message, want not satname (which is not always
+	extant) but locator_args (more generic).
+
+	(Dataset._apply_limits_and_filters):
+
+	- Filters works for xarray.  Limits does not.
+
+	(Dataset._finalise_arr):
+
+	- Permit using a non-time coordinate for concatenation of xarray
+	datasets.
+
+	(Dataset._add_pseudo_fields):
+
+	- Support either ndarray or xarray.
+
+	(Dataset.combine):
+
+	- Add field time_name which can be customised to be different than
+	'time'.
+
+	- Support either ndarray or xarray.
+
+	* typhon/datasets/tovs.py:
+
+	(TOVSCollocatedDataset.combine):
+
+	- Support either ndarray or xarray.
+
+	(HIRSHIRS._read):
+
+	- Support either ndarray or xarray.
+
+
+	* typhon/utils/__init__.py(get_time_dimensions):
+
+	- Tell me the time dimensions of an xarray dataset.
+
 2017-05-15  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* Fixed string representation of GriddedFields objects.

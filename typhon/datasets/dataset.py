@@ -130,6 +130,11 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     related = {}
     maxsize = 10000*MiB
     my_pseudo_fields = None
+    read_returns = "ndarray"
+
+    # in case of xarray returns, if concatenation is NOT along time
+    # coordinate, this should be set to something else
+    concat_coor = None
 
     # Make singleton: there is no point in having multiple copies of a
     # dataset-object around when both relate to the same dataset and
@@ -339,7 +344,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             end = start + end
 
         finder = self.find_granules_sorted if sorted else self.find_granules
-        logging.info("Reading {self.satname:s} {self.name:s} "
+        logging.info("Reading {self.name:s} {locator_args!s} "
                      "for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
@@ -412,10 +417,14 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     @staticmethod
     def _apply_limits_and_filters(cont, limits, filters):
         if isinstance(cont, xarray.Dataset):
-            if len(limits)>0 or len(filters)>0:
+            if len(limits)>0:
                 raise NotImplementedError( 
-                    "limits or filters not implemented on xarray "
-                    "datasets")
+                    "limits not implemented on xarray datasets")
+            oldsize = cont["time"].size
+            for f in filters:
+                cont = f(cont)
+            logging.debug("Filters reduced number from "
+                "{:d} to {:d}".format(oldsize, cont["time"].size))
             return cont
         oldsize = cont.size
         cont = tpmath.array.limit_ndarray(cont, limits)
@@ -533,7 +542,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     def _finalise_arr(self, arr, N):
         if isinstance(arr, list):
             logging.debug("Concatenating {N:d} DataArrays...".format(N=N))
-            return utils.concat_each_time_coordinate(*arr)
+            if self.concat_coor is None:
+                return utils.concat_each_time_coordinate(*arr)
+            else:
+                return xarray.concat(arr, dim=self.concat_coor)
             logging.debug("Done!")
         else:
             return self._correct_overallocation(arr, N)
@@ -639,12 +651,19 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else:
                     raise
         if D != {}:
-            newM = numpy.ma.zeros(shape=M.shape,
-                dtype=M.dtype.descr + [(k, v.dtype, v.shape[1:]) for (k,v) in D.items()])
+            if self.read_returns == "ndarray":
+                newM = numpy.ma.zeros(shape=M.shape,
+                    dtype=M.dtype.descr + [(k, v.dtype, v.shape[1:]) for (k,v) in D.items()])
+                for k in M.dtype.names:
+                    newM[k] = M[k]
+            elif self.read_returns == "xarray":
+                newM = M
+            else:
+                raise ValueError("read_returns must be ndarray or xarray")
+
             for (k, v) in D.items():
                 newM[k] = v
-            for k in M.dtype.names:
-                newM[k] = M[k]
+                
             M = newM
         return M
 
@@ -658,7 +677,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 #        process=dict(
 #            my_data=lambda x: x.view(dtype="i1")))
     def combine(self, my_data, other_obj, other_data=None, other_args=None, trans=None,
-                timetol=numpy.timedelta64(1, 's')):
+                timetol=numpy.timedelta64(1, 's'), time_name="time"):
         """Combine with data from other dataset.
 
         Combine a set of measurements from this dataset with another
@@ -699,6 +718,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 work (https://github.com/numpy/numpy/issues/5610).  User
                 must pass an explicit tolerance, defaulting to 1 second.
 
+            time_name (str): Name for my time field.  Defaults to "time".
+                Used to determine the period to read from the other
+                dataset.
+
         Returns:
 
             Masked ndarray of same size as `my_data` and same `dtype` as
@@ -714,25 +737,54 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if other_args is None:
             other_args = {}
 
-        first = my_data["time"].min().astype(datetime.datetime)
-        last = my_data["time"].max().astype(datetime.datetime)
+        if self.read_returns == "ndarray":
+            if other_data is None:
+                first = my_data[time_name].min().astype(datetime.datetime)
+                last = my_data[time_name].max().astype(datetime.datetime)
+
+        elif self.read_returns == "xarray":
+            if other_data is None:
+                first = my_data[time_name].min().values.astype("M8[ms]"
+                    ).astype(datetime.datetime)
+                last = my_data[time_name].max().values.astype("M8[ms]"
+                    ).astype(datetime.datetime)
+        else:
+            raise ValueError("read_returns must be ndarray or xarray")
 
         if other_data is None:
-            other_data = other_obj.read_period(first, last, **other_args)
-
-
+            other_data = other_obj.read_period(first, last,
+                            **other_args)
         (my_prim, other_prim) = next(iter(trans.items()))
 
-        # my_data needs to be sorted
-        try:
-            my_data._fill_value
-        except AttributeError:
-            my_data.sort(order=my_prim, kind="heapsort")
-        else:
-            # see 
-            # https://github.com/numpy/numpy/issues/8069
-            my_data.sort(order=my_prim, kind="heapsort",
-                                fill_value=my_data._fill_value)
+        if self.read_returns == "ndarray":
+            # my_data needs to be sorted
+            try:
+                my_data._fill_value
+            except AttributeError:
+                my_data.sort(order=my_prim, kind="heapsort")
+            else:
+                # see 
+                # https://github.com/numpy/numpy/issues/8069
+                my_data.sort(order=my_prim, kind="heapsort",
+                                    fill_value=my_data._fill_value)
+
+        elif self.read_returns == "xarray":
+
+            # ensure sorted along time dimension
+            if not len(my_data[my_prim].dims) == len(other_data[other_prim].dims) == 1:
+                raise ValueError(
+                    "Must use 1-D index for finding combinations, "
+                    "{:s} has {:d} dimensions: {!s}, "
+                    "{:s} has {:d} dimensions: {!s}.".format(
+                        my_prim, len(my_data[my_prim].dims),
+                        my_data[my_prim].dims,
+                        other_prim, len(other_data[other_prim].dims),
+                        other_data[other_prim].dims))
+            my_dim = my_data[my_prim].dims[0]
+            other_dim = other_data[other_prim].dims[0]
+            my_data = my_data.loc[
+                {my_data[my_prim].dims[0]:
+                 numpy.argsort(my_data[my_prim])}]
 
         # through interpolation, find times in `other` closest to times in
         # myself; hopefully that means the difference is zero
@@ -743,21 +795,55 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             x = other_data[other_prim]
             xx = my_data[my_prim]
 
-        ii = numpy.interp(xx, x,
-            numpy.arange(other_data[other_prim].shape[0])).round().astype(
-                numpy.uint64)
+        if self.read_returns == "ndarray":
+            ii = numpy.interp(xx, x,
+                numpy.arange(other_data[other_prim].shape[0])).round().astype(
+                    numpy.uint64)
+        else:
+            if not other_data[other_prim].dtype.kind=="M":
+                raise ValueError("When finding combinations based "
+                    "on xarray datasets, I can only do so based on "
+                    "time coordinates, but {:s} has dtype {!s}.".format(
+                        other_prim, other_data[other_prim].dtype))
+            for (k, v) in other_data.data_vars.items():
+                if v.dtype.kind == "M":
+                    raise ValueError("Found time data variable "
+                        "that is not a coordinate, I'm confused, "
+                        "should I interpolate it?  Assign as a coordinate "
+                        "to be sure!")
+            ii = dict.fromkeys(utils.get_time_dimensions(other_data))
+            for k in ii.keys():
+                x = other_data[k].astype("<M8[ms]").astype("f8")
+                ii[k] = numpy.interp(xx, x,
+                    numpy.arange(x.shape[0])).round().astype(numpy.int64)
 
+#        if self.read_returns == "ndarray":
+#            other_combi = other_data[ii]
+#            # now go through fields to see that there is an actual match
+#        elif self.read_returns == "xarray":
         other_combi = other_data[ii]
-        # now go through fields to see that there is an actual match
 
-        near = numpy.all([(numpy.isclose(my_data[f_my], other_combi[f_oth])
-                if issubclass(my_data[f_my].dtype.type,
-                              numpy.inexact) else
-                abs(my_data[f_my] - other_combi[f_oth]) < timetol
-                if issubclass(my_data[f_my].dtype.type,
-                              numpy.datetime64) else
-                my_data[f_my] == other_combi[f_oth])
-                    for (f_my, f_oth) in trans.items()], 0)
+        if self.read_returns == "ndarray":
+            near = numpy.all([(numpy.isclose(my_data[f_my], other_combi[f_oth])
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.inexact) else
+                    abs(my_data[f_my] - other_combi[f_oth]) < timetol
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.datetime64) else
+                    my_data[f_my] == other_combi[f_oth])
+                        for (f_my, f_oth) in trans.items()], 0)
+        elif self.read_returns == "xarray":
+            near = numpy.all([
+                (numpy.isclose(my_data[f_my].values,
+                               other_combi[f_oth].values)
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.inexact) else
+                    abs(my_data[f_my].values -
+                        other_combi[f_oth].values) < timetol
+                    if issubclass(my_data[f_my].dtype.type,
+                                  numpy.datetime64) else
+                    my_data[f_my].values == other_combi[f_oth].values)
+                        for (f_my, f_oth) in trans.items()], 0)
 
         if not near.any():
             raise ValueError("Did not find any secondaries!  Are times off?")
@@ -766,14 +852,18 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             logging.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
                 near.sum(), near.size, near.sum()/near.size))
 
-        try:
-            other_combi.mask[~near] = numpy.ones_like(other_combi.mask[~near])
-        except AttributeError: # not a MaskedArray yet
-            other_combi = numpy.ma.masked_where(~near, other_combi)
-
+        if self.read_returns == "ndarray":
+            try:
+                other_combi.mask[~near] = numpy.ones_like(other_combi.mask[~near])
+            except AttributeError: # not a MaskedArray yet
+                other_combi = numpy.ma.masked_where(~near, other_combi)
+        elif self.read_returns == "xarray":
+            vars_with_dim = [k for k in other_combi.data_vars.keys()
+                             if other_dim in other_combi[k].dims]
+            for v in vars_with_dim:
+                other_combi[v][{"time": ~near}] = numpy.nan
+            
         return other_combi
-
-        # For old, bruce force implementation, see versioning history
 
     def get_additional_field(self, M, fld):
         """Get additional field.

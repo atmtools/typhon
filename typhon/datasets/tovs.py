@@ -34,6 +34,7 @@ except ImportError:
     
 from . import dataset
 from ..utils import (metaclass, safe_eval)
+from .. import utils
  
 # from .. import physics
 from .. import math as tpmath
@@ -1951,25 +1952,70 @@ class TOVSCollocatedDataset:
     Should be mixed in before Dataset
     """
 
+    colloc_dim = "matchup_count"
+
     def combine(self, M, other_obj, *args, col_field,
-            col_field_slice=slice(None), **kwargs):
-        MM = super().combine(M, other_obj, *args, **kwargs)
-        # do something about entire scanlines being returned
-        scnlin_names = [f[0] for f in MM.dtype.descr 
-            if len(f)>2 and f[2][0]==other_obj.n_perline]
-        # strip out scanline dimension
-        new_dtp = [(f[0], f[1], tuple(i for i in f[2] if i!=other_obj.n_perline))
-                    if f[0] in scnlin_names else f for f in MM.dtype.descr]
-        idx_all = numpy.arange(M.size)
-        MM_new = numpy.ma.zeros(dtype=new_dtp, shape=MM.shape)
-        for fld in MM.dtype.names:
-            if fld in scnlin_names:
-                # see http://stackoverflow.com/a/23435869/974555
-                MM_new[fld][...] = MM[fld][idx_all, 
-                    M[col_field][col_field_slice], ...]
-            else:
-                MM_new[fld][...] = MM[fld][...]
-        return MM_new
+            col_field_slice=slice(None), trans, col_dim_name=None, **kwargs):
+        MM = super().combine(M, other_obj, *args, trans=trans, **kwargs)
+        if self.read_returns == "ndarray":
+            # do something about entire scanlines being returned
+            scnlin_names = [f[0] for f in MM.dtype.descr 
+                if len(f)>2 and f[2][0]==other_obj.n_perline]
+            # strip out scanline dimension
+            new_dtp = [(f[0], f[1], tuple(i for i in f[2] if i!=other_obj.n_perline))
+                        if f[0] in scnlin_names else f for f in MM.dtype.descr]
+            idx_all = numpy.arange(M.size)
+            MM_new = numpy.ma.zeros(dtype=new_dtp, shape=MM.shape)
+            for fld in MM.dtype.names:
+                if fld in scnlin_names:
+                    # see http://stackoverflow.com/a/23435869/974555
+                    MM_new[fld][...] = MM[fld][idx_all, 
+                        M[col_field][col_field_slice], ...]
+                else:
+                    MM_new[fld][...] = MM[fld][...]
+            return MM_new
+        elif self.read_returns == "xarray":
+            scnlin_names = [k for (k, v) in MM.data_vars.items()
+                if col_dim_name in v.dims]
+            (my_var, other_var) = next(iter(trans.items()))
+            my_dim = M[my_var].dims[0]
+            other_dim = MM[other_var].dims[0]
+            # repeat the above-linked SO feat but for xarray…  does not
+            # appear to work directly, need to pass through .values and
+            # carefully translate the right order of dimensions to the
+            # correct indices
+            
+            idx_all = numpy.arange(M.dims[self.colloc_dim])
+            for varname in scnlin_names:
+                MM[varname] = (
+                    [self.colloc_dim if MM[varname].coords[d].dtype.kind=="M" else d
+                     for d in MM[varname].dims if d != col_dim_name],
+                         MM[varname].values[
+                            tuple(M[col_field].values if d == col_dim_name
+                            else idx_all if MM[varname].coords[d].dtype.kind == "M"
+                            else slice(None) for d in MM[varname].dims)
+                         ])
+            # how parent class returned it, there are now several
+            # equally-sized dimensions all related to time: time,
+            # scanline_earth, calibration_cycle, etc.  Make sure they all
+            # get the dimension matchup_count or whatever I use for the
+            # collocations.
+
+            # NB:  I want to drop the dimensions, but keep the
+            # coordinates using the matchup_number dimension.  A simple
+            # rename would rename the coordinates, such that matchup_number ends
+            # up having the contents of whatever coordinate came last, and
+            # the rest vanishes; need to reassign right coordinates after
+            # renaming.
+            timedims = utils.get_time_dimensions(MM)
+            MM = MM.rename(dict.fromkeys(timedims, self.colloc_dim)
+                ).assign_coords(
+                    **{d: (self.colloc_dim, MM.coords[d].values)
+                       for d in utils.get_time_dimensions(MM)},
+                    matchup_count=M["matchup_count"].values)
+            return MM
+        else:
+            raise ValueError("read_returns must be xarray or ndarray")
 
 
 class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDataset, dataset.HyperSpectral):
@@ -2014,49 +2060,112 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
     start_date = HIRS2.start_date
     end_date = HIRS4.end_date
 
+    concat_coor = "matchup_count"
+
   #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
 
     def _read(self, f, fields="all"):
         M = super()._read(f, fields)
 
-        timefields = [x for x in M.dtype.descr
-                      if x[0].endswith("acquisition_time")]
-        if len(timefields) != 2:
-            raise dataset.InvalidFileError("Expected 2 "
-                "fields for time, found {:d}".format(len(timefields)))
+        if self.read_returns == "ndarray":
+            timefields = [x for x in M.dtype.descr
+                          if x[0].endswith("acquisition_time")]
+            if len(timefields) != 2:
+                raise dataset.InvalidFileError("Expected 2 "
+                    "fields for time, found {:d}".format(len(timefields)))
 
-        MM = numpy.ma.zeros(shape=M.shape,
-                         dtype=M.dtype.descr +
-                         [("alltime", "M8[s]", timefields[0][2]
-                            if len(timefields[0])>2 else ()),
-                          ("time", "M8[s]")])
+            MM = numpy.ma.zeros(shape=M.shape,
+                             dtype=M.dtype.descr +
+                             [("alltime", "M8[s]", timefields[0][2]
+                                if len(timefields[0])>2 else ()),
+                              ("time", "M8[s]")])
 
-        # Always use primary time so that time is always increasing
-#        MM["alltime"] = (
-#            numpy.ma.masked_less_equal(M[timefields[0][0]], 0)*.5 +
-#            numpy.ma.masked_less_equal(M[timefields[1][0]], 0)*.5
-#                        ).astype("M8[s]")
-        MM["alltime"] = (
-            numpy.ma.masked_less_equal(M[timefields[0][0]], 0)
-                        ).astype("M8[s]")
-        MM["time"] = MM["alltime"][:, int(MM["alltime"].shape[1]//2+1),
-                                      int(MM["alltime"].shape[2]//2+1)]
-        for fld in M.dtype.fields:
-            MM[fld][...] = M[fld][...]
-        # it appears there may still have been overlaps in the data that
-        # went into the matchups... try to fix that here
-        ii = numpy.argsort(M[timefields[0][0]][:, 3, 3])
-        Msrt = M[ii]
-        (_, iiu) = numpy.unique(
-            numpy.c_[
-                Msrt[timefields[0][0]][:, 3, 3],
-                Msrt[timefields[1][0]][:, 3, 3]
-                    ].data.view("i4,i4"),
-            return_index=True)
-        if iiu.size < MM.size:
-            logging.warning("There were duplicates in {!s}!  Removing " 
-            "{:.2%}".format(f, 1-iiu.size/MM.size))
-        return MM[ii][iiu]
+            # Always use primary time so that time is always increasing
+    #        MM["alltime"] = (
+    #            numpy.ma.masked_less_equal(M[timefields[0][0]], 0)*.5 +
+    #            numpy.ma.masked_less_equal(M[timefields[1][0]], 0)*.5
+    #                        ).astype("M8[s]")
+            MM["alltime"] = (
+                numpy.ma.masked_less_equal(M[timefields[0][0]], 0)
+                            ).astype("M8[s]")
+            MM["time"] = MM["alltime"][:, int(MM["alltime"].shape[1]//2+1),
+                                          int(MM["alltime"].shape[2]//2+1)]
+            for fld in M.dtype.fields:
+                MM[fld][...] = M[fld][...]
+            # it appears there may still have been overlaps in the data that
+            # went into the matchups... try to fix that here
+            # BUG!  (time1, time2) is not unique!  Time is per SCANLINE,
+            # so unique would be (time1, x1, time2, x2)!
+            ii = numpy.argsort(M[timefields[0][0]][:, 3, 3])
+            Msrt = M[ii]
+            (_, iiu) = numpy.unique(
+                numpy.c_[
+                    Msrt[timefields[0][0]][:, 3, 3],
+                    Msrt[timefields[1][0]][:, 3, 3]
+                        ].data.view("i4,i4"),
+                return_index=True)
+            if iiu.size < MM.size:
+                logging.warning("There were duplicates in {!s}!  Removing " 
+                "{:.2%}".format(f, 1-iiu.size/MM.size))
+            return MM[ii][iiu]
+        elif self.read_returns == "xarray":
+            # acquisition_time has attribute "unit" instead of "units";
+            # use regular "time" instead
+            timefields = [k for k in M.data_vars.keys()
+                          if k.endswith("time")
+                     and not k.endswith("acquisition_time")]
+            
+            # estimate corrected time per pixel depending on location in
+            # scan position; this prevents false detection of
+            # duplicates and unsorted data.
+            for p in (x[5:-3] for x in M.dims.keys() if x.endswith("nx")):
+                M["hirs-{:s}_time".format(p)] += (M["hirs-{:s}_x".format(p)]*100).astype("m8[ms]")
+
+            if len(timefields) != 2:
+                raise dataset.InvalidFileError("Expected 2 "
+                    "fields for time, found {:d}".format(len(timefields)))
+
+            # need to manually flag bad times as this wasn't done earlier
+            # in the processing
+            for fld in timefields:
+                M[fld].values[(M[fld].values.astype("M8[ms]")
+                    > datetime.datetime.now()) |
+                              (M[fld].values.astype("M8[ms]")
+                    < datetime.datetime(1975, 1, 1))] = numpy.datetime64("NaT")
+
+            tm1 = M[timefields[0]][:, 3, 3]
+            tm2 = M[timefields[1]][:, 3, 3]
+
+            # NB: tm1+tm2 is invalid so calculate average like this
+            newtime = tm1 + (tm2-tm1)/2
+            M["time"] = (("matchup_count",), newtime)
+
+            # BUG!  (time1, time2) is not unique!  Time is per SCANLINE,
+            # so unique would be (time1, x1, time2, x2)!
+            ii = numpy.argsort(M[timefields[0]][:, 3, 3])
+            Ms = M.loc[
+                {"matchup_count": ii,
+                 **{k: 3 for k in M.dims.keys()
+                    if k != "matchup_count"}}][timefields]
+            Msn = numpy.c_[Ms[timefields[0]].values, Ms[timefields[1]].values]
+
+            # see http://stackoverflow.com/a/16973510/974555
+            Msnu = numpy.ascontiguousarray(Msn).view(
+                numpy.dtype((numpy.void, Msn.dtype.itemsize * 2)))
+
+            (_, iiu) = numpy.unique(Msnu, return_index=True)
+            if iiu.size < M.dims["matchup_count"]:
+                logging.warning("There were duplicates in {!s}!  Removing "
+                    "{:.2%}".format(f, 1-iiu.size/M.dims["matchup_count"]))
+
+            M = M[{"matchup_count": iiu}]
+            M = M[{"matchup_count": numpy.argsort(M["time"])}]
+
+            return M
+            
+        else:
+            raise ValueError("read_returns should be xarray or ndarray, "
+                "found {!s}".format(self.read_returns))
 
     def combine(self, M, other_obj, *args, col_field, **kwargs):
         return super().combine(M, other_obj, *args, col_field=col_field,

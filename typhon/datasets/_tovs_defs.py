@@ -1940,6 +1940,12 @@ HIRS_periods = dict(
     metopb =    (datetime.datetime(2013, 1, 15),
                  datetime.datetime.now()))
 
+NOAA_numbers = {
+    "tirosn": 5,
+    "metopa": 20,
+    "metopb": 21,
+    **{name: int(name[-2:]) for name in HIRS_periods.keys() if
+    name.startswith("noaa")}}
 
 # http://noaasis.noaa.gov/NOAASIS/pubs/CAL/cal11.asc
 

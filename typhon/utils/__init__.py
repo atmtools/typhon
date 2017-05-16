@@ -241,12 +241,19 @@ def path_remove(dirname, path='PATH'):
         os.environ[path] = os.pathsep.join(dir_list)
 
 
+def get_time_dimensions(ds):
+    """From a xarray dataset or dataarray, get dimensions corresponding to time coordinates
+
+    """
+
+    return {k for (k, v) in ds.coords.items() if k in ds.dims and v.dtype.kind == "M"}
+
 def get_time_coordinates(ds):
     """From a xarray dataset or dataarray, get coordinates with at least 1 time dimension
 
     """
 
-    time_dims = {k for (k, v) in ds.coords.items() if k in ds.dims and v.dtype.kind == "M"}
+    time_dims = get_time_dimensions(ds)
     return {k for (k, v) in ds.coords.items() if set(v.dims)&time_dims}
 
 
@@ -270,7 +277,7 @@ def concat_each_time_coordinate(*datasets):
     """
 
     time_coords = get_time_coordinates(datasets[0])
-    time_dims = time_coords & datasets[0].dims.keys()
+    time_dims = get_time_dimensions(datasets[0])
     # ensure each data-variable has zero or one of those time coordinates
     # as dimensions
     for ds in datasets:
