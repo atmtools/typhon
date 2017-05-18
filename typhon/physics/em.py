@@ -77,7 +77,7 @@ def planck_wavenumber(n, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * c**2 * n**3 / (np.exp(h * c * n / (k * T) - 1))
+    return 2 * h * c**2 * n**3 / (np.exp(h * c * n / (k * T)) - 1)
 
 
 def rayleighjeans(f, T):

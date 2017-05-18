@@ -1,3 +1,11 @@
+2017-05-18  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/em.py(planck_wavenumber): SERIOUS BUGFIX
+
+	There was a typo in the equation.  If you ever used it, please retract
+	all your papers and return your PhD and other degrees because the
+	output was INCORRECT.
+
 2017-05-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* Changed format for version number!
