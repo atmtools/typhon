@@ -1,3 +1,16 @@
+2017-05-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* Changed format for version number!
+
+	* typhon/version.py:
+
+	The format of the module version number has changed.
+	The new format is recognized by pip (and IDEs like PyCharm).
+
+	The new format is: <major>.<minor>.<micro><revision>
+
+	Example of resulting version number: 0.3.6r10443
+
 2017-05-16  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:

@@ -12,7 +12,7 @@ def get_version_info():
             revision = get_svn_revision()
         else:
             revision = "dev"
-        VERSION += '+' + revision
+        VERSION += revision
 
     return VERSION
 
