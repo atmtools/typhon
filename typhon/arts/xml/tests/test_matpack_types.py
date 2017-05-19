@@ -31,6 +31,22 @@ def _create_tensor(n):
     return np.arange(2 ** n).reshape(2 * np.ones(n).astype(int))
 
 
+def _create_complex_tensor(n):
+    """Create a complex tensor of dimension n.
+
+    Create a complex tensor with n dimensions with two entries in each
+    dimension. The tensor is filled with increasing integers starting with 0.
+
+    Args:
+        n (int): number of dimensions
+
+    Returns:
+        np.ndarray: n-dimensional tensor
+
+    """
+    return np.arange(2 ** n, dtype=np.complex128).reshape(2 * np.ones(n).astype(int))
+
+
 def _create_empty_tensor(n):
     """Create an empty tensor of dimension n.
 
@@ -175,6 +191,13 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
+    def test_save_complex_vector_binary(self):
+        """Save complex Vector to file, read it and compare the results."""
+        reference = _create_complex_tensor(1)
+        xml.save(reference, self.f, format='binary')
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
     def test_save_empty_vector(self):
         """Save empty Vector to file, read it and compare the results."""
         reference = _create_empty_tensor(1)
@@ -195,6 +218,13 @@ class TestSave(object):
         """Save Matrix to file, read it and compare the results."""
         reference = _create_tensor(2)
         xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+    def test_save_complex_matrix_binary(self):
+        """Save complex Matrix to file, read it and compare the results."""
+        reference = _create_complex_tensor(2)
+        xml.save(reference, self.f, format='binary')
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 

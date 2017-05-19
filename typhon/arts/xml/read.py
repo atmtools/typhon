@@ -96,6 +96,27 @@ class ARTSTypesLoadMultiplexer:
         return arr
 
     @staticmethod
+    def ComplexVector(elem):
+        nelem = int(elem.attrib['nelem'])
+        if nelem == 0:
+            arr = np.ndarray((0,), dtype=np.complex128)
+        else:
+            # sep=' ' seems to work even when separated by newlines, see
+            # http://stackoverflow.com/q/31882167/974555
+            if elem.binaryfp is not None:
+                arr = np.fromfile(elem.binaryfp, dtype=np.complex128,
+                                  count=nelem)
+            else:
+                raise RuntimeError('Complex types can only be read from '
+                                   'binary files at the moment.')
+            if arr.size != nelem:
+                raise RuntimeError(
+                    'Expected {:s} elements in Vector, found {:d}'
+                    ' elements!'.format(elem.attrib['nelem'],
+                                        arr.size))
+        return arr
+
+    @staticmethod
     def Matrix(elem):
         # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
         dimnames = [dim for dim in dimension_names
@@ -104,7 +125,7 @@ class ARTSTypesLoadMultiplexer:
         if np.prod(dims) == 0:
             flatarr = np.ndarray(dims)
         elif elem.binaryfp is not None:
-            flatarr = np.fromfile(elem.binaryfp, dtype='<d',
+            flatarr = np.fromfile(elem.binaryfp, dtype=np.complex128,
                                   count=np.prod(np.array(dims)))
             flatarr = flatarr.reshape(dims)
         else:
@@ -112,7 +133,25 @@ class ARTSTypesLoadMultiplexer:
             flatarr = flatarr.reshape(dims)
         return flatarr
 
+    @staticmethod
+    def ComplexMatrix(elem):
+        # turn dims around: in ARTS, [10 x 1 x 1] means 10 pages, 1 row, 1 col
+        dimnames = [dim for dim in dimension_names
+                    if dim in elem.attrib.keys()][::-1]
+        dims = [int(elem.attrib[dim]) for dim in dimnames]
+        if np.prod(dims) == 0:
+            flatarr = np.ndarray(dims, dtype=np.complex128)
+        elif elem.binaryfp is not None:
+            flatarr = np.fromfile(elem.binaryfp, dtype=np.complex128,
+                                  count=np.prod(np.array(dims)))
+            flatarr = flatarr.reshape(dims)
+        else:
+            raise RuntimeError('Complex types can only be read from '
+                               'binary files at the moment.')
+        return flatarr
+
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix
+    ComplexTensor3 = ComplexTensor4 = ComplexTensor5 = ComplexTensor6 = ComplexTensor7 = ComplexMatrix
 
 
 class ARTSElement(ElementTree.Element):

@@ -1,3 +1,15 @@
+2017-05-19  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/utils.py, typhon/arts/xml/names.py,
+	typhon/arts/xml/read.py, typhon/arts/xml/write.py:
+
+	Add experimental support for complex Vector, Matrix and Tensor types.
+	Only binary files are supported for now.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Add test for ComplexVector and ComplexMatrix.
+
 2017-05-19  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/physics/tests/test_physics.py:

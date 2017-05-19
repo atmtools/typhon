@@ -4,7 +4,7 @@
 
 import numpy as np
 
-from .xml.names import basic_types, tensor_names
+from .xml.names import basic_types, tensor_names, complex_tensor_names
 
 
 def get_arts_typename(var):
@@ -29,7 +29,10 @@ def get_arts_typename(var):
                         return None
                 ret = 'ArrayOf' + element_type
     elif isinstance(var, np.ndarray):
-        ret = tensor_names[var.ndim - 1]
+        if np.issubdtype(var.dtype, np.complex):
+            ret = complex_tensor_names[var.ndim - 1]
+        else:
+            ret = tensor_names[var.ndim - 1]
     else:
         ret = type(var).__name__
 
