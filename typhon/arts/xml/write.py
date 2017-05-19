@@ -192,20 +192,19 @@ class ARTSXMLWriter:
         else:
             dtype = 'd'
 
+        # Vector
         if ndim == 1:
-            # Vector
             attr['nelem'] = var.shape[0]
             self.open_tag(tag, attr)
             if self.binaryfilepointer is not None:
                 np.array(var, dtype=dtype).tofile(self.binaryfilepointer)
             else:
                 if np.issubdtype(var.dtype, np.complex):
-                    raise RuntimeError('Complex types can only be stored as '
-                                       'binary files at the moment.')
-
-                fmt = "%" + self.precision
+                    var = var.astype(np.complex128)
+                    var.dtype = np.float64
+                fmt = "{:" + self.precision + "}"
                 for i in var:
-                    self.write(fmt % i + '\n')
+                    self.write(fmt.format(i) + '\n')
             self.close_tag()
         # Matrix and Tensors
         elif ndim <= len(dimension_names):
@@ -218,9 +217,8 @@ class ARTSXMLWriter:
                 np.array(var, dtype=dtype).tofile(self.binaryfilepointer)
             else:
                 if np.issubdtype(var.dtype, np.complex):
-                    raise RuntimeError('Complex types can only be stored as '
-                                       'binary files at the moment.')
-
+                    var = var.astype(np.complex128)
+                    var.dtype = np.float64
                 # Reshape for row-based linebreaks in XML file
                 if np.prod(var.shape) != 0:
                     if ndim > 2:

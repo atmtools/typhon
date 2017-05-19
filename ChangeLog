@@ -1,5 +1,15 @@
 2017-05-19  Oliver Lemke  <olemke@core-dump.info>
 
+	* typhon/arts/xml/read.py, typhon/arts/xml/write.py:
+
+	Add ASCII XML read/write support for Complex types.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Add ASCII test cases for ComplexMatrix and ComplexVector.
+
+2017-05-19  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/utils.py, typhon/arts/xml/names.py,
 	typhon/arts/xml/read.py, typhon/arts/xml/write.py:
 

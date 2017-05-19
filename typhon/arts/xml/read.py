@@ -107,8 +107,8 @@ class ARTSTypesLoadMultiplexer:
                 arr = np.fromfile(elem.binaryfp, dtype=np.complex128,
                                   count=nelem)
             else:
-                raise RuntimeError('Complex types can only be read from '
-                                   'binary files at the moment.')
+                arr = np.fromstring(elem.text, sep=' ', dtype=np.float64)
+                arr.dtype = np.complex128
             if arr.size != nelem:
                 raise RuntimeError(
                     'Expected {:s} elements in Vector, found {:d}'
@@ -146,8 +146,9 @@ class ARTSTypesLoadMultiplexer:
                                   count=np.prod(np.array(dims)))
             flatarr = flatarr.reshape(dims)
         else:
-            raise RuntimeError('Complex types can only be read from '
-                               'binary files at the moment.')
+            flatarr = np.fromstring(elem.text, sep=' ', dtype=np.float64)
+            flatarr.dtype = np.complex128
+            flatarr = flatarr.reshape(dims)
         return flatarr
 
     Tensor3 = Tensor4 = Tensor5 = Tensor6 = Tensor7 = Matrix

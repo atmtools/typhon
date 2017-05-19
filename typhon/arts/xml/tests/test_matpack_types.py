@@ -191,6 +191,13 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
+    def test_save_complex_vector(self):
+        """Save complex Vector to file, read it and compare the results."""
+        reference = _create_complex_tensor(1)
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
     def test_save_complex_vector_binary(self):
         """Save complex Vector to file, read it and compare the results."""
         reference = _create_complex_tensor(1)
@@ -217,6 +224,13 @@ class TestSave(object):
     def test_save_matrix(self):
         """Save Matrix to file, read it and compare the results."""
         reference = _create_tensor(2)
+        xml.save(reference, self.f)
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
+    def test_save_complex_matrix(self):
+        """Save complex Matrix to file, read it and compare the results."""
+        reference = _create_complex_tensor(2)
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
