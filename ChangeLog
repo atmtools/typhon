@@ -1,3 +1,9 @@
+2017-05-19  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/physics/tests/test_physics.py:
+
+	Adapated test case to the fixed version of `planck_wavenumber`.
+
 2017-05-18  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/em.py(planck_wavenumber): SERIOUS BUGFIX

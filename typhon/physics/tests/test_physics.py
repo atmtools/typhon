@@ -23,7 +23,7 @@ class TestEM(object):
     def test_planck_wavenumber(self):
         """Test calculation of Planck black body radiation (for wavenumber)."""
         x = physics.planck_wavenumber(100, 273.15)
-        assert np.allclose(x, 3.2205817195716319e-10)
+        assert np.allclose(x, 2.2552294907196695e-08)
 
     def test_rayleighjeans(self):
         """Test calculation Rayleigh-Jeans black body radiation."""
