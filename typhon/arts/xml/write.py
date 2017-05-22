@@ -183,11 +183,6 @@ class ARTSXMLWriter:
         ndim = var.ndim
         tag = get_arts_typename(var)
         if np.issubdtype(var.dtype, np.complex):
-            import warnings
-            warnings.warn(
-                'Support for complex Vectors and Tensors is experimental '
-                'and incompatible changes to the format might occur in '
-                'the future.', FutureWarning, stacklevel=2)
             dtype = np.complex128
         else:
             dtype = 'd'

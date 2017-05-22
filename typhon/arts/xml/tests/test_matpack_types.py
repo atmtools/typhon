@@ -228,6 +228,13 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
+    def test_save_matrix_binary(self):
+        """Save Matrix to file, read it and compare the results."""
+        reference = _create_tensor(2)
+        xml.save(reference, self.f, format='binary')
+        test_data = xml.load(self.f)
+        assert np.array_equal(test_data, reference)
+
     def test_save_complex_matrix(self):
         """Save complex Matrix to file, read it and compare the results."""
         reference = _create_complex_tensor(2)
@@ -251,6 +258,11 @@ class TestSave(object):
         """Save different Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_tensor, n
+
+    def test_save_tensor_binary(self):
+        """Save different Tensor types to file, read and verify."""
+        for n in range(3, 8):
+            yield self._save_tensor, n, 'binary'
 
     def test_save_arrayofindex(self):
         """Save ArrayOfIndex to file, read it and compare the results."""
@@ -297,7 +309,7 @@ class TestSave(object):
 
         xml.save(ref, f, format='binary')
 
-    def _save_tensor(self, n):
+    def _save_tensor(self, n, format='ascii'):
         """Save tensor of dimension n to file, read it and compare data to
         reference.
 
@@ -306,7 +318,7 @@ class TestSave(object):
 
         """
         reference = _create_tensor(n)
-        xml.save(reference, self.f)
+        xml.save(reference, self.f, format=format)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 

@@ -125,7 +125,7 @@ class ARTSTypesLoadMultiplexer:
         if np.prod(dims) == 0:
             flatarr = np.ndarray(dims)
         elif elem.binaryfp is not None:
-            flatarr = np.fromfile(elem.binaryfp, dtype=np.complex128,
+            flatarr = np.fromfile(elem.binaryfp, dtype=np.float64,
                                   count=np.prod(np.array(dims)))
             flatarr = flatarr.reshape(dims)
         else:

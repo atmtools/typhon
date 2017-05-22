@@ -1,3 +1,16 @@
+2017-05-22  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/xml/read.py:
+
+	Fix wrong dtype in reading of Matrix/Tensor from binary xml file.
+
+	* typhon/arts/xml/tests/test_matpack_types.py:
+
+	Add additional tests for Matrix/Tensor to catch this error in the
+	future.
+
+	* typhon/arts/xml/write.py: Remove FutureWarning.
+
 2017-05-19  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml/read.py, typhon/arts/xml/write.py:
