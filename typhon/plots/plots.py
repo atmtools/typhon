@@ -349,7 +349,33 @@ def scatter_density_plot_matrix(
 
 
 def HectoPascalFormatter():
-    """Creates hectopascal labels for pascal input."""
+    """Creates hectopascal labels for pascal input.
+    
+    Examples:
+        
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon
+
+    
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)
+        x = np.exp(p / p[0])
+
+        fig, ax = plt.subplots()
+        ax.plot(x, p)
+        ax.invert_yaxis()
+        ax.yaxis.set_major_formatter(typhon.plots.HectoPascalFormatter())
+        ax.yaxis.set_minor_formatter(typhon.plots.HectoPascalFormatter())
+        
+        plt.show()
+        
+    See also:
+            :func:`~typhon.plots.HectoPascalLogFormatter`
+                Creates logarithmic hectopascal labels for pascal input.
+    """
     @FuncFormatter
     def _HectoPascalFormatter(x, pos):
         return '{:g}'.format(x / 1e2)
@@ -363,6 +389,31 @@ class HectoPascalLogFormatter(LogFormatter):
     This class can be used to create axis labels on the hectopascal scale for
     values plotted in pascals. It is handy in combination with plotting in
     logscale.
+    
+    Examples:
+        
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import typhon
+
+    
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)  # pressue in Pa
+        x = np.exp(p / p[0])
+
+        fig, ax = plt.subplots()
+        ax.semilogy(x, p)
+        ax.invert_yaxis()
+        ax.yaxis.set_major_formatter(typhon.plots.HectoPascalLogFormatter())
+        ax.yaxis.set_minor_formatter(typhon.plots.HectoPascalLogFormatter())
+        
+        plt.show()
+        
+    See also:
+            :func:`~typhon.plots.HectoPascalFormatter`
+                Creates hectopascal labels for pascal input.
     """
     # TODO (lkluft): This is an easy hack to preserve the automatic toggling of
     # minor ticks for log-scales introduced in matplotlib 2.0.
@@ -395,7 +446,7 @@ def profile_p(p, x, ax=None, **kwargs):
         import matplotlib.pyplot as plt
         import typhon.plots
 
-        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)
+        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)  # pressure in Pa.
         x = np.exp(p / p[0])
 
         fig, ax = plt.subplots()

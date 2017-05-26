@@ -1,3 +1,16 @@
+2017-05-26  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/__init__.py: Import `typhon.plots` by default.
+
+	The plotting submodule is now automatically loaded when typhon
+	is imported.
+
+	* typhon/plots/plots.py:
+
+	* (HectoPascalFormatter, HectoPascalLogFormatter):
+
+	Added example plots and cross-references.
+
 2017-05-22  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/xml/read.py:
