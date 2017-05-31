@@ -2,6 +2,7 @@
 """
 
 import datetime
+import copy
 
 import numpy
 import collections
@@ -528,10 +529,13 @@ _hirs_data_vars_props_common = dict(
          "units": "ms"},
          _u4_coding.copy()), # copy because I will change it later
     hrs_qualind = (
-        "quality_flags",
+        "quality_flags_bitfield",
         ("time",),
         {"long_name": "Quality indicator bit field", # FIMXE: flag_meanings
-         "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4")},
+         "flag_masks": 1<<numpy.array(numpy.arange(25, 32), dtype="u4"),
+         "flag_meanings": ("status_change first_good earth_not_found "
+                           "insufficient_calib data_gap_before "
+                           "time_seq_error do_not_use")},
          _u4_coding.copy()),
     hrs_calcof = (
         "original_calibration_coefficients",
@@ -769,24 +773,36 @@ HIRS_data_vars_props[3].update(
         _u2_coding),
     hrs_scntyp = HIRS_data_vars_props[2]["scantype"],
     hrs_linqualflgs = (
-        "line_quality_flags",
+        "line_quality_flags_bitfield",
         ("time",),
-        {"long_name": "Scan line quality flags bit field", # FIXME: flag_meanings
-         "flag_masks": 1<<numpy.array([4, 5, 6, 7, 10, 11, 12, 13, 14,
+        {"long_name": "Scan line quality flags bit field",
+         "flag_masks": 1<<numpy.array([4, 5, 6, 7, 9, 10, 11, 12, 13, 14,
                                        15, 20, 21, 22, 23],
-                                       dtype="u4")},
+                                       dtype="u4"),
+        "flag_meanings": ("earth_loc_unreason earth_loc_margreason " # 4-5
+                          "earth_loc_quest_time earth_absent_bad_time " # 6-7
+                          "lunar_contamination uncalib_mode " # 9-10
+                          "some_ch_uncalib prt_marginal " # 11-12
+                          "prt_bad calib_fewer_lines uncalib_bad_time " # 13-15
+                          "time_repeat time_discont time_bad_nofix " # 20-22
+                          "time_bad_fix")}, # 23
        _u4_coding.copy()),
     hrs_chqualflg = (
-        "channel_quality_flags",
+        "channel_quality_flags_bitfield",
         ("time", "channel"),
         {"long_name": "Channel quality flags bit field",
-         "flag_masks": 1<<numpy.arange(6, dtype="u2")},
+         "flag_masks": 1<<numpy.arange(6, dtype="u2"),
+         "flag_meanings": ("marg_prt_ch marg_space_ch marg_iwct_ch "
+                           "bad_prt_ch bad_space_ch bad_iwct_ch")},
          _u2_coding),
     hrs_mnfrqual = (
-        "minorframe_quality_flags",
+        "minorframe_quality_flags_bitfield",
         ("time", "minor_frame"),
         {"long_name": "Minor frame quality flags bit field",
-         "flag_masks": 1<<numpy.arange(8, dtype="u1")},
+         "flag_masks": 1<<numpy.arange(1, 8, dtype="u1"),
+         "flag_meanings": ("mirror_move mirror_pos_error mirror_locked "
+                           "data_pacs_qc tip_dwell missing_data "
+                           "frame_time_error")},
          _u1_coding),
     hrs_scalcof = (
         "second_original_calibration_coefficients",
@@ -915,7 +931,8 @@ HIRS_data_vars_props[3].update(
          _temp_coding),
          )
 
-HIRS_data_vars_props[4] = HIRS_data_vars_props[3].copy()
+# deep copy because of flag meanings
+HIRS_data_vars_props[4] = copy.deepcopy(HIRS_data_vars_props[3])
 del HIRS_data_vars_props[4]["hrs_aninvwbf"]
 del HIRS_data_vars_props[4]["hrs_digbinvwbf"]
 HIRS_data_vars_props[4]["hrs_analogupdatefg"] = (
@@ -930,6 +947,16 @@ HIRS_data_vars_props[4]["hrs_digitbupdatefg"] = (
     {"long_name": "Digital B telemetry update flags bit field"},
     _u2_coding
     )
+
+#HIRS_data_vars_props[4]["hrs_qualind"][2]["flag_meanings"]
+HIRS_data_vars_props[4]["hrs_linqualflgs"][2]["flag_meanings"] = (
+    HIRS_data_vars_props[3]["hrs_linqualflgs"][2]["flag_meanings"].replace(
+        "uncalib_mode", "calib_disabled").replace(
+        "calib_fewer_lines", "calib_from_hcf"))
+HIRS_data_vars_props[4]["hrs_chqualflg"][2]["flag_meanings"] = (
+    "qc_test_not_applied_ch space_failed_nedc_ch iwct_failed_nedc_ch "
+    "slope_from_hcf_ch anom_iwct_or_space_ch calib_failed_ch")
+#HIRS_data_vars_props[4]["hrs_mnfrqual"][2]["flag_meanings"]
 
 
 HIRS_line_dtypes[4] = numpy.dtype([('hrs_scnlin', '>i2', 1),

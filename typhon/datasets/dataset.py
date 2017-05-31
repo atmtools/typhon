@@ -1070,9 +1070,9 @@ class MultiFileDataset(Dataset):
         for field in found:
             if field in self.valid_field_values:
                 if not extra[field] in self.valid_field_values[field]:
-                    raise GranuleLocatorError("Encountered invalid {field:s} "
-                        "when searching for {self.name:s} files. "
-                        "Found: {value:s}. Valid: "
+                    raise GranuleLocatorError("Encountered invalid {field!s} "
+                        "when searching for {self.name!s} files. "
+                        "Found: {value!s}. Valid: "
                         "{valid_values!s}".format(
                             field=field, self=self, extra=extra,
                             value=extra[field],

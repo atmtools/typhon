@@ -2062,8 +2062,6 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
 
     concat_coor = "matchup_count"
 
-  #mmd05_hirs-n17_hirs-n16_2013-091_2013-097.nc
-
     def _read(self, f, fields="all"):
         M = super()._read(f, fields)
 
@@ -2212,13 +2210,12 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
             MM[f][...] = M[f][...]
         return MM
 
-# Now in FCDR_HIRS.fcdr
-#def which_hirs_fcdr(satname):
-#    """Given a satellite, return right HIRS object
-#    """
-#    for h in {HIRS2FCDR, HIRS3FCDR, HIRS4FCDR}:
-#        for (k, v) in h.satellites:
-#            if satname in {k}|v:
-#                return h()
-#    else:
-#        raise ValueError("Unknown HIRS satellite: {:s}".format(satname))
+def which_hirs(satname):
+    """Given a satellite, return right HIRS object
+    """
+    for h in {HIRS2, HIRS3, HIRS4}:
+        for (k, v) in h.satellites.items():
+            if satname in {k}|v:
+                return h(satname=satname)
+    else:
+        raise ValueError("Unknown HIRS satellite: {:s}".format(satname))
