@@ -1,3 +1,11 @@
+2017-06-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* README.md: Added a short README file.
+
+	The file is meant to give short instructions on how to get
+	started when developing typhon.
+	The common way to provide documentation is still Sphinx!
+
 2017-05-31  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:
