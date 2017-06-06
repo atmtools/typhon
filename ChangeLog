@@ -1,3 +1,21 @@
+2017-06-06  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/physics/em.py (planck, planck_wavelength, planck_wavenumber,
+	rayleighjeans_wavelength, radiance2planckTb, radiance2rayleighjeansTb,
+	frequency2wavelength, wavelength2frequency, wavelength2wavenumber,
+	wavenumber2wavelength):
+
+	Introduce a np.divide to avoid a runtime error being thrown if function
+	is called with a float instead of an numpy array. Now for all such
+	cases a numpy warning is consistently issued.
+
+	This makes the functions behave in line with how numpy's / scipy's own
+	functions work. If the user wants to suppress the warning, the
+	means numpy offers itself should be used for this, e.g.:
+
+	with np.errstate(divide='ignore'):
+	    radiance2plancktb(f, r)
+
 2017-06-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* README.md: Added a short README file.

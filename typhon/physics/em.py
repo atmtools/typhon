@@ -41,7 +41,7 @@ def planck(f, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * f**3 / (c**2 * (np.exp(h * f / (k * T)) - 1))
+    return 2 * h * f**3 / (c**2 * (np.exp(np.divide(h * f, (k * T))) - 1))
 
 
 def planck_wavelength(l, T):
@@ -59,7 +59,7 @@ def planck_wavelength(l, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * c**2 / (l**5 * (np.exp(h * c / (l * k * T)) - 1))
+    return 2 * h * c**2 / (l**5 * (np.exp(np.divide(h * c, (l * k * T))) - 1))
 
 
 def planck_wavenumber(n, T):
@@ -77,7 +77,7 @@ def planck_wavenumber(n, T):
     h = constants.planck
     k = constants.boltzmann
 
-    return 2 * h * c**2 * n**3 / (np.exp(h * c * n / (k * T)) - 1)
+    return 2 * h * c**2 * n**3 / (np.exp(np.divide(h * c * n, (k * T))) - 1)
 
 
 def rayleighjeans(f, T):
@@ -117,7 +117,7 @@ def rayleighjeans_wavelength(l, T):
     c = constants.speed_of_light
     k = constants.boltzmann
 
-    return 2 * c * k * T / l**4
+    return np.divide(2 * c * k * T, l**4)
 
 
 def radiance2planckTb(f, r):
@@ -134,7 +134,7 @@ def radiance2planckTb(f, r):
     k = constants.boltzmann
     h = constants.planck
 
-    return h / k * f / np.log(((2 * h / c**2) * f**3) / r + 1)
+    return h / k * f / np.log(np.divide((2 * h / c**2) * f**3, r) + 1)
 
 
 def radiance2rayleighjeansTb(f, r):
@@ -150,7 +150,7 @@ def radiance2rayleighjeansTb(f, r):
     c = constants.speed_of_light
     k = constants.boltzmann
 
-    return c**2 / (2 * f**2 * k) * r
+    return np.divide(c**2, (2 * f**2 * k)) * r
 
 
 def snell(n1, n2, theta1):
@@ -278,7 +278,7 @@ def frequency2wavelength(frequency):
         float or ndarray: Wavelength [m].
 
     """
-    return constants.speed_of_light / frequency
+    return np.divide(constants.speed_of_light, frequency)
 
 
 def frequency2wavenumber(frequency):
@@ -304,7 +304,7 @@ def wavelength2frequency(wavelength):
         float or ndarray: Frequency [Hz].
 
     """
-    return constants.speed_of_light / wavelength
+    return np.divide(constants.speed_of_light, wavelength)
 
 
 def wavelength2wavenumber(wavelength):
@@ -317,7 +317,7 @@ def wavelength2wavenumber(wavelength):
         float or ndarray: Wavenumber [m^-1].
 
     """
-    return 1 / wavelength
+    return np.divide(1, wavelength)
 
 
 def wavenumber2frequency(wavenumber):
@@ -342,4 +342,4 @@ def wavenumber2wavelength(wavenumber):
         float or ndarray: Wavelength [m].
 
     """
-    return 1 / wavenumber
+    return np.divide(1, wavenumber)
