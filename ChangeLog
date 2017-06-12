@@ -1,5 +1,17 @@
 2017-06-12  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/tovs.py(HIRS2):
+
+	- Add more aliases for referring to older satellites.
+
+	* typhon/physics/units/em.py(SRF.estimate_band_coefficients):
+
+	- In ad-hoc band correction estimate method, fix regular expression so
+	that it works for older HIRS (before NOAA-10).  This contributes to
+	the fix of HIRS FCDR #110.
+
+2017-06-12  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/_tovs_defs.py:
 
 	- Add some of the flags used in HIRS/2, HIRS/3, HIRS/4.  For now only
@@ -12,7 +24,6 @@
 
 	- Added note/reminder to self to migrate hardcoded bitmasks to flag
 	positinos defined in _tovs_defs.py
-
 
 2017-06-06  Oliver Lemke  <olemke@core-dump.info>
 

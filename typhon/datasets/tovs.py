@@ -1338,13 +1338,11 @@ class HIRSPOD(HIRS):
 class HIRS2(HIRSPOD):
     """Sole implementation of HIRSPOD
     """
-    # NOAA-6 and TIROS-N currently not supported due to duplicate ids.  To
-    # fix this, would need to improve HIRSPOD.id2no.
-    satellites = {"tirosn": {"TIROSN", "TN", "tn"},
-                  "noaa06": {"NOAA06", "NOAA6", "N06", "n06", "N6", "n6"},
-                  "noaa07": {"NOAA07", "NOAA7", "N07", "n07", "N7", "n7"},
-                  "noaa08": {"NOAA08", "NOAA8", "N08", "n08", "N8", "n8"},
-                  "noaa09": {"NOAA09", "NOAA9", "N09", "n09", "N9", "n9"},
+    satellites = {"tirosn": {"TIROSN", "TN", "tn", "tirosn", "NOAA05", "NOAA5", "noaa05", "noaa5", "N05", "n05", "N5", "n5"},
+                  "noaa06": {"NOAA06", "NOAA6", "noaa06", "noaa6", "N06", "n06", "N6", "n6"},
+                  "noaa07": {"NOAA07", "NOAA7", "noaa07", "noaa7", "N07", "n07", "N7", "n7"},
+                  "noaa08": {"NOAA08", "NOAA8", "noaa08", "noaa8", "N08", "n08", "N8", "n8"},
+                  "noaa09": {"NOAA09", "NOAA9", "noaa09", "noaa9", "N09", "n09", "N9", "n9"},
                   "noaa10": {"NOAA10", "noaa10", "N10", "n10"},
                   "noaa11": {"NOAA11", "noaa11", "N11", "n11"},
                   "noaa12": {"NOAA12", "noaa12", "N12", "n12"},
