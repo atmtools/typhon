@@ -1437,6 +1437,9 @@ class HIRSKLM(ATOVS, HIRS):
         # On second thought — these flags have so many false negatives and
         # false positives, that it is difficult to use them in practice.
 
+        # FIXME: This should be rewritten to use
+        # _tovs_defs.QualIndFlagsHIRSKLM and its children
+
         # quality indicators
         qi = lines["hrs_qualind"]
         qidonotuse =    qi & (1<<31)

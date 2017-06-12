@@ -1,3 +1,19 @@
+2017-06-12  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Add some of the flags used in HIRS/2, HIRS/3, HIRS/4.  For now only
+	adding the flags I'm acting upon, others later.  Currently used for
+	FCDR HIRS processing.  Note that to make full use of these flags you
+	want to use Python 3.6, but it should be possible to use them in
+	Python 3.5 as well, just more in a more limited way.
+
+	* typhon/datasets/tovs.py(HIRSKLM.get_mask_from_flags):
+
+	- Added note/reminder to self to migrate hardcoded bitmasks to flag
+	positinos defined in _tovs_defs.py
+
+
 2017-06-06  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/physics/em.py (planck, planck_wavelength, planck_wavenumber,

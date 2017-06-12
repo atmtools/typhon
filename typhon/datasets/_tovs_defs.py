@@ -1,8 +1,10 @@
 """Relevant definitions for TOVS
 """
 
+import enum
 import datetime
 import copy
+import itertools
 
 import numpy
 import collections
@@ -1987,3 +1989,98 @@ NOAA_numbers = {
 # DATA EXTRACTION AND CALIBRATION OF TIROS-N/NOAA RADIOMETER
 #   NOAA Technical Memorandum NESS 107
 # http://docs.lib.noaa.gov/rescue/TIROS/QC8795U4no107.pdf
+
+try:
+    from enum import IntFlag
+except ImportError: # before Python 3.6
+    # may cause problems at runtime, but at least unrelated code will not
+    # fail at import time
+    from enum import IntEnum as IntFlag
+
+# Definitions of flags are in NOAA KLM User's Guide at Table
+# 8.3.1.5.3.1-1. and Table 8.3.1.5.3.2-1.,
+
+# NB: enums cannot be extended / inherited from.  Use workaround to avoid
+# code duplication.  Taken from
+# https://stackoverflow.com/a/41807919/974555
+
+def _combine_enums(name, *args):
+    return enum.IntFlag(
+        name,
+        [(i.name, i.value) for i in
+            itertools.chain(*args)])
+    
+@enum.unique
+class QualIndFlagsHIRSCommon(IntFlag):
+    qidonotuse =    1<<31
+    qitimeseqerr =  1<<30
+    qidatagap =     1<<29
+
+@enum.unique
+class QualIndFlagsHIRSPOD(IntFlag):
+    qinofullcalib = 1<<18
+    qinoearthloc =  1<<17
+
+@enum.unique
+class QualIndFlagsHIRSKLM(IntFlag):
+    qinofullcalib = 1<<28
+    qinoearthloc =  1<<27
+    qifirstgood =   1<<26
+    qistatchng =    1<<25
+
+QualIndFlagsHIRS = {
+    2: _combine_enums(
+            "QualIndFlagsHIRS2",
+            QualIndFlagsHIRSCommon,
+            QualIndFlagsHIRSPOD),
+    3: _combine_enums(
+            "QualIndFlagsHIRS3",
+            QualIndFlagsHIRSCommon,
+            QualIndFlagsHIRSKLM),
+    4: _combine_enums(
+            "QualIndFlagsHIRS4",
+            QualIndFlagsHIRSCommon,
+            QualIndFlagsHIRSKLM)}
+
+class LinQualFlagsHIRSCommon(IntFlag):
+    pass
+
+class LinQualFlagsHIRSKLM(IntFlag):
+    # time problems
+    tmbadcanfix =   1<<23
+    tmbadnofix =    1<<22
+    tmnotcnstnt =   1<<21
+    tmrpt =         1<<20
+
+    # calibration anomalies
+    cabadtime =     1<<15
+    cabadprt =      1<<13
+    camargprt =     1<<12
+    cachmiss =      1<<11
+    camoon =        1<<9
+
+    # earth location problems
+    elbadtime =     1<<7
+    elquestime =    1<<6
+    elmargreason =  1<<5
+    elunreason =    1<<4
+
+class LinQualFlagsHIRS3(IntFlag):
+    cafewer =       1<<14
+    cainstmode =    1<<10
+    
+class LinQualFlagsHIRS4(IntFlag):
+    cafromhcf =     1<<14
+    cadisabled =    1<<10
+
+LinQualFlagsHIRS = {
+    3: _combine_enums(
+            "LinQualFlagsHIRS3",
+            LinQualFlagsHIRSCommon,
+            LinQualFlagsHIRSKLM,
+            LinQualFlagsHIRS3),
+    4: _combine_enums(
+            "LinQualFlagsHIRS4",
+            LinQualFlagsHIRSCommon,
+            LinQualFlagsHIRSKLM,
+            LinQualFlagsHIRS4)}
