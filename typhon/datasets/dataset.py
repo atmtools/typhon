@@ -125,6 +125,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     name = ""
     section = ""
     aliases = {}
+    time_field = "time"
     unique_fields = {"time", "lat", "lon"}
     mandatory_fields = None # fields that reader relies upon
     related = {}
@@ -362,6 +363,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         anygood = False
         arr = None
         N = 0
+        time = self.time_field
         for (g_start, gran) in finder(start, end, return_time=True, 
                                       include_last_before=True,
                                       **locator_args):
@@ -372,9 +374,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     pseudo_fields=pseudo_fields, **reader_args)
                 if (sorted and
                     arr is not None and
-                    cont["time"].size > 0 and
+                    cont[time].size > 0 and
                     N>0 and
-                    (cont["time"][0] <= latest)):
+                    (cont[time][0] <= latest)):
                     raise InvalidDataError(
                         "Reading routine for {!s} returned data starting "
                         "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
@@ -382,8 +384,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "As data are supposed to be sorted in time, this "
                         "probably means duplicate removal is not working "
                         "as it should. ".format(gran,
-                            cont["time"][0].astype(datetime.datetime),
-                            arr["time"][N-1].astype(datetime.datetime)))
+                            cont[time][0].astype(datetime.datetime),
+                            arr[time][N-1].astype(datetime.datetime)))
                 cont = self._apply_limits_and_filters(cont, limits, filters)
             except DataFileError as exc:
                 if onerror == "skip": # fields that reader relies upon
@@ -396,7 +398,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 (arr, N, latest) = self._add_gran_to_data(arr, cont, N, start,
                                      end, g_start)
 #                contents.append(
-#                    cont[(cont["time"]<=end)&(cont["time"]>=start)])
+#                    cont[(cont[time]<=end)&(cont[time]>=start)])
                 if N > 0:
                     anygood = True
             if dobar:
@@ -414,17 +416,16 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         else:
             raise DataFileError("Can not find any valid data!")
 
-    @staticmethod
-    def _apply_limits_and_filters(cont, limits, filters):
+    def _apply_limits_and_filters(self, cont, limits, filters):
         if isinstance(cont, xarray.Dataset):
             if len(limits)>0:
                 raise NotImplementedError( 
                     "limits not implemented on xarray datasets")
-            oldsize = cont["time"].size
+            oldsize = cont[self.time_field].size
             for f in filters:
                 cont = f(cont)
             logging.debug("Filters reduced number from "
-                "{:d} to {:d}".format(oldsize, cont["time"].size))
+                "{:d} to {:d}".format(oldsize, cont[self.time_field].size))
             return cont
         oldsize = cont.size
         cont = tpmath.array.limit_ndarray(cont, limits)
@@ -438,12 +439,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     def _add_gran_to_data(self, arr, cont, N, start, end, g_start):
         # first ensure we only add the segment we actually want
         if isinstance(cont, xarray.Dataset):
-            tm = cont["time"].values.astype("M8[ms]")
+            tm = cont[self.time_field].values.astype("M8[ms]")
             cont = cont.loc[dict.fromkeys(
                 utils.get_time_coordinates(cont)&cont.dims.keys(),
                 slice(start, end))]
         else:
-            cont = cont[(cont["time"]<=end)&(cont["time"]>=start)]
+            cont = cont[(cont[self.time_field]<=end)&(cont[self.time_field]>=start)]
         if isinstance(cont, xarray.Dataset):
             # xarray reads lazily, but we want to merge all granules into
             # a single object at the end, so have to load it into memory
@@ -452,13 +453,13 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             cont.load()
             if arr is None:
                 arr = [cont]
-                N = cont["time"].size
+                N = cont[self.time_field].size
             else:
                 arr.append(cont)
-                N += cont["time"].size
+                N += cont[self.time_field].size
             for i in range(len(arr)):
-                if arr[-i]["time"].size > 0:
-                    latest = arr[-1]["time"][-1]
+                if arr[-i][self.time_field].size > 0:
+                    latest = arr[-1][self.time_field][-1]
                     break
             else:
                 latest = numpy.datetime64(0, "ms")
@@ -473,15 +474,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     # same size?  Until we have reached 10%, simply
                     # double every time.  After that, extrapolate more
                     # cleverly. 
-                    newsize = (int((N+cont["time"].size)//frac_done)
+                    newsize = (int((N+cont[self.time_field].size)//frac_done)
                                 if frac_done > 0.1
-                                else (N+cont["time"].size) * 2)
+                                else (N+cont[self.time_field].size) * 2)
                     arr = self._ensure_large_enough(arr, cont, N, newsize,
                         frac_done)
                 self._add_cont_to_arr(arr, N, cont)
-                N += cont["time"].size
-            if arr["time"].size > 0:
-                latest = arr["time"][N-1]
+                N += cont[self.time_field].size
+            if arr[self.time_field].size > 0:
+                latest = arr[self.time_field][N-1]
             else:
                 latest = numpy.datetime64(0, "ms")
         return arr, N, latest
@@ -524,7 +525,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         """Changes arr in-situ, does not return"""
         if isinstance(cont, xarray.Dataset):
             # we should already know it's large enough
-            # for arr["time"] I start at N
+            # for arr[self.time_field] I start at N
             # for the other time coordinates at the relative "speed" they
             # are behind N
             # but this is not guaranteed to be regular so I would need to
@@ -632,7 +633,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
         try:
-            if not (M["time"][1:] >= M["time"][:-1]).all():
+            if not (M[self.time_field][1:] >= M[self.time_field][:-1]).all():
                 raise InvalidDataError("Reader for {!s} returned data "
                     "with unsorted time.  This must be fixed.".format(
                         f))

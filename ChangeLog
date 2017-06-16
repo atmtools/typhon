@@ -1,3 +1,14 @@
+2017-06-16  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(Dataset):
+
+	- Rather than hardcoding time-field to be "time", set this in an
+	attribute.  For some datasets it may be "date"?
+
+	* typhon/datasets/tovs.py(HIRS.__init__):
+
+	- Set start_date, end_date from _tovs_defs.HIRS_periods
+
 2017-06-12  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py(HIRS2):

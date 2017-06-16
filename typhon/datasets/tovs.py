@@ -166,8 +166,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         if not self.granules_firstline_file.is_absolute():
             self.granules_firstline_file = self.basedir.joinpath(
                 self.granules_firstline_file)
+        if self.satname is not None:
+            (self.start_date, self.end_date) = _tovs_defs.HIRS_periods[self.satname]
 #        self.granules_firstline_db = dbm.open(
 #            str(self.granules_firstline_file), "c")
+        # set here so inheriting classes can extend
         self.temperature_fields = {"iwt", "ict", "fwh", "scanmirror", "primtlscp",
             "sectlscp", "baseplate", "elec", "patch_full", "scanmotor", "fwm",
             "ch"}
