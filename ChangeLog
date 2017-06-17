@@ -1,3 +1,11 @@
+2017-06-17  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/common.py (label_axes):
+
+	Function add a label to each axis in a figure conveniently.
+
+	* doc/typhon.plots.rst: Added `label_axes()` to documentation.
+
 2017-06-16  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset):

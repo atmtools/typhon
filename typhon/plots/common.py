@@ -3,8 +3,12 @@
 """Utility functions related to plotting.
 """
 import glob
-import numpy as np
+import itertools
 import os
+import string
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 from typhon import constants
 
@@ -15,6 +19,7 @@ __all__ = [
     'styles',
     'get_available_styles',
     'get_subplot_arrangement',
+    'label_axes',
 ]
 
 
@@ -127,3 +132,50 @@ def get_available_styles():
 
     return [os.path.splitext(os.path.basename(s))[0]
             for s in glob.glob(pattern)]
+
+
+def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
+    """Walks through axes and labels each.
+
+    Parameters:
+        axes (iterable): An iterable container of :class:`AxesSubplot`.
+        labels (iterable): Iterable of strings to use to label the axes.
+            If ``None``, first upper and then lower case letters are used.
+        loc (tuple of floats): Where to put the label in axes-fraction units.
+        **kwargs: Additional keyword arguments are collected and
+            passed to :func:`~matplotlib.pyplot.annotate`.
+
+    Examples:
+        .. plot::
+            :include-source:
+
+            import matplotlib.pyplot as plt
+            from typhon.plots import label_axes, styles
+
+
+            plt.style.use(styles('typhon'))
+
+            # Automatic labeling of axes.
+            fig, axes = plt.subplots(ncols=2, nrows=2)
+            label_axes()
+
+            # Manually specify the axes to label.
+            fig, axes = plt.subplots(ncols=2, nrows=2)
+            label_axes(axes[:, 0])  # label each row.
+
+            # Pass explicit labels (and additional arguments).
+            fig, axes = plt.subplots(ncols=2, nrows=2)
+            label_axes(labels=map(str, range(4)), weight='bold')
+
+    .. Based on https://stackoverflow.com/a/22509497
+    """
+    if axes is None:
+        axes = plt.gcf().axes
+
+    if labels is None:
+        labels = string.ascii_uppercase + string.ascii_lowercase
+
+    labels = itertools.cycle(labels)  # re-use labels rather than stop labeling
+
+    for ax, lab in zip(axes, labels):
+        ax.annotate(lab, xy=loc, xycoords='axes fraction', **kwargs)
