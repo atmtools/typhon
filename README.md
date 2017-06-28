@@ -8,14 +8,13 @@ working.
 ## Installation
 The easiest way to develop typhon is to install the local working copy in your
 Python environment. This can be done using ``pip``:
-
 ```bash
-pip install -e .
+pip install --user --editable .
 ```
 
-It is recommended to use the ``-e`` flag to install the package in editable
-mode (develop mode). That way, local changes are directly available in the
-current environment.
+This will install the package in editable mode (develop mode) in the user's
+home directory. That way, local changes to the package are directly available
+in the current environment.
 
 ## Testing
 Typhon contains a simple testing framework using [Nosetests]. It is good
@@ -27,7 +26,6 @@ Tests can be run on the command line...
 ```bash
 nosetests typhon
 ```
-
 or using the Python interpreter:
 ```python
 import typhon
@@ -37,7 +35,6 @@ typhon.test()
 ## Documentation
 The documentation of the project is created with [Sphinx]. You can use the
 enclose Makefile to build your own documentation:
-
 ```bash
 cd doc
 make html

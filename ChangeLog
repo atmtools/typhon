@@ -1,3 +1,12 @@
+2017-06-28  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* README.md: Updated installation recommendations.
+
+	The installation guide for developers now includes a hint to
+	install the package in the home directory not system wide.
+
+	* typhon/plots/common.py (label_axes): Minor change in example.
+
 2017-06-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/common.py (label_axes):

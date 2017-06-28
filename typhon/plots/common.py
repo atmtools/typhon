@@ -165,7 +165,7 @@ def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
 
             # Pass explicit labels (and additional arguments).
             fig, axes = plt.subplots(ncols=2, nrows=2)
-            label_axes(labels=map(str, range(4)), weight='bold')
+            label_axes(labels=map(str, range(axes.size)), weight='bold')
 
     .. Based on https://stackoverflow.com/a/22509497
     """
