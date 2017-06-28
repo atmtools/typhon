@@ -1,3 +1,10 @@
+2017-06-28  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+
+	- Don't log on root level, as if this happens before
+	logging.basicConfig was set, this will become ineffective!
+
 2017-06-28  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* README.md: Updated installation recommendations.

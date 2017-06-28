@@ -28,9 +28,10 @@ except ImportError:
 try:
     import coda
 except ImportError:
-    logging.warn("Unable to import coda, won't read IASI EPS L1C. "
+    print("Unable to import coda, won't read IASI EPS L1C. "
         "If you need to read IASI EPS L1C, please obtain CODA from "
-        "http://stcorp.nl/coda/ and install.  Good luck.")
+        "http://stcorp.nl/coda/ and install.  Good luck.",
+        file=sys.stderr)
     
 from . import dataset
 from ..utils import (metaclass, safe_eval)
