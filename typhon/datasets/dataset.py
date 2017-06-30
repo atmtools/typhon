@@ -610,11 +610,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if fields != "all":
             fields = list(fields)
             for (k, (deps, v, cond)) in self.my_pseudo_fields.items():
-                for d in deps:
-                    if (d not in fields and
-                            all(kwargs.get(condfn) in condval for (condfn,
-                            condval) in cond.items())):
-                        fields.append(d)
+                if k in fields:
+                    for d in deps:
+                        if (d not in fields and
+                                all(kwargs.get(condfn) in condval for (condfn,
+                                condval) in cond.items())):
+                            fields.append(d)
             for mandatory in self.mandatory_fields:
                 if mandatory not in fields:
                     fields.append(mandatory)

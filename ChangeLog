@@ -1,3 +1,24 @@
+2017-06-30  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(Dataset.read):
+
+	- Do not impose dependencies of my_pseudo_fields when those fields
+	were not asked for in the reader
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS._read):
+
+	- Comment out catch_warnings as long as bug at
+	http://bugs.python.org/issue29672 remains.  Be aware that the
+	resulting warning is spurious, such as confirmed at
+	https://github.com/numpy/numpy/issues/8383
+
+	(HIRS.as_xarray_dataset):
+
+	- Only assign lon/lat coordinates if lon/lat actually present in
+	fields.
+
 2017-06-28  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py:

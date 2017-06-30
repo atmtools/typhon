@@ -371,13 +371,17 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             scanlines = scanlines_new
 
         if fields != "all":
-            with warnings.catch_warnings():
+            # I'd like to use catch_warnings, but this triggers
+            # http://bugs.python.org/issue29672 thus flooding my screen
+            # for any *other* warning wherever this is called in a loop,
+            # which it is.  Commenting out again :(
+#            with warnings.catch_warnings():
                 # selecting multiple fields from a structured masked array
                 # leads to a FutureWarning, see
                 # https://github.com/numpy/numpy/issues/8383 .
                 # I believe this is a false alert.
-                warnings.filterwarnings("ignore", category=FutureWarning)
-                scanlines = scanlines[fields]
+#                warnings.filterwarnings("ignore", category=FutureWarning)
+            scanlines = scanlines[fields]
 
         if filter_firstline:
             try:
@@ -1049,14 +1053,17 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             for v in p.keys() & set(M.dtype.names)}
 
         coords = dict(
-            lon = (("time", "scanpos"), M["lon"]),
-            lat = (("time", "scanpos"), M["lat"]),
             time = (("time",), M["time"]),
             scanline = (("time",), numpy.arange(M.shape[0])),
             scanpos = (("scanpos",), numpy.arange(1, self.n_perline+1)),
             channel = (("channel",), numpy.arange(1, self.n_channels+1)),
             calibrated_channel = (("calibrated_channel",), numpy.arange(1, self.n_calibchannels+1)),
                 )
+
+        if "lon" in M.dtype.names:
+            coords["lon"] = (("time", "scanpos"), M["lon"])
+        if "lat" in M.dtype.names:
+            coords["lat"] = (("time", "scanpos"), M["lat"])
 
         coords = {rename_dimensions.get(k, k):
                 ([rename_dimensions.get(d, d) for d in v[0] if d not in skip_dimensions],
