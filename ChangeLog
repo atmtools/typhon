@@ -1,3 +1,14 @@
+2017-07-07  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Refactor temperature-related fields and add a translation table
+	between short and long names
+
+	* typhon/datasets/tovs.py:
+
+	- Fix small bug in error message
+
 2017-06-30  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset.read):

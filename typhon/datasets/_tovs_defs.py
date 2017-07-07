@@ -518,6 +518,34 @@ _cal_coding.update({
 # 'scantype',
 # 'lza_approx')
 
+# short and long names of temperatures
+temperature_names = dict(
+    ch = "cooler_housing",
+    fwh = "filter_wheel_housing",
+    patch_exp = "patch_expanded",
+    sectlscp = "secondary_telescope",
+    fwm = "filter_wheel_motor",
+    fsr = "first_stage_radiator",
+    primtlscp = "primary_telescope",
+    elec = "electronics",
+    iwt = "internal_warm_calibration_target",
+    ict = "internal_cold_calibration_target",
+    an_fwm = "filter_wheel_motor_analog",
+    an_rd = "radiator_analog",
+    an_baseplate = "baseplate_analog",
+    an_scnm = "scanmirror_analog",
+    an_pch = "patch_analog",
+    an_el = "electronics_analog")
+
+
+# when not listed, assumed to be ("time",)
+temperature_dims = dict(
+    fwh = ("time", "prt_number", "prt_reading"),
+    patch_exp = ("time", "prt_reading"),
+    fsr = ("time", "prt_reading"),
+    iwt = ("time", "prt_number_iwt", "prt_reading"),
+    ict = ("time", "prt_number_ict", "prt_reading"))
+
 _hirs_data_vars_props_common = dict(
     hrs_scnlin = (
         "scanline_number",
@@ -604,85 +632,22 @@ _hirs_data_vars_props_common = dict(
         "original_calibration_coefficients_sorted",
         ("time", "channel", "n_calcof"),
         {"long_name": "NOAA/EUMETSAT calibration coefficients, sorted"},
-        _coding),
-    temp_ch = (
-        "temperature_cooler_housing",
-        ("time",),
-        {"long_name": "Temperature cooler housing",
-         "units": "K"},
-         _temp_coding),
-    temp_scanmotor = (
-        "temperature_scanmotor",
-        ("time",),
-        {"long_name": "Temperature scan motor",
-         "units": "K"},
-         _temp_coding),
-    temp_fwh = (
-        "temperature_fwh",
-        ("time", "prt_number", "prt_reading"),
-        {"long_name": "Temperature filter wheel housing",
-         "units": "K"},
-         _temp_coding),
-    temp_patch_exp = (
-        "temperature_patch_exp",
-        ("time", "prt_reading"),
-        {"long_name": "Temperature patch (expanded)",
-         "units": "K"},
-         _temp_coding),
-    temp_sectlscp = (
-        "temperature_secondary_telescope",
-        ("time",),
-        {"long_name": "Temperature secondary telescope",
-         "units": "K"},
-         _temp_coding),
-    temp_baseplate = (
-        "temperature_baseplate",
-        ("time",),
-        {"long_name": "Temperature baseplate",
-         "units": "K"},
-         _temp_coding),
-    temp_fwm = (
-        "temperature_filter_wheel_motor",
-        ("time",),
-        {"long_name": "Temperature filter wheel motor",
-         "units": "K"},
-         _temp_coding),
-    temp_fsr = (
-        "temperature_first_stage_radiator",
-        ("time", "prt_reading"),
-        {"long_name": "Temperature first stage radiator",
-         "units": "K"},
-         _temp_coding),
-    temp_primtlscp = (
-        "temperature_primary_telescope",
-        ("time",),
-        {"long_name": "temperature primary telescope",
-         "units": "K"},
-         _temp_coding),
-    temp_patch_full = (
-        "temperature_patch_full",
-        ("time",),
-        {"long_name": "temperature patch full",
-         "units": "K"},
-         _temp_coding),
-    temp_elec = (
-        "temperature_electronics",
-        ("time",),
-        {"long_name": "Temperature electronics",
-         "units": "K"},
-         _temp_coding),
-    temp_scanmirror = (
-        "temperature_scanmirror",
-        ("time",),
-        {"long_name": "Temperature scan mirror",
-         "units": "K"},
-         _temp_coding),
-    temp_iwt = (
-        "temperature_iwct",
-        ("time", "prt_number_iwt", "prt_reading"),
-        {"long_name": "Temperature internal warm calibration target (IWCT)",
-         "units": "K"},
-         _temp_coding))
+        _coding))
+
+def _expand_dict_temps(d, t):
+    d.update(**{
+        f"temp_{short:s}": (
+            f"temperature_{temperature_names.get(short, short):s}",
+            temperature_dims.get(short, ("time",)),
+            {"long_name": "Temperature " + temperature_names.get(short,short).replace("_", " "),
+             "units": "K"},
+            _temp_coding)
+        for short in t})
+
+_expand_dict_temps(_hirs_data_vars_props_common,
+    {"ch", "fwh", "patch_exp", "sectlscp", "fwm", "fsr",
+                  "primtlscp", "elec", "iwt", "scanmirror", "baseplate",
+                  "scanmotor", "patch_full"})
 
 HIRS_data_vars_props[2] = _hirs_data_vars_props_common.copy()
 HIRS_data_vars_props[2].update(
@@ -694,8 +659,8 @@ HIRS_data_vars_props[2].update(
          "units": "ms"},
          _u4_coding.copy()),
     temp_ict = ( 
-        "temperature_icct",
-        ("time", "prt_number", "prt_reading"),
+        temperature_names["ict"], #"temperature_icct",
+        temperature_dims["ict"],
         {"long_name": "Temperature internal cold calibration target (ICCT)",
          "units": "K"},
         _temp_coding),
@@ -865,42 +830,6 @@ HIRS_data_vars_props[3].update(
         ("time", "analog_telemetry_words"),
         {"long_name": "Analog telemetry data"},
         _u2_coding),
-    temp_an_fwm = (
-        "temperature_filter_wheel_motor_analog",
-        ("time",),
-        {"long_name": "Temperature filter wheel motor (analogue)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_rd = (
-        "temperature_radiator_analog",
-        ("time",),
-        {"long_name": "Temperature radiator (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_baseplate = (
-        "temperature_baseplate_analog",
-        ("time",),
-        {"long_name": "Temperature baseplate (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_scnm = (
-        "temperature_scanmirror_analog",
-        ("time",),
-        {"long_name": "Temperature scan mirror (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_pch = (
-        "temperature_patch_analog",
-        ("time",),
-        {"long_name": "Temperature patch (analog)",
-         "units": "K"},
-         _temp_coding),
-    temp_an_el = (
-        "temperature_electronics_analog",
-        ("time",),
-        {"long_name": "Temperature electronics (analog)",
-         "units": "K"},
-         _temp_coding),
     sol_za = (
         "solar_zenith_angle",
         ("time", "scanpos"),
@@ -931,7 +860,10 @@ HIRS_data_vars_props[3].update(
         {"long_name": "brightness temperature, calibrated by FIDUCEO",
          "units": "K"},
          _temp_coding),
-         )
+)
+
+_expand_dict_temps(HIRS_data_vars_props[3],
+    {"an_fwm", "an_rd", "an_baseplate", "an_scnm", "an_pch", "an_el"})
 
 # deep copy because of flag meanings
 HIRS_data_vars_props[4] = copy.deepcopy(HIRS_data_vars_props[3])

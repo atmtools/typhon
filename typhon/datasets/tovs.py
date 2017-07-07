@@ -408,7 +408,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             return self.filter_bestline(path, header, scanlines)
         else:
             raise ValueError("Unknown overlap filter "
-                "method: {:s}.  Expected 'first' or 'best'.".format(method))
+                "method: {!s}.  Expected 'first' or 'best'.".format(method))
 
     def filter_bestline(self, path, header, scanlines):
         """Choose best lines in overlap between last/current/next granule
