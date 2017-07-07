@@ -11,7 +11,10 @@ import abc
 
 # Use a metaclass to inherit docstrings
 #
-# http://stackoverflow.com/a/8101118/974555
+# This code, or an earlier version, was posted by user 'unubtu' on Stack
+# Overflow at 2011-11-11 at http://stackoverflow.com/a/8101118/974555
+# and subsequently edited.  It is licensed under CC-BY-SA 3.0.  This
+# notice may not be removed.
 
 
 class DocStringInheritor(type):

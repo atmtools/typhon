@@ -1,5 +1,18 @@
 2017-07-07  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/_tovs_defs.py, typhon/datasets/dataset.py,
+	typhon/datasets/tovs.py, typhon/plots/common.py,
+	typhon/utils/__init__.py, typhon/utils/metaclass.py:
+
+	At all places where we derive code from Stack Overflow, point out
+	that either this has to be CC-BY-SA 3.0 licensed, or that we believe
+	it does not count as a derivative work.  I am not convinced the former
+	is enough, but it's better than nothing.  See e-mail to typhon mailing
+	list 2017-07-07 titled “A warning on using code snippets from Stack
+	Overflow”.
+
+2017-07-07  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/_tovs_defs.py:
 
 	- Refactor temperature-related fields and add a translation table

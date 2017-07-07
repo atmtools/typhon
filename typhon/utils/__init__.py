@@ -151,7 +151,9 @@ class Timer(contextlib.ContextDecorator):
                 int(self.secs // 60), self.secs % 60))
 
 
-# Next part from http://stackoverflow.com/a/9558001/974555
+# This code, or a previous version thereof, was posted by user 'J. F.
+# Sebastian' on http://stackoverflow.com/a/9558001/974555 on 2012-03-04
+# and is licensed under CC-BY-SA 3.0.  This notice may not be removed.
 operators = {ast.Add: operator.add,
              ast.Sub: operator.sub,
              ast.Mult: operator.mul,
@@ -178,7 +180,7 @@ def _safe_eval_node(node):
         return operators[type(node.op)](_safe_eval_node(node.operand))
     else:
         raise TypeError(node)
-
+# End of snippet derived from http://stackoverflow.com/a/9558001/974555
 
 def path_append(dirname, path='PATH'):
     """Append a directory to environment path variable.

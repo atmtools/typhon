@@ -1933,8 +1933,10 @@ except ImportError: # before Python 3.6
 # 8.3.1.5.3.1-1. and Table 8.3.1.5.3.2-1.,
 
 # NB: enums cannot be extended / inherited from.  Use workaround to avoid
-# code duplication.  Taken from
-# https://stackoverflow.com/a/41807919/974555
+# code duplication.  
+# This code, or an earlier version, was posted by user 'Jul3K' on Stack
+# https://stackoverflow.com/a/41807919/974555 and is licensed under
+# CC-BY-SA 3.0.  This notice may not be removed.
 
 def _combine_enums(name, *args):
     return enum.IntFlag(

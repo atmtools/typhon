@@ -1710,6 +1710,10 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
         else:
             d = self.basedir / self.subdir / self.stored_name
         # next line inspired by http://stackoverflow.com/a/32196401/974555
+        # which was posted by Alek Kowalczyk on 2015-08-25 and licensed
+        # under CC-BY-SA 3.0.  I believe my code is sufficiently far from
+        # the original to not be a derivative work and that it can legally
+        # be MIT-licensed.
         subsdict = {attr: getattr(self, attr) 
                     for attr in dir(self)}
         subsdict.update(**kwargs)

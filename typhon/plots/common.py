@@ -169,6 +169,10 @@ def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
 
     .. Based on https://stackoverflow.com/a/22509497
     """
+    
+    # This code, or an earlier version, was posted by user 'tacaswell' on Stack
+    # https://stackoverflow.com/a/22509497/974555 and is licensed under
+    # CC-BY-SA 3.0.  This notice may not be removed.
     if axes is None:
         axes = plt.gcf().axes
 

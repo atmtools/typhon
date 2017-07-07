@@ -1981,6 +1981,10 @@ class TOVSCollocatedDataset:
             for fld in MM.dtype.names:
                 if fld in scnlin_names:
                     # see http://stackoverflow.com/a/23435869/974555
+                    # Ashwini Chaudhary, 2014-05-02
+                    # NB: I believe this does not count as a derivative
+                    # work and that the CC-BY-SA 3.0 licensing conditions
+                    # do not apply here
                     MM_new[fld][...] = MM[fld][idx_all, 
                         M[col_field][col_field_slice], ...]
                 else:
@@ -2160,6 +2164,9 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
             Msn = numpy.c_[Ms[timefields[0]].values, Ms[timefields[1]].values]
 
             # see http://stackoverflow.com/a/16973510/974555
+            # Posted by Jaime, 2013-06-06.
+            # I believe this does not count as a derivative work and that
+            # specific CC-BY-SA 3.0 conditions do not apply here.
             Msnu = numpy.ascontiguousarray(Msn).view(
                 numpy.dtype((numpy.void, Msn.dtype.itemsize * 2)))
 
