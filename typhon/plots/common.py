@@ -20,6 +20,7 @@ __all__ = [
     'get_available_styles',
     'get_subplot_arrangement',
     'label_axes',
+    'supcolorbar',
 ]
 
 
@@ -169,7 +170,7 @@ def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
 
     .. Based on https://stackoverflow.com/a/22509497
     """
-    
+
     # This code, or an earlier version, was posted by user 'tacaswell' on Stack
     # https://stackoverflow.com/a/22509497/974555 and is licensed under
     # CC-BY-SA 3.0.  This notice may not be removed.
@@ -183,3 +184,52 @@ def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
 
     for ax, lab in zip(axes, labels):
         ax.annotate(lab, xy=loc, xycoords='axes fraction', **kwargs)
+
+
+def supcolorbar(mappable, fig=None, right=0.8, rect=(0.85, 0.15, 0.05, 0.7),
+                **kwargs):
+    """Create a common colorbar for all subplots in a figure.
+
+    Parameters:
+        mappable: A scalar mappable like to which the colorbar applies
+            (e.g. :class:`~matplotlib.collections.QuadMesh`,
+            :class:`~matplotlib.contour.ContourSet`, etc.).
+        fig (:class:`~matplotlib.figure.Figure`):
+            Figure to add the colorbar into.
+        right (float): Fraction of figure to use for the colorbar (0-1).
+        rect (array-like): Add an axes at postion
+            ``rect = [left, bottom, width, height]`` where all quantities are
+            in fraction of figure.
+        **kwargs: Additional keyword arguments are passed to
+            :func:`matplotlib.figure.Figure.add_axes`.
+
+    Returns:
+        matplotlib.colorbar.Colorbar: Colorbar.
+
+    Note:
+        In order to properly scale the value range of the colorbar the ``vmin``
+        and ``vmax`` property should be set manually.
+
+    Examples:
+        .. plot::
+            :include-source:
+
+            import matplotlib.pyplot as plt
+            import numpy as np
+            from typhon.plots import supcolorbar
+
+
+            fig, axes = plt.subplots(2, 2, sharex=True, sharey=True)
+            for ax in axes.flat:
+                sm = ax.pcolormesh(np.random.random((10,10)), vmin=0, vmax=1)
+
+            supcolorbar(sm, label='Test label')
+
+    """
+    if fig is None:
+        fig = plt.gcf()
+
+    fig.subplots_adjust(right=right)
+    cbar_ax = fig.add_axes(rect)
+
+    return fig.colorbar(mappable, cax=cbar_ax, **kwargs)

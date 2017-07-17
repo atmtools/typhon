@@ -32,6 +32,7 @@ plots
    profile_z
    scatter_density_plot_matrix
    styles
+   supcolorbar
 
 Typhon style sheet
 ^^^^^^^^^^^^^^^^^^
