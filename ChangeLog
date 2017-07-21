@@ -1,3 +1,41 @@
+2017-07-21  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/_tovs_defs.py:
+
+	- Added class for minor frame flags
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset.read_period):
+
+	- Fix bug on formatting InvalidDataError
+	
+	(MultiFileDataset.find_granules):
+
+	- Actually check that matched regular expression fields correspond to
+	what was provided.  This is relevant if different versions may be
+	stored in the same directory.
+
+	(DatasetDeque):
+
+	- Update various methods, can now provide arguments that will be
+	passed on to read_period.
+
+	* typhon/datasets/tovs.py(HIRS.apply_calibcount_filter):
+
+	- Move filtering to external class (in filters.py) that can be passed
+	on by composition.  Thanks to John Mrziglod for inspiring this good
+	idea, although I'm not ready to move existing inheritance-based stuff
+	yet.
+
+	* typhon/physics/units/tools.py(UnitsAwareDataArray):
+
+	- Added .mean() method
+
+	* typhon/utils/__init__.py, typhon/utils/metaclass.py:
+
+	- Added reference to notice of permission for MIT in SO post
+
 2017-07-17  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/common.py (supcolorbar):

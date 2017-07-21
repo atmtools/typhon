@@ -14,7 +14,9 @@ import abc
 # This code, or an earlier version, was posted by user 'unubtu' on Stack
 # Overflow at 2011-11-11 at http://stackoverflow.com/a/8101118/974555
 # and subsequently edited.  It is licensed under CC-BY-SA 3.0.  This
-# notice may not be removed.
+# notice may not be removed.  An earlier version is authored by
+# Paul McGuire <ptmcg@austin.rr.com> and was posted at
+# https://groups.google.com/forum/#!msg/comp.lang.python/HkB1uhDcvdk/lWzWtPy09yYJ
 
 
 class DocStringInheritor(type):

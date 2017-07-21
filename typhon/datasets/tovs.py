@@ -44,6 +44,8 @@ from ..physics.units import radiance_units as rad_u
 from ..physics.units import em
 from .. import config
 
+from . import filters
+
 from . import _tovs_defs
 
 class Radiometer(metaclass=metaclass.AbstractDocStringInheritor):
@@ -159,6 +161,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     _data_vars_props = None
 
     max_valid_time_ptp = numpy.timedelta64(3, 'h')
+    filterer = filters.MEDMAD(10)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -712,12 +715,14 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 raise dataset.InvalidDataError("Out of {:d} scanlines, "
                     "found no {:s} views, cannot calibrate!".format(
                         lines.shape[0], v))
-            C = lines["counts"][x, 8:, :]
-            med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
-            mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
-            fracdev = (C - med_per_ch)/mad_per_ch
-            mix = numpy.ones(dtype=bool, shape=lines["counts"].shape)
-            lines.mask["counts"][x, 8:, :] |= abs(fracdev)>cutoff
+#            C = lines["counts"][x, 8:, :]
+            lines.mask["counts"][x, 8:, :] = self.filterer.filter_outliers(
+                lines["counts"][x, 8:, :])
+#            med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
+#            mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
+#            fracdev = (C - med_per_ch)/mad_per_ch
+#            mix = numpy.ones(dtype=bool, shape=lines["counts"].shape)
+#            lines.mask["counts"][x, 8:, :] |= abs(fracdev)>cutoff
 
         return lines
 

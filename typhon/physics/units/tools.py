@@ -76,13 +76,16 @@ class UnitsAwareDataArray(xarray.DataArray):
             d.attrs["units"] = u
         return d
 
-    # not sure if I can/should define those in a loop.  Should also have
+    # not sure if/how I can/should define those in a loop.  Should also have
     # std, min, max, mean, probably others.
     def diff(self, *args, **kwargs):
         return self._reduce("diff", *args, **kwargs)
 
     def sum(self, *args, **kwargs):
         return self._reduce("sum", *args, **kwargs)
+
+    def mean(self, *args, **kwargs):
+        return self._reduce("mean", *args, **kwargs)
 
     def to(self, new_unit, *contexts, **kwargs):
         """Convert to other unit.

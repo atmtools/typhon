@@ -153,7 +153,10 @@ class Timer(contextlib.ContextDecorator):
 
 # This code, or a previous version thereof, was posted by user 'J. F.
 # Sebastian' on http://stackoverflow.com/a/9558001/974555 on 2012-03-04
-# and is licensed under CC-BY-SA 3.0.  This notice may not be removed.
+# and is dual-licensed under CC-BY-SA 3.0 and MIT, as confirmed at
+# https://stackoverflow.com/questions/2371436/evaluating-a-mathematical-expression-in-a-string/9558001?noredirect=1#comment76927447_9558001
+# on 2017-07-07
+
 operators = {ast.Add: operator.add,
              ast.Sub: operator.sub,
              ast.Mult: operator.mul,

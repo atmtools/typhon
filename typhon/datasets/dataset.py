@@ -377,6 +377,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     cont[time].size > 0 and
                     N>0 and
                     (cont[time][0] <= latest)):
+                    if isinstance(latest, xarray.DataArray):
+                        latest = latest.values.astype("M8[ms]")
+                    if isinstance(cont[time][0], xarray.DataArray):
+                        conttime = cont[time][0].values.astype("M8[ms]")
+                    else:
+                        conttime = cont[time][0]
                     raise InvalidDataError(
                         "Reading routine for {!s} returned data starting "
                         "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
@@ -384,8 +390,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "As data are supposed to be sorted in time, this "
                         "probably means duplicate removal is not working "
                         "as it should. ".format(gran,
-                            cont[time][0].astype(datetime.datetime),
-                            arr[time][N-1].astype(datetime.datetime)))
+                            conttime.astype(datetime.datetime),
+                            latest.astype(datetime.datetime)))
                 cont = self._apply_limits_and_filters(cont, limits, filters)
             except DataFileError as exc:
                 if onerror == "skip": # fields that reader relies upon
@@ -1250,6 +1256,13 @@ class MultiFileDataset(Dataset):
                         continue
                     m = self._re.fullmatch(child.name)
                     if m is not None:
+                        fit = True
+                        for k in m.groupdict().keys() & extra.keys():
+                            if m[k] != extra[k]:
+                                fit = False # not the right file
+                                break
+                        if not fit:
+                            continue
                         found_any_grans = True
                         try:
                             (g_start, g_end) = self.get_times_for_granule(child,
@@ -1780,7 +1793,7 @@ class DatasetDeque:
     """
 
     dsobj = window = init_time = center_time = data = None
-    def __init__(self, ds, window, init_time):
+    def __init__(self, ds, window, init_time, *args, **kwargs):
         """Initialise a DatasetDeque
 
         Arguments:
@@ -1794,15 +1807,17 @@ class DatasetDeque:
 
             init_time [datetime]: Instant around which initial window
                 shall be centred.
+
+            Remaining arguments passed to read_period.
         """
         self.dsobj = ds
         self.window = window
         self.init_time = init_time
         self.center_time = init_time
 
-        self.reset()
+        self.reset(newtime=self.init_time, *args, **kwargs)
 
-    def reset(self, newtime=None):
+    def reset(self, newtime=None, *args, **kwargs):
         """Reset to initial conditions
 
         Sets data to indicated time or self.init_time ± self.window/2
@@ -1811,16 +1826,19 @@ class DatasetDeque:
 
             newtime [datetime.datetime]: optional, time at which to
             center window.  If not given, reset to initial time.
+
+            Remaining arguments passed to read_period.
+
         """
         self.edges = (self.init_time-self.window/2,
                       self.init_time+self.window/2)
         self.center_time = newtime or self.init_time
         M = self.dsobj.read_period(
-            *self.edges)
+            *self.edges, *args, **kwargs)
 
         self.data = self.dsobj.as_xarray_dataset(M)
             
-    def move(self, period):
+    def move(self, period, *args, **kwargs):
         """Read period on the right, discard period on the left
 
         This moves the window to the right by `period` by reading `period`
@@ -1831,6 +1849,8 @@ class DatasetDeque:
 
             period [timedelta]: Duration by which to shift.
                 Must be positive.
+
+            Remaining arguments passed to read_period.
         """
 
         if period > self.window:
@@ -1839,7 +1859,8 @@ class DatasetDeque:
         self.center_time += period
         Mnew = self.dsobj.read_period(
             self.edges[1],
-            self.edges[1]+period)
+            self.edges[1]+period,
+            *args, **kwargs)
         self.edges = (self.edges[0] + period,
                       self.edges[1] + period)
         datanew = self.dsobj.as_xarray_dataset(Mnew)

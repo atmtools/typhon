@@ -2018,3 +2018,16 @@ LinQualFlagsHIRS = {
             LinQualFlagsHIRSCommon,
             LinQualFlagsHIRSKLM,
             LinQualFlagsHIRS4)}
+
+# this one appears to be identical across all HIRS
+class MinorFrameFlagsHIRSCommon(IntFlag):
+    mfsusptime =    1<<7
+    mfhasfill =     1<<6
+    mfhastipdwell = 1<<5
+    mfsusppacsqc =  1<<4
+    mfmirlock =     1<<3
+    mfmirposerr =   1<<2
+    mfmirmoved =    1<<1
+
+MinorFrameFlagsHIRS = dict.fromkeys((2, 3, 4),
+    MinorFrameFlagsHIRSCommon)
