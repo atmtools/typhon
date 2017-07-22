@@ -523,8 +523,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     arr.size, arr.nbytes/MiB, frac_done,
                     newsize-arr.size, (newsize-arr.size)*arr.itemsize/MiB,
                     newsize, newsize*arr.itemsize/MiB))
-            arr = numpy.ma.concatenate(
-                (arr, numpy.ma.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
+            mod = (numpy.ma if hasattr(arr, "mask") else numpy)
+            arr = mod.concatenate(
+                (arr, mod.zeros(dtype=arr.dtype, shape=newsize-arr.size)))
         return arr
 
     def _add_cont_to_arr(self, arr, N, cont):
@@ -660,7 +661,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     raise
         if D != {}:
             if self.read_returns == "ndarray":
-                newM = numpy.ma.zeros(shape=M.shape,
+                mod = (numpy.ma if hasattr(M, "mask") else numpy)
+                newM = mod.zeros(shape=M.shape,
                     dtype=M.dtype.descr + [(k, v.dtype, v.shape[1:]) for (k,v) in D.items()])
                 for k in M.dtype.names:
                     newM[k] = M[k]
@@ -1681,7 +1683,7 @@ class NetCDFDataset:
                     try:
                         M[v].mask[M[v]==allvars[v]._FillValue] = True
                     except AttributeError:
-                        # no fill value...?
+                        # no fill value or not a masked array...?
                         pass
                 except TypeError:
                     pass # probably not a numeric type
@@ -1868,7 +1870,13 @@ class DatasetDeque:
         # need to convert to ms or it will become int and indexing will
         # fail, see https://github.com/numpy/numpy/issues/8546
         # and https://github.com/pydata/xarray/issues/1240
-        newst = self.data["time"][0].values.astype("M8[ms]") + numpy.timedelta64(period)
+        #
+        # If the very first iteration fails to read the first period and
+        # is off by X hours, EVERYTHING will be off by X hours if I simply
+        # reset it based on the first time in self.data!  Therefore the
+        # 'min' function.
+#        newst = self.data["time"][0].values.astype("M8[ms]") + numpy.timedelta64(period)
+        newst = min(numpy.datetime64(self.edges[0]), self.data["time"][0].values.astype("M8[ms]") + numpy.timedelta64(period))
         # BUG: need workaround for https://github.com/pydata/xarray/issues/1297
         all_encodings = {k: v.encoding for (k, v) in self.data.data_vars.items()}
         self.data = xarray.concat(

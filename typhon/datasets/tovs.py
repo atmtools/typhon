@@ -1085,7 +1085,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         for v in p.keys() & set(M.dtype.names):
             ds[p[v][0]].encoding = p[v][3]
-            if "bit" not in p[v][0] and ds[p[v][0]].dtype.kind not in "Mm":
+            if ("bit" not in p[v][0] and
+                ds[p[v][0]].dtype.kind not in "Mm" and
+                hasattr(M[v], "mask")):
                 ds[p[v][0]].values[M[v].mask] = numpy.nan #(
 #                numpy.nan if M[v].dtype.kind.startswith('f')
 #                else p[v][3]["_FillValue"])

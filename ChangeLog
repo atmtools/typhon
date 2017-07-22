@@ -1,3 +1,26 @@
+2017-07-22  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py:
+
+	(Dataset._ensure_large_enough) (Dataset._add_pseudo_fields)
+	(Dataset._read_ndarray):
+
+	- Don't convert regular ndarrays into masked arrays
+
+	(DatasetDeque.move):
+	
+	- Base new edges on self.edges as well as self.data["time"], otherwise
+	we may be consistently off forever if we start off with partly
+	unreadable data
+
+	* typhon/datasets/tovs.py (HIRS.as_xarray_dataset):
+
+	- Don't assume masked arrays
+
+	* typhon/physics/units/em.py(estimate_band_coefficients):
+
+	- Make sure regular expression can handle scientific notation
+
 2017-07-21  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/_tovs_defs.py:

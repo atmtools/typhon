@@ -345,7 +345,7 @@ class SRF(FwmuMixin):
 
         warnings.warn("Obtaining band coefficients from file", UserWarning)
         srcfile = config.conf[instr]["band_file"].format(sat=sat)
-        rxp = r"(.{5,6})_ch(\d\d?)_shift([+-]\d+)pm\.nc\s+([\d.]+)\s+(-?[\d.]+)\s+([\d.]+)"
+        rxp = r"(.{5,6})_ch(\d\d?)_shift([+-]\d+)pm\.nc\s+([\d.]+)\s+(-?[\de\-.]+)\s+([\d.]+)"
         dtp = [("satname", "S6"), ("channel", "u1"), ("shift", "i2"),
                ("centre", "f4"), ("alpha", "f4"), ("beta", "f4")]
         M = numpy.fromregex(srcfile, rxp, dtp).reshape(19, 7)
