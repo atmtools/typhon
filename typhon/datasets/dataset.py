@@ -1859,13 +1859,20 @@ class DatasetDeque:
             raise ValueError("Shifting period ({!s}) exceeds window "
                 "length ({!s})!".format(period, self.window))
         self.center_time += period
-        Mnew = self.dsobj.read_period(
-            self.edges[1],
-            self.edges[1]+period,
-            *args, **kwargs)
-        self.edges = (self.edges[0] + period,
-                      self.edges[1] + period)
-        datanew = self.dsobj.as_xarray_dataset(Mnew)
+        ok = False
+        try:
+            Mnew = self.dsobj.read_period(
+                self.edges[1],
+                self.edges[1]+period,
+                *args, **kwargs)
+        except: # syntactically required
+            raise
+        else:
+            datanew = self.dsobj.as_xarray_dataset(Mnew)
+            ok = True
+        finally:
+            self.edges = (self.edges[0] + period,
+                          self.edges[1] + period)
 
         # need to convert to ms or it will become int and indexing will
         # fail, see https://github.com/numpy/numpy/issues/8546

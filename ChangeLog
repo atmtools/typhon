@@ -1,3 +1,9 @@
+2017-07-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(DatasetDeque.move):
+
+	- Make sure to move edges etc. even when reading fails.
+
 2017-07-22  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py:
