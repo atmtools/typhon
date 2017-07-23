@@ -2,6 +2,7 @@
 
 import numpy as np
 import os
+import xarray
 from tempfile import mkstemp
 
 from nose.tools import raises
@@ -65,12 +66,18 @@ class TestGriddedFieldUsage():
         gf.name = reference
         assert gf.name == reference
 
-    def test_to_dict(self):
-        """Test the conversion into a dictionary."""
+    def _setup_gf2(self):
+        """Helper for test_to_dict and test_to_xarray"""
         gf2 = griddedfield.GriddedField2()
         gf2.grids = [np.ones(5), np.zeros(5)]
         gf2.gridnames = ["ones", "zeros"]
         gf2.data = np.ones((5, 5))
+        gf2.name = "semprini"
+        return gf2
+
+    def test_to_dict(self):
+        """Test the conversion into a dictionary."""
+        gf2 = self._setup_gf2()
         d = gf2.to_dict()
 
         res = (np.array_equal(d['ones'], np.ones(5)) and
@@ -78,6 +85,18 @@ class TestGriddedFieldUsage():
                np.array_equal(d['data'], np.ones((5, 5))))
 
         assert res is True
+
+    def test_to_xarray(self):
+        """Test the conversion into xarray DataArray"""
+        gf2 = self._setup_gf2()
+
+        da = gf2.to_xarray()
+
+        assert (da.name == "semprini" and
+                da.dims == ("ones", "zeros") and
+                np.array_equal(da.coords["zeros"], np.zeros(5)) and
+                np.array_equal(da.coords["ones"], np.ones(5)) and
+                np.array_equal(da.values, np.ones((5, 5))))
 
     def test_name_type(self):
         """Test if only names of type str are accepted."""

@@ -1,5 +1,17 @@
 2017-07-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/arts/griddedfield.py(GriddedField.to_xarray):
+
+	- Added method to convert to xarray DataArray.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	- Added method to test this new functionality.  Unfortunately, I'm not
+	sure how to run the test suite, as 'python3.6 setup.py test' ran 0
+	tests.
+
+2017-07-23  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/dataset.py(DatasetDeque.move):
 
 	- Make sure to move edges etc. even when reading fails.

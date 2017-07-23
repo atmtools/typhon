@@ -3,6 +3,7 @@ import copy
 
 import numpy as np
 from scipy import interpolate
+import xarray
 
 from .utils import return_if_arts_type, get_arts_typename
 
@@ -398,6 +399,28 @@ class GriddedField(object):
             d['data'] = self.data
 
         return d
+
+    def to_xarray(self):
+        """Convert GriddedField to xarray.DataArray object.
+
+        Convert a GriddedField object into a :func:`xarray.DataArray`
+        object.  The dataname is used as the DataArray name.
+
+        Returns:
+            xarray.DataArray object corresponding to gridded field
+        """
+
+        da = xarray.DataArray(self.data)
+        da = da.rename(dict((k, v)
+            for (k, v) in zip(da.dims, self.gridnames)
+            if v!=""))
+        da = da.assign_coords(
+            **{name: coor
+                for (name, coor) in zip(da.dims, self.grids)
+                if len(coor)>0})
+        if self.name is not None:
+            da.name = self.name
+        return da
 
     @classmethod
     def from_nc(cls, inputfile, variable, fill_value=np.nan):
