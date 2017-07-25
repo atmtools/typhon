@@ -41,7 +41,7 @@ def relative_humidity(vmr, p, T):
 
     Parameters:
         vmr (float or ndarray): Volume mixing ratio,
-        p (float or ndarray): Pressue [Pa].
+        p (float or ndarray): Pressure [Pa].
         T (float or ndarray): Temperature [K].
 
     Returns:

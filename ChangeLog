@@ -1,3 +1,16 @@
+2017-07-25  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/atmosphere.py(relative_humidity):
+
+	- Fix typo in docstring
+
+	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):
+
+	- For slices, ensure we're doing a<=x<b, i.e. include the start but
+	not the end, such that asking for [a, b], then [b, c] will never
+	include a duplicate point, which can happen if there is a measurement
+	exactly at b.
+
 2017-07-23  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/arts/griddedfield.py(GriddedField.to_xarray):

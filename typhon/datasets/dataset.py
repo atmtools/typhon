@@ -450,7 +450,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 utils.get_time_coordinates(cont)&cont.dims.keys(),
                 slice(start, end))]
         else:
-            cont = cont[(cont[self.time_field]<=end)&(cont[self.time_field]>=start)]
+            cont = cont[(cont[self.time_field]<end)&(cont[self.time_field]>=start)]
         if isinstance(cont, xarray.Dataset):
             # xarray reads lazily, but we want to merge all granules into
             # a single object at the end, so have to load it into memory
