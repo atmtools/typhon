@@ -1,3 +1,20 @@
+2017-07-27  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):
+
+	- Don't cont.load() when empty, otherwise we trigger
+	https://github.com/pydata/xarray/issues/1329
+
+	* typhon/datasets/tovs.py(HIRS._read):
+
+	- Catch the situation where time has duplicates but scanline number
+	does not
+
+	* typhon/utils/__unit__.py(concat_each_time_coordinate):
+
+	- Allow for empty time coordinates and skip those dimensions,
+	otherwise we trigger https://github.com/pydata/xarray/issues/1329
+
 2017-07-25  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/atmosphere.py(relative_humidity):

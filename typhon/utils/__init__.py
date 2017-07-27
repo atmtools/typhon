@@ -328,6 +328,10 @@ def concat_each_time_coordinate(*datasets):
         for (v, timedim) in time_vars.items():
             ncur = n_per_dim[timedim]
             nnew_cur = ds.dims[timedim]
+            if nnew_cur == 0:
+                # nothing to fill, but prevent
+                # https://github.com/pydata/xarray/issues/1329
+                continue
             slc = {dim: slice(ncur, ncur+nnew_cur)
                         if dim==timedim else slice(None)
                    for dim in ds[v].dims}

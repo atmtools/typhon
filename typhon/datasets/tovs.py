@@ -347,6 +347,18 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 scanlines = scanlines[goodtime]
                 cc = cc[goodtime, :, :]
 
+            # in some cases, like 1985-11-30T17:19:45.056 on NOAA-9,
+            # there are scanlines with different scanline numbers but
+            # the same time!
+            (_, ii) = numpy.unique(scanlines["time"], return_index=True)
+            if ii.size < scanlines["time"].size:
+                logging.warning("Oops!  There are scanlines with different "
+                    "scanline numbers but the same time!  Removing {:d} "
+                    "more lines.  I hope that's it!".format(
+                        scanlines["time"].size-ii.size))
+                scanlines = scanlines[ii]
+                cc = cc[ii, :, :]
+
             if apply_filter:
                 scanlines = self.apply_calibcount_filter(scanlines)
                 if cc.ndim == 4:

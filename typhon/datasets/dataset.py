@@ -456,7 +456,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             # a single object at the end, so have to load it into memory
             # anyway; rather do it now than all at once later, so that we
             # can keep track of how fast things are going
-            cont.load()
+            if cont[self.time_field].size > 0: # avoid https://github.com/pydata/xarray/issues/1329
+                cont.load()
             if arr is None:
                 arr = [cont]
                 N = cont[self.time_field].size
