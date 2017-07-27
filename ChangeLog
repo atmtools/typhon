@@ -1,3 +1,9 @@
+2017-07-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/plots/common.py (supcolorbar):
+
+	Fixed reference in docstring.
+
 2017-07-27  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):

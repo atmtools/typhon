@@ -201,7 +201,7 @@ def supcolorbar(mappable, fig=None, right=0.8, rect=(0.85, 0.15, 0.05, 0.7),
             ``rect = [left, bottom, width, height]`` where all quantities are
             in fraction of figure.
         **kwargs: Additional keyword arguments are passed to
-            :func:`matplotlib.figure.Figure.add_axes`.
+            :func:`matplotlib.figure.Figure.colorbar`.
 
     Returns:
         matplotlib.colorbar.Colorbar: Colorbar.
