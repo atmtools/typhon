@@ -6,6 +6,12 @@
 
 2017-07-27  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	* typhon/datasets/filters.py: Added
+
+	- Forgot to add earlier.  Contains filter classes.
+	
+2017-07-27  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/dataset.py(Dataset._add_gran_to_data):
 
 	- Don't cont.load() when empty, otherwise we trigger
