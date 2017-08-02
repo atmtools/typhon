@@ -215,7 +215,6 @@ class TestGriddedFieldWrite():
     def setUp(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
-        print(self.f)
 
     def tearDown(self):
         """Delete temporary file."""

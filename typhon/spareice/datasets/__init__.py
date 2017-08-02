@@ -5,8 +5,6 @@ import os.path
 import re
 import time
 
-import cartopy.crs as ccrs
-import matplotlib.pyplot as plt
 import pandas as pd
 import typhon.datasets
 import typhon.files
@@ -220,6 +218,9 @@ class Dataset:
         Returns:
             List of matplotlib.figures objects.
         """
+
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
 
         vars = []
         for plot in plot_dicts:

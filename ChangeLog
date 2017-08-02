@@ -1,3 +1,17 @@
+2017-08-02  John Mrziglod  <mrzo@gmx.de>
+
+	* typhon/spareice:
+
+	Added dataset, collocation and SPARE-ICE modules.
+
+	* typhon/spareice/dataset/__init__.py (make_plots):
+
+	Moved cartopy and matplotib imports to function.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Removed unnecessary print statement.
+
 2017-07-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/plots/common.py (supcolorbar):

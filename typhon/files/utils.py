@@ -23,7 +23,7 @@ else:
 
 
 @contextmanager
-def decompress(filename, tmpdir):
+def decompress(filename, tmpdir=None):
     """Temporarily decompress file for reading.
 
     Returns the full path to the uncompressed temporary file or the original
@@ -38,7 +38,7 @@ def decompress(filename, tmpdir):
     Args:
         filename (str): Input file.
         tmpdir (str): Path to directory for temporary storage of the
-            uncompressed file. The directory must exist.
+            uncompressed file. The directory must exist. The default is the temporary dir of the system.
 
     Returns:
         Generator containing the path to the input filename.
@@ -49,6 +49,9 @@ def decompress(filename, tmpdir):
         >>>     f = netCDF4.Dataset(file)
         >>>     #...
     """
+    if tmpdir is None:
+        tmpdir = tempfile.gettempdir()
+
     filebase, fileext = os.path.splitext(filename)
     filebase = os.path.basename(filebase)
 
