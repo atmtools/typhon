@@ -1,0 +1,1 @@
+{"hidden_layer_sizes": [20], "inputs": ["MHS.bt_1", "MHS.bt_2", "MHS.bt_3", "MHS.bt_4", "MHS.bt_5"], "outputs": ["SPAREICE.IWP", "SPAREICE.cloud_probability"], "targets": ["CloudSat.IWP_RO", "CloudSat.mean_IWP"]}
