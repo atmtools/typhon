@@ -1,3 +1,14 @@
+2017-08-10  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/arts/griddedfield.py (GriddedField.get()):
+
+	Added a method the conveniently extract named fields from a
+	GriddedField of arbitrary dimension.
+
+	* typhon/arts/tests/test_griddedfield.py:
+
+	Added test cases for the new GriddedField.get() method.
+
 2017-08-02  John Mrziglod  <mrzo@gmx.de>
 
 	* typhon/spareice:

@@ -137,6 +137,49 @@ class TestGriddedFieldUsage():
         """Test string represenation of empty GriddedField objects."""
         str(griddedfield.GriddedField1())
 
+    def test_get(self):
+        """Test the get method for named fields."""
+        gf1 = griddedfield.GriddedField1(
+            grids = [['foo', 'bar']],
+            data = np.array([42, 13]),
+        )
+
+        assert gf1.get('foo') == np.array([42])
+
+    def test_get_default(self):
+        """Test the GriddedField.get() behavior for non-existing fieldnames."""
+        gf1 = griddedfield.GriddedField1(
+            grids = [['dummy']],
+            data = np.array([0]),
+        )
+
+        # Return given default, if a name is not existing.
+        assert gf1.get('nonexisting', 42) == 42
+
+        # If no default is specified, return `None`.
+        assert gf1.get('nonexisting') is None
+
+    def test_get_keepdims(self):
+        """Test the dimension handling of the GriddedField.get()."""
+        gf1 = griddedfield.GriddedField1(
+            grids = [['foo', 'bar']],
+            data = np.array([42, 13]),
+        )
+
+        assert gf1.get('foo').shape == (1,)
+        assert gf1.get('foo', keep_dims=False).shape == tuple()
+
+    @raises(TypeError )
+    def test_get_nofieldnames(self):
+        """Test behavior if first grids is not ArrayOfString."""
+        gf1 = griddedfield.GriddedField1(
+            grids = [[0]],
+            data = np.array([0]),
+        )
+
+        # This line should raise a TypeError.
+        gf1.get(0)
+
 
 class TestGriddedFieldLoad():
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")

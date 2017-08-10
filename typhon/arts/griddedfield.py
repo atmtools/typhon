@@ -370,6 +370,38 @@ class GriddedField(object):
 
         return self
 
+    def get(self, key, default=None, keep_dims=True):
+        """Return field with given name.
+
+        Notes:
+              This method only works, if the first grid is an "ArrayOfString".
+
+        Parameters:
+              key (str): Name of the field to extract.
+              default: Default value, if ``key`` is not found.
+              keep_dims (bool): If ``False``, empty dimensions are squeezed
+                  before the extracted array is returned.
+
+        Returns:
+            ndarray: Extracted ndarray.
+        """
+        # The first grid has to be an ArrayOfString.
+        if not get_arts_typename(self.grids[0]) == 'ArrayOfString':
+            raise TypeError(
+                'Method only works, if the first grid is an "ArrayOfString"')
+
+        # If the GriddedField is empty or the given fieldname is not found,
+        # return the default value.
+        if self.grids is None or key not in self.grids[0]:
+            return default
+
+        # Find the index of given fieldname in the name grid and return the
+        # ndarray at that position.
+        field = self.data[[self.grids[0].index(key)]]
+
+        # Squeeze empty dimensions, if ``keep_dims`` is ``False``.
+        return field if keep_dims else field.squeeze()
+
     def to_dict(self):
         """Convert GriddedField to dictionary.
 
