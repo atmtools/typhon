@@ -1,4 +1,5 @@
 import datetime
+import time
 import warnings
 
 import h5py
@@ -6,13 +7,14 @@ import numpy as np
 import xarray as xr
 
 from .. import handlers
-from . import common
+from .. import datasets
 
 __all__ = [
     'MHSAAPPFile',
     ]
 
-class MHSAAPPFile():
+
+class MHSAAPPFile(handlers.FileHandler):
 
     field_names = {
         "time", "lat", "lon", "brightness_temperature"
@@ -50,42 +52,66 @@ class MHSAAPPFile():
         See the parent class for further documentation.
         """
 
+        timer = time.time()
+
         if fields is None:
             raise NotImplementedError("I need field names to extract the correct variables from the file! Native reading"
                                       " is not yet implemented! Allowed field names are:" + str(MHSAAPPFile.field_names))
 
         with h5py.File(filename, "r") as file:
-            dataset = xr.Dataset()
+            timer = time.time()
+            dataset = datasets.AccumulatedData()
 
-            for field in fields:
+            for field, dimensions in self.parse_fields(fields):
+                field_timer = time.time()
+                data = None
+
                 # Mapping for additional fields
                 if field == "brightness_temperature":
-                    data = np.asarray(file[MHSAAPPFile.internal_mapping[field]])
-                    dataset[field] = xr.DataArray(
-                        data.reshape(file[MHSAAPPFile.internal_mapping[field]].shape[0] * 90, 5)
+                    bt = np.asarray(file[MHSAAPPFile.internal_mapping[field]])
+                    data = xr.DataArray(
+                        bt.reshape(file[MHSAAPPFile.internal_mapping[field]].shape[0] * 90, 5)
                         * file[MHSAAPPFile.internal_mapping[field]].attrs["Scale"],
                         dims=["time", "channel"]
                     )
                 elif field == "time":
                     # Mapping for standard field time
 
+                    #print(file["Data"]["scnlintime"][1:] - file["Data"]["scnlintime"][:-1] != 2667)
+
                     # Interpolate between the start times of each swath to retrieve the timestamp of each pixel.
-                    pixel_times = [
+                    swath_start_indices = np.arange(0, file["Data"]["scnlintime"].size*90, 90)
+                    pixel_times = np.interp(
+                        np.arange((file["Data"]["scnlintime"].size-1)*90),
+                        swath_start_indices, file["Data"]["scnlintime"])
+
+                    # Add the timestamps from the last swath here, we could not interpolate them in the step before
+                    # because we do not have an ending timestamp. We simply extrapolate from the difference between the
+                    # last two timestamps.
+                    last_swath_pixels = \
+                        file["Data"]["scnlintime"][-1] \
+                        - file["Data"]["scnlintime"][-2] \
+                        + np.linspace(
+                            file["Data"]["scnlintime"][-2], file["Data"]["scnlintime"][-1],
+                            90, dtype="int32", endpoint=False)
+                    pixel_times = np.concatenate([pixel_times, last_swath_pixels])
+
+                    """"[
                         np.linspace(
                             file["Data"]["scnlintime"][i],
                             file["Data"]["scnlintime"][i+1], 90, dtype="int32", endpoint=False
                         )
-                        for i in range(file["Data"]["scnlintime"].size-1)]
+                        for i in range(file["Data"]["scnlintime"].size-1)]"""
 
                     # The timestamps of the last swath are estimated from the difference between the last.
-                    pixel_times.append(
+                    """pixel_times.append(
                         file["Data"]["scnlintime"][-1] - file["Data"]["scnlintime"][-2]
                         + np.linspace(
                             file["Data"]["scnlintime"][-2], file["Data"]["scnlintime"][-1], 90, dtype="int32", endpoint=False)
-                    )
+                    )"""
 
                     # Convert the pixel times into timedelta objects
-                    pixel_times = np.asarray(pixel_times, dtype="timedelta64[ms]")
+                    pixel_times = pixel_times.astype("timedelta64[ms]")
 
                     # Convert the swath time variables (year, day of year, miliseconds since midnight) to numpy.datetime
                     # objects. These are the start times of each swath, we have to bring them together with the
@@ -93,14 +119,20 @@ class MHSAAPPFile():
                     swath_times = (np.asarray(file["Data/scnlinyr"]).astype('datetime64[Y]') - 1970) \
                                   + (np.asarray(file["Data/scnlindy"]).astype('timedelta64[D]') - 1)
 
-                    times = [swath_times[i] + swath_pixel_times for i, swath_pixel_times in enumerate(pixel_times)]
-                    dataset['time'] = xr.DataArray(np.asarray(times).flatten(), dims=["time"])
+                    swath_times = np.repeat(swath_times, 90)
+                    times = swath_times + pixel_times
+                    data = xr.DataArray(np.asarray(times).flatten(), dims=["time"])
+
+                    #print("\tAdded swath times %s:" % field, time.time() - field_timer)
                 elif field == "lat" or field == "lon":
-                    dataset[field] = xr.DataArray(
+                    data = xr.DataArray(
                         np.asarray(file[MHSAAPPFile.internal_mapping[field]]).flatten()
                         * file[MHSAAPPFile.internal_mapping[field]].attrs["Scale"],
                         dims=["time"]
                     )
+
+                # Add the field data to the dataset.
+                dataset[field] = self.select(data, dimensions)
 
             return dataset
 

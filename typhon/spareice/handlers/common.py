@@ -3,6 +3,7 @@ import pickle
 import typhon.arts.xml
 import xarray
 
+from .. import datasets
 from .. import handlers
 
 __all__ = [
@@ -62,7 +63,7 @@ class NetCDF4File(handlers.FileHandler):
         ds = xarray.open_dataset(filename)
         if fields is not None:
             ds = ds[fields]
-        return ds
+        return datasets.AccumulatedData.from_xarray(ds)
 
     def write(self, filename, data):
         """ Writes a xarray to a NetCDF file.

@@ -1,3 +1,48 @@
+2017-08-17  John Mrziglod  <mrzo@gmx.de>
+
+	* typhon/spareice/handlers/__init__.py:
+
+	Added parse_fields() and select() methods.
+
+	* typhon/spareice/datasets/__init__.py
+
+	Added caching in retrieve_time_coverage() method.
+	Added AccumulatedData support.
+	Added documentation.
+
+	* typhon/spareice/datasets/accumulated_data.py
+
+	Added experimental AccumulatedData class which provides convenient plotting functions.
+
+	* typhon/spareice/handlers/cloudsat.py
+
+	Added field parsing support.
+
+	* typhon/spareice/handlers/cloudsat.py
+
+	Added field parsing support.
+
+	* typhon/spareice/handlers/common.py
+
+	Added AccumulatedData support.
+
+	* typhon/spareice/handlers/tovs.py
+
+	Added field parsing support.
+	Fixed slow pixel time interpolation.
+
+	* typhon/spareice/collocations/datasets.py
+
+	Changed collocation finding algorithm.
+	Seperated spatial and temporal collocation finding.
+	Changed leafsize of k-d trees.
+	Fixed bugs of overlapping files.
+	Added documentation.
+
+	* typhon/plots/plots.py
+
+	Added experimental worldmap and plot_3d functions.
+
 2017-08-10  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/griddedfield.py (GriddedField.get()):

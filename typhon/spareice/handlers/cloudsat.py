@@ -1,7 +1,9 @@
 import datetime
+import time
 import warnings
 
 import numpy as np
+import pandas as pd
 from pyhdf.SD import SD, SDC
 from pyhdf import HDF, VS, V
 import xarray as xr
@@ -13,8 +15,9 @@ __all__ = [
     'CPR2CICEFile',
     ]
 
+
 # This name is simply ugly!
-class CPR2CICEFile():
+class CPR2CICEFile(handlers.FileHandler):
 
     internal_mapping = {
         "lat" : "Latitude",
@@ -26,13 +29,14 @@ class CPR2CICEFile():
         super().__init__(**kwargs)
 
     def get_info(self, filename):
+
         # Get info parameters from a file (time coverage, etc)
         data_array = xr.open_dataset(filename)
 
         info = {
             "times" : [
-                 datetime.datetime.strptime(data_array.attrs["start_time"], "%Y%m%d%h%m%s"),
-                 datetime.datetime.strptime(data_array.attrs["end_time"], "%Y%m%d%h%m%s")
+                 datetime.datetime.strptime(data_array.attrs["start_time"], "%Y%m%d%H%M%S"),
+                 datetime.datetime.strptime(data_array.attrs["end_time"], "%Y%m%d%H%M%S")
             ],
         }
 
@@ -50,7 +54,7 @@ class CPR2CICEFile():
             raise NotImplementedError("I need field names to extract the correct variables from the file! Native reading"
                                       " is not yet implemented!")
 
-        data_array = xr.Dataset()
+        dataset = xr.Dataset()
 
         # This code is taken from http://hdfeos.org/zoo/OTHER/2010128055614_21420_CS_2B-GEOPROF_GRANULE_P_R04_E03.hdf.py
         # and adapted by John Mrziglod. A description about all variables in CloudSat 2C-ICE dataset can be found in
@@ -59,7 +63,10 @@ class CPR2CICEFile():
         try:
             file = HDF.HDF(filename)
             vs = file.vstart()
-            for field in fields:
+
+            for field, dimensions in self.parse_fields(fields):
+                data = None
+
                 # The time variable has to be handled as something special:
                 if field == "time":
                     # This gives us the starting time of the first profile in seconds since 1st Jan 1993.
@@ -76,42 +83,45 @@ class CPR2CICEFile():
                     nrecs, _, _, _, _ = profile_times_id.inquire()
                     profile_times = profile_times_id.read(nRec=nrecs)
                     profile_times_id.detach()
-                    profile_times = (np.asarray(profile_times).flatten() * 1000).astype('timedelta64[ms]')
+                    profile_times = np.asarray(profile_times).flatten()
+
+                    start_time = datetime.datetime(1993, 1, 1) + datetime.timedelta(seconds=first_profile_time)
 
                     # Put all times together so we obtain one full timestamp (date + time) for each data point
-                    data_array["time"] = xr.DataArray(
-                        np.datetime64(23, 'Y') \
-                        + np.timedelta64(int(first_profile_time), 's') \
-                        + profile_times,
+                    data = xr.DataArray(
+                        pd.to_datetime(profile_times, unit='s', origin=pd.Timestamp(start_time)),
                         dims=["time"]
                     )
 
-                    continue
-
-                # All other data (including latitudes, etc.)
-                if field in CPR2CICEFile.internal_mapping:
-                    field_id = vs.find(CPR2CICEFile.internal_mapping[field])
                 else:
-                    field_id = vs.find(field)
+                    # All other data (including latitudes, etc.)
+                    if field in CPR2CICEFile.internal_mapping:
+                        field_id = vs.find(CPR2CICEFile.internal_mapping[field])
+                    else:
+                        field_id = vs.find(field)
 
-                if field_id == 0:
-                    # Field was not found.
-                    warnings.warn("Field '{0}' was not found!".format(field), RuntimeWarning)
-                    continue
+                    if field_id == 0:
+                        # Field was not found.
+                        warnings.warn("Field '{0}' was not found!".format(field), RuntimeWarning)
+                        continue
 
-                field_id = vs.attach(field_id)
-                #field_id.setfields(field)
+                    field_id = vs.attach(field_id)
+                    #field_id.setfields(field)
 
-                nrecs, _, _, _, _ = field_id.inquire()
-                data = field_id.read(nRec=nrecs)
-                data_array[field] = xr.DataArray(np.asarray(data).flatten(), dims=["time"])
-                field_id.detach()
+                    nrecs, _, _, _, _ = field_id.inquire()
+                    raw_data = field_id.read(nRec=nrecs)
+                    data = xr.DataArray(np.asarray(raw_data).flatten(), dims=["time"])
+                    field_id.detach()
+
+                # Add the field data to the dataset.
+                dataset[field] = self.select(data, dimensions)
+
         except Exception as e:
             raise e
         finally:
             file.close()
 
-        return data_array
+        return dataset
 
     def write(self, filename, data):
         """ Writes a xarray to a NetCDF file.

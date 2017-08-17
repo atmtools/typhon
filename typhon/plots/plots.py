@@ -22,10 +22,12 @@ __all__ = [
     'scatter_density_plot_matrix',
     'HectoPascalFormatter',
     'HectoPascalLogFormatter',
+    'plot_3d',
     'profile_p',
     'profile_p_log',
     'profile_z',
     'channels',
+    'worldmap',
 ]
 
 
@@ -422,6 +424,43 @@ class HectoPascalLogFormatter(LogFormatter):
         return '{:g}'.format(x / 1e2)
 
 
+def plot_3d(x, y, z, fig=None, ax=None, **kwargs):
+    """ Plot a 3-dimensional plot.
+
+    More documentation is coming soon.
+
+    Args:
+        x:
+        y:
+        z:
+        fig:
+        **kwargs:
+
+    Returns:
+
+    """
+
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib.ticker import LinearLocator, FormatStrFormatter
+
+    # Default keyword arguments to pass to hist2d().
+    kwargs_defaults = {
+        #"cmap": "phase",
+        #"s": 1,
+    }
+    kwargs_defaults.update(kwargs)
+
+    if fig is None:
+        fig = plt.gcf()
+
+    if ax is None:
+        ax = fig.gca(projection='3d')
+
+
+    ax.plot(x, y, z, **kwargs_defaults)
+
+    return ax
+
 def profile_p(p, x, ax=None, **kwargs):
     """Plot atmospheric profile against pressure in linear space.
 
@@ -661,3 +700,39 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
         patches.append(plot_band(center, width, ymin, ymax))
 
     return patches
+
+
+def worldmap(lat, lon, vars, fig=None, ax=None, projection=None, background_image=True, **kwargs):
+    """Plot a worldmap of two data arrays.
+
+    More documentation is coming soon.
+
+    """
+    import cartopy.crs as ccrs
+
+    # Default keyword arguments to pass to hist2d().
+    kwargs_defaults = {
+        "cmap" : "qualitative1",
+        "s" : 1,
+    }
+    kwargs_defaults.update(kwargs)
+
+    if fig is None:
+        fig = plt.gcf()
+
+    if projection is None:
+        if ax is not None:
+            projection = ax.projection
+        else:
+            projection = ccrs.PlateCarree()
+
+    if ax is None:
+        ax = fig.add_subplot(111, projection=projection)
+
+    if background_image:
+        ax.stock_img()
+
+    scatter_plot = plt.scatter(lon, lat, c=vars, transform=projection, **kwargs_defaults)
+    #plt.colorbar(scatter_plot)
+
+    return ax, scatter_plot
