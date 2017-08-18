@@ -45,6 +45,9 @@ class ArrayOfLineRecord:
     def __getitem__(self, index):
         return self.data[index]
 
+    def __len__(self):
+        return len(self.data)
+
     def as_ARTSCAT5(self):
         """Returns manipulable ARTSCAT5 class of this linerecord array
         """
@@ -137,6 +140,10 @@ class CIARecord:
     @data.setter
     def data(self, data):
         self._data = return_if_arts_type(data, 'ArrayOfGriddedField2')
+
+    def __repr__(self):
+        return self._molecule1 + "-CIA-" + self.molecule2 + " " + \
+            str(self.data)
 
     @classmethod
     def from_xml(cls, xmlelement):
@@ -1148,9 +1155,14 @@ class LineMixingRecord:
         xmlwriter.write_xml(self.data.data)
         xmlwriter.close_tag()
 
-from .utils import return_if_arts_type
-from .utils import as_quantumnumbers
-from .internals import PartitionFunctions
-from .internals import ARTSCAT5
-from .internals import Rational
-from .internals import LineMixing
+try:
+    from .utils import return_if_arts_type
+    from .utils import as_quantumnumbers
+    from .internals import PartitionFunctions
+    from .internals import ARTSCAT5
+    from .internals import Rational
+    from .internals import LineMixing
+except:
+    from typhon.arts.utils import return_if_arts_type, as_quantumnumbers
+    from typhon.arts.internals import PartitionFunctions, ARTSCAT5, Rational, \
+        LineMixing

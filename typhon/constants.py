@@ -110,6 +110,7 @@ molar_mass_water = 18.01528e-3  # kg mol^-1
 gas_constant_dry_air = R / molar_mass_dry_air  # J K^-1 kg^-1
 gas_constant_water_vapor = R / molar_mass_water  # J K^-1 kg^-1
 amu = spc.m_u
+stefan_boltzmann_constant = 2 * np.pi**5 * k**4 / (15 * c**2 * h**3)
 
 # Mathematical constants
 golden = golden_ratio = (1 + np.sqrt(5)) / 2

@@ -119,14 +119,29 @@ class GriddedField(object):
 
     def __repr__(self):
         try:
-            out = "GriddedField{}: {}\n".format(self.dimension, self.name)
+            if self.name:
+                out = "GriddedField{}: {}\n".format(self.dimension, self.name)
+            else:
+                out = "GriddedField{}: {}\n".format(self.dimension,
+                                                    "Generic Field")
+
             for i in range(self.dimension):
-                out += "{} {}: {}\n".format(self.gridnames[i],
-                                            np.shape(self.grids[i]),
-                                            self.grids[i])
-            out += "{} {}: {}\n".format(self.dataname,
-                                        self.data.shape,
-                                        self.data.flatten())
+                if self.gridnames[i]:
+                    out += "{} {}: {}\n".format(self.gridnames[i],
+                                                np.shape(self.grids[i]),
+                                                self.grids[i])
+                else:
+                    out += "{} {}: {}\n".format("Grid " + str(i + 1),
+                                                np.shape(self.grids[i]),
+                                                self.grids[i])
+            if self.dataname:
+                out += "{} {}: {}\n".format(self.dataname,
+                                            self.data.shape,
+                                            self.data.flatten())
+            else:
+                out += "{} {}: {}\n".format("Data",
+                                            self.data.shape,
+                                            self.data.flatten())
             return out
         except:
             # If representation fails, fall back to default.
@@ -360,11 +375,14 @@ class GriddedField(object):
         Returns: :class:`typhon.arts.griddedfield.GriddedField`
 
         """
-        f = interpolate.interp1d(self.grids[axis], self.data,
-                                 axis=axis, **kwargs)
-
-        self.grids[axis] = new_grid
-        self.data = f(new_grid)
+        if len(self.grids[axis]) > 1:
+            f = interpolate.interp1d(self.grids[axis], self.data,
+                                     axis=axis, **kwargs)
+            self.grids[axis] = new_grid
+            self.data = f(new_grid)
+        else:  # if the intention is to create a useful TensorX
+            self.data = self.data.repeat(len(new_grid), axis=axis)
+            self.grids[axis] = new_grid
 
         self.check_dimension()
 

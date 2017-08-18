@@ -343,3 +343,18 @@ def wavenumber2wavelength(wavenumber):
 
     """
     return np.divide(1, wavenumber)
+
+
+def stefan_boltzmann_law(T):
+    """Compute Stefan Boltzmann law for given temperature
+
+    .. math::
+        j = \\sigma T^4
+
+    Parameters:
+        T: Physical temperature  of object [K]
+
+    Returns:
+        Energy per surface area [W m^-2]
+    """
+    return constants.stefan_boltzmann_constant * T**4

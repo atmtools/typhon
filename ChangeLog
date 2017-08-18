@@ -1,3 +1,17 @@
+2017-08-18  Richard Larsson <ric.larsson@gmail.com>
+
+	* typhon/arts/catalogues.py: Added len for ArrayOfLineRecord.  
+	Added __repr__ for CIARecord
+	
+	* typhon/arts/griddedfield.py: Changed repr to be more informative when
+	names are not given.  When you use repr, the true value of None is not
+	important.  Also changed so refining grids work for over-dimensioned
+	fields (e.g., if you need gridded field for more than one latitude, but 
+	field is only available for one latitude, then this can expand it)
+	
+	* typhon/geodesy/__init__.py:  Bug-fix and added simple line-sphere 
+	intersection helper function.
+	
 2017-08-17  John Mrziglod  <mrzo@gmx.de>
 
 	* typhon/spareice/handlers/__init__.py:

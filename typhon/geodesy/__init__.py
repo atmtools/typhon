@@ -32,6 +32,7 @@ __all__ = [
     'geographic_mean',
     'cartposlos2geocentric',
     'geocentricposlos2cart',
+    'sphere_plane_intersection',
 ]
 
 
@@ -406,13 +407,17 @@ def cart2geodetic(x, y, z, ellipsoid=None):
     B0 = np.arctan2(z, np.hypot(x, y))
     B = np.ones(B0.shape)
     e2 = ellipsoid[1]**2
-    while (np.any(np.abs(B - B0) > 1e-10)):
-        N = ellipsoid[0] / np.sqrt(1 - e2 * np.sin(B0)**2)
-        h = np.hypot(x, y) / np.cos(B0) - N
-        B = B0.copy()
-        B0 = np.arctan(z/np.hypot(x, y) * ((1-e2*N/(N+h))**(-1)))
+    if e2 == 0.0:
+        h, lat, lon = cart2geocentric(x, y, z)
+        h -= ellipsoid[0]
+    else:
+        while (np.any(np.abs(B - B0) > 1e-10)):
+            N = ellipsoid[0] / np.sqrt(1 - e2 * np.sin(B0)**2)
+            h = np.hypot(x, y) / np.cos(B0) - N
+            B = B0.copy()
+            B0 = np.arctan(z/np.hypot(x, y) * ((1-e2*N/(N+h))**(-1)))
 
-    lat = np.rad2deg(B)
+        lat = np.rad2deg(B)
 
     return h, lat, lon
 
@@ -1000,3 +1005,96 @@ def geometric_limb_zenith_angle(ellipsoid, r, lat, lon,
 
     # Note that we return with the proper shape
     return za.reshape(sh)
+
+
+def sphere_plane_intersection(pos, r, theta=np.linspace(-180., 180.)):
+    """Computes the intersection of a plane with a sphere
+
+    Returns cartesian x, y, z at the provided angles.  Sphere is centered
+    at 0, 0, 0
+
+    The solution is from
+
+    .. math::
+        \\vec{r}_c = \\vec{r}_p + r_0 \\left( \\vec{v}_1\\cos\\theta +
+        \\vec{v}_2\\sin\\theta \\right)
+
+    rp is the input position of the center of the interesecting circle,
+
+    .. math::
+        r_0 = \\sqrt{r^2 - \\vec{r_p} \\cdot \\vec{r_p}},\\;\\;
+        \\vec{n} = \\vec{r}_p/||\\vec{r}_p||,\\;\\;
+        \\vec{n}\\cdot\\vec{v}_1\\approx0,\\;\\;
+        \\vec{v}_2 = \\vec{n} \\times \\vec{v}_1
+
+    where v1 is so defined that it fully overlaps with the azimuth angle at the
+    equator.  At other latitudes, the azimuth and theta are only the same at 0
+    degrees.
+
+    Parameters:
+        pos (N, 3-array): position at the center of the circle-like shape that
+        the intersection will form (i.e., the tangent point of a satellite at
+        the sphere's radius).  Cannot be the 0-vector
+
+        r (float): radius of sphere in same units as pos. Cannot be 0.0
+
+        theta (n-array): determines positions by angle [degrees]
+
+    Returns:
+        (n, N, 3)-array of points intersecting plane and sphere
+
+    Examples:
+        Find possible positions that a satellite at an orbit about
+        600 km above the surface can see a tangent point 30 km above
+        the surface of Earth
+
+        >>> x, y, z = geodetic2cart(30e3, 30., 30.)
+        >>> sat = sphere_plane_intersection(np.array([x, y, z]), 6978e3)
+    """
+    assert r > 0.0, "Cannot work with zero radius sphere"
+
+    assert len(pos.shape) == 2, "Need (N, 3) as pos-shape"
+
+    d = np.linalg.norm(pos, axis=1)
+    assert all(d > 0.0), "Cannot work with the 0-vector for position"
+
+    number_of_angles = len(theta)
+    number_of_positions = pos.shape[0]
+    points = np.empty((number_of_angles, number_of_positions, 3))
+    if number_of_angles == 0:
+        return points
+
+    # If the sphere is under the plane, or tangential to the plane
+    for ii in range(number_of_positions):
+        if d[ii] > r:
+            for i in range(number_of_angles):
+                points[i, ii, :] = np.array([np.nan, np.nan, np.nan])
+            continue
+        elif d[ii] == r:
+            for i in range(number_of_angles):
+                points[i, ii, :] = pos[ii, :]
+            continue
+
+        # The (normalized/unit) plane vector
+        n = pos[ii] / d[ii]
+
+        # Southern vector
+        ones, lat, lon = cart2geocentric(n[0], n[1], n[2])
+
+        if(lat == 90.0):
+            v1 = np.array([cosd(lon), sind(lon), 0.]) * sind(lat)
+        else:
+            v1 = np.array([cosd(lon) * sind(lat),
+                           sind(lon) * sind(lat),
+                           cosd(lat-180.0)])
+
+        # Eastern vector
+        v2 = -np.cross(n, v1)  # points East
+
+        # Radius of the circle
+        rc = np.sqrt(r**2 - d[ii]**2)
+
+        for i in range(number_of_angles):
+            points[i, ii, :] = pos[ii, :] + rc * (cosd(theta[i]) * v1 +
+                                                  sind(theta[i]) * v2)
+    return points
