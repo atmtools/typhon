@@ -4,7 +4,7 @@
 """
 
 import ast
-import contextlib
+import functools
 import operator
 import os
 import shutil
@@ -90,7 +90,7 @@ def extract_block_diag(M, n):
     return [np.split(m, n, axis=1)[i] for i, m in enumerate(np.split(M, n))]
 
 
-class Timer(contextlib.ContextDecorator):
+class Timer():
     """Provide a simple time profiling utility.
 
     Timer class adapted from blog entry [0].
@@ -99,6 +99,11 @@ class Timer(contextlib.ContextDecorator):
 
     Parameters:
         verbose: Print results after stopping the timer.
+        info (str): Allows to add additional information to output.
+            The given string is printed before the measured time.
+            If `None`, default information is added depending on the use case.
+        timefmt (str): Format string to control the output of the measured time.
+            The names 'minutes' and 'seconds' can be used.
 
     Examples:
         Timer in with statement:
@@ -106,7 +111,7 @@ class Timer(contextlib.ContextDecorator):
         >>> import time
         >>> with Timer():
         ...     time.sleep(1)
-        elapsed time: 1.001s
+        elapsed time: 0m 1.001s
 
         Timer as object:
 
@@ -114,7 +119,7 @@ class Timer(contextlib.ContextDecorator):
         >>> t = Timer().start()
         >>> time.sleep(1)
         >>> t.stop()
-        elapsed time: 1.001s
+        elapsed time: 0m 1.001s
 
         As function decorator:
 
@@ -123,12 +128,29 @@ class Timer(contextlib.ContextDecorator):
         ...     import time
         ...     time.sleep(s)
         >>> own_function(1)
-        elapsed time: 1.001s
+        own_function: 0m 1.001s
 
     """
-
-    def __init__(self, verbose=True):
+    def __init__(self, info=None, timefmt='{minutes:d}m {seconds:.3f}s',
+                 verbose=True):
         self.verbose = verbose
+        self.timefmt = timefmt
+        self.info = info
+
+    def __call__(self, func):
+        """Allows to use a Timer object as a decorator."""
+        # When no additional information is given, add the function name is
+        # Timer is used as decorator.
+        if self.info is None:
+            self.info = func.__name__
+
+        @functools.wraps(func)  # Preserve the original signature and docstring.
+        def wrapper(*args, **kwargs):
+            with self:
+                # Call the original function in a Timer context.
+                return func(*args, **kwargs)
+
+        return wrapper
 
     def __enter__(self):
         return self.start()
@@ -145,10 +167,21 @@ class Timer(contextlib.ContextDecorator):
         """Stop timer."""
         self.endtime = time.time()
         self.secs = self.endtime - self.starttime
-        self.msecs = self.secs * 1000
+
+        # Build a string containing the measured time for output.
+        timestr = self.timefmt.format(
+            minutes=int(self.secs // 60),
+            seconds=self.secs % 60,
+        )
+
+        # If no additional information is specified add default information
+        # to make the output more readable.
+        if self.info is None:
+            self.info = 'elapsed time'
+
         if self.verbose:
-            print('elapsed time: {:d}m{:.3f}s'.format(
-                int(self.secs // 60), self.secs % 60))
+            # Connect additional information and measured time for output.
+            print('{info}: {time}'.format(info=self.info, time=timestr))
 
 
 # This code, or a previous version thereof, was posted by user 'J. F.

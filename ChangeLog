@@ -1,3 +1,18 @@
+2017-08-18  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	Improved usabilty of Timer class.
+
+	* typhon/utils/__init__.py (Timer):
+
+	It is possible to pass additional information on the process
+	being timed using the `info` keyword. If no information is
+	given, a default value depending on the context is used e.g. the
+	function name when used as decorator.
+
+	It is also possible to alter the timeformat.
+
+	Removed unnecessary lines and updated docstrings.
+
 2017-08-18  Richard Larsson <ric.larsson@gmail.com>
 
 	* typhon/arts/catalogues.py: Added len for ArrayOfLineRecord.  
