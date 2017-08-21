@@ -1,3 +1,44 @@
+2017-08-21  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py:
+	
+	(HIRS._read):
+
+	- Remove overlaps before, not after, removing lines due to time
+	sequence errors, to stop counting errors
+
+	- Handle situation where dataname is empty, such as for TIROS-N
+
+	(HIRS._filter_firstline):
+
+	- Handle situation where dataname is empty, such as for TIROS-N
+
+	(HIRS._filter_firstline):
+
+	- Handle situation where dataname is empty, such as for TIROS-N
+	- When lines are out of order, do not use the last line of the
+	previous granule as a firstline-db reference, but use the one with the
+	latest time (.max()). 
+
+	(HIRS.get_dataname):
+
+	- Update to new API for get_dataname based on new need for HIRSPOD
+	(see below)
+
+	(HIRS.apply_calibcount_filter):
+
+	- Update filter name
+
+	(HIRS._convert_temp):
+
+	- Use filterer provided for PRT temperature filter
+
+	(HIRSPOD.get_dataname):
+
+	- Handle situation where dataname is empty, such as for TIROS-N.  This
+	has grown a robust-flag such that it either fails with ValueError or
+	invents some horrible dataname.
+
 2017-08-21  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/utils/__init__.py: Minor PEP8 fixes.

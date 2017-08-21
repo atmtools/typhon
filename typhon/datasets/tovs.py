@@ -161,7 +161,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     _data_vars_props = None
 
     max_valid_time_ptp = numpy.timedelta64(3, 'h')
-    filterer = filters.MEDMAD(10)
+    filter_calibcounts = filter_prttemps = filters.MEDMAD(10)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -307,8 +307,24 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     [("dataname", "<U42")]))
             for f in header.dtype.names:
                 header_new[f] = header[f]
-            header_new["dataname"] = self.get_dataname(header)
+            try:
+                header_new["dataname"] = self.get_dataname(header)
+            except ValueError as exc:
+                warnings.warn("Could not read dataname from header: " +
+                    exc.args[0])
+                header_new["dataname"] = pathlib.Path(path).stem
             header = header_new
+            # In the following, several processes may lead to scanlines
+            # being removed.  This means counting changes, which means the
+            # counting-based removal of overlap scanlines will be buggy
+            # (see #139).  Remove overlaps already now.
+            if filter_firstline:
+                try:
+                    scanlines = self.filter_overlap(path, header, scanlines,
+                        method=filter_firstline)
+                except KeyError as e:
+                    raise dataset.InvalidFileError(
+                        "Unable to filter firstline: {:s}".format(e.args[0])) from e
             if apply_flags:
                 #scanlines = numpy.ma.masked_array(scanlines)
                 scanlines = self.get_mask_from_flags(header, scanlines,
@@ -373,6 +389,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 scanlines = scanlines.data # no ma when no flags
         elif apply_flags:
             raise ValueError("I refuse to apply flags when not calibrating ☹")
+        elif filter_firstline:
+            raise NotImplementedError("Filtering on firstline when not "
+                "calibrating is no longer supported as of 2017-08-21. "
+                "Sorry!")
         else: # i.e. not calibrating
             # FIXME: this violates DRY a bit, as those lines also occur
             # in the If:-block, but hard to do incrementally.  However, I
@@ -398,13 +418,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 #                warnings.filterwarnings("ignore", category=FutureWarning)
             scanlines = scanlines[fields]
 
-        if filter_firstline:
-            try:
-                scanlines = self.filter_overlap(path, header, scanlines,
-                    method=filter_firstline)
-            except KeyError as e:
-                raise dataset.InvalidFileError(
-                    "Unable to filter firstline: {:s}".format(e.args[0])) from e
         # TODO:
         # - Add other meta-information from TIP
         return (header, scanlines) if return_header else scanlines
@@ -453,7 +466,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     def filter_firstline(self, header, scanlines):
         """Filter out any scanlines that existed in the previous granule.
         """
-        dataname = self.get_dataname(header)
+        dataname = self.get_dataname(header, robust=True)
 #        with contextlib.ExitStack() as stack:
         if self._firstline_db is None:
             try:
@@ -532,7 +545,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                         dataset.InvalidDataError) as exc:
                     logging.error("Could not read {!s}: {!s}".format(gran, exc))
                     continue
-                lab = self.get_dataname(cur_head)
+                lab = self.get_dataname(cur_head, robust=True)
                 if lab in gfd and not overwrite:
                     logging.debug("Already present: {:s}".format(lab))
                 elif prev_line is not None:
@@ -545,12 +558,16 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                         # the index to set firstline but the hrs_scnlin
                         # field to apply it.
                         #first = (cur_time > prev_time[-1]).nonzero()[0][0]
-                        first = cur_line["hrs_scnlin"][cur_time > prev_time[-1]][0]
+                        # Bugfix 2017-08-21: instead of taking the last
+                        # time from the previous granule, take the
+                        # maximum; this allows for time sequence errors.
+                        # See #139
+                        first = cur_line["hrs_scnlin"][cur_time > prev_time.max()].min()
                         logging.debug("{:s}: {:d}".format(lab, first))
                     else:
-                        first = cur_line["hrs_scnlin"][-1]+1
+                        first = cur_line["hrs_scnlin"].max()+1
                         logging.info("{:s}: Fully contained in {:s}!".format(
-                            lab, self.get_dataname(prev_head)))
+                            lab, self.get_dataname(prev_head, robust=True)))
                     gfd[lab] = str(first)
                     count_updated += 1
                 prev_line = cur_line.copy()
@@ -728,7 +745,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     "found no {:s} views, cannot calibrate!".format(
                         lines.shape[0], v))
 #            C = lines["counts"][x, 8:, :]
-            lines.mask["counts"][x, 8:, :] = self.filterer.filter_outliers(
+            lines.mask["counts"][x, 8:, :] = self.filter_calibcounts.filter_outliers(
                 lines["counts"][x, 8:, :])
 #            med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
 #            mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
@@ -745,8 +762,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         (iwt_fact, iwt_counts) = self._get_iwt_info(header, elem)
         return self._convert_temp(iwt_fact, iwt_counts)
     
-    @staticmethod
-    def _convert_temp(fact, counts):
+    #@staticmethod
+    def _convert_temp(self, fact, counts):
         """Convert counts to temperatures based on factors.
 
         Relevant to IWT, ICT, filter wheel, telescope, etc.
@@ -789,8 +806,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         else:
             raise NotImplementedError("ndim = {:d}".format(counts.ndim))
 
+        # although caller may not have asked for this, all we are doing is
+        # setting some flags so it should be OK here
         M = numpy.ma.asarray(M)
-        M.mask |= tpmath.array.mad_outliers(M, mad0="perc")
+        M.mask |= self.filter_prttemps.filter_outliers(M)
         return M
 
     @abc.abstractmethod
@@ -943,7 +962,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         return (ict_fact, ict_counts)
 
     @abc.abstractmethod
-    def get_dataname(self, header):
+    def get_dataname(self, header, robust=False):
         """Extract dataname from header.
         """
 
@@ -1161,9 +1180,9 @@ class HIRSPOD(HIRS):
         rad = ac[..., 2] + ac[..., 1] * counts + ac[..., 0] * counts**2
 
         if not (cc[:, :, 0, :]==0).all():
-            raise dataset.InvalidDataError("Found non-zero values for manual coefficient! "
+            logging.warning("Found non-zero values for manual coefficient! "
                 "Usually those are zero but when they aren't, I don't know "
-                "which ones to use.  Giving up. ")
+                "which ones to use.  Use with care. ")
 
         # This is apparently calibrated in units of mW/m2-sr-cm-1.
         rad = ureg.Quantity(rad, rad_u["ir"])
@@ -1360,9 +1379,24 @@ class HIRSPOD(HIRS):
         return (hd, ln)
 
     # docstring in parent
-    def get_dataname(self, header):
+    def get_dataname(self, header, robust=False):
         # See POD User's Guide, page 2-6; this is in EBCDIC
-        return header["hrs_h_dataname"][0].decode("EBCDIC-CP-BE")
+        dataname = header["hrs_h_dataname"][0].decode("EBCDIC-CP-BE")
+        if len(dataname) == 0:
+            msg = (f"Dataname empty for {self.satname!s}.  "
+                "Known problem if you are reading TIROS-N "
+                "data, which appears to have a different header.  If you "
+                "happen to know documentation for TIROS-N headers, please "
+                "e-mail g.holl@reading.ac.uk!")
+            if robust:
+                dataname = (
+                    str(header["hrs_h_startdatadatetime"][0]) +
+                    str(header["hrs_h_enddatadatetime"][0]) +
+                    str(header["hrs_h_satid"][0])).replace("\\", "").replace("'", "")
+                warnings.warn(msg + " Trying ad-hoc dataname for now.")
+            else:
+                raise ValueError(msg)
+        return dataname
 
 # docstring in parent
 class HIRS2(HIRSPOD):
@@ -1739,7 +1773,7 @@ class HIRSKLM(ATOVS, HIRS):
         return (self.header_dtype, self.line_dtype)
 
     # docstring in parent
-    def get_dataname(self, header):
+    def get_dataname(self, header, robust=False):
         return header["hrs_h_dataname"][0].decode("US-ASCII")
 
     # various calculation methods that are not strictly part of the
