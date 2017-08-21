@@ -1,3 +1,11 @@
+2017-08-21  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/utils/__init__.py: Minor PEP8 fixes.
+
+	* (image2mpeg):
+
+	Allow to set the resolution of the created video file.
+
 2017-08-18  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	Improved usabilty of Timer class.

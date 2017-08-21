@@ -39,13 +39,13 @@ def deprecated(func=None, message=None):
         Calling ``foo()`` will raise a ``DeprecationWarning``.
 
         >>> @deprecated
-        ... def foo(x):
+        ... def deprecated_function():
         ...     pass
 
         Display message with additional information:
 
         >>> @deprecated(message='Additional information message.')
-        ... def foo(x):
+        ... def deprecated_function():
         ...     pass
     """
     # Return partial when no arguments are passed.
@@ -90,7 +90,7 @@ def extract_block_diag(M, n):
     return [np.split(m, n, axis=1)[i] for i, m in enumerate(np.split(M, n))]
 
 
-class Timer():
+class Timer:
     """Provide a simple time profiling utility.
 
     Timer class adapted from blog entry [0].
@@ -137,6 +137,10 @@ class Timer():
         self.timefmt = timefmt
         self.info = info
 
+        # Define variables to store start and end time, assigned during runtime.
+        self.starttime = None
+        self.endtime = None
+
     def __call__(self, func):
         """Allows to use a Timer object as a decorator."""
         # When no additional information is given, add the function name is
@@ -166,12 +170,12 @@ class Timer():
     def stop(self):
         """Stop timer."""
         self.endtime = time.time()
-        self.secs = self.endtime - self.starttime
+        secs = self.endtime - self.starttime
 
         # Build a string containing the measured time for output.
         timestr = self.timefmt.format(
-            minutes=int(self.secs // 60),
-            seconds=self.secs % 60,
+            minutes=int(secs // 60),
+            seconds=secs % 60,
         )
 
         # If no additional information is specified add default information
@@ -217,6 +221,7 @@ def _safe_eval_node(node):
     else:
         raise TypeError(node)
 # End of snippet derived from http://stackoverflow.com/a/9558001/974555
+
 
 def path_append(dirname, path='PATH'):
     """Append a directory to environment path variable.
@@ -381,7 +386,7 @@ def concat_each_time_coordinate(*datasets):
     return new.assign_coords(**new_coords)
 
 
-def image2mpeg(glob, outfile, framerate=12):
+def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     """Combine image files to a video using ``ffmpeg``.
 
     Notes:
@@ -392,6 +397,8 @@ def image2mpeg(glob, outfile, framerate=12):
         outfile (str): Path to output file.
             The file fileformat is determined by the extension.
         framerate (int or str): Number of frames per second.
+        resolution (str or tuple): Video resolution given in width and height
+            (``"WxH"`` or ``(W, H)``).
 
     Raises:
         Exception: The function raises an exception if the
@@ -403,11 +410,17 @@ def image2mpeg(glob, outfile, framerate=12):
     if not shutil.which('ffmpeg'):
         raise Exception('``ffmpeg`` not found.')
 
+    # If video resolution is given as tuple, convert it into string format
+    # to directly pass it to ffmpeg later.
+    if isinstance(resolution, tuple) and len(resolution) == 2:
+        resolution = '{width}x{height}'.format(width=resolution[0],
+                                               height=resolution[1])
+
     p = subprocess.run(
         ['ffmpeg',
          '-framerate', str(framerate),
          '-pattern_type', 'glob', '-i', glob,
-         '-s:v', '1280x720',
+         '-s:v', resolution,
          '-c:v', 'libx264',
          '-profile:v', 'high',
          '-crf', '20',
