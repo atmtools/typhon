@@ -552,7 +552,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     # what if prev_line is None?  We don't want to define any
                     # value for the very first granule we process, as we might
                     # be starting to process in the middle...
-                    if cur_time[-1] > prev_time[-1]:
+                    if cur_time.max() > prev_time.max():
                         # Bugfix 2017-01-16: do not get confused between
                         # the index and the hrs_scnlin field.  So far, I'm using
                         # the index to set firstline but the hrs_scnlin
@@ -1384,9 +1384,9 @@ class HIRSPOD(HIRS):
         dataname = header["hrs_h_dataname"][0].decode("EBCDIC-CP-BE")
         if len(dataname) == 0:
             msg = (f"Dataname empty for {self.satname!s}.  "
-                "Known problem if you are reading TIROS-N "
-                "data, which appears to have a different header.  If you "
-                "happen to know documentation for TIROS-N headers, please "
+                "Known problem if you are reading pre-NOAA-9 "
+                "data, which appear to have a different header.  If you "
+                "happen to know documentation for ancient headers, please "
                 "e-mail g.holl@reading.ac.uk!")
             if robust:
                 dataname = (

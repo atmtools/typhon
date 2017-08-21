@@ -1,5 +1,12 @@
 2017-08-21  Gerrit Holl  <g.holl@reading.ac.uk>
 
+	(HIRS._update_firstline_db):
+
+	- Don't crash when fully contained in previous when considering max
+	but not -1
+
+2017-08-21  Gerrit Holl  <g.holl@reading.ac.uk>
+
 	* typhon/datasets/tovs.py:
 	
 	(HIRS._read):
@@ -13,7 +20,7 @@
 
 	- Handle situation where dataname is empty, such as for TIROS-N
 
-	(HIRS._filter_firstline):
+	(HIRS._update_firstline_db):
 
 	- Handle situation where dataname is empty, such as for TIROS-N
 	- When lines are out of order, do not use the last line of the
