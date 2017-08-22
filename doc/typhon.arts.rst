@@ -35,7 +35,6 @@ arts.catalogues
  
 arts.griddedfield
 =================
-
 .. automodule:: typhon.arts.griddedfield
 
 .. currentmodule:: typhon.arts.griddedfield
@@ -104,6 +103,55 @@ arts.sensor
 
    get_f_backend_rel_width
    get_f_backend_const_width
+
+arts.workspace
+==============
+
+.. automodule:: typhon.arts.workspace
+.. currentmodule:: typhon.arts.workspace
+
+.. autosummary::
+   :toctree: generated
+
+   Workspace
+   WorkspaceVariable
+
+arts.workspace.agendas
+======================
+
+.. automodule:: typhon.arts.workspace.agendas
+.. currentmodule:: typhon.arts.workspace.agendas
+
+.. autosummary::
+   :toctree: generated
+
+arts.workspace.variables
+========================
+
+.. automodule:: typhon.arts.workspace.variables
+.. currentmodule:: typhon.arts.workspace.variables
+
+.. autosummary::
+   :toctree: generated
+
+arts.workspace.methods
+========================
+
+.. automodule:: typhon.arts.workspace.variables
+.. currentmodule:: typhon.arts.workspace.variables
+
+.. autosummary::
+   :toctree: generated
+
+arts.workspace.api
+========================
+
+.. automodule:: typhon.arts.workspace.variables
+.. currentmodule:: typhon.arts.workspace.variables
+
+.. autosummary::
+   :toctree: generated
+
 
 arts.xml
 ========

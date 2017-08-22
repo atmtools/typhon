@@ -1,3 +1,23 @@
+2017-08-22  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
+
+	* doc/typhon.arts.rst: Added workspace sub-module to sphinx documentation.
+
+	* typhon/arts/workspace/__init__.py: Module file for new workspace
+	sub-module.
+
+	* typhon/arts/workspace/workspace.py: Implementation of Workspace class.
+
+	* typhon/arts/workspace/api.py: Interface to ARTS C API
+
+	* typhon/arts/workspace/variables.py: Class and functions for handling ARTS
+	WSVs
+
+	* typhon/arts/workspace/methods.py: Class and functions for handling ARTS
+	WSMs
+
+	* typhon/arts/workspace/agendas.py: Class and functions for handling ARTS
+	agendas.
+
 2017-08-21  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	(HIRS._update_firstline_db):
