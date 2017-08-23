@@ -1,3 +1,13 @@
+2017-08-24  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py(HIRS._read):
+
+	- Bugfix: apply filter firstline before trying any calibration, and
+	outside of it.
+
+	- Point out that NOAA-6, -7, -8, and -9 also have a header formatting
+	problem before 1985-10-31
+
 2017-08-23  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
 
 	Adapts interface to a few changes in the C API. Adds functionality

@@ -217,6 +217,27 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 "Problem reading {!s}.  File contains only {:d} scanlines. "
                 "My reading routine cannot currently handle that.".format(
                     path, n_lines))
+        # In the following, several processes may lead to scanlines
+        # being removed.  This means counting changes, which means the
+        # counting-based removal of overlap scanlines will be buggy
+        # (see FCDR_HIRS#139 and FCDR_HIRS#141).  Remove overlaps already now.
+        if filter_firstline:
+            try:
+                scanlines = self.filter_overlap(path, header, scanlines,
+                    method=filter_firstline)
+            except KeyError as e:
+                raise dataset.InvalidFileError(
+                    "Unable to filter firstline: {:s}".format(e.args[0])) from e
+            if scanlines.shape[0] < 2:
+                raise dataset.InvalidFileError(
+                    f"After filtering firstline, only "
+                    "{scanlines.shape[0]:d}/{n_lines:d} lines are left. "
+                    "This either means the granule is entirely contained "
+                    "in the previous one, or the previous granule "
+                    "contains time outliers that cause the current one "
+                    "to be mistaken for such (see #142).")
+            n_lines = scanlines.shape[0]
+
         if apply_scale_factors:
             (header, scanlines) = self._apply_scale_factors(header, scanlines)
         if calibrate:
@@ -314,17 +335,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     exc.args[0])
                 header_new["dataname"] = pathlib.Path(path).stem
             header = header_new
-            # In the following, several processes may lead to scanlines
-            # being removed.  This means counting changes, which means the
-            # counting-based removal of overlap scanlines will be buggy
-            # (see #139).  Remove overlaps already now.
-            if filter_firstline:
-                try:
-                    scanlines = self.filter_overlap(path, header, scanlines,
-                        method=filter_firstline)
-                except KeyError as e:
-                    raise dataset.InvalidFileError(
-                        "Unable to filter firstline: {:s}".format(e.args[0])) from e
             if apply_flags:
                 #scanlines = numpy.ma.masked_array(scanlines)
                 scanlines = self.get_mask_from_flags(header, scanlines,
@@ -1384,8 +1394,10 @@ class HIRSPOD(HIRS):
         dataname = header["hrs_h_dataname"][0].decode("EBCDIC-CP-BE")
         if len(dataname) == 0:
             msg = (f"Dataname empty for {self.satname!s}.  "
-                "Known problem if you are reading pre-NOAA-9 "
-                "data, which appear to have a different header.  If you "
+                "I have noticed this problem for: TIROS-N (all data), "
+                "NOAA-6 (before 1985-10-31 08:27), NOAA-7 (all data), "
+                "NOAA-8 (all data), NOAA-9 (before 1985-10-31 13:30). "
+                "Those data appear to have a different header.  If you "
                 "happen to know documentation for ancient headers, please "
                 "e-mail g.holl@reading.ac.uk!")
             if robust:
