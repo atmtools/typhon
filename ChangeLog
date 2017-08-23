@@ -1,3 +1,16 @@
+2017-08-23  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/workspace/__init__.py:
+
+	Only import ARTS interface modules if ARTS_BUILD_PATH is set, otherwise
+	output warning. Prevents nosetests from failing.
+
+	* typhon/arts/workspace/api.py:
+
+	Simplify arts_build_path check.
+
+	Fix typo.
+
 2017-08-22  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
 
 	* doc/typhon.arts.rst: Added workspace sub-module to sphinx documentation.

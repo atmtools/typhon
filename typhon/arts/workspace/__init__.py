@@ -89,8 +89,14 @@ numpy.asarray.
 
 """
 
-from typhon.arts.workspace.workspace import Workspace
-from typhon.arts.workspace.variables import WorkspaceVariable
-from typhon.arts.workspace.methods   import WorkspaceMethod
-from typhon.arts.workspace.api       import arts_include_path, include_path_add, data_path_add
+from os import environ
+from warnings import warn
+
+if environ.get('ARTS_BUILD_PATH') is None:
+    warn("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
+else:
+    from typhon.arts.workspace.workspace import Workspace
+    from typhon.arts.workspace.variables import WorkspaceVariable
+    from typhon.arts.workspace.methods   import WorkspaceMethod
+    from typhon.arts.workspace.api       import arts_include_path, include_path_add, data_path_add
 

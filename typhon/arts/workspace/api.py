@@ -27,18 +27,15 @@ import os
 # Load ARTS C API
 ################################################################################
 
-try:
-    arts_build_path = os.environ['ARTS_BUILD_PATH']
-    if not arts_build_path:
-        raise EnvironmentError
-except:
+arts_build_path = os.environ.get('ARTS_BUILD_PATH')
+if arts_build_path is None:
     raise EnvironmentError("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 
 try:
     print ("Loading ARTS API from: " + arts_build_path + "/src/arts_api.so")
     arts_api = c.cdll.LoadLibrary(arts_build_path + "/src/libarts_api.so")
 except:
-    raise EnvironmentError("Could find ARTS API in your ARTS build path. Did you install it?")
+    raise EnvironmentError("Could not find ARTS API in your ARTS build path. Did you install it?")
 
 arts_api.initialize()
 
