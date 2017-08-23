@@ -37,9 +37,8 @@ class Workspace:
 
         ptr(ctypes.c_void_p): object pointing to the ArtsWorkspace instance of the
         ARTS C API
-        vars(dict): Dictionary holding anonymous variables that are not shared with
-                    other workspaces and have been create using the corresponding Create
-                    ARTS WSM.
+        vars(dict): Dictionary holding local variables that have been created
+                    interactively using the one of Create ARTS WSMs.
 
 
     """
@@ -70,17 +69,17 @@ class Workspace:
     def add_variable(self, var):
         """
         This will try to copy a given python variable to the ARTS workspace and return
-        an AnonymousValue object as a handle to this value in the ARTS workspace. Currently
-        supported types are int, str, and numpy.ndarrays, which will automatically converted
-        to the corresponding values ARTS groups.
+        a WorkspaceVariable object representing this newly created variable. Currently
+        supported types are int, str, [str], [int], and numpy.ndarrays, which will
+        automatically converted to the corresponding values ARTS groups.
 
         The user should not have to call this method explicitly, but instead it is used by
         the WorkspaceMethod call function to transfer python variable arguments to the
         ARTS workspace.
 
         Args:
-            var: Python variable of type int, str or np.ndarray which should be copied to
-            the workspace.
+            var: Python variable of type int, str, [str], [int] or np.ndarray which should
+                 be copied to the workspace.
         """
         if type(var) == WorkspaceVariable:
             return var
@@ -95,7 +94,7 @@ class Workspace:
                                  self)
 
     def __getattr__(self, name):
-        """ Lookup the given variable in the anonymous variables and the ARTS workspace.
+        """ Lookup the given variable in the local variables and the ARTS workspace.
 
         Args:
             name(str): Name of the attribute (variable)
@@ -128,10 +127,6 @@ class Workspace:
         directory and the arts include path. If such a file has been found it will be parsed
         and executed on the workspace.
 
-        This methods takes also care of keeping the indices of anonymous variables in the
-        workspace consistent, which may change if the controlfile introduces new workspace
-        variables.
-
         Args:
 
             name(str): Name of the controlfile
@@ -149,11 +144,3 @@ class Workspace:
 
 
         imports[name].execute(self)
-
-        # Update workspace IDs of anonymous variables, which is necessary since executing
-        # an agenda may require increasing the space reserved for ARTS WSVs.
-        old_size = self.workspace_size
-        self.workspace_size = arts_api.get_number_of_variables()
-        new_variables = self.workspace_size - old_size
-        for name in self.vars:
-            self.vars[name].ws_id += new_variables

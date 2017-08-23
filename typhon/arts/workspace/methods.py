@@ -164,7 +164,7 @@ class WorkspaceMethod:
             res[arts_api.get_method_g_out(m_id, i).decode("utf8")] = t
         return res
 
-    def create(self, ws, name):
+    def create(self, ws, name = None):
         """
         Call to <Group>Create WSMs are handled differently. This method simply
         determines the group type from the function name and then add a variable of
@@ -175,6 +175,8 @@ class WorkspaceMethod:
             ws(Workspace): Workspace object to add the variable to
             name(str):     Name of the variable to add to the workspace
         """
+        if not name:
+            name = "__anonymous_" + str(len(ws.vars))
         group = WorkspaceMethod.create_regexp.match(self.name).group(1)
         group_id = group_ids[group]
 
@@ -182,6 +184,7 @@ class WorkspaceMethod:
         wsv = WorkspaceVariable(ws_id, name, group, "User defined variable.", ws)
         setattr(variables, name, wsv)
         ws.vars[name] = wsv
+        return wsv
 
     def call(*args, **kwargs):
         """ Execute workspace method.
@@ -272,7 +275,19 @@ class WorkspaceMethod:
             if not g_in_types in self.g_in_types or not g_out_types in self.g_out_types:
                 raise ValueError("Could not resolve call to supergeneric function.")
             else:
-                m_id = self.m_ids[self.g_in_types.index(g_in_types)]
+                out_index = self.g_out_types.index(g_out_types)
+                in_index = self.g_in_types.index(g_in_types)
+                m_id_out = self.m_ids[self.g_out_types.index(g_out_types)]
+                m_id_in = self.m_ids[self.g_in_types.index(g_in_types)]
+                if not out_index == in_index:
+                    if self.g_in_types[in_index] == self.g_in_types[out_index]:
+                        m_id = self.m_ids[out_index]
+                    elif self.g_out_types[out_index] == self.g_out_types[in_index]:
+                        m_id = self.m_ids[in_index]
+                    else:
+                        raise Exception("Could not uniquely resolve super-generic overload.")
+                else:
+                    m_id = m_id_out
 
         # Combine input and output arguments into lists.
         arts_args_out = []

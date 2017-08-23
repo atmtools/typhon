@@ -1,3 +1,24 @@
+2017-08-23  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
+
+	Adapts interface to a few changes in the C API. Adds functionality
+	for returning Sparse and ArrayOfIndex and passing ArrayOfIndex variables.
+	Fixed problem with WSVs that access names of WSVs (ReadXML)
+
+	* typhon/arts/workspace/api.py:
+	- Update layout of VariableValueStruct
+
+	* typhon/arts/workspace/variables.py:
+	- Extended value() class method to support Sparse and ArrayOfIndex
+	- Added ArrayOfIndex to supported groups in get_group_id.
+
+	* typhon/arts/workspace/methods.py:
+	- Fixed but in super-generic overlaod resolution
+	- Create methods now support anonymous creation and return the WSV.
+
+	* typhon/arts/workspace/workspace.py:
+	- Updated implementation and documentation to be consistent with new
+	  memory management in C API.
+
 2017-08-23  Oliver Lemke  <olemke@core-dump.info>
 
 	* setup.py: Add dependency on scikit-learn.

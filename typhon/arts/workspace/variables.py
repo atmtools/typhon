@@ -13,6 +13,7 @@ Attributes:
 
 import re
 import numpy as np
+import scipy as sp
 import ctypes as c
 
 from typhon.arts.workspace.api import arts_api
@@ -108,6 +109,8 @@ class WorkspaceVariable:
                 raise ValueError("Empty lists are currently not handled.")
             if t == str:
                 return group_ids["ArrayOfString"]
+            if t == int:
+                return group_ids["ArrayOfIndex"]
         else:
             raise ValueError("Type " + str(type(value)) + " currently not supported.")
 
@@ -175,12 +178,25 @@ class WorkspaceVariable:
         if not v.initialized:
             raise Exception("WorkspaceVariable " + self.name + " is uninitialized.")
 
+        # TODO: Use group attribute here istead of lookup in group_names.
+        # TODO: Move this to VariableValueStruct class
+
         if group_names[self.group_id] == "Index":
             return c.cast(v.ptr, c.POINTER(c.c_long))[0]
         if group_names[self.group_id] == "Numeric":
             return c.cast(v.ptr, c.POINTER(c.c_double))[0]
         if group_names[self.group_id] == "String":
             return (c.cast(v.ptr, c.c_char_p)).value.decode("utf8")
+        if group_names[self.group_id] == "ArrayOfString":
+            return [i for i in (c.c_long * c.dimension[0])(v.ptr)]
+        if group_names[self.group_id] == "Sparse":
+            m    = v.dimensions[0]
+            n    = v.dimensions[1]
+            nnz  = v.dimensions[2]
+            data = np.ctypeslib.as_array(c.cast(v.ptr, c.POINTER(c.c_double)), (nnz,))
+            row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
+            col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
+            return sp.sparse.csr_matrix((data, row_indices, col_starts), shape=(m,n))
         try:
             a = np.asarray(self)
             return a

@@ -123,7 +123,9 @@ class VariableValueStruct(c.Structure):
     """
     _fields_ = [("ptr", c.c_void_p),
                 ("initialized", c.c_bool),
-                ("dimensions", 6 * c.c_long)]
+                ("dimensions", 6 * c.c_long),
+                (("inner_ptr"), c.POINTER(c.c_int)),
+                (("outer_ptr"), c.POINTER(c.c_int))]
 
 class MethodStruct(c.Structure):
     """
@@ -190,12 +192,11 @@ def variable_value_factory(value):
         if t ==str:
             for s in value:
                 ps.append(c.cast(c.c_char_p(s.encode()), c.c_void_p))
+            p_array = (c.c_void_p * len(value))(*ps)
+            ptr = c.cast(c.pointer(p_array), c.c_void_p)
         if t == int:
-            for i in value:
-                ps.append(c.cast(c.pointer(c.c_long(i)), c.c_void_p))
-        p_array = (c.c_void_p * len(ps))(*ps)
-        ptr = c.cast(c.pointer(p_array), c.c_void_p)
-        dimensions[0] = len(p_array)
+            ptr = c.cast(c.pointer((c.c_long * len(value))(*value)), c.c_void_p)
+        dimensions[0] = len(value)
 
     dimensions = (c.c_long * 6)(*dimensions)
     return VariableValueStruct(ptr, initialized, dimensions)
