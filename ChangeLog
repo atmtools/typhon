@@ -1,5 +1,9 @@
 2017-08-23  Oliver Lemke  <olemke@core-dump.info>
 
+	* setup.py: Add dependency on scikit-learn.
+
+2017-08-23  Oliver Lemke  <olemke@core-dump.info>
+
 	* typhon/arts/workspace/__init__.py:
 
 	Only import ARTS interface modules if ARTS_BUILD_PATH is set, otherwise

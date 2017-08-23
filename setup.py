@@ -80,6 +80,7 @@ setup(
         'nose>=1.3.0',
         'numpy>=1.6',
         'scipy>=0.15.1',
+        'scikit-learn',
         'setuptools>=0.7.2',
         "xarray",
     ],
