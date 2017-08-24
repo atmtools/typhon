@@ -1,3 +1,11 @@
+2017-08-24  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/arts/workspace/api.py:
+
+	Add argtypes (and restype) definition for destroy_agenda function.
+	Fixes wrong pointer value being passed when freeing an Agenda and
+	causing a segfault.
+
 2017-08-24  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py(HIRS._read):

@@ -230,6 +230,9 @@ arts_api.parse_agenda.restype  = c.c_void_p
 arts_api.execute_agenda.argtypes = [c.c_void_p, c.c_void_p]
 arts_api.execute_agenda.restype  = c.c_char_p
 
+arts_api.destroy_agenda.argtypes = [c.c_void_p]
+arts_api.destroy_agenda.restype  = None
+
 # Groups
 #
 # Returns the number of WSV groups.
