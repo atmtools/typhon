@@ -358,7 +358,7 @@ class GriddedField(object):
 
         return gf
 
-    def refine_grid(self, new_grid, axis=0, **kwargs):
+    def refine_grid(self, new_grid, axis=0, fun=np.array, **kwargs):
         """Interpolate GriddedField axis to a new grid.
 
         This function replaces a grid of a GriddField and interpolates all
@@ -369,6 +369,8 @@ class GriddedField(object):
             new_grid (ndarray): The coordinates of the interpolated values.
             axis (int): Specifies the axis of data along which to interpolate.
                 Interpolation defaults to the first axis of the GriddedField.
+            fun (numpy.ufunc, or similar): Function to apply to grid before
+                interpolation.  Suggested values: np.array, np.log10, np.log
             **kwargs:
                 Keyword arguments passed to :func:`scipy.interpolate.interp1d`.
 
@@ -376,10 +378,10 @@ class GriddedField(object):
 
         """
         if len(self.grids[axis]) > 1:
-            f = interpolate.interp1d(self.grids[axis], self.data,
+            f = interpolate.interp1d(fun(self.grids[axis]), self.data,
                                      axis=axis, **kwargs)
             self.grids[axis] = new_grid
-            self.data = f(new_grid)
+            self.data = f(fun(new_grid))
         else:  # if the intention is to create a useful TensorX
             self.data = self.data.repeat(len(new_grid), axis=axis)
             self.grids[axis] = new_grid

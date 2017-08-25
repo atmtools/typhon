@@ -1,3 +1,9 @@
+2017-08-25  Richard Larsson <ric.larsson@gmail.com>
+
+	* typhon/arts/griddedfield.py: Added functional argument to refine
+	grids.  Allows the refinement in pressure to be linear in 
+	log-space.  Use by setting input fun=np.log10 or similar.
+
 2017-08-24  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/arts/workspace/api.py:
