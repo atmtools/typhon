@@ -5,6 +5,8 @@
 
 import numpy as np
 
+from nose.tools import raises
+
 from typhon import math
 
 
@@ -54,3 +56,30 @@ class TestCommon(object):
         t = math.promote_maximally(x)
 
         assert(t.dtype == 'int64')
+
+    def test_squeezable_logspace(self):
+        """Test creation of squeezable logspace."""
+        ref = np.array([1, 3.16227766, 100])
+        t = math.squeezable_logspace(1, 100, 3, squeeze=0.5)
+
+        assert(np.allclose(t, ref))
+
+    def test_squeezable_logspace_nosqueeze(self):
+        """Test creation of non-squeezed logspace.
+
+        Without squeezing, results should be equal to normal ``nlogspace``.
+        """
+        ref = np.array([1, 10, 100])
+        t = math.squeezable_logspace(1, 100, 3)
+
+        assert(np.allclose(t, ref))
+
+    @raises(ValueError)
+    def test_squeezable_logspace_fixpointbounds(self):
+        """Test ValueError if fixpoint is out of bounds."""
+        math.squeezable_logspace(100, 1, fixpoint=1.1)
+
+    @raises(ValueError)
+    def test_squeezable_logspace_squeezebounds(self):
+        """Test ValueError if squeeze is out of bounds."""
+        math.squeezable_logspace(100, 1, squeeze=2.01)

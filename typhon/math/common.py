@@ -12,7 +12,8 @@ __all__ = [
     'sum_digits',
     'nlogspace',
     'promote_maximally',
-    'calculate_precisely'
+    'calculate_precisely',
+    'squeezable_logspace',
 ]
 
 
@@ -172,3 +173,69 @@ def calculate_precisely(f):
                 newkwargs[k] = v
         return f(*newargs, **newkwargs)
     return inner
+
+
+def squeezable_logspace(start, stop, num=50, squeeze=1., fixpoint=0.):
+    """Create a logarithmic grid that is squeezable around a fixpoint.
+
+    Parameters:
+        start (float): The starting value of the sequence.
+        stop (float): The end value of the sequence.
+        num (int): Number of sample to generate (Default is 50).
+        squeeze (float): Factor with which the first stepwidth is
+            squeezed in logspace. Has to be between  ``(0, 2)`.
+            Values smaller than one compress the gridpoints,
+            while values greater than 1 strecht the spacing.
+            The default is ``1`` (do not squeeze.)
+        fixpoint (float): Relative fixpoint for squeezing the grid.
+            Has to be between ``[0, 1]``. The  default is ``0`` (bottom).
+
+    Returns:
+        ndarray: (Squeezed) logarithmic grid.
+    """
+    # The squeeze factor has to be between 0 and 2. Otherwise, the order
+    # of groidpoints is arbitrarily swapped as the scaled stepsizes
+    # become negative.
+    if squeeze <= 0 or squeeze >= 2:
+        raise ValueError(
+            'Squeeze factor has to be in the open interval (0, 2).'
+        )
+
+    # The fixpoint has to be between 0 and 1. It is used as a relative index
+    # withing the grid, values exceeding the limits result in an IndexError.
+    if fixpoint < 0 or fixpoint > 1:
+        raise ValueError(
+            'The fixpoint has to be in the closed interval [0, 1].'
+        )
+
+    # Convert the (relative) fixpoint into an index dependent on gridsize.
+    fixpoint_index = int(fixpoint * (num - 1))
+
+    # Create a gridpoints with constant spacing in log-scale.
+    samples = np.linspace(np.log(start), np.log(stop), num)
+
+    # Select the bottom part of the grid. The gridpoint is included in the
+    # bottom and top part to ensure right step widths.
+    bottom = samples[:fixpoint_index + 1]
+
+    # Calculate the stepsizes between each gridpoint.
+    steps = np.diff(bottom)
+
+    # Re-adjust the stepwidth according to given squeeze factor.
+    # The squeeze factor is linearly changing in logspace.
+    steps *= np.linspace(2 - squeeze, squeeze, steps.size)
+
+    # Reconstruct the actual gridpoints by adding the first grid value and
+    # the cumulative sum of the stepwidths.
+    bottom = bottom[0] + np.cumsum(np.append([0], steps))
+
+    # Re-adjust the top part as stated above.
+    # **The order of squeezing is inverted!**
+    top = samples[fixpoint_index:]
+    steps = np.diff(top)
+    steps *= np.linspace(squeeze, 2 - squeeze, steps.size)
+    top = top[0] + np.cumsum(np.append([0], steps))
+
+    # Combine the bottom and top parts to the final grid. Drop the fixpoint
+    # in the bottom part to avoid duplicates.
+    return np.exp(np.append(bottom[:-1], top))
