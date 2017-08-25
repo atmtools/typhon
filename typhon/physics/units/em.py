@@ -94,7 +94,7 @@ class SRF(FwmuMixin):
     TODO: representation of uncertainties
     """
 
-    T_lookup_table = numpy.arange(100, 370.01, 0.05) * ureg.K
+    T_lookup_table = numpy.arange(0, 500.01, 0.05) * ureg.K
     lookup_table = None
     L_to_T = None
 
@@ -250,7 +250,7 @@ class SRF(FwmuMixin):
                                                  self.lookup_table[0, :],
                                                  kind='linear',
                                                  bounds_error=False,
-                                                 fill_value=0)
+                                                 fill_value=(0, 2000))
 
     def integrate_radiances(self, f, L, spectral=True):
         """From a spectrum of radiances and a SRF, calculate channel (spectral) radiance

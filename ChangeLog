@@ -1,3 +1,13 @@
+2017-08-25  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/physics/units/em.py(SRF.make_lookup_table):
+
+	- fill value for high end should be something ridiculously high, not
+	0.  Arguably bounds_error should be True, or some iterative method to
+	estimate BTs should be used when out of range, but the former is too
+	inflexible and the latter is too much work to implement right now, in
+	particular with vectorisation in mind.
+
 2017-08-25  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/math/common.py (squeezable_logspace):
