@@ -5,6 +5,7 @@ Reference
    :maxdepth: 2
 
    typhon.arts
+   typhon.arts.workspace
    typhon.atmosphere
    typhon.config
    typhon.constants

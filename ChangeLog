@@ -1,3 +1,24 @@
+2017-08-26  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	Fixed documentation with and without ARTS API.
+
+	* doc/typhon.arts.rst, doc/typhon.arts.workspace.rst:
+
+	Moved documentation of workspace module to separate file.
+	This file can be excluded when the documentation is build
+	without ARTS API.
+
+	Fixed references for automodules for some modules (most likely
+	copy and paste remnants.)
+
+	* doc/conf.py:
+
+	Exclude `typhon.arts.workspace.rst` for builds without ARTS API.
+
+	Removed shlex from list of imports as it was not used.
+
+	* doc/modules.rst: Include typhon.arts.workspace to toctree.
+
 2017-08-26  Simon Pfreundschuh <simon.pfreundschuh@chalmers.se>
 
 	Fixed some problems with passing parameters when calling WSMs

@@ -15,7 +15,6 @@
 
 import sys
 import os
-import shlex
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -117,6 +116,10 @@ modindex_common_prefix = ['typhon.']
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
+# Exclude ARTS Workspace documentation when `ARTS_BUILD_PATH` is not set.
+# Else, the build fails because typhon.arts.workspace can not be imported.
+if 'ARTS_BUILD_PATH' not in os.environ:
+    exclude_patterns.append('typhon.arts.workspace.rst')
 
 # -- Options for HTML output ----------------------------------------------
 

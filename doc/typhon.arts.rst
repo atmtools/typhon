@@ -32,7 +32,7 @@ arts.catalogues
    Sparse
    SpeciesAuxData
    SpeciesTag
- 
+
 arts.griddedfield
 =================
 .. automodule:: typhon.arts.griddedfield
@@ -49,7 +49,7 @@ arts.griddedfield
    GriddedField4
    GriddedField5
    GriddedField6
-   
+
 arts.internals
 ===============
 
@@ -59,7 +59,7 @@ arts.internals
 
 .. autosummary::
    :toctree: generated
-   
+
    LineMixing
    ARTSCAT5
    Rational
@@ -104,54 +104,6 @@ arts.sensor
    get_f_backend_rel_width
    get_f_backend_const_width
 
-arts.workspace
-==============
-
-.. automodule:: typhon.arts.workspace
-.. currentmodule:: typhon.arts.workspace
-
-.. autosummary::
-   :toctree: generated
-
-   Workspace
-   WorkspaceVariable
-
-arts.workspace.agendas
-======================
-
-.. automodule:: typhon.arts.workspace.agendas
-.. currentmodule:: typhon.arts.workspace.agendas
-
-.. autosummary::
-   :toctree: generated
-
-arts.workspace.variables
-========================
-
-.. automodule:: typhon.arts.workspace.variables
-.. currentmodule:: typhon.arts.workspace.variables
-
-.. autosummary::
-   :toctree: generated
-
-arts.workspace.methods
-========================
-
-.. automodule:: typhon.arts.workspace.variables
-.. currentmodule:: typhon.arts.workspace.variables
-
-.. autosummary::
-   :toctree: generated
-
-arts.workspace.api
-========================
-
-.. automodule:: typhon.arts.workspace.variables
-.. currentmodule:: typhon.arts.workspace.variables
-
-.. autosummary::
-   :toctree: generated
-
 
 arts.xml
 ========
@@ -169,4 +121,3 @@ arts.xml
    save
    make_binary
    make_directory_binary
-
