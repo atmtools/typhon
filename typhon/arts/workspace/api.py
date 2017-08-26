@@ -167,11 +167,18 @@ def variable_value_factory(value):
     initialized = True
     dimensions  = [0] * 6
 
+    # Generic interface
+    if hasattr(value, "_to_value_struct"):
+        d = value._to_value_struct()
+        if "ptr" in d:
+            ptr = d["ptr"]
+        if "dimensions" in d:
+            ptr = d["dimensions"]
     # Index
-    if type(value) == int:
+    elif type(value) == int:
         ptr = c.cast(c.pointer(c.c_long(value)), c.c_void_p)
     # Numeric
-    if type(value) == float or type(value) == np.float32 or type(value) == np.float64:
+    elif type(value) == float or type(value) == np.float32 or type(value) == np.float64:
         temp = np.float64(value)
         ptr = c.cast(c.pointer(c.c_double(temp)), c.c_void_p)
     # String
@@ -224,6 +231,20 @@ arts_api.get_error.argtypes = None
 # Agendas
 #
 #
+arts_api.create_agenda.argtypes = [c.c_char_p]
+arts_api.create_agenda.restype  = c.c_void_p
+
+arts_api.agenda_add_method.argtypes = [c.c_void_p, c.c_long,
+                                       c.c_ulong, c.POINTER(c.c_long),
+                                       c.c_ulong,c.POINTER(c.c_long)]
+arts_api.agenda_add_method.restype  = None
+
+arts_api.agenda_clear.argtypes = [c.c_void_p]
+arts_api.agenda_clear.restype  = None
+
+arts_api.agenda_insert_set.argtypes = [c.c_void_p, c.c_void_p, c.c_long, c.c_long]
+arts_api.agenda_insert_set.argtypes = None
+
 arts_api.parse_agenda.argtypes = [c.c_char_p]
 arts_api.parse_agenda.restype  = c.c_void_p
 
@@ -300,5 +321,7 @@ arts_api.get_method_g_in_default.restype  = c.c_char_p
 arts_api.execute_workspace_method.restype  = c.c_char_p
 arts_api.execute_workspace_method.argtypes = [c.c_void_p,
                                               c.c_long,
+                                              c.c_ulong,
                                               c.POINTER(c.c_long),
+                                              c.c_ulong,
                                               c.POINTER(c.c_long)]

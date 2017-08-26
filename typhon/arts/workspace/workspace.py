@@ -8,10 +8,14 @@ Attributes:
      crashing of the ARTS runtime, when a file is parsed for the second time.
 
 """
-
 import ctypes as c
 import numpy  as np
 import os
+
+import ast
+from   ast     import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
+                      Expression, FunctionDef
+from   inspect import getsource, getsourcelines
 
 from typhon.arts.workspace.api       import arts_api, variable_value_factory
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods
@@ -20,6 +24,90 @@ from typhon.arts.workspace.agendas   import Agenda
 from typhon.arts.workspace import variables as V
 
 imports = dict()
+
+
+def arts_agenda(func):
+    """
+    Parse python method as ARTS agenda
+
+    This decorator can be used to define ARTS agendas using python function syntax.
+    The function should have one arguments which is assumed to be a Workspace instance.
+    All expressions inside the function must be calls to ARTS WSMs. The result is an
+    Agenda object that can be used to copied into a named ARTS agenda
+
+    Example:
+
+        @arts_agenda
+        def inversion_iterate_agenda(ws):
+            ws.x2artsStandard()
+            ws.atmfields_checkedCalc()
+            ws.atmgeom_checkedCalc()
+            ws.yCalc()
+            ws.VectorAddVector(ws.yf, ws.y, ws.y_baseline)
+            ws.jacobianAdjustAfterIteration()
+
+        ws.Copy(ws.inversion_iterate_agenda, inversion_iterate_agenda)
+    """
+    source = getsource(func)
+    ast = parse(source)
+
+    func_ast = ast.body[0]
+    if not type(func_ast) == FunctionDef:
+        raise Exception("ARTS agenda definition can only decorate function definiitons.")
+
+    args = func_ast.args.args
+
+    try:
+        arg_name = func_ast.args.args[0].arg
+    except:
+        raise Exception("Agenda definition needs workspace arguments.")
+
+    ws = Workspace()
+
+    context = func.__globals__
+    context[arg_name] == ws
+
+    # Create agenda
+    a_ptr = arts_api.create_agenda(func.__name__.encode())
+    agenda = Agenda(a_ptr)
+
+    for e in func_ast.body:
+        if not type(e.value) == Call:
+            raise Exception("Agendas may only contain call expressions.")
+
+        # Extract workspace object.
+        try:
+            call = e.value
+            att  = call.func.value
+            if not att.id == arg_name:
+                raise(Exception("Agenda definition may only contain call to WSMs of the "
+                                + "workspace argument " + arg_name + "."))
+        except:
+            raise(Exception("Agenda definition may only contain call to WSMs of the "
+                                + "workspace argument " + arg_name + "."))
+
+        # Extract method name.
+        try:
+            name = call.func.attr
+            m    = workspace_methods[name]
+            if not type(m) == WorkspaceMethod:
+                raise Exception(name + " is not a known WSM.")
+        except:
+            raise Exception(name + " is not a known WSM.")
+
+        # Extract positional arguments
+        args = [ws, m]
+        for a in call.args:
+            args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
+
+        # Extract keyword arguments
+        kwargs = dict()
+        for k in call.keywords:
+            kwargs[k.arg] = eval(compile(Expression(k.value), "<unknown>", 'eval'), context)
+
+        # Add function to agenda
+        agenda.add_method(*args, **kwargs)
+    return agenda
 
 ################################################################################
 # The Workspace Class

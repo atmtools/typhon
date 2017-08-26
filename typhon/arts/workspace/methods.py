@@ -164,55 +164,7 @@ class WorkspaceMethod:
             res[arts_api.get_method_g_out(m_id, i).decode("utf8")] = t
         return res
 
-    def create(self, ws, name = None):
-        """
-        Call to <Group>Create WSMs are handled differently. This method simply
-        determines the group type from the function name and then add a variable of
-        this type to the workspace ws. A handle of this variable is then added to
-        as attribute to the typhon.arts.workspace.variables module.
-
-        Args:
-            ws(Workspace): Workspace object to add the variable to
-            name(str):     Name of the variable to add to the workspace
-        """
-        if not name:
-            name = "__anonymous_" + str(len(ws.vars))
-        group = WorkspaceMethod.create_regexp.match(self.name).group(1)
-        group_id = group_ids[group]
-
-        ws_id = arts_api.add_variable(ws.ptr, group_id)
-        wsv = WorkspaceVariable(ws_id, name, group, "User defined variable.", ws)
-        setattr(variables, name, wsv)
-        ws.vars[name] = wsv
-        return wsv
-
-    def call(*args, **kwargs):
-        """ Execute workspace method.
-
-        This method will execute the workspace method (args[0]) on the workspace object (args[1])
-        interpreting the remaining arguments in *args and **kwargs as arguments.
-
-        Positional arguments in *args are interpreted in order with output arguments coming
-        first.
-
-        Keyword arguments in kwargs are interpreted according to the name of the generic
-        parameters of the ARTS WSM.
-
-        Args:
-        args(list): Positional arguments with the first argument being the WorkspaceMethod
-        instance, i.e. self = args[0], the second the Workspace object (args[1]). The
-        remaining arguments are interpreted as generic arguments to the ARTS WSM.
-        kargs(dict): Keyword args are interpreted as named generic arguments to the ARTS WSM
-        according to its definition in methods.cc.
-        """
-
-        self = args[0]
-
-        if self.is_create:
-            return self.create(*args[1:])
-
-        ws   = args[1]
-        args = args[2:]
+    def _parse_output_input_lists(self, ws, args, kwargs):
         n_args = self.n_g_out + self.n_g_in
 
         ins  = self.ins
@@ -312,11 +264,69 @@ class WorkspaceMethod:
             else:
                 temps.append(ws.add_variable(arg))
                 arts_args_in.append(temps[-1].ws_id)
+        return (m_id, arts_args_out, arts_args_in, temps)
+
+
+    def create(self, ws, name = None):
+        """
+        Call to <Group>Create WSMs are handled differently. This method simply
+        determines the group type from the function name and then add a variable of
+        this type to the workspace ws. A handle of this variable is then added to
+        as attribute to the typhon.arts.workspace.variables module.
+
+        Args:
+            ws(Workspace): Workspace object to add the variable to
+            name(str):     Name of the variable to add to the workspace
+        """
+        if not name:
+            name = "__anonymous_" + str(len(ws.vars))
+        group = WorkspaceMethod.create_regexp.match(self.name).group(1)
+        group_id = group_ids[group]
+        ws_id = arts_api.add_variable(ws.ptr, group_id)
+        wsv = WorkspaceVariable(ws_id, name, group, "User defined variable.", ws)
+        setattr(variables, name, wsv)
+        ws.vars[name] = wsv
+        return wsv
+
+    def call(*args, **kwargs):
+        """ Execute workspace method.
+
+        This method will execute the workspace method (args[0]) on the workspace object (args[1])
+        interpreting the remaining arguments in *args and **kwargs as arguments.
+
+        Positional arguments in *args are interpreted in order with output arguments coming
+        first.
+
+        Keyword arguments in kwargs are interpreted according to the name of the generic
+        parameters of the ARTS WSM.
+
+        Args:
+        args(list): Positional arguments with the first argument being the WorkspaceMethod
+        instance, i.e. self = args[0], the second the Workspace object (args[1]). The
+        remaining arguments are interpreted as generic arguments to the ARTS WSM.
+        kargs(dict): Keyword args are interpreted as named generic arguments to the ARTS WSM
+        according to its definition in methods.cc.
+        """
+
+        self = args[0]
+
+        if self.is_create:
+            return self.create(*args[1:])
+
+        ws   = args[1]
+
+        (m_id, arts_args_out, arts_args_in, temps) = self._parse_output_input_lists(ws,
+                                                                                    args[2:],
+                                                                                    kwargs)
 
         # Execute WSM and check for errors.
         arg_out_ptr = c.cast((c.c_long * len(arts_args_out))(*arts_args_out), c.POINTER(c.c_long))
         arg_in_ptr = c.cast((c.c_long * len(arts_args_in))(*arts_args_in), c.POINTER(c.c_long))
-        e_ptr = arts_api.execute_workspace_method(ws.ptr, m_id, arg_out_ptr, arg_in_ptr)
+        e_ptr = arts_api.execute_workspace_method(ws.ptr, m_id,
+                                                  len(arts_args_out),
+                                                  arg_out_ptr,
+                                                  len(arts_args_in),
+                                                  arg_in_ptr)
         if (e_ptr):
             raise Exception("Call to ARTS WSM " + self.name + " failed with error: "
                            + e_ptr.decode("utf8").format())
@@ -324,6 +334,7 @@ class WorkspaceMethod:
         # Remove temporaries from workspace (in reverse order).
         for t in temps[::-1]:
             t.erase()
+
 
     def describe(self):
         """ Print WSM documentation. """

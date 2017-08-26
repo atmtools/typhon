@@ -1,3 +1,30 @@
+2017-08-26  Simon Pfreundschuh <simon.pfreundschuh@chalmers.se>
+
+	Fixed some problems with passing parameters when calling WSMs
+	and added functionality to define agendas using python function syntax.
+
+	* typhon/arts/workspace/__init__.py:
+	- Export arts_agenda decorator
+
+	* typhon/arts/workspace/agendas.py:
+	- methods to clear agendas and add WSMs to them
+	- method to convert agendas to VariableValueStruct
+
+	* typhon/arts/workspace/api.py:
+	- Add generic interface to convert python object to VariableValueStructs
+	- Add declarations for new methods in C API
+
+	* typhon/arts/workspace/methods.py:
+	- Separate parsing and parameter lookup from actual WSM call to facilitate reuse
+
+	* typhon/arts/workspace/variables.py:
+	- Add agendas to returnable types
+
+	* typhon/arts/workspace/workspace.py:
+	- Added some decorator black magic that allows defining ARTS agendas using python
+	function syntax
+
+
 2017-08-25  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/physics/units/em.py(SRF.make_lookup_table):

@@ -17,6 +17,7 @@ import scipy as sp
 import ctypes as c
 
 from typhon.arts.workspace.api import arts_api
+from typhon.arts.workspace.agendas import Agenda
 
 class WorkspaceVariable:
     """
@@ -84,6 +85,8 @@ class WorkspaceVariable:
         """
         if type(value) == WorkspaceVariable:
             return group_ids[value.group]
+        elif type(value) == Agenda:
+            return group_ids["Agenda"]
         elif type(value) == int:
             return group_ids["Index"]
         elif type(value) == float or type(value) == np.float32 or type(value) == np.float64:
@@ -197,6 +200,8 @@ class WorkspaceVariable:
             row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
             col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
             return sp.sparse.csr_matrix((data, row_indices, col_starts), shape=(m,n))
+        if group_names[self.group_id] == "Agenda":
+            return Agenda(v.ptr)
         try:
             a = np.asarray(self)
             return a
