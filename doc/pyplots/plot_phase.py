@@ -10,7 +10,7 @@ from netCDF4 import Dataset
 from mpl_toolkits.basemap import Basemap
 from matplotlib.ticker import FuncFormatter
 
-import typhon.plots
+import typhon
 
 
 @FuncFormatter

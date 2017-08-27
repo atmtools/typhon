@@ -15,7 +15,7 @@ z = np.sin(x**2) * np.exp(y)
 
 fig, ax = plt.subplots(figsize=figsize(10))
 ax.set_prop_cycle(color=mpl_colors('qualitative1', 7))
-sm = ax.pcolormesh(x, y, z, cmap='difference')
+sm = ax.pcolormesh(x, y, z, cmap='difference', rasterized=True)
 fig.colorbar(sm)
 
 fig.tight_layout()

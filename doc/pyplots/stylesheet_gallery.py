@@ -3,7 +3,7 @@
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import typhon.plots
+import typhon
 
 
 def simple_plot(stylename):

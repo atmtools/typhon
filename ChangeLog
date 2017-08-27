@@ -1,5 +1,21 @@
 2017-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* doc/pyplots/plot_density.py,
+	  doc/pyplots/plot_difference.py,
+	  doc/pyplots/plot_phase.py,
+	  doc/pyplots/plot_speed.py,
+	  doc/pyplots/plot_temperature.py,
+	  doc/pyplots/plot_velocity.py,
+	  doc/pyplots/stylesheet_gallery.py:
+
+	Do not import typhon.plots explicitly as it is imported using
+	every typhon import.
+
+	Use the rasterized option when using `pcolormesh`. This should
+	decrease the build time significantly.
+
+2017-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* doc/typhon.math.rst: Added `squeezable_logspace`.
 
 	* typhon/math/common.py (squeezable_logspace):
