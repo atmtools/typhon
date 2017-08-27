@@ -1,3 +1,11 @@
+2017-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* doc/typhon.math.rst: Added `squeezable_logspace`.
+
+	* typhon/math/common.py (squeezable_logspace):
+
+	Added examples and fixed broken markup in docstring.
+
 2017-08-26  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	Fixed documentation with and without ARTS API.

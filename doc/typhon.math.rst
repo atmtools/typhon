@@ -14,6 +14,7 @@ math
    nlogspace
    promote_maximally
    sum_digits
+   squeezable_logspace
 
 math.array
 ==========
