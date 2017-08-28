@@ -33,6 +33,6 @@ class MEDMAD(OutlierFilter):
             mad = numpy.ma.median(abs(C - med).reshape((-1,)))
         else:
             raise ValueError("Cannot filter outliers on "
-                f"input with {C.ndim:d}>3 dimensions")
+                "input with {ndim:d}>3 dimensions".format(ndim=C.ndim))
         fracdev = ((C - med)/mad)
         return abs(fracdev) > cutoff

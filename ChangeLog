@@ -1,3 +1,11 @@
+2017-08-28  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/datasets/_tovs_defs.py, typhon/datasets/filters.py,
+	typhon/datasets/tovs.py:
+
+	Replace formatted strings (breaks python 3.5 compatibility) with
+	traditional format strings.
+	
 2017-08-27  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* doc/pyplots/plot_density.py,

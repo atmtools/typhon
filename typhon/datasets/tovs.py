@@ -230,12 +230,12 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     "Unable to filter firstline: {:s}".format(e.args[0])) from e
             if scanlines.shape[0] < 2:
                 raise dataset.InvalidFileError(
-                    f"After filtering firstline, only "
-                    "{scanlines.shape[0]:d}/{n_lines:d} lines are left. "
+                    "After filtering firstline, only "
+                    "{shape:d}/{n_lines:d} lines are left. "
                     "This either means the granule is entirely contained "
                     "in the previous one, or the previous granule "
                     "contains time outliers that cause the current one "
-                    "to be mistaken for such (see #142).")
+                    "to be mistaken for such (see #142).".format(shape=scanlines.shape[0]))
             n_lines = scanlines.shape[0]
 
         if apply_scale_factors:
@@ -1393,13 +1393,13 @@ class HIRSPOD(HIRS):
         # See POD User's Guide, page 2-6; this is in EBCDIC
         dataname = header["hrs_h_dataname"][0].decode("EBCDIC-CP-BE")
         if len(dataname) == 0:
-            msg = (f"Dataname empty for {self.satname!s}.  "
+            msg = ("Dataname empty for {satname!s}.  "
                 "I have noticed this problem for: TIROS-N (all data), "
                 "NOAA-6 (before 1985-10-31 08:27), NOAA-7 (all data), "
                 "NOAA-8 (all data), NOAA-9 (before 1985-10-31 13:30). "
                 "Those data appear to have a different header.  If you "
                 "happen to know documentation for ancient headers, please "
-                "e-mail g.holl@reading.ac.uk!")
+                "e-mail g.holl@reading.ac.uk!".format(satname=self.satname))
             if robust:
                 dataname = (
                     str(header["hrs_h_startdatadatetime"][0]) +

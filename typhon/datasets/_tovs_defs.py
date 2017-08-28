@@ -636,8 +636,8 @@ _hirs_data_vars_props_common = dict(
 
 def _expand_dict_temps(d, t):
     d.update(**{
-        f"temp_{short:s}": (
-            f"temperature_{temperature_names.get(short, short):s}",
+        "temp_{short:s}".format(short=short): (
+            "temperature_{tempnames:s}".format(tempnames=temperature_names.get(short, short)),
             temperature_dims.get(short, ("time",)),
             {"long_name": "Temperature " + temperature_names.get(short,short).replace("_", " "),
              "units": "K"},
