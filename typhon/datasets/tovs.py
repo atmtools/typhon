@@ -235,7 +235,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     "This either means the granule is entirely contained "
                     "in the previous one, or the previous granule "
                     "contains time outliers that cause the current one "
-                    "to be mistaken for such (see #142).".format(shape=scanlines.shape[0]))
+                    "to be mistaken for such (see #142).".format(
+                        shape=scanlines.shape[0],
+                        n_lines=n_lines))
             n_lines = scanlines.shape[0]
 
         if apply_scale_factors:

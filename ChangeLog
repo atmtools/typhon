@@ -1,3 +1,9 @@
+2017-08-29  Gerrit Holl  <g.holl@reading.ac.uk>
+
+	* typhon/datasets/tovs.py(HIRS._read):
+
+	- Fix KeyError in error message formatting
+
 2017-08-28  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/datasets/_tovs_defs.py, typhon/datasets/filters.py,
