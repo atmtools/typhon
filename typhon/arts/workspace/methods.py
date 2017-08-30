@@ -292,9 +292,9 @@ class WorkspaceMethod:
         """ Execute workspace method.
 
         This method will execute the workspace method (args[0]) on the workspace object (args[1])
-        interpreting the remaining arguments in *args and **kwargs as arguments.
+        interpreting the remaining arguments in `*args` and `**kwargs` as arguments.
 
-        Positional arguments in *args are interpreted in order with output arguments coming
+        Positional arguments in `*args` are interpreted in order with output arguments coming
         first.
 
         Keyword arguments in kwargs are interpreted according to the name of the generic

@@ -1,3 +1,18 @@
+2017-08-30  Oliver Lemke  <olemke@core-dump.info>
+
+	* typhon/version.py: 0.4.0 Release.
+
+	* doc/typhon.arts.workspace.rst:
+
+	Reorder modules alphabetically and list their classes so they appear
+	in the sphinx documentation.
+
+	* typhon/arts/workspace/__init__.py, typhon/arts/workspace/agendas.py,
+	typhon/arts/workspace/api.py, typhon/arts/workspace/methods.py,
+	typhon/arts/workspace/workspace.py:
+
+	Small changes to docs for better sphinx formatting.
+
 2017-08-29  Gerrit Holl  <g.holl@reading.ac.uk>
 
 	* typhon/datasets/tovs.py(HIRS._read):

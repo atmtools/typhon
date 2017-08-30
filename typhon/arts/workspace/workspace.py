@@ -5,7 +5,7 @@ Users should only have to use this class to interact with ARTS.
 
 Attributes:
      imports(dict): Dictionary of parsed controlfiles. This is kept to ensure to avoid
-     crashing of the ARTS runtime, when a file is parsed for the second time.
+                    crashing of the ARTS runtime, when a file is parsed for the second time.
 
 """
 import ctypes as c
@@ -37,16 +37,16 @@ def arts_agenda(func):
 
     Example:
 
-        @arts_agenda
-        def inversion_iterate_agenda(ws):
-            ws.x2artsStandard()
-            ws.atmfields_checkedCalc()
-            ws.atmgeom_checkedCalc()
-            ws.yCalc()
-            ws.VectorAddVector(ws.yf, ws.y, ws.y_baseline)
-            ws.jacobianAdjustAfterIteration()
-
-        ws.Copy(ws.inversion_iterate_agenda, inversion_iterate_agenda)
+    >>> @arts_agenda
+    >>> def inversion_iterate_agenda(ws):
+    >>>     ws.x2artsStandard()
+    >>>     ws.atmfields_checkedCalc()
+    >>>     ws.atmgeom_checkedCalc()
+    >>>     ws.yCalc()
+    >>>     ws.VectorAddVector(ws.yf, ws.y, ws.y_baseline)
+    >>>     ws.jacobianAdjustAfterIteration()
+    >>>
+    >>> ws.Copy(ws.inversion_iterate_agenda, inversion_iterate_agenda)
     """
     source = getsource(func)
     ast = parse(source)

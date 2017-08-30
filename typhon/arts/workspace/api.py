@@ -9,7 +9,7 @@ Requirements
 ------------
 
 The ARTS C API is provided by the arts_api.so library and is required by
-the module. The module will check if the ARTS_BUILD_PATH variable is set
+the module. The module will check if the ``ARTS_BUILD_PATH`` variable is set
 and assume the library can be found in the src subdirectory. If opening
 the library fails loading the module will fail with an EnvironmentError.
 

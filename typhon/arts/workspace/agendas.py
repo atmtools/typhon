@@ -1,14 +1,15 @@
+"""The agendas submodule.
+
+This module provides the Agenda class, which is used to represent parsed
+controlfiles and can be executed on a given `Workspace` object.
+
+"""
+
 import ctypes as c
 import numpy  as np
 
 from typhon.arts.workspace.api import find_controlfile, arts_api
 
-"""ARTS Agendas
-
-This module provides the Agenda class, which is used to represent parsed
-controlfiles and can be executed on a given Workspace object.
-
-"""
 
 class Agenda:
     def __init__(self, ptr):
