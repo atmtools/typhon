@@ -1,3 +1,15 @@
+2017-09-04  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	Added a function to plot a colorized series of bars.
+
+	* typhon/plots/plots.py (colored_bars):
+
+	Function to plot a colorized bar plot.
+
+	* doc/typhon.plots.rst:
+
+	Added `colored_bars` to documentation.
+
 2017-08-30  Oliver Lemke  <olemke@core-dump.info>
 
 	* typhon/version.py: Set DEVBUILD back to True after release.

@@ -28,6 +28,7 @@ __all__ = [
     'profile_z',
     'channels',
     'worldmap',
+    'colored_bars',
 ]
 
 
@@ -736,3 +737,92 @@ def worldmap(lat, lon, vars, fig=None, ax=None, projection=None, background_imag
     #plt.colorbar(scatter_plot)
 
     return ax, scatter_plot
+
+
+def colored_bars(x, y, c=None, cmap=None, vmin=None, vmax=None, ax=None,
+                 **kwargs):
+    """Plot a colorized series of bars.
+
+    Note:
+        If the x-values are floats (smaller than ``1``) the ``width`` should
+        be adjusted to prevent bars from overlapping.
+
+    Parameters:
+        x (ndarray): Abscissa values.
+        y (ndarray): Ordinate values.
+        c (ndarray): (Optional) values for color scaling.
+        cmap (str or matplotlib.colors.Colormap):
+            The colormap used to map normalized data values to RGBA colors.
+        vmin (float): Set lower color limit.
+        vmax (float): Set upper color limit.
+        ax (AxesSubplot): Axes to plot into.
+        **kwargs: Additional keyword arguments are passed to
+            :func:`matplotlib.pyplot.bar`.
+
+    Returns:
+        matplotlib.cm.ScalarMappable, matplotlib.container.BarContainer:
+            Mappable, Artists corresponding to each bar.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        from typhon.plots import colored_bars
+
+
+        N = 50
+        x = np.arange(N)
+        y = np.sin(np.linspace(0, 3 * np.pi, N)) + 0.5 * np.random.randn(N)
+
+        # Basic series with bars colored according to y-value.
+        fig, ax = plt.subplots()
+        colored_bars(x, y, cmap='seismic')
+
+        # Add a colorbar to the figure.
+        fig, ax = plt.subplots()
+        sm, bars = colored_bars(x, y, cmap='seismic')
+        cb = fig.colorbar(sm)
+
+        # Pass different values for coloring (here, x-values).
+        fig, ax = plt.subplots()
+        colored_bars(x, y, c=x)
+
+        plt.show()
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    # If no values for the color mapping are passed, use the y-values.
+    if c is None:
+        c = y
+
+    # Create colormap instance. This works for strings and Colormap instances.
+    cmap = plt.get_cmap(cmap)
+
+    # Find limits for color mapping (values exceeding this threshold are set
+    # to the color of the corresponding limit). If no explicit values are
+    # passed, use the absolute value range; this results in a colormap
+    # centered around zero.
+    absmax = np.max(np.abs(c))
+    vmin = -absmax if vmin is None else vmin
+    vmax = absmax if vmax is None else vmax
+
+    # Create a Normalize function for given color limits. This function is
+    # used to map the data values to the range [0, 1].
+    norm = plt.Normalize(vmin=vmin, vmax=vmax)
+
+    # Combine the norm and colormap into a ScalarMappable. The ScalarMappable
+    #  is returned and can be used for creating a colorbar.
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array(c.flat)  # Pass data range to ScalarMappable.
+
+    # Create the actual bar plot. The color values are normalized and
+    # converted to RGB values which are passed to ``color``.
+    ret = ax.bar(x, y, color=cmap(norm(c)), **kwargs)
+
+    # Return the ScalarMappable as well as all return values of ``plt.bar``.
+    return sm, ret

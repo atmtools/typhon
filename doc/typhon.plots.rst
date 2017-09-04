@@ -17,6 +17,7 @@ plots
    cmap2txt
    cmap_from_act
    cmap_from_txt
+   colored_bars
    colors2cmap
    figsize
    get_available_styles
