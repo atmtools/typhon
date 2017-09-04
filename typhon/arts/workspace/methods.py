@@ -223,6 +223,7 @@ class WorkspaceMethod:
         g_in_types  = dict([(k,WorkspaceVariable.get_group_id(g_input_args[k]))
                             for k in self.g_in])
         m_id = self.m_ids[0]
+        sg_index = 0
         if (len(self.m_ids) > 1):
             if not g_in_types in self.g_in_types or not g_out_types in self.g_out_types:
                 raise ValueError("Could not resolve call to supergeneric function.")
@@ -234,12 +235,15 @@ class WorkspaceMethod:
                 if not out_index == in_index:
                     if self.g_in_types[in_index] == self.g_in_types[out_index]:
                         m_id = self.m_ids[out_index]
+                        sg_index = out_index
                     elif self.g_out_types[out_index] == self.g_out_types[in_index]:
                         m_id = self.m_ids[in_index]
+                        sg_index = in_index
                     else:
                         raise Exception("Could not uniquely resolve super-generic overload.")
                 else:
-                    m_id = m_id_out
+                    m_id     = m_id_out
+                    sg_index = out_index
 
         # Combine input and output arguments into lists.
         arts_args_out = []
@@ -250,6 +254,11 @@ class WorkspaceMethod:
             arg = g_output_args[name]
             if not type(arg) == WorkspaceVariable:
                 raise ValueError("Generic Output " + name + " must be an ARTS WSV.")
+            group_id = arg.group_id
+            expected = self.g_out_types[sg_index][name]
+            if not group_id == expected:
+                raise Exception("Generic output " + name + " expected to be of type "
+                                + group_names[expected])
             arts_args_out.append(arg.ws_id)
 
         arts_args_in = []
@@ -262,6 +271,11 @@ class WorkspaceMethod:
             if type(arg) == WorkspaceVariable:
                 arts_args_in.append(arg.ws_id)
             else:
+                group_id = WorkspaceVariable.get_group_id(arg)
+                expected = self.g_in_types[sg_index][name]
+                if not group_id == expected:
+                    raise Exception("Generic input " + name + " expected to be of type "
+                                    + group_names[expected])
                 temps.append(ws.add_variable(arg))
                 arts_args_in.append(temps[-1].ws_id)
         return (m_id, arts_args_out, arts_args_in, temps)

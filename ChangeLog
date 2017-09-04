@@ -1,3 +1,17 @@
+2017-09-04  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
+
+	Some smaller fixes for interactive python interface.
+
+	* typhon/arts/workspace/agendas.py:
+	- Decode error byte string returned by execute_controlfile to properly display
+	ARTS error messages.
+
+	* typhon/arts/workspace/methods.py:
+	- Raise value error when group of generic input doesn't match the expected one.
+
+	* typhon/arts/workspace/variables.py:
+	- Update array interface when calling value on a WSV
+
 2017-09-04  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	Added a function to plot a colorized series of bars.

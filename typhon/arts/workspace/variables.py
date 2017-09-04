@@ -203,6 +203,7 @@ class WorkspaceVariable:
         if group_names[self.group_id] == "Agenda":
             return Agenda(v.ptr)
         try:
+            self.update()
             a = np.asarray(self)
             return a
         except:

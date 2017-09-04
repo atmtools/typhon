@@ -48,7 +48,7 @@ class Agenda:
         """
         e = arts_api.execute_agenda(ws.ptr, self.ptr)
         if (e):
-            raise Exception("Error during execution of Agenda:\n" + e)
+            raise Exception("Error during execution of Agenda:\n" + e.decode("utf8"))
 
     def _to_value_struct(self):
         return {'ptr' : self.ptr}
