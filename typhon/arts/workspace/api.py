@@ -44,12 +44,15 @@ arts_api.initialize()
 ################################################################################
 # Get ARTS include path.
 
+# TODO (lkluft or simonpf): Proper handling of environment variables!
 arts_include_path = []
 try:
     include_path = os.environ['ARTS_INCLUDE_PATH'] + "/controlfiles"
     data_path    = os.environ['ARTS_INCLUDE_PATH'] + "/controlfiles/testdata"
     arts_include_path = [include_path]
 except:
+    include_path = ''
+    data_path    = ''
     pass
 arts_include_path.append(os.getcwd())
 

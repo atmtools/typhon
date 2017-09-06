@@ -1,5 +1,17 @@
 2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/arts/common.py (run_arts):
+
+	Make use of the new `typhon.environment` mechanism. The
+	dARTS_BUILD_PATH, ARTS_INCLUDE_PATH and ARTS_DATA_PATH should now
+	be considered properly.
+
+	* typhon/arts/workspace/api.py:
+
+	Quick fix of inconsistent handling of environment variables.
+
+2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/environment.py: Handle environment variables.
 
 	Combine the classical CLI environment variable approach and

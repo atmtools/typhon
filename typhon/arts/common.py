@@ -6,7 +6,10 @@ import os
 import shutil
 import subprocess
 
+import typhon.environment as env
 from typhon.arts.griddedfield import GriddedField4
+from typhon.utils import path_append
+
 
 __all__ = [
     'run_arts',
@@ -15,7 +18,7 @@ __all__ = [
     ]
 
 
-def run_arts(controlfile=None, arts='arts', writetxt=False,
+def run_arts(controlfile=None, arts=None, writetxt=False,
              ignore_error=False, **kwargs):
     """Start an ARTS Simulation.
 
@@ -43,6 +46,21 @@ def run_arts(controlfile=None, arts='arts', writetxt=False,
         >>> run_arts(help=True)
 
     """
+    # If path to the ARTS exectuable is not passed explicitly, construct it
+    # from the ARTS_BUILD_PATH. Its actual existence is checked later.
+    if arts is None and env.ARTS_BUILD_PATH is not None:
+        arts = os.path.join(env.ARTS_BUILD_PATH, 'src', 'arts')
+    # Try 'arts' as a fallback, maybe it is in the user's PATH.
+    elif arts is None:
+        arts = 'arts'
+
+    # Append ARTS_INCLUDE_PATH and ARTS_DATA_PATH to the user's environment.
+    if env.ARTS_INCLUDE_PATH is not None:
+        path_append(env.ARTS_INCLUDE_PATH, path='ARTS_INCLUDE_PATH')
+
+    if env.ARTS_DATA_PATH is not None:
+        path_append(env.ARTS_DATA_PATH, path='ARTS_DATA_PATH')
+
     if not shutil.which(arts):
         raise Exception('ARTS executable not found at: {}'.format(arts))
 
