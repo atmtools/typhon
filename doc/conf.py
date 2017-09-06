@@ -16,6 +16,8 @@
 import sys
 import os
 
+from typhon.environment import ARTS_BUILD_PATH
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -118,7 +120,7 @@ todo_include_todos = True
 
 # Exclude ARTS Workspace documentation when `ARTS_BUILD_PATH` is not set.
 # Else, the build fails because typhon.arts.workspace can not be imported.
-if 'ARTS_BUILD_PATH' not in os.environ:
+if ARTS_BUILD_PATH is None:
     exclude_patterns.append('typhon.arts.workspace.rst')
 
 # -- Options for HTML output ----------------------------------------------

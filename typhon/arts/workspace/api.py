@@ -23,17 +23,17 @@ import ctypes as c
 import numpy  as np
 import os
 
+from typhon.environment import ARTS_BUILD_PATH
+
 ################################################################################
 # Load ARTS C API
 ################################################################################
-
-arts_build_path = os.environ.get('ARTS_BUILD_PATH')
-if arts_build_path is None:
+if ARTS_BUILD_PATH is None:
     raise EnvironmentError("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 
 try:
-    print ("Loading ARTS API from: " + arts_build_path + "/src/arts_api.so")
-    arts_api = c.cdll.LoadLibrary(arts_build_path + "/src/libarts_api.so")
+    print("Loading ARTS API from: " + ARTS_BUILD_PATH + "/src/arts_api.so")
+    arts_api = c.cdll.LoadLibrary(ARTS_BUILD_PATH + "/src/libarts_api.so")
 except:
     raise EnvironmentError("Could not find ARTS API in your ARTS build path. Did you install it?")
 

@@ -1,5 +1,25 @@
 2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
+	* typhon/environment.py: Handle environment variables.
+
+	Combine the classical CLI environment variable approach and
+	the settings in the typhon configuration file.
+
+	**Environment variables precede settings in the config file.**
+
+	* doc/conf.py, doc/typhon.environment.rst:
+
+	Added `typhon.environment` to documentation.
+
+	* doc/modules.rst,
+	  typhon/arts/workspace/__init__.py,
+	  typhon/arts/workspace/api.py:
+
+	Make use of constant variables  in `typhon.environment`
+	instead of checking the environment.
+
+2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
 	* typhon/config.py (_Configurator):
 
 	Cleaned the object implementation.

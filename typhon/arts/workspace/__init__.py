@@ -91,7 +91,9 @@ numpy.asarray.
 from os import environ
 from warnings import warn
 
-if environ.get('ARTS_BUILD_PATH') is None:
+from typhon.environment import ARTS_BUILD_PATH
+
+if ARTS_BUILD_PATH is None:
     warn("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 else:
     from typhon.arts.workspace.workspace import Workspace, arts_agenda
