@@ -1,3 +1,13 @@
+2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* typhon/config.py (_Configurator):
+
+	Cleaned the object implementation.
+
+	* (_Configurator.__call__, get_config):
+
+	Added a keyword argument to specify config section.
+
 2017-09-04  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
 
 	Some smaller fixes for interactive python interface.

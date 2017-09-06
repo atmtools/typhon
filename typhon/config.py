@@ -15,25 +15,20 @@ import configparser
 
 
 class _Configurator(object):
-    config = None
-
-    def init(self):
+    def __init__(self):
         config = configparser.ConfigParser(
             interpolation=configparser.ExtendedInterpolation())
         p = pathlib.Path(os.getenv("TYPHONRC", "~/.typhonrc")).expanduser()
         config.read(str(p))
         self.config = config
 
-    def __call__(self, arg):
-        if self.config is None:
-            self.init()
-        return self.config.get("main", arg)
+    def __call__(self, arg, section='main'):
+        return self.config.get(section, arg)
 config = _Configurator()
-config.init()
 conf = config.config
 
 
-def get_config(arg):
+def get_config(arg, section='main'):
     """Get value for configuration variable.
 
     Arguments:
@@ -46,4 +41,4 @@ def get_config(arg):
     """
     confer = _Configurator()
 
-    return confer(arg)
+    return confer(arg, section=section)
