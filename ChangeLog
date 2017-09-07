@@ -1,3 +1,9 @@
+2017-09-07  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
+
+	* typhon/arts/workspace/api.py:
+	- Fixed handling of environment variables
+	- Removed recursive search for controlfiles
+
 2017-09-07  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* README.md:

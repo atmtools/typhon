@@ -23,11 +23,12 @@ import ctypes as c
 import numpy  as np
 import os
 
-from typhon.environment import ARTS_BUILD_PATH
+from typhon.environment import ARTS_BUILD_PATH, ARTS_DATA_PATH, ARTS_INCLUDE_PATH
 
 ################################################################################
 # Load ARTS C API
 ################################################################################
+
 if ARTS_BUILD_PATH is None:
     raise EnvironmentError("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 
@@ -40,25 +41,8 @@ except:
 arts_api.initialize()
 
 ################################################################################
-# Setup ARTS Environment
+# ARTS runtime environment manipulation
 ################################################################################
-# Get ARTS include path.
-
-# TODO (lkluft or simonpf): Proper handling of environment variables!
-arts_include_path = []
-try:
-    include_path = os.environ['ARTS_INCLUDE_PATH'] + "/controlfiles"
-    data_path    = os.environ['ARTS_INCLUDE_PATH'] + "/controlfiles/testdata"
-    arts_include_path = [include_path]
-except:
-    include_path = ''
-    data_path    = ''
-    pass
-arts_include_path.append(os.getcwd())
-
-# Set runtime parameters
-arts_api.set_parameters(c.c_char_p(include_path.encode()),
-                        c.c_char_p(data_path.encode()))
 
 def find_controlfile(name):
     """ Recursively search arts include path for given file.
@@ -69,19 +53,13 @@ def find_controlfile(name):
     """
     path = None
     for p in arts_include_path:
-        for root, dirs, files in os.walk(p):
-            try:
-                file = files[files.index(name)]
-                path = root + "/" + file
-                break
-            except:
-                pass
+        if os.path.isfile(p + name):
+            path = p + name
     if (path):
         return path
     else:
         raise Exception("File " + name + " not found. Search path was:\n "
                         + str(arts_include_path))
-    return path
 
 def include_path_add(path):
     """Add path to include path of the ARTS runtime.
@@ -89,17 +67,17 @@ def include_path_add(path):
     Args:
         path(str): Path to add to the ARTS include path.
     """
-    arts_api.set_parameters(c.c_char_p(name.encode()),
+    arts_api.set_parameters(c.c_char_p(path.encode()),
                             c.c_char_p(None))
 
-def data_path_add(name):
+def data_path_add(path):
     """ Add path to data path of the ARTS runtime.
 
     Args:
         path(str): Path to add to the ARTS data path.
     """
     arts_api.set_parameters(c.c_char_p(None),
-                            c.c_char_p(name.encode()))
+                            c.c_char_p(path.encode()))
 
 
 ################################################################################
@@ -119,16 +97,85 @@ class VariableStruct(c.Structure):
 
 class VariableValueStruct(c.Structure):
     """
-    The value of an instance of a workspace variable is represented by a struct
-    containing a pointer to the relevant data, initialized flag, and an array
-    of up to six dimension values. The dimension array is used by tensor data
-    to transfer the dimensions of the object.
+    The ARTS C API uses C-structs to transfer workspace variables from and to the
+    ARTS runtime. The VariableValueStruct class is used to access and create these
+    structs in Python code. The fields of the C-struct can be accessed directly as
+    attributes of the VariableValueStruct object.
     """
     _fields_ = [("ptr", c.c_void_p),
                 ("initialized", c.c_bool),
                 ("dimensions", 6 * c.c_long),
                 (("inner_ptr"), c.POINTER(c.c_int)),
                 (("outer_ptr"), c.POINTER(c.c_int))]
+
+    def __init__(self, value):
+        """ Create a VariableValue struct from a python object.
+
+        This functions creates a variable value struct from a python object so that it
+        can be passed to the C API. If the type of the object is not supported, the data
+        pointer will be NULL.
+
+        The built-in Python types that are currently supported are:
+
+            - int
+            - float
+            - string
+            - numpy.ndarray
+            - lists of int and lists of string
+
+        User defined classes are supported through a generic interface. The constructor
+        looks for an attribute function _to_value_struct, which should return a dictionary
+        containing the value associated with the fields of the C-struct.
+
+        Args:
+            value(object): The python object to represent as a VariableValue struct.
+
+        """
+        ptr = 0
+        initialized = True
+        dimensions  = [0] * 6
+
+        # Generic interface
+        if hasattr(value, "_to_value_struct"):
+            d = value._to_value_struct()
+            if "ptr" in d:
+                ptr = d["ptr"]
+            if "dimensions" in d:
+                dimensions = d["dimensions"]
+        # Index
+        elif type(value) == int:
+            ptr = c.cast(c.pointer(c.c_long(value)), c.c_void_p)
+        # Numeric
+        elif type(value) == float or type(value) == np.float32 or type(value) == np.float64:
+            temp = np.float64(value)
+            ptr = c.cast(c.pointer(c.c_double(temp)), c.c_void_p)
+        # String
+        elif type(value) == str:
+            ptr = c.cast(c.c_char_p(value.encode()), c.c_void_p)
+        # Vector, Matrix
+        elif type(value) == np.ndarray:
+            if value.dtype == np.float64:
+                ptr = value.ctypes.data
+                for i in range(value.ndim):
+                    dimensions[i] = value.shape[i]
+        # Array of String or Integer
+        elif type(value) == list:
+            if not value:
+                raise ValueError("Empty lists currently not supported.")
+            t = type(value[0])
+            ps = []
+            if t ==str:
+                for s in value:
+                    ps.append(c.cast(c.c_char_p(s.encode()), c.c_void_p))
+                p_array = (c.c_void_p * len(value))(*ps)
+                ptr = c.cast(c.pointer(p_array), c.c_void_p)
+            if t == int:
+                ptr = c.cast(c.pointer((c.c_long * len(value))(*value)), c.c_void_p)
+            dimensions[0] = len(value)
+
+        self.ptr = ptr
+        self.initialized = initialized
+        self.dimensions  = (c.c_long * 6)(*dimensions)
 
 class MethodStruct(c.Structure):
     """
@@ -166,50 +213,8 @@ def variable_value_factory(value):
 
     TODO: Add proper error handling.
     """
-    ptr = 0
-    initialized = True
-    dimensions  = [0] * 6
+    return VariableValueStruct(value)
 
-    # Generic interface
-    if hasattr(value, "_to_value_struct"):
-        d = value._to_value_struct()
-        if "ptr" in d:
-            ptr = d["ptr"]
-        if "dimensions" in d:
-            ptr = d["dimensions"]
-    # Index
-    elif type(value) == int:
-        ptr = c.cast(c.pointer(c.c_long(value)), c.c_void_p)
-    # Numeric
-    elif type(value) == float or type(value) == np.float32 or type(value) == np.float64:
-        temp = np.float64(value)
-        ptr = c.cast(c.pointer(c.c_double(temp)), c.c_void_p)
-    # String
-    elif type(value) == str:
-        ptr = c.cast(c.c_char_p(value.encode()), c.c_void_p)
-    # Vector, Matrix
-    elif type(value) == np.ndarray:
-        if value.dtype == np.float64:
-            ptr = value.ctypes.data
-            for i in range(value.ndim):
-                dimensions[i] = value.shape[i]
-    # Array of String or Integer
-    elif type(value) == list:
-        if not value:
-            raise ValueError("Empty lists currently not supported.")
-        t = type(value[0])
-        ps = []
-        if t ==str:
-            for s in value:
-                ps.append(c.cast(c.c_char_p(s.encode()), c.c_void_p))
-            p_array = (c.c_void_p * len(value))(*ps)
-            ptr = c.cast(c.pointer(p_array), c.c_void_p)
-        if t == int:
-            ptr = c.cast(c.pointer((c.c_long * len(value))(*value)), c.c_void_p)
-        dimensions[0] = len(value)
-
-    dimensions = (c.c_long * 6)(*dimensions)
-    return VariableValueStruct(ptr, initialized, dimensions)
 
 ################################################################################
 # Function Arguments and Return Types
@@ -328,3 +333,26 @@ arts_api.execute_workspace_method.argtypes = [c.c_void_p,
                                               c.POINTER(c.c_long),
                                               c.c_ulong,
                                               c.POINTER(c.c_long)]
+
+################################################################################
+# Setup ARTS Environment
+################################################################################
+
+try:
+    arts_include_path = ARTS_INCLUDE_PATH.split(":")
+except:
+    arts_include_path = []
+
+try:
+    arts_data_path = ARTS_DATA_PATH.split(":")
+except:
+    arts_data_path = []
+
+arts_include_path.append(os.getcwd())
+
+# Set runtime parameters
+for p in arts_include_path:
+    include_path_add(p)
+
+for p in arts_data_path:
+    data_path_add(p)
