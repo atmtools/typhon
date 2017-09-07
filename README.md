@@ -32,6 +32,18 @@ import typhon
 typhon.test()
 ```
 
+## Configuration
+Typhon supports a configuration file in ``configparser`` syntax. The
+configuration is handled by the ``typhon.config`` module. The default file
+location is ``~/.typhonrc`` but can be changed using the ``TYPHONRC``
+environment variable.
+
+It is also possible to set environment variables in the same-named
+section of the configuration file, e.g.:::
+
+    [environment]
+    ARTS_BUILD_PATH: /path/to/arts/build/
+
 ## Documentation
 The documentation of the project is created with [Sphinx]. You can use the
 enclose Makefile to build your own documentation:

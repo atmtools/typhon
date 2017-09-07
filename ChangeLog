@@ -1,3 +1,16 @@
+2017-09-07  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* README.md:
+
+	Added a short paragraph on the typhon configuration file.
+
+	* typhon/__init__.py: Import ``typhon.config``.
+
+	* typhon/environment.py:
+
+	Added a reference to the ``typhon.config`` module to the
+	docstring.
+
 2017-09-06  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* typhon/arts/common.py (run_arts):

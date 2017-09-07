@@ -10,18 +10,15 @@ The environment variables are represented as package-wide constants.
 ``ARTS_INCLUDE_PATH`` Search path for include files.
 ===================== ======================================
 
-The environment variables can be set in the in the ``TYPHONRC``
-under the section ``environment``::
+The environment variables can be set in the in the configuration file
+(:mod:`typhon.config`) under the section ``environment``::
 
     [environment]
     ARTS_BUILD_PATH: /path/to/arts/build/
 
 Note:
-    ``TYPHONRC`` points to a configuration file, (default is ``~/.typhonrc``).
-
-Note:
-    If the environment variable is also set explicitly, the value specified in
-    the ``TYPHONRC`` configuration file is ignored.
+    If the environment variable is also set explicitly,
+    the value set in the configuration file is ignored.
 
 """
 import os
