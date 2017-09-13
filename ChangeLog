@@ -1,3 +1,9 @@
+2017-09-13  Lukas Kluft  <lukas.kluft@gmail.com>
+
+	* CONTRIBUTING.md:
+
+	Description on how to contribute to typhon on GitHub.
+
 2017-09-07  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
 
 	* typhon/arts/workspace/api.py:
