@@ -1,5 +1,6 @@
 include ChangeLog
 include DESCRIPTION.rst
+include typhon/VERSION
 recursive-include typhon *.xml
 recursive-include typhon *.xml.bin
 recursive-include typhon *.mplstyle
