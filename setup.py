@@ -80,6 +80,7 @@ setup(
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
         'nose>=1.3.0',
+        'numexpr',
         'numpy>=1.6',
         'pint',
         'scikit-learn',
