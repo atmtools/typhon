@@ -17,7 +17,7 @@ from   ast     import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Nam
                       Expression, FunctionDef
 from   inspect import getsource, getsourcelines
 
-from typhon.arts.workspace.api       import arts_api, variable_value_factory
+from typhon.arts.workspace.api       import arts_api, VariableValueStruct
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods
 from typhon.arts.workspace.variables import WorkspaceVariable, group_names, group_ids
 from typhon.arts.workspace.agendas   import Agenda
@@ -137,9 +137,10 @@ class Workspace:
 
         It also adds all workspace methods as attributes to the object.
         """
+
+        self.__dict__["vars"] = dict()
         self.ptr     = arts_api.create_workspace()
         self.workspace_size = arts_api.get_number_of_variables()
-        self.vars = dict()
         for name in workspace_methods:
             m = workspace_methods[name]
             def make_fun(method):
@@ -172,7 +173,7 @@ class Workspace:
         if type(var) == WorkspaceVariable:
             return var
         group_id = WorkspaceVariable.get_group_id(var)
-        s  = variable_value_factory(var)
+        s  = VariableValueStruct(var)
         ws_id = arts_api.add_variable(self.ptr, group_id, s)
         arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
         return WorkspaceVariable(ws_id,
@@ -208,6 +209,39 @@ class Workspace:
         wsv = WorkspaceVariable(i, name, group_names[group_id], description, self)
         return wsv
 
+    def __setattr__(self, name, value):
+        """ Set workspace variable.
+
+        This will lookup the workspace variable name and try to set it to value.
+
+        Args:
+            name(str):  Name of the attribute (variable)
+            value(obj): The value to set the workspace variable to.
+
+        Raises:
+            ValueError: If the variable is not found or if value cannot uniquely converted to
+            a value of a workspace variable.
+        """
+        try:
+            v = self.__getattr__(name)
+        except:
+            self.__dict__[name] = value
+            return None
+
+        try:
+            t = self.add_variable(value)
+        except:
+            raise Exception("Given value " + str(value) + " could not be uniquely converted "
+                            "to ARTS value." )
+
+        if not t.group_id == v.group_id:
+            raise Exception("Incompatible groups: Workspace variable " + name +
+                            " and value " + str(value))
+
+        fname = v.group + "Set"
+        workspace_methods[fname].call(self, v, t)
+        t.erase()
+
     def execute_controlfile(self, name):
         """ Execute a given controlfile on the workspace.
 
@@ -228,7 +262,6 @@ class Workspace:
             try:
                 imports[name] = Agenda.parse(name)
             except:
-                Exception("Error parsing controlfile " + name )
-
+                raise Exception("Error parsing controlfile " + name )
 
         imports[name].execute(self)

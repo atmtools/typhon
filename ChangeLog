@@ -1,8 +1,12 @@
+2017-09-15  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
+
+	* typhon/arts/workspace/workspace.py(__setattr__):
+	- Added setattr member function to assign values to WSVs.
+	- Removed some clutter.
+
 2017-09-13  Lukas Kluft  <lukas.kluft@gmail.com>
 
 	* CONTRIBUTING.md:
-
-	Description on how to contribute to typhon on GitHub.
 
 2017-09-07  Simon Pfreundschuh  <simon.pfreundschuh@chalmers.se>
 
