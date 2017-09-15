@@ -81,10 +81,11 @@ setup(
         'netCDF4>=1.1.1',
         'nose>=1.3.0',
         'numpy>=1.6',
-        'scipy>=0.15.1',
+        'pint',
         'scikit-learn',
+        'scipy>=0.15.1',
         'setuptools>=0.7.2',
-        "xarray",
+        'xarray',
     ],
 
     # List additional groups of dependencies here (e.g. development
