@@ -82,7 +82,6 @@ setup(
         'nose>=1.3.0',
         'numexpr',
         'numpy>=1.6',
-        'pint',
         'scikit-learn',
         'scipy>=0.15.1',
         'setuptools>=0.7.2',
