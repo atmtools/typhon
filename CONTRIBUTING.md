@@ -27,19 +27,19 @@ button on the project site.
 After forking the project you can clone the project to create a local working
 copy.
 ```bash
-git clone https://github.com/YOUR_USERNAME/typhon.git
+$ git clone https://github.com/YOUR_USERNAME/typhon.git
 ```
 
 ## Set up cloned fork
 Add the URL of the original project to your local repository to be able to pull
 changes from it:
 ```bash
-git remote add upstream https://github.com/atmtools/typhon.git
+$ git remote add upstream https://github.com/atmtools/typhon.git
 ```
 
 Listing the remote repositories will show something like:
 ```bash
-git remote -v
+$ git remote -v
 origin https://github.com/YOUR_USERNAME/typhon.git (fetch)
 origin https://github.com/YOUR_USERNAME/typhon.git (push)
 upstream https://github.com/atmtools/typhon.git (fetch)
@@ -49,7 +49,7 @@ upstream https://github.com/atmtools/typhon.git (push)
 Make sure to pull (or fetch) the upstream master branch at regular intervals to
 keep track of changes done to the project.
 ```bash
-git pull upstream
+$ git pull upstream
 ```
 
 ## Create a branch
@@ -59,7 +59,7 @@ related to different developments in the project.
 
 You can do that with the following git command:
 ```bash
-git checkout -b BRANCH_NAME
+$ git checkout -b BRANCH_NAME
 ```
 
 This will create a new branch and will make it the active one in your local
@@ -67,7 +67,7 @@ repository. Be sure to use a descriptive name for the branch name.
 
 You can check you are in the right branch using git:
 ```bash
-git branch
+$ git branch
   master
 * BRANCH_NAME
 ```
@@ -80,7 +80,7 @@ your changes.
 
 You can push those changes to your personal fork.
 ```bash
-git push origin/master
+$ git push origin/master
 ```
 
 ## Pull request
@@ -99,8 +99,8 @@ can delete the branch you used for it.
 
 To delete the branch in your local repository and on GitHub:
 ```bash
-git branch -D BRANCH_NAME
-git push origin --delete BRANCH_NAME
+$ git branch -D BRANCH_NAME
+$ git push origin --delete BRANCH_NAME
 ```
 
 # Credits
