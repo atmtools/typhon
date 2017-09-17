@@ -76,6 +76,16 @@ The developer team will review your changes and decide whether to accept your
 changes. This process might include some discussion or even further changes to
 the code (this is the reason why [branches](Create a branch) are important).
 
+## Follow up
+After your contribution has been merged to the main project (or rejected) you
+can delete the branch you used for it.
+
+To delete the branch in your local repository and on GitHub:
+```bash
+git branch -D BRANCH_NAME
+git push origin --delete BRANCH_NAME
+```
+
 # Credits
 This file is a brief summary of a
 [blog post](http://blog.davidecoppola.com/2016/11/howto-contribute-to-open-source-project-on-github/)
