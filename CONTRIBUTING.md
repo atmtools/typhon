@@ -1,4 +1,10 @@
 # Contributing to typhon
+Thank you for considering to contribute to the typhon project! :tada: :+1:
+
+As a community-driven project we rely on the work and contribution of
+volunteers. By participating in this project, you agree to abide by the
+[code of conduct](CODE_OF_CONDUCT.md).
+
 In order to contribute to typhon you need to be registered on
 [GitHub](https://github.com/join).
 
