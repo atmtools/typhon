@@ -35,6 +35,27 @@ keep track of changes done to the project.
 git pull upstream
 ```
 
+## Create a branch
+Before starting to work on your feature or bugfix you need to create a local
+branch where to keep all your work. Branches help to oragnize the changes
+related to different developments in the project.
+
+You can do that with the following git command:
+```bash
+git checkout -b BRANCH_NAME
+```
+
+This will create a new branch and will make it the active one in your local
+repository. Be sure to use a descriptive name for the branch name.
+
+You can check you are in the right branch using git:
+```bash
+git branch
+  master
+* BRANCH_NAME
+```
+The current active branch is the one with a ``*`` on the left.
+
 ## Work on your contribution
 Now you can start with the development of your new feature (or bug fix).
 During the work you can use git's commit and push mechanism to save and track
