@@ -69,8 +69,12 @@ git push origin/master
 ## Pull request
 After pushing your changes to your fork navigate to the GitHub page of your
 work.  Click on the Pull request button. Add the needed information to the web
-form and submit your request.  The developer team will review your changes and
-decide whether to accept your changes.
+form and submit your request.
+
+## Code review
+The developer team will review your changes and decide whether to accept your
+changes. This process might include some discussion or even further changes to
+the code (this is the reason why [branches](Create a branch) are important).
 
 # Credits
 This file is a brief summary of a
