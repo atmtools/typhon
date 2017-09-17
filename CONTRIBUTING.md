@@ -2,6 +2,17 @@
 In order to contribute to typhon you need to be registered on
 [GitHub](https://github.com/join).
 
+## Checklist
+This checklist also serves as table of contents.
+1. [Fork the project](#fork-the-project)
+2. [Clone your fork](#clone-the-forked-project)
+3. [Set up your fork](#set-up-cloned-fork)
+4. [Create a branch](#create-a-branch)
+5. [Work on your contribution](#work-on-your-contribution)
+6. [Pull request](#pull-request)
+7. [Code review](#code-review)
+8. [Follow up](#follow-up)
+
 ## Fork the project
 The first step is to fork the typhon project. This is done by clicking the Fork
 button on the project site.
