@@ -292,11 +292,18 @@ class WorkspaceMethod:
             ws(Workspace): Workspace object to add the variable to
             name(str):     Name of the variable to add to the workspace
         """
+
+        if name and not arts_api.lookup_workspace_variable(name.encode()) == -1:
+            raise Exception("A WSV with the name " + name + " already exists.")
+        if name and name in workspace_methods.keys():
+            raise Exception("A WSM with the name " + name + " already exists.")
+
         if not name:
             name = "__anonymous_" + str(len(ws.vars))
+
         group = WorkspaceMethod.create_regexp.match(self.name).group(1)
         group_id = group_ids[group]
-        ws_id = arts_api.add_variable(ws.ptr, group_id)
+        ws_id = arts_api.add_variable(ws.ptr, group_id, name.encode())
         wsv = WorkspaceVariable(ws_id, name, group, "User defined variable.", ws)
         setattr(variables, name, wsv)
         ws.vars[name] = wsv

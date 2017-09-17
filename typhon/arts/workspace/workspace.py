@@ -174,7 +174,7 @@ class Workspace:
             return var
         group_id = WorkspaceVariable.get_group_id(var)
         s  = VariableValueStruct(var)
-        ws_id = arts_api.add_variable(self.ptr, group_id, s)
+        ws_id = arts_api.add_variable(self.ptr, group_id, None)
         arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
         return WorkspaceVariable(ws_id,
                                  str(id(var)),

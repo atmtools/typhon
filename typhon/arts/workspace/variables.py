@@ -11,10 +11,10 @@ Attributes:
                         groups in the ARTS C API.
 """
 
-import re
-import numpy as np
-import scipy as sp
 import ctypes as c
+import numpy as np
+import re
+import scipy as sp
 
 from typhon.arts.workspace.api import arts_api
 from typhon.arts.workspace.agendas import Agenda
@@ -52,11 +52,13 @@ class WorkspaceVariable:
         self.update()
 
     def __str__(self):
-        s = "ARTS Symbolic Workspace Variable \n \n" + self.description
-        return s
+        return __repr__(self)
 
     def __repr__(self):
-        s = "ARTS Symbolic Workspace Variable: " + self.name + "\n"
+        s  = "ARTS Workspace Variable\n\n"
+        s += "Name:  " + self.name + "\n"
+        s += "Group: " + self.group + "\n\n"
+        s += self.description
         return s
 
     def print(self):
@@ -155,7 +157,8 @@ class WorkspaceVariable:
             group       = group_names[s.group]
             yield WorkspaceVariable(i, name, group, description)
 
-    def value(self, ws = None):
+    @property
+    def value(self):
         """ Return the value of the variable in a given workspace.
 
         By default this function will check the value in the workspace associated

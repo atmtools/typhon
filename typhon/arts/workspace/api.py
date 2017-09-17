@@ -297,7 +297,7 @@ arts_api.set_variable_value.restype  = None
 
 # Adds a value of a given group to a given workspace.
 arts_api.add_variable.restype  = c.c_long
-arts_api.add_variable.argtypes = [c.c_void_p, c.c_long]
+arts_api.add_variable.argtypes = [c.c_void_p, c.c_long, c.c_char_p]
 
 # Remove given variable from workspace.
 arts_api.erase_variable.restype  = None
