@@ -87,6 +87,6 @@ git push origin --delete BRANCH_NAME
 ```
 
 # Credits
-This file is a brief summary of a
+This file is closely based on a
 [blog post](http://blog.davidecoppola.com/2016/11/howto-contribute-to-open-source-project-on-github/)
 by Davide Coppola
