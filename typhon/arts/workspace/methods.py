@@ -224,26 +224,17 @@ class WorkspaceMethod:
                             for k in self.g_in])
         m_id = self.m_ids[0]
         sg_index = 0
+
         if (len(self.m_ids) > 1):
-            if not g_in_types in self.g_in_types or not g_out_types in self.g_out_types:
-                raise ValueError("Could not resolve call to supergeneric function.")
-            else:
-                out_index = self.g_out_types.index(g_out_types)
-                in_index = self.g_in_types.index(g_in_types)
-                m_id_out = self.m_ids[self.g_out_types.index(g_out_types)]
-                m_id_in = self.m_ids[self.g_in_types.index(g_in_types)]
-                if not out_index == in_index:
-                    if self.g_in_types[in_index] == self.g_in_types[out_index]:
-                        m_id = self.m_ids[out_index]
-                        sg_index = out_index
-                    elif self.g_out_types[out_index] == self.g_out_types[in_index]:
-                        m_id = self.m_ids[in_index]
-                        sg_index = in_index
-                    else:
-                        raise Exception("Could not uniquely resolve super-generic overload.")
-                else:
-                    m_id     = m_id_out
-                    sg_index = out_index
+            out_indices = [i for i,ts in enumerate(self.g_out_types) if ts == g_out_types]
+            in_indices  = [i for i,ts in enumerate(self.g_in_types) if ts == g_in_types]
+            sg_indices  = set(out_indices) & set(in_indices)
+
+            if len(sg_indices) > 1:
+                raise Exception("Could not uniquely resolve super-generic overload.")
+
+            sg_index = sg_indices.pop()
+            m_id = self.m_ids[sg_index]
 
         # Combine input and output arguments into lists.
         arts_args_out = []
