@@ -299,14 +299,14 @@ class WorkspaceMethod:
             raise Exception("A WSM with the name " + name + " already exists.")
 
         if not name:
-            name = "__anonymous_" + str(len(ws.vars))
+            name = "__anonymous_" + str(len(ws._vars))
 
         group = WorkspaceMethod.create_regexp.match(self.name).group(1)
         group_id = group_ids[group]
         ws_id = arts_api.add_variable(ws.ptr, group_id, name.encode())
         wsv = WorkspaceVariable(ws_id, name, group, "User defined variable.", ws)
         setattr(variables, name, wsv)
-        ws.vars[name] = wsv
+        ws._vars[name] = wsv
         return wsv
 
     def call(*args, **kwargs):

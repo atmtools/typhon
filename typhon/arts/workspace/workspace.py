@@ -125,7 +125,7 @@ class Workspace:
 
         ptr(ctypes.c_void_p): object pointing to the ArtsWorkspace instance of the
         ARTS C API
-        vars(dict): Dictionary holding local variables that have been created
+        _vars(dict): Dictionary holding local variables that have been created
                     interactively using the one of Create ARTS WSMs.
 
 
@@ -138,7 +138,7 @@ class Workspace:
         It also adds all workspace methods as attributes to the object.
         """
 
-        self.__dict__["vars"] = dict()
+        self.__dict__["_vars"] = dict()
         self.ptr     = arts_api.create_workspace()
         self.workspace_size = arts_api.get_number_of_variables()
         for name in workspace_methods:
@@ -193,8 +193,8 @@ class Workspace:
         """
 
         group_id = None
-        if name in self.vars:
-            var = self.vars[name]
+        if name in self._vars:
+            var = self._vars[name]
             var.update()
             return var
         else:
