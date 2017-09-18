@@ -8,10 +8,10 @@ is through [Anaconda]. But of course, any other Python distribution is also
 working.
 
 ## Installation
-The easiest way to develop typhon is to install the local working copy in your
+The easiest way to develop typhon is to install the cloned working copy in your
 Python environment. This can be done using ``pip``:
 ```bash
-pip install --user --editable .
+$ pip install --user --editable .
 ```
 
 This will install the package in editable mode (develop mode) in the user's
@@ -26,7 +26,7 @@ behavior through further development of the package.
 
 Tests can be run on the command line...
 ```bash
-nosetests typhon
+$ nosetests typhon
 ```
 or using the Python interpreter:
 ```python
@@ -41,22 +41,24 @@ location is ``~/.typhonrc`` but can be changed using the ``TYPHONRC``
 environment variable.
 
 It is also possible to set environment variables in the same-named
-section of the configuration file, e.g.:::
-
-    [environment]
-    ARTS_BUILD_PATH: /path/to/arts/build/
+section of the configuration file, e.g.:
+```
+[environment]
+ARTS_BUILD_PATH: /path/to/arts/build/
+```
 
 ## Documentation
 The documentation of the project is created with [Sphinx]. You can use the
 enclose Makefile to build your own documentation:
 ```bash
-cd doc
-make html
+$ cd doc
+$ make html
 ```
 
-The latest version [Typhon Docs] is also accessible online.
+A daily build version of the documentation is accessible [online](Typhon Docs).
+Kindly note that bleeding edge features might not be covered.
 
 [Sphinx]: www.sphinx-doc.org
 [Anaconda]: https://www.continuum.io/downloads
-[Typhon Docs]: https://radiativetransfer.org/misc/typhon/doc-trunk
+[Typhon Docs]: http://radiativetransfer.org/misc/typhon/doc-trunk
 [Nosetests]: http://nose.readthedocs.io/
