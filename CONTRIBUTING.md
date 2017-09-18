@@ -87,7 +87,7 @@ your changes.
 
 You can push those changes to your personal fork.
 ```bash
-$ git push origin master
+$ git push origin BRANCH_NAME
 ```
 
 ## Pull request
