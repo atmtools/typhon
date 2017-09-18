@@ -59,6 +59,6 @@ A daily build version of the documentation is accessible
 [online](http://radiativetransfer.org/misc/typhon/doc-trunk).
 Kindly note that bleeding edge features might not be covered.
 
-[Sphinx]: www.sphinx-doc.org
+[Sphinx]: http://www.sphinx-doc.org
 [Anaconda]: https://www.continuum.io/downloads
 [Nosetests]: http://nose.readthedocs.io/
