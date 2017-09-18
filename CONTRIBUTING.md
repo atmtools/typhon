@@ -56,7 +56,7 @@ upstream https://github.com/atmtools/typhon.git (push)
 Make sure to pull (or fetch) the upstream master branch at regular intervals to
 keep track of changes done to the project.
 ```bash
-$ git pull upstream
+$ git pull upstream master
 ```
 
 ## Create a branch
