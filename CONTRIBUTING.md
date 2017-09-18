@@ -30,6 +30,13 @@ copy.
 $ git clone https://github.com/YOUR_USERNAME/typhon.git
 ```
 
+If you want to work with SSH keys clone the project as follows:
+```bash
+$ git clone git@github.com:YOUR_USERNAME/typhon.git
+```
+You have to setup a working SSH key for your GitHub account in order to push
+changes to your repository.
+
 ## Set up cloned fork
 Add the URL of the original project to your local repository to be able to pull
 changes from it:
