@@ -53,8 +53,8 @@ def find_controlfile(name):
     """
     path = None
     for p in arts_include_path:
-        if os.path.isfile(p + name):
-            path = p + name
+        if os.path.isfile(os.path.join(p, name)):
+            path = os.path.join(p, name)
     if (path):
         return path
     else:
