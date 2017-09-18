@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/atmtools/typhon.svg?branch=master)](https://travis-ci.org/lkluft/typhon)
+[![Build Status](https://travis-ci.org/atmtools/typhon.svg?branch=master)](https://travis-ci.org/atmtools/typhon)
 
 # typhon - Tools for atmospheric research
 
