@@ -1,20 +1,10 @@
 # -*- coding: utf-8 -*-
+from os.path import (dirname, join)
 
 
 def get_version_info():
-    VERSION = '0.4.0'
-    # Add revision number for development versions
-    DEVBUILD = True
-
-    if DEVBUILD:
-        from os import path
-        if path.exists('.svn'):
-            revision = get_svn_revision()
-        else:
-            revision = "dev"
-        VERSION += revision
-
-    return VERSION
+    """Parse version number from module-level ASCII file."""
+    return open(join(dirname(__file__), 'VERSION')).read().strip()
 
 
 def get_svn_revision():

@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/lkluft/typhon.svg?branch=master)](https://travis-ci.org/lkluft/typhon)
+
 # typhon - Tools for atmospheric research
 
 ## Requirements
