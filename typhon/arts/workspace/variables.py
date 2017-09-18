@@ -193,8 +193,8 @@ class WorkspaceVariable:
             return c.cast(v.ptr, c.POINTER(c.c_double))[0]
         if group_names[self.group_id] == "String":
             return (c.cast(v.ptr, c.c_char_p)).value.decode("utf8")
-        if group_names[self.group_id] == "ArrayOfString":
-            return [i for i in (c.c_long * c.dimension[0])(v.ptr)]
+        if group_names[self.group_id] == "ArrayOfIndex":
+            return [c.cast(v.ptr, c.POINTER(c.c_long))[i] for i in range(v.dimensions[0])]
         if group_names[self.group_id] == "Sparse":
             m    = v.dimensions[0]
             n    = v.dimensions[1]
