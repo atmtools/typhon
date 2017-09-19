@@ -56,3 +56,8 @@ class TestWorkspace(object):
         self.ws.array_of_index = [1, 2, 3]
         self.ws.Append(self.ws.array_of_array_of_index, self.ws.array_of_index)
         self.ws.Append(self.ws.array_of_array_of_index, self.ws.array_of_index)
+
+    @unittest.skipIf(skip_arts_tests, 'ARTS library not available')
+    def test_creation(self):
+        self.ws.ArrayOfIndexCreate("array_of_index")
+        self.ws.ArrayOfIndexCreate("array_of_index")
