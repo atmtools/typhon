@@ -11,7 +11,7 @@ working.
 The easiest way to develop typhon is to install the cloned working copy in your
 Python environment. This can be done using ``pip``:
 ```bash
-$ git clone https://github.com/YOUR_USERNAME/typhon.git
+$ git clone https://github.com/atmtools/typhon.git
 $ cd typhon
 $ pip install --user --editable .
 ```
