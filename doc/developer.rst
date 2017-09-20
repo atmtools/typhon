@@ -10,6 +10,22 @@ length to 80 characters.
 
 .. _`Google Python Style Rules`: https://google.github.io/styleguide/pyguide.html
 
+Comments
+--------
+
+All code should be properly commented. To quote a `blog post`_ on dev.to:
+
+    Comments aren't additional to a good codebase. They are the codebase.
+
+While clean code shows **what** is done, comments should explain **why** a
+feature is implemented in a certain way. This approach is often called
+*Commenting Showing Intent* (`CSI`_). It helps other developers and your future
+self to comprehend why a certain implementation has been chosen. In addition,
+possible implications with other parts of the project should be addressed.
+
+.. _`CSI`: https://standards.mousepawmedia.com/csi.html
+.. _`blog post`: https://dev.to/andreasklinger/comments-explain-why-not-what-and-2-more-rules-on-writing-good-comments
+
 Documentation Style
 -------------------
 
