@@ -57,7 +57,7 @@ $ git pull upstream master
 
 ## Create a branch
 Before starting to work on your feature or bugfix you need to create a local
-branch where to keep all your work. Branches help to oragnize the changes
+branch where to keep all your work. Branches help to organize the changes
 related to different developments in the project.
 
 You can do that with the following git command:
