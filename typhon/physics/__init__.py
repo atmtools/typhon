@@ -4,6 +4,7 @@
 
 from typhon import constants  # noqa
 from typhon.physics.em import *  # noqa
+from typhon.physics.metrology import *  # noqa
 from typhon.physics.thermodynamics import *  # noqa
 
 
