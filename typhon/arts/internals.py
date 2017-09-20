@@ -166,6 +166,42 @@ class ARTSCAT5:
                                         'LM': line[self._lm_ind]})
         self._n += 1
 
+    @property
+    def F0(self):
+        return self.LineRecordData['freq']
+
+    @property
+    def S0(self):
+        return self.LineRecordData['str']
+
+    @property
+    def Species(self):
+        return self.LineRecordData['spec']
+
+    @property
+    def Iso(self):
+        return self.LineRecordData['afgl']
+
+    @property
+    def T0(self):
+        return self.LineRecordData['t0']
+
+    @property
+    def A(self):
+        return self.LineRecordData['ein']
+
+    @property
+    def g00(self):
+        return self.LineRecordData['gupp']
+
+    @property
+    def g0(self):
+        return self.LineRecordData['glow']
+
+    @property
+    def E0(self):
+        return self.LineRecordData['elow']
+
     def _append_ArrayOfLineRecord_(self, array_of_linerecord):
         """Appends lines in ArrayOfLineRecord to ARTSCAT5
         """
@@ -1128,7 +1164,8 @@ class PressureBroadening:
     _air = "N2"
     _air_and_water = "WA"
     _all_planets = "AP"
-    _possible_kinds = [_none, _air, _air_and_water, _all_planets]
+    _sd_air = "SD-AIR"
+    _possible_kinds = [_none, _air, _air_and_water, _all_planets, _sd_air]
 
     def __init__(self, data=None, kind=None):
         self.data = data
@@ -1148,6 +1185,8 @@ class PressureBroadening:
             assert len(self._data) == 9, "mismatching air and water broadening"
         elif self._type is self._all_planets:
             assert len(self._data) == 20, "mismatching all planets data"
+        elif self._type is self._sd_air:
+            assert len(self._data) == 8, "mismatching speed dependent air data"
         else:
             assert False, "Cannot recognize data type at all"
 

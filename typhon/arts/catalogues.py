@@ -37,10 +37,9 @@ class ArrayOfLineRecord:
             return "ArrayOfLineRecord. " + self.version + ". " + \
                 str(len(self.data)) + " lines."
         elif len(self.data) == 1:
-            if len(self.data[0]) > 1:
-                return "ArrayOfLineRecord. " + self.version + ". " + \
-                    str(len(self.data)) + " lines."
-        return "ArrayOfLineRecord. " + self.version + ". 0 lines."
+            if '@' in self.data[0]:
+                return "ArrayOfLineRecord. " + self.version + ". 1 line."
+        return "ArrayOfLineRecord. " + self.version + ". No lines."
 
     def __getitem__(self, index):
         return self.data[index]
