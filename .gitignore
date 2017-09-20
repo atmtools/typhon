@@ -2,4 +2,5 @@
 *.swp
 .idea
 doc/_build
+doc/generated
 typhon.egg-info
