@@ -14,6 +14,7 @@ Attributes:
 import ast
 import re
 import ctypes as c
+import numpy as np
 
 from typhon.arts.workspace.api       import arts_api
 from typhon.arts.workspace.variables import WorkspaceVariable, group_ids, group_names
@@ -141,6 +142,8 @@ class WorkspaceMethod:
                 pass
             elif d[0] == "@":
                 d = None
+            elif d == "Inf":
+                res[k] = np.float64("inf")
             else:
                 try:
                     d = WorkspaceVariable.convert(group_names[t], ast.literal_eval(d))
