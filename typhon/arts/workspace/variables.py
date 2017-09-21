@@ -250,5 +250,8 @@ group_names = [arts_api.get_group_name(i).decode("utf8")
 group_ids = dict([(id, name) for (name,id) in enumerate(group_names)])
 
 
+workspace_variables = dict()
 for v in WorkspaceVariable.iter():
     globals()[v.name] = v
+    workspace_variables[v.name] = v
+

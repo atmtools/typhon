@@ -19,7 +19,8 @@ from   inspect import getsource, getsourcelines
 
 from typhon.arts.workspace.api       import arts_api, VariableValueStruct
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods
-from typhon.arts.workspace.variables import WorkspaceVariable, group_names, group_ids
+from typhon.arts.workspace.variables import WorkspaceVariable, group_names, group_ids, \
+                                            workspace_variables
 from typhon.arts.workspace.agendas   import Agenda
 from typhon.arts.workspace import variables as V
 
@@ -181,6 +182,9 @@ class Workspace:
                                  group_names[group_id],
                                  "User defined variable.",
                                  self)
+
+    def __dir__(self):
+        return {**workspace_variables, **self.__dict__}
 
     def __getattr__(self, name):
         """ Lookup the given variable in the local variables and the ARTS workspace.
