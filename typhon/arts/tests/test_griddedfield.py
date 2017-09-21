@@ -2,6 +2,7 @@
 
 import numpy as np
 import os
+import unittest
 import xarray
 from tempfile import mkstemp
 
@@ -98,6 +99,7 @@ class TestGriddedFieldUsage():
                 np.array_equal(da.coords["ones"], np.ones(5)) and
                 np.array_equal(da.values, np.ones((5, 5))))
 
+    # TODO: Test generators are incompatible with the basic unittests.
     def test_name_type(self):
         """Test if only names of type str are accepted."""
         for false_type in [float(), int()]:
@@ -263,6 +265,7 @@ class TestGriddedFieldWrite():
         """Delete temporary file."""
         os.remove(self.f)
 
+    # TODO: Test generators are incompatible with the basic unittests.
     def test_write(self):
         """Save GriddedField to XML file, read it and compare the results."""
         for dim in np.arange(1, 8):
