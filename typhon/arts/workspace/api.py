@@ -293,7 +293,7 @@ arts_api.get_variable_value.restype  = VariableValueStruct
 # Set variable value in workspace given a workspace handle, the variable id, the group id
 # and a VariableValueStruct
 arts_api.set_variable_value.argtypes = [c.c_void_p, c.c_long, c.c_long, VariableValueStruct]
-arts_api.set_variable_value.restype  = None
+arts_api.set_variable_value.restype  =  c.c_char_p
 
 # Adds a value of a given group to a given workspace.
 arts_api.add_variable.restype  = c.c_long
