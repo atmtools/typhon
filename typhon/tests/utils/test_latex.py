@@ -7,11 +7,12 @@ from tempfile import mkstemp
 import filecmp
 import numpy as np
 import os
+import unittest
 
 from typhon import latex
 
 
-class TestLaTeX(object):
+class TestLaTeX(unittest.TestCase):
     """Testing the latex functions."""
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
