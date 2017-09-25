@@ -21,6 +21,7 @@ if not __TYPHON_SETUP__:
     from . import physics
     from . import plots
     from . import spectroscopy
+    from . import trees
     from . import utils
 
     def _runtest():
