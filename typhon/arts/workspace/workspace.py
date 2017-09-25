@@ -176,7 +176,11 @@ class Workspace:
         group_id = WorkspaceVariable.get_group_id(var)
         s  = VariableValueStruct(var)
         ws_id = arts_api.add_variable(self.ptr, group_id, None)
-        arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
+        e = arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
+        if e:
+            arts_api.erase_variable(self.ptr, ws_id, group_id)
+            raise Exception("Setting of workspace variable failed with the following error:\n"
+                            + e.decode("utf8"))
         return WorkspaceVariable(ws_id,
                                  str(id(var)),
                                  group_names[group_id],
@@ -232,11 +236,7 @@ class Workspace:
             self.__dict__[name] = value
             return None
 
-        try:
-            t = self.add_variable(value)
-        except:
-            raise Exception("Given value " + str(value) + " could not be uniquely converted "
-                            "to ARTS value." )
+        t = self.add_variable(value)
 
         if not t.group_id == v.group_id:
             raise Exception("Incompatible groups: Workspace variable " + name +
