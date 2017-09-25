@@ -7,12 +7,13 @@ import filecmp
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import unittest
 from tempfile import mkstemp
 
 from typhon.plots import colors
 
 
-class TestColors(object):
+class TestColors(unittest.TestCase):
     """Testing the cm functions."""
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 

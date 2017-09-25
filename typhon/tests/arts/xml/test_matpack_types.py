@@ -6,11 +6,12 @@ This module provides basic functions to test the reading and writing
 of ARTS XML files.
 """
 
+import unittest
 import os
 from tempfile import mkstemp
 
 import numpy as np
-from nose.tools import raises
+from nose.tools import (raises, with_setup)
 
 from typhon.arts import xml
 
@@ -148,7 +149,7 @@ class TestLoad(object):
         assert np.array_equal(test_data, reference)
 
 
-class TestSave(object):
+class TestSave():
     """Testing the ARTS XML saving functions.
 
     This class provides functions to test the saving of XML files. Data is
@@ -249,16 +250,19 @@ class TestSave(object):
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
+    # TODO: Test generators are incompatible with the basic unittests.
     def test_save_empty_tensor(self):
         """Save different empty Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_empty_tensor, n
 
+    # TODO: Test generators are incompatible with the basic unittests.
     def test_save_tensor(self):
         """Save different Tensor types to file, read and verify."""
         for n in range(3, 8):
             yield self._save_tensor, n
 
+    # TODO: Test generators are incompatible with the basic unittests.
     def test_save_tensor_binary(self):
         """Save different Tensor types to file, read and verify."""
         for n in range(3, 8):
