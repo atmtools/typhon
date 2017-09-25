@@ -119,6 +119,7 @@ Miscellaneous
    :maxdepth: 2
 
    typhon.latex
+   typhon.trees
    typhon.utils
 
 Indices and tables
