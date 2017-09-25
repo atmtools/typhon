@@ -242,9 +242,11 @@ class Workspace:
             raise Exception("Incompatible groups: Workspace variable " + name +
                             " and value " + str(value))
 
-        fname = v.group + "Set"
-        workspace_methods[fname].call(self, v, t)
-        t.erase()
+        self.Copy(v, t)
+
+        # Remove t only if it wasn't an existing WSV already before.
+        if not type(value) == WorkspaceVariable:
+            t.erase()
 
     def execute_controlfile(self, name):
         """ Execute a given controlfile on the workspace.
