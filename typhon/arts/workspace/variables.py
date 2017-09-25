@@ -184,18 +184,15 @@ class WorkspaceVariable:
         if not v.initialized:
             raise Exception("WorkspaceVariable " + self.name + " is uninitialized.")
 
-        # TODO: Use group attribute here istead of lookup in group_names.
-        # TODO: Move this to VariableValueStruct class
-
-        if group_names[self.group_id] == "Index":
+        if self.group == "Index":
             return c.cast(v.ptr, c.POINTER(c.c_long))[0]
-        if group_names[self.group_id] == "Numeric":
+        elif self.group == "Numeric":
             return c.cast(v.ptr, c.POINTER(c.c_double))[0]
-        if group_names[self.group_id] == "String":
+        elif self.group == "String":
             return (c.cast(v.ptr, c.c_char_p)).value.decode("utf8")
-        if group_names[self.group_id] == "ArrayOfIndex":
+        elif self.group == "ArrayOfIndex":
             return [c.cast(v.ptr, c.POINTER(c.c_long))[i] for i in range(v.dimensions[0])]
-        if group_names[self.group_id] == "Sparse":
+        elif self.group == "Sparse":
             m    = v.dimensions[0]
             n    = v.dimensions[1]
             nnz  = v.dimensions[2]
@@ -203,13 +200,23 @@ class WorkspaceVariable:
             row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
             col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
             return sp.sparse.csr_matrix((data, row_indices, col_starts), shape=(m,n))
-        if group_names[self.group_id] == "Agenda":
+        elif self.group == "Agenda":
             return Agenda(v.ptr)
-        try:
-            self.update()
-            a = np.asarray(self)
-            return a
-        except:
+        elif self.ndim:
+            shape = []
+            size  = 1
+            for i in range(self.ndim):
+                shape.append(v.dimensions[i])
+                size *= v.dimensions[i]
+            if size > 0:
+                self.__array_interface__ = {"shape"  : tuple(shape),
+                                            "typestr" : "|f8",
+                                            "data" : (v.ptr, False),
+                                            "version" : 3}
+                return np.asarray(self)
+            else:
+                raise Exception("Variable of type " + self.group + " is empty.")
+        else:
             raise Exception("Type of workspace variable is not supported by the interface.")
 
     def update(self):
