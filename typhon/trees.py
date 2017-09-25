@@ -75,10 +75,8 @@ class IntervalTree:
         """Checks whether two interval overlap each other.
 
         Args:
-            x1: The lower bound of the first interval.
-            x2: The higher bound of the first interval.
-            y1: The lower bound of the second interval.
-            y2: The higher bound of the second interval.
+            interval1: A tuple of two numbers: the lower and higher bound of the first interval.
+            interval2: A tuple of two numbers: the lower and higher bound of the second interval.
 
         Returns:
             True if the interval overlap.
@@ -92,9 +90,8 @@ class IntervalTree:
         """Checks whether a point lies in a interval.
 
         Args:
-            x1: The lower bound of the interval.
-            x2: The higher bound of the interval.
-            y: The point.
+            interval: A tuple of two numbers: the lower and higher bound of the first interval.
+            point: The point (just a number)
 
         Returns:
             True if point lies in the interval.
@@ -123,23 +120,10 @@ class IntervalTree:
         # Let's start with the centered intervals
         intervals = [int(interval[2]) for interval in node.center if IntervalTree.overlaps(interval, query_interval)]
 
-        #print("Query interval", query_interval)
-        #print(node.center_point, node.center, intervals)
-        # if node.left is not None:
-        #     print("links:", node.left.center)
-        # else:
-        #     print("Links ist leer.")
-        # if node.right is not None:
-        #     print("rechts:", node.right.center)
-        # else:
-        #     print("Rechts ist leer.")
-
         if query_interval[0] <= node.center_point and node.left is not None:
-            #print("Gehe nach links!")
             intervals.extend(self._query(query_interval, node.left))
 
         if query_interval[1] >= node.center_point and node.right is not None:
-            #print("Gehe nach rechts!")
             intervals.extend(self._query(query_interval, node.right))
 
         return intervals
