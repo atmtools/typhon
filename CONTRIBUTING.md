@@ -49,10 +49,11 @@ upstream https://github.com/atmtools/typhon.git (fetch)
 upstream https://github.com/atmtools/typhon.git (push)
 ```
 
-Make sure to pull (or fetch) the upstream master branch at regular intervals to
-keep track of changes done to the project.
+Make sure to pull in changes from the upstream master branch at regular
+intervals to keep track of changes done to the project.  We recommend to use
+the `--rebase` flag to maintain a linear history.
 ```bash
-$ git pull upstream master
+$ git pull --rebase upstream master
 ```
 
 ## Create a branch
