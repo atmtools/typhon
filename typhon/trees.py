@@ -29,6 +29,14 @@ class IntervalTree:
     Based on the description in Wikipedia (https://en.wikipedia.org/wiki/Interval_tree#Centered_interval_tree)
     and the GitHub repository by tylerkahn (https://github.com/tylerkahn/intervaltree-python).
 
+    Examples:
+        Check 1000 intervals on 1000 other intervals:
+
+        >>> intervals = np.asarray([2*np.arange(1000)-0.5, 2*np.arange(1000)+0.5]).T
+        >>> tree = IntervalTree(intervals)
+        >>> query_intervals = [[i-1, i+1] for i in range(1000)]
+        >>> results = tree.query(query_intervals)
+
     """
     def __init__(self, intervals):
         """Creates an IntervalTree object.
