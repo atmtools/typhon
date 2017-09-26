@@ -2,8 +2,22 @@ language: python
 python:
   - 3.5
   - 3.6
+env:
+  - RUN_PEP8=0
+  - RUN_PEP8=1
+matrix:
+  exclude:
+    - python: 3.5
+      env: RUN_PEP8=1
+  allow_failures:
+    - env: RUN_PEP8=1
 install:
   - pip install .
 script:
   - pip install pint
   - nosetests
+  - |
+    if [[ "${RUN_PEP8}" == "1" ]]; then
+      pip install flake8
+      flake8
+    fi
