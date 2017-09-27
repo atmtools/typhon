@@ -12,9 +12,8 @@ matrix:
   allow_failures:
     - env: RUN_PEP8=1
 install:
-  - pip install .
+  - pip install .[tests]
 script:
-  - pip install pint
   - nosetests
   - |
     if [[ "${RUN_PEP8}" == "1" ]]; then

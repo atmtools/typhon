@@ -79,7 +79,6 @@ setup(
     install_requires=[
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
-        'nose>=1.3.0',
         'numexpr',
         'numpy>=1.6',
         'scikit-learn',
@@ -92,7 +91,16 @@ setup(
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    # extras_require={},
+    extras_require={
+        'docs': [
+            'basemap',
+            'pint',
+        ],
+        'tests': [
+            'nose>=1.3.0',
+            'pint',
+        ],
+    },
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
