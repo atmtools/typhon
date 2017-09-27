@@ -79,7 +79,6 @@ setup(
     install_requires=[
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
-        'nose>=1.3.0',
         'numexpr',
         'numpy>=1.6',
         'scikit-learn',
@@ -97,9 +96,9 @@ setup(
             'basemap',
             'pint',
         ],
-        'test': [
-            'nose',
-            'pint>=1.3.0',
+        'tests': [
+            'nose>=1.3.0',
+            'pint',
         ],
     },
 
