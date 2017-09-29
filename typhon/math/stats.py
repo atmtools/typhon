@@ -216,7 +216,6 @@ def corrcoef(mat):
     rf = r[numpy.triu_indices(r.shape[0], 1)]
     df = mat.shape[1] - 2
     ts = rf * rf * (df / (1 - rf * rf))
-    #pf = scipy.stats.betai(0.5 * df, 0.5, df / (df + ts))
     pf = scipy.special.betainc(0.5 * df, 0.5, df / (df + ts))
     p = numpy.zeros(shape=r.shape)
     p[numpy.triu_indices(p.shape[0], 1)] = pf
