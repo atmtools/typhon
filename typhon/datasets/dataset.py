@@ -270,7 +270,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           locator_args=None,
                           reader_args=None,
                           limits=None,
-                          filters=None):
+                          filters=None,
+                          enforce_no_duplicates=True):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -368,11 +369,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                                       include_last_before=True,
                                       **locator_args):
             try:
-                # .read is already being verbose…
-                #logging.debug("Reading {!s}".format(gran))
                 cont = self.read(str(gran), fields=fields,
                     pseudo_fields=pseudo_fields, **reader_args)
-                if (sorted and
+                if (enforce_no_duplicates and
+                    sorted and
                     arr is not None and
                     cont[time].size > 0 and
                     N>0 and
