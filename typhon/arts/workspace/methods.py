@@ -19,6 +19,7 @@ import numpy as np
 from typhon.arts.workspace.api       import arts_api
 from typhon.arts.workspace.variables import WorkspaceVariable, group_ids, group_names
 from typhon.arts.workspace import variables, workspace
+from typhon.arts.workspace.output import CoutCapture
 
 class WorkspaceMethod:
     """
@@ -349,11 +350,13 @@ class WorkspaceMethod:
         arg_out_ptr = c.cast((c.c_long * len(arts_args_out))(*arts_args_out), c.POINTER(c.c_long))
         arg_in_ptr = c.cast((c.c_long * len(arts_args_in))(*arts_args_in), c.POINTER(c.c_long))
 
-        e_ptr = arts_api.execute_workspace_method(ws.ptr, m_id,
-                                                  len(arts_args_out),
-                                                  arg_out_ptr,
-                                                  len(arts_args_in),
-                                                  arg_in_ptr)
+
+        with CoutCapture(ws):
+            e_ptr = arts_api.execute_workspace_method(ws.ptr, m_id,
+                                                      len(arts_args_out),
+                                                      arg_out_ptr,
+                                                      len(arts_args_in),
+                                                      arg_in_ptr)
         if (e_ptr):
             raise Exception("Call to ARTS WSM " + self.name + " failed with error: "
                            + e_ptr.decode("utf8").format())

@@ -10,12 +10,12 @@ Attributes:
 """
 import ctypes as c
 import numpy  as np
-import os
 
 import ast
-from   ast     import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
-                      Expression, FunctionDef
-from   inspect import getsource, getsourcelines
+from   ast      import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
+                       Expression, FunctionDef
+from   inspect  import getsource, getsourcelines
+from contextlib import contextmanager
 
 from typhon.arts.workspace.api       import arts_api, VariableValueStruct
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods

@@ -9,6 +9,7 @@ import ctypes as c
 import numpy  as np
 
 from typhon.arts.workspace.api import find_controlfile, arts_api
+from typhon.arts.workspace.output import CoutCapture
 
 
 class Agenda:
@@ -46,7 +47,8 @@ class Agenda:
         Raises:
             Exception: If execution of agenda on workspace fails.
         """
-        e = arts_api.execute_agenda(ws.ptr, self.ptr)
+        with CoutCapture(ws):
+            e = arts_api.execute_agenda(ws.ptr, self.ptr)
         if (e):
             raise Exception("Error during execution of Agenda:\n" + e.decode("utf8"))
 
