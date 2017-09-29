@@ -2123,7 +2123,7 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
         MM["time"] = M["mon_time"].astype("M8[s]")
         for f in M.dtype.names:
             MM[f][...] = M[f][...]
-        return MM
+        return MM[numpy.argsort(MM["time"])]
 
     def combine(self, M, other_obj, *args, **kwargs):
         MM = super().combine(M, other_obj, *args, col_field="mon_column", **kwargs)
