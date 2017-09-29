@@ -7,6 +7,7 @@ import numbers
 import numpy
 
 import scipy.stats
+import scipy.special
 
 
 def bin(x, y, bins):
@@ -189,8 +190,6 @@ def adev(x, dim=-1):
         N = x.sizes[dim]
         return numpy.sqrt((1/(2*(N-1)) * x.diff(dim=dim)**2).sum(dim=dim))
 
-from scipy.stats import pearsonr, betai
-
 def corrcoef(mat):
     """Calculate correlation coefficient with p-values
 
@@ -217,7 +216,7 @@ def corrcoef(mat):
     rf = r[numpy.triu_indices(r.shape[0], 1)]
     df = mat.shape[1] - 2
     ts = rf * rf * (df / (1 - rf * rf))
-    pf = scipy.stats.betai(0.5 * df, 0.5, df / (df + ts))
+    pf = scipy.special.betainc(0.5 * df, 0.5, df / (df + ts))
     p = numpy.zeros(shape=r.shape)
     p[numpy.triu_indices(p.shape[0], 1)] = pf
     p[numpy.tril_indices(p.shape[0], -1)] = pf
