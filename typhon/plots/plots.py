@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import LogFormatter, FuncFormatter
+from matplotlib.cm import get_cmap
 
 from typhon.math import stats as tpstats
 
@@ -826,3 +827,115 @@ def colored_bars(x, y, c=None, cmap=None, vmin=None, vmax=None, ax=None,
 
     # Return the ScalarMappable as well as all return values of ``plt.bar``.
     return sm, ret
+
+
+def plot_bitfield(ax, X, Y, bitfield, flag_dict,
+        cmap,
+        cax=None,
+        pcolor_args={},
+        colorbar_args={},
+        unflagged="unflagged"):
+    """Plot a bitfield of categories with pcolor
+
+    The numeric values in a bitfield are not directly meaningful.  Rather,
+    the relevant information is whether a particular bit is set.  This
+    function plots a 2-D bitfield using pcolor, then displays each unique
+    combination of flags (or the absence of any flags) as a distinct
+    category, and shows the corresponding labels in the colourbar.
+
+    This assumes that, even when there are many possible flags, only a
+    small subset of combinations of flags actually occurs within the data.
+    Should this exceed a dozen or so, then the colorbar/legend will become
+    particularly crowded.
+
+    Note that a colorbar may not be the optimal legend to show alongside
+    categorical data but as this function already exists it is more
+    convenient to exploit than others.  Currently this function only works
+    with pcolor, not with pcolormesh, scatter, or other plotting
+    functions for 3-D data.
+
+    See https://gist.github.com/jakevdp/8a992f606899ac24b711 for an
+    illustration of what the result may look like, although that is for
+    the case of a scatter rather than pcolor plot.
+
+    Parameters:
+        ax (Axes):
+            Axes (or subclass thereof, such as GeoAxes) to plot in.
+
+        X (ndarray):
+            X-values for bitfield.  Interpretation as for pcolor.
+
+        Y (ndarray):
+            Y-values for bitfield.  Interpretation as for pcolor.
+
+        bitfield (ndarray):
+            Bitfield to be plotted.
+
+        flag_dict (Mapping[int, str]):
+            Mapping of flag values to their meanings.  Keys should be
+            powers of 2.  For example, {1: "DO_NOT_USE", 2:
+            "BAD_GEOLOCATION", 4: "BAD_TIME"}.
+
+        cmap (str):
+            Colourmap to use.  This needs to be passed here because it
+            needs to be converted to be discrete corresponding to the
+            number of unique values.  I recommend to choose a qualitative
+            colourmap such as Set1, Set2, or Set3.
+
+        cax (Axes):
+            Optional.  If given, put colorbar here.
+
+        pcolor_args (Mapping):
+            Extra arguments to be passed to pcolor.
+
+        colorbar_args (Mapping):
+            Extra arguments to be passed to colorbar.
+
+        unflagged (str):
+            Label to use for unflagged values.  Defaults to "unflagged".
+
+    Returns:
+
+        (AxesImage, Colorbar) that were generated
+    """
+
+    # 'unique' may give 'masked' as one of the values if bitfield is a
+    # masked array; ignore the mask here.  This will still be used for
+    # plotting.
+    unique_values = np.unique(
+        bitfield.data if isinstance(bitfield, np.ma.MaskedArray) else
+        bitfield)
+
+#    flagdefs = dict(zip(ds["quality_scanline_bitmask"].flag_masks,
+#                        ds["quality_scanline_bitmask"].flag_meanings.split(",")))
+
+    # each unique value corresponds to a label that consists of one or
+    # more flags, except value 0, which is unflagged
+    labels = {v: ', '.join(flag_dict[x] for x in flag_dict.keys() if v&x)
+                  or unflagged
+                  for v in unique_values}
+
+    # translate all values to integers close to 0, as we are only
+    # interested in categories
+    #trans = {v:k for (k,v) in enumerate(unique_values)}
+    trans = dict(enumerate(unique_values))
+
+    new = bitfield.copy()
+    for (to, fr) in trans.items():
+        if isinstance(new, np.ma.MaskedArray):
+            new.data[new.data==fr] = to
+        else:
+            new[new==fr] = to
+
+    formatter = FuncFormatter(
+        lambda val, loc: labels[trans[val]])
+    img = ax.pcolor(X, Y, new,
+        cmap=get_cmap(cmap, unique_values.size),
+        **pcolor_args)
+    cb = ax.figure.colorbar(img, cax=cax,
+        ticks=list(trans.keys()),
+        format=formatter,
+        **colorbar_args)
+    img.set_clim(min(trans.keys())-0.5, max(trans.keys())+0.5)
+
+    return (img, cb)
