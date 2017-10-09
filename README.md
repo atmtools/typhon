@@ -21,14 +21,14 @@ home directory. That way, local changes to the package are directly available
 in the current environment.
 
 ## Testing
-Typhon contains a simple testing framework using [Nosetests]. It is good
+Typhon contains a simple testing framework using [pytest]. It is good
 practice to write code for all your functions and classes. Those tests may not
 be too extensive but should cover the basic use cases to ensure correct
 behavior through further development of the package.
 
 Tests can be run on the command line...
 ```bash
-$ nosetests typhon
+$ pytest --pyargs typhon
 ```
 or using the Python interpreter:
 ```python
@@ -63,4 +63,4 @@ Kindly note that bleeding edge features might not be covered.
 
 [Sphinx]: http://www.sphinx-doc.org
 [Anaconda]: https://www.continuum.io/downloads
-[Nosetests]: http://nose.readthedocs.io/
+[pytest]: https://docs.pytest.org/
