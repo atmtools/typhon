@@ -2,10 +2,9 @@
 
 import numpy as np
 import os
-import unittest
-import xarray
 from tempfile import mkstemp
 
+import pytest
 from nose.tools import raises
 
 from typhon.arts import griddedfield, xml
@@ -99,16 +98,12 @@ class TestGriddedFieldUsage():
                 np.array_equal(da.coords["ones"], np.ones(5)) and
                 np.array_equal(da.values, np.ones((5, 5))))
 
-    # TODO: Test generators are incompatible with the basic unittests.
-    def test_name_type(self):
+    @pytest.mark.parametrize('nametype', [float(), int()])
+    def test_name_type(self, nametype):
         """Test if only names of type str are accepted."""
-        for false_type in [float(), int()]:
-            yield self._set_name_of_type, false_type
-
-    @raises(TypeError)
-    def _set_name_of_type(self, name_type):
-        gf = griddedfield.GriddedField1()
-        gf.name = name_type
+        with pytest.raises(TypeError):
+            gf = griddedfield.GriddedField1()
+            gf.name = nametype
 
     def test_shape(self):
         """Test return of data shape."""
@@ -256,25 +251,22 @@ class TestGriddedFieldLoad():
         assert a.grids is not b.grids
 
 
-class TestGriddedFieldWrite():
-    def setUp(self):
+class TestGriddedFieldWrite:
+    def setup_method(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
 
-    def tearDown(self):
+    def teardown_method(self):
         """Delete temporary file."""
         os.remove(self.f)
 
-    # TODO: Test generators are incompatible with the basic unittests.
-    def test_write(self):
-        """Save GriddedField to XML file, read it and compare the results."""
-        for dim in np.arange(1, 8):
-            yield self._load_griddedfield, dim
-
-    def _load_griddedfield(self, dim):
+    @pytest.mark.parametrize("dim", range(1, 8))
+    def test_write_load_griddedfield(self, dim):
         gf = griddedfield.GriddedField(dim)
         gf.grids = [np.arange(2)] * dim
         gf.data = _create_tensor(dim)
         xml.save(gf, self.f)
+
         test_data = xml.load(self.f)
+
         assert np.array_equal(gf.data, test_data.data)
