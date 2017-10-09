@@ -24,14 +24,9 @@ if not __TYPHON_SETUP__:
     from . import trees
     from . import utils
 
-    def _runtest():
-        """Run all tests."""
-        from os.path import dirname
-        from sys import argv
-        import matplotlib
-        matplotlib.use('Agg')
-        import nose
-        loader = nose.loader.TestLoader(workingDir=dirname(__file__))
-        return nose.run(argv=[argv[0]], testLoader=loader)
 
-    test = _runtest
+    def test():
+        """Use pytest to collect and run all tests in typhon.tests."""
+        import pytest
+
+        return pytest.main(['--pyargs', 'typhon.tests'])
