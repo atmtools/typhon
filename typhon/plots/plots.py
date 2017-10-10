@@ -601,13 +601,11 @@ def profile_z(z, x, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    z_scaled = z / 1e3  # Scale m to km
-
     # Determine min/max pressure of data in plot. The current axis limits are
     # also taken into account. This ensures complete data coverage when using
     # the function iteratively on the same axis.
-    zmin = np.min((np.min(z_scaled), *ax.get_ylim()))
-    zmax = np.max((np.max(z_scaled), *ax.get_ylim()))
+    zmin = np.min((np.min(z), *ax.get_ylim()))
+    zmax = np.max((np.max(z), *ax.get_ylim()))
     ax.set_ylim(zmin, zmax)
 
     # Label and format for yaxis.
@@ -615,7 +613,13 @@ def profile_z(z, x, ax=None, **kwargs):
         ax.set_ylabel('Height [km]')
 
     # Actual plot.
-    return ax.plot(x, z_scaled, **kwargs)
+    ret = ax.plot(x, z, **kwargs)
+
+    km_formatter = FuncFormatter(lambda n, pos: '{:g}'.format(n / 100.))
+    ax.yaxis.set_major_formatter(km_formatter)
+    ax.yaxis.set_minor_formatter(km_formatter)
+
+    return ret
 
 
 def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
