@@ -1,6 +1,6 @@
 """
-C stoud Redirection
-===================
+C stdout Redirection
+====================
 
 This module contains the CoutCapture class used to capture
 the output from C sub
