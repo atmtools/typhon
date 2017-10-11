@@ -30,6 +30,7 @@ __all__ = [
     'channels',
     'worldmap',
     'colored_bars',
+    'plot_bitfield',
 ]
 
 

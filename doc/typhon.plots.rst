@@ -27,6 +27,7 @@ plots
    HectoPascalLogFormatter
    label_axes
    mpl_colors
+   plot_bitfield
    plot_distribution_as_percentiles
    profile_p
    profile_p_log
