@@ -26,17 +26,56 @@ import os
 from typhon.environment import ARTS_BUILD_PATH, ARTS_DATA_PATH, ARTS_INCLUDE_PATH
 
 ################################################################################
+# Version Requirements
+################################################################################
+
+arts_minimum_major    = 2
+arts_minimum_minor    = 3
+arts_minimum_revision = 829
+
+################################################################################
 # Load ARTS C API
 ################################################################################
 
 if ARTS_BUILD_PATH is None:
-    raise EnvironmentError("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
+    raise EnvironmentError("ARTS_BUILD_PATH environment variable required to"
+                           + " locate ARTS API.")
 
 try:
     print("Loading ARTS API from: " + ARTS_BUILD_PATH + "/src/arts_api.so")
     arts_api = c.cdll.LoadLibrary(ARTS_BUILD_PATH + "/src/libarts_api.so")
 except:
-    raise EnvironmentError("Could not find ARTS API in your ARTS build path. Did you install it?")
+    raise EnvironmentError("Could not find ARTS API in your ARTS build path. "
+                           + "Did you install it?")
+
+################################################################################
+# Version Check
+################################################################################
+
+class VersionStruct(c.Structure):
+    """
+    The ARTS version is represented by 3 values of type long: the major, minor
+    and revision number.
+    """
+    _fields_ = [("major", c.c_long),
+                ("minor", c.c_long),
+                ("revision", c.c_long)]
+
+arts_api.get_version.argtypes = None
+arts_api.get_version.restype  = VersionStruct
+
+version = arts_api.get_version()
+if version.major < arts_minimum_major \
+   or version.minor < arts_minimum_minor \
+   or version.revision < arts_minimum_revision:
+    raise EnvironmentError("This typhon version requires at least arts-"
+                           + str(arts_minimum_major) + "."
+                           + str(arts_minimum_minor) + "."
+                           + str(arts_minimum_revision) + " of ARTS.")
+
+################################################################################
+# Initialize API
+################################################################################
 
 arts_api.initialize()
 
@@ -214,7 +253,6 @@ def variable_value_factory(value):
     TODO: Add proper error handling.
     """
     return VariableValueStruct(value)
-
 
 ################################################################################
 # Function Arguments and Return Types
