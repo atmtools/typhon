@@ -42,8 +42,9 @@ if ARTS_BUILD_PATH is None:
                            + " locate ARTS API.")
 
 try:
-    print("Loading ARTS API from: " + ARTS_BUILD_PATH + "/src/arts_api.so")
-    arts_api = c.cdll.LoadLibrary(ARTS_BUILD_PATH + "/src/libarts_api.so")
+    lib_path = os.path.join(ARTS_BUILD_PATH, "src", "libarts_api.so")
+    print("Loading ARTS API from: " + lib_path)
+    arts_api = c.cdll.LoadLibrary(lib_path)
 except:
     raise EnvironmentError("Could not find ARTS API in your ARTS build path. "
                            + "Did you install it?")
@@ -65,9 +66,9 @@ arts_api.get_version.argtypes = None
 arts_api.get_version.restype  = VersionStruct
 
 version = arts_api.get_version()
-if version.major < arts_minimum_major \
-   or version.minor < arts_minimum_minor \
-   or version.revision < arts_minimum_revision:
+if (version.major, version.minor, version.revision) \
+   < (arts_minimum_major, arts_minimum_minor, arts_minimum_revision):
+
     raise EnvironmentError("This typhon version requires at least arts-"
                            + str(arts_minimum_major) + "."
                            + str(arts_minimum_minor) + "."
