@@ -290,7 +290,7 @@ arts_api.agenda_clear.argtypes = [c.c_void_p]
 arts_api.agenda_clear.restype  = None
 
 arts_api.agenda_insert_set.argtypes = [c.c_void_p, c.c_void_p, c.c_long, c.c_long]
-arts_api.agenda_insert_set.argtypes = None
+arts_api.agenda_insert_set.restype = None
 
 arts_api.parse_agenda.argtypes = [c.c_char_p]
 arts_api.parse_agenda.restype  = c.c_void_p
