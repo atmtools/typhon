@@ -22,7 +22,7 @@ in the current environment.
 
 ## Testing
 Typhon contains a simple testing framework using [pytest]. It is good
-practice to write code for all your functions and classes. Those tests may not
+practice to write tests for all your functions and classes. Those tests may not
 be too extensive but should cover the basic use cases to ensure correct
 behavior through further development of the package.
 

@@ -26,6 +26,20 @@ possible implications with other parts of the project should be addressed.
 .. _`CSI`: https://standards.mousepawmedia.com/csi.html
 .. _`blog post`: https://dev.to/andreasklinger/comments-explain-why-not-what-and-2-more-rules-on-writing-good-comments
 
+Testing
+-------
+
+It is good practice to write tests for all your functions and classes. Those
+tests may not be too extensive but should cover the basic use cases to ensure
+correct behavior through further development of the package.
+
+The Typhon testing framework is using `pytest`_.  You can run the tests from
+the command line using::
+
+    pytest --pyargs typhon
+
+.. _`pytest`: https://docs.pytest.org/en/latest/
+
 Documentation Style
 -------------------
 
