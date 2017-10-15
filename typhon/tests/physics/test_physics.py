@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.physics.
 """
-
 import numpy as np
 
 from typhon import physics
 
 
-class TestEM(object):
+class TestEM:
     """Testing the typhon.physics.em functions."""
     def test_planck(self):
         """Test calculation of Planck black body radiation."""
@@ -95,7 +93,7 @@ class TestEM(object):
         assert x == 0.01
 
 
-class TestThermodynamics(object):
+class TestThermodynamics:
     """Testing the typhon.physics.thermodynamics functions."""
     def test_e_eq_ice_mk(self):
         """Test calculation of equilibrium water vapor pressure over ice."""

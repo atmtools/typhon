@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-
 """Testing the basic ARTS XML functions
 
 This module provides basic functions to test the reading and writing
 of ARTS XML files.
 """
-
 import os
 from tempfile import mkstemp
 
@@ -44,7 +42,8 @@ def _create_complex_tensor(n):
         np.ndarray: n-dimensional tensor
 
     """
-    return np.arange(2 ** n, dtype=np.complex128).reshape(2 * np.ones(n).astype(int))
+    return np.arange(2 ** n,
+                     dtype=np.complex128).reshape(2 * np.ones(n).astype(int))
 
 
 def _create_empty_tensor(n):
@@ -62,7 +61,7 @@ def _create_empty_tensor(n):
     return np.ndarray((0,) * n)
 
 
-class TestLoad(object):
+class TestLoad:
     """Testing the ARTS XML reading functions.
 
     This class provides functions to test the reading of XML files. For this
@@ -143,7 +142,7 @@ class TestLoad(object):
         assert np.array_equal(test_data, reference)
 
 
-class TestSave():
+class TestSave:
     """Testing the ARTS XML saving functions.
 
     This class provides functions to test the saving of XML files. Data is

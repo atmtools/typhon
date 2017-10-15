@@ -1,11 +1,9 @@
 # -*- encoding: utf-8 -*-
-
-import numpy as np
 import os
 from tempfile import mkstemp
 
+import numpy as np
 import pytest
-from nose.tools import raises
 
 from typhon.arts import griddedfield, xml
 
@@ -26,7 +24,7 @@ def _create_tensor(n):
     return np.arange(2 ** n).reshape(2 * np.ones(n).astype(int))
 
 
-class TestGriddedFieldUsage():
+class TestGriddedFieldUsage:
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
     def test_check_init(self):
@@ -43,14 +41,15 @@ class TestGriddedFieldUsage():
         gf3.data = np.ones((5, 5, 1))
         assert gf3.check_dimension() is True
 
-    @raises(Exception)
     def test_check_dimension2(self):
         """Test if grid and data dimension agree (negative)."""
         gf3 = griddedfield.GriddedField3()
         gf3.grids = [np.arange(5), np.arange(5), []]
         gf3.gridnames = ["A", "B", "C"]
-        gf3.data = np.ones((5, 5))
-        gf3.check_dimension()
+
+        # It shold not be allowed to set a Matrix as data in a GriddedField3.
+        with pytest.raises(TypeError):
+            gf3.data = np.ones((5, 5))
 
     def test_data(self):
         """Test setting and getting of data. """
@@ -137,8 +136,8 @@ class TestGriddedFieldUsage():
     def test_get(self):
         """Test the get method for named fields."""
         gf1 = griddedfield.GriddedField1(
-            grids = [['foo', 'bar']],
-            data = np.array([42, 13]),
+            grids=[['foo', 'bar']],
+            data=np.array([42, 13]),
         )
 
         assert gf1.get('foo') == np.array([42])
@@ -146,8 +145,8 @@ class TestGriddedFieldUsage():
     def test_get_default(self):
         """Test the GriddedField.get() behavior for non-existing fieldnames."""
         gf1 = griddedfield.GriddedField1(
-            grids = [['dummy']],
-            data = np.array([0]),
+            grids=[['dummy']],
+            data=np.array([0]),
         )
 
         # Return given default, if a name is not existing.
@@ -159,26 +158,25 @@ class TestGriddedFieldUsage():
     def test_get_keepdims(self):
         """Test the dimension handling of the GriddedField.get()."""
         gf1 = griddedfield.GriddedField1(
-            grids = [['foo', 'bar']],
-            data = np.array([42, 13]),
+            grids=[['foo', 'bar']],
+            data=np.array([42, 13]),
         )
 
         assert gf1.get('foo').shape == (1,)
         assert gf1.get('foo', keep_dims=False).shape == tuple()
 
-    @raises(TypeError )
     def test_get_nofieldnames(self):
         """Test behavior if first grids is not ArrayOfString."""
         gf1 = griddedfield.GriddedField1(
-            grids = [[0]],
-            data = np.array([0]),
+            grids=[[0]],
+            data=np.array([0]),
         )
 
-        # This line should raise a TypeError.
-        gf1.get(0)
+        with pytest.raises(TypeError):
+            gf1.get(0)
 
 
-class TestGriddedFieldLoad():
+class TestGriddedFieldLoad:
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
     def test_load_data(self):
