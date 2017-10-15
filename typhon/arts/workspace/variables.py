@@ -15,9 +15,11 @@ import ctypes as c
 import numpy as np
 import re
 import scipy as sp
+import tempfile
 
 from typhon.arts.workspace.api import arts_api
 from typhon.arts.workspace.agendas import Agenda
+from typhon.arts.xml import load, save
 
 class WorkspaceVariable:
     """
@@ -162,17 +164,17 @@ class WorkspaceVariable:
         """ Return the value of the variable in a given workspace.
 
         By default this function will check the value in the workspace associated
-        with the variable of in the workspace object provided as argument to the function
-        call. If the variable has an associated workspace the workspace provided as
-        argument will be ignored.
+        with the variable of in the workspace object provided as argument to the
+        function call. If the variable has an associated workspace the workspace
+        provided as argument will be ignored.
 
         Returns:
-            The value of the workspace variable represented by an object of the corresponding
-            python types.
+            The value of the workspace variable represented by an object of
+            the corresponding python types.
 
         Raises:
-            Exception: If the type of the workspace variable is not supported by the
-            interface.
+            Exception: If the type of the workspace variable is not supported
+            by the interface.
 
         """
         if (self.ws):
@@ -191,15 +193,19 @@ class WorkspaceVariable:
         elif self.group == "String":
             return (c.cast(v.ptr, c.c_char_p)).value.decode("utf8")
         elif self.group == "ArrayOfIndex":
-            return [c.cast(v.ptr, c.POINTER(c.c_long))[i] for i in range(v.dimensions[0])]
+            return [c.cast(v.ptr, c.POINTER(c.c_long))[i]
+                    for i in range(v.dimensions[0])]
         elif self.group == "Sparse":
             m    = v.dimensions[0]
             n    = v.dimensions[1]
             nnz  = v.dimensions[2]
-            data = np.ctypeslib.as_array(c.cast(v.ptr, c.POINTER(c.c_double)), (nnz,))
+            data = np.ctypeslib.as_array(c.cast(v.ptr,
+                                                c.POINTER(c.c_double)),
+                                         (nnz,))
             row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
             col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
-            return sp.sparse.csr_matrix((data, row_indices, col_starts), shape=(m,n))
+            return sp.sparse.csr_matrix((data, row_indices, col_starts),
+                                        shape=(m,n))
         elif self.group == "Agenda":
             return Agenda(v.ptr)
         elif self.ndim:
@@ -217,14 +223,18 @@ class WorkspaceVariable:
             else:
                 raise Exception("Variable of type " + self.group + " is empty.")
         else:
-            raise Exception("Type of workspace variable is not supported by the interface.")
+            try:
+                return self.to_typhon()
+            except:
+                raise Exception("Type of workspace variable is not supported "
+                                + " by the interface.")
 
     def update(self):
         """ Update data references of the object.
 
         References to vector, matrices and tensors may change and must therefore
-        be updated dynamically to ensure they are consistent with the state of the
-        associated workspace. This method takes care of that.
+        be updated dynamically to ensure they are consistent with the state of
+        the associated workspace. This method takes care of that.
 
         """
         if not self.ws==None and self.ndim:
@@ -250,6 +260,46 @@ class WorkspaceVariable:
         Print the description of the variable as given in ARTS methods.cc
         """
         print(self.description.format())
+
+    def to_typhon(self):
+        """
+        Return the value of this variable as a typhon type. This function
+        writes the value of the variable to a temporary file and reads it
+        into Python using typhon load function. The purpose of this function
+        is to access WSV whose groups are not natively supported by the
+        C API.
+
+        Returns:
+            A typhon object with the same value as the WSV in the associated
+            workspace.
+        """
+        if not self.ws:
+            raise Exception("Cannot retrieve the value of a variable without "
+                            + " associated Workspace.")
+        tmp = tempfile.NamedTemporaryFile()
+        self.ws.WriteXML("ascii", self, tmp.name)
+        v = load(tmp.name)
+        tmp.close()
+        return v
+
+    def from_typhon(self, var):
+        """
+        Set the value of this WSV in the associated workspace to the given
+        typhon type. This function writes the value in ASCII format to a
+        temporary file and reads it into the workspace
+
+        Args:
+            var: The value to which this WSV should be set in the associated
+                 workspace.
+
+        """
+        if not self.ws:
+            raise Exception("Cannot set the value of a variable without "
+                            + " associated Workspace.")
+        tmp = tempfile.NamedTemporaryFile()
+        save(var, tmp.name)
+        self.ws.ReadXML(self, tmp.name)
+
 
 # Get ARTS WSV groups
 group_names = [arts_api.get_group_name(i).decode("utf8")

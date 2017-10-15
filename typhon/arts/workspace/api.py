@@ -151,9 +151,9 @@ class VariableValueStruct(c.Structure):
     def __init__(self, value):
         """ Create a VariableValue struct from a python object.
 
-        This functions creates a variable value struct from a python object so that it
-        can be passed to the C API. If the type of the object is not supported, the data
-        pointer will be NULL.
+        This functions creates a variable value struct from a python object so
+        that it can be passed to the C API. If the type of the object is not
+        supported, the data pointer will be NONE.
 
         The built-in Python types that are currently supported are:
 
@@ -171,7 +171,7 @@ class VariableValueStruct(c.Structure):
             value(object): The python object to represent as a VariableValue struct.
 
         """
-        ptr = 0
+        ptr = None
         initialized = True
         dimensions  = [0] * 6
 

@@ -158,34 +158,56 @@ class Workspace:
 
     def add_variable(self, var):
         """
-        This will try to copy a given python variable to the ARTS workspace and return
-        a WorkspaceVariable object representing this newly created variable. Currently
-        supported types are int, str, [str], [int], and numpy.ndarrays, which will
-        automatically converted to the corresponding values ARTS groups.
+        This will try to copy a given python variable to the ARTS workspace and
+        return a WorkspaceVariable object representing this newly created
+        variable.
 
-        The user should not have to call this method explicitly, but instead it is used by
-        the WorkspaceMethod call function to transfer python variable arguments to the
-        ARTS workspace.
+        Types are natively supported by the C API are int, str, [str], [int], and
+        numpy.ndarrays. These will be copied directly into the newly created WSV.
+
+        In addition to that all typhon ARTS types the can be stored to XML can
+        be set to a WSV, but in this case the communication will happen through
+        the file systs (cf. WorkspaceVariable.from_typhon).
+
+        The user should not have to call this method explicitly, but instead it
+        is used by the WorkspaceMethod call function to transfer python
+        variable arguments to the ARTS workspace.
 
         Args:
-            var: Python variable of type int, str, [str], [int] or np.ndarray which should
-                 be copied to the workspace.
+            var: Python variable of type int, str, [str], [int] or np.ndarray
+            which should be copied to the workspace.
         """
         if type(var) == WorkspaceVariable:
             return var
+
+        # Create WSV in ARTS Workspace
         group_id = WorkspaceVariable.get_group_id(var)
+        ws_id    = arts_api.add_variable(self.ptr, group_id, None)
+        wsv      = WorkspaceVariable(ws_id,
+                                     str(id(var)),
+                                     group_names[group_id],
+                                     "User defined variable.",
+                                     self)
+
+        # Set WSV value using the ARTS C API
         s  = VariableValueStruct(var)
-        ws_id = arts_api.add_variable(self.ptr, group_id, None)
-        e = arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
-        if e:
-            arts_api.erase_variable(self.ptr, ws_id, group_id)
-            raise Exception("Setting of workspace variable failed with the following error:\n"
-                            + e.decode("utf8"))
-        return WorkspaceVariable(ws_id,
-                                 str(id(var)),
-                                 group_names[group_id],
-                                 "User defined variable.",
-                                 self)
+        if s.ptr:
+            e = arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
+            if e:
+                arts_api.erase_variable(self.ptr, ws_id, group_id)
+                raise Exception("Setting of workspace variable through C API "
+                                " failed with  the " + "following error:\n"
+                                + e.decode("utf8"))
+        # If the type is not supported by the C API try to write the type to XML
+        # and read into ARTS workspace.
+        else:
+            try:
+                wsv.from_typhon(var)
+            except:
+                raise Exception("Could not add variable since + "
+                                + str(type(var)) + " is neither supported by "
+                                + "the C API nor typhon XML IO.")
+        return wsv
 
     def __dir__(self):
         return {**workspace_variables, **self.__dict__}
