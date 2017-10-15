@@ -616,7 +616,7 @@ def profile_z(z, x, ax=None, **kwargs):
     # Actual plot.
     ret = ax.plot(x, z, **kwargs)
 
-    km_formatter = FuncFormatter(lambda n, pos: '{:g}'.format(n / 100.))
+    km_formatter = FuncFormatter(lambda n, pos: '{:g}'.format(n / 1000.))
     ax.yaxis.set_major_formatter(km_formatter)
     ax.yaxis.set_minor_formatter(km_formatter)
 
