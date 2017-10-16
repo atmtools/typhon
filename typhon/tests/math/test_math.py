@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
-
 """Testing the basic mathematical functions.
 """
-
 import numpy as np
 
-from nose.tools import raises
+import pytest
 
 from typhon import math
 
 
-class TestCommon(object):
+class TestCommon:
     """Testing common mathematical functions."""
     def test_integrate_column(self):
         """Test numerical intergration of array elements.
@@ -74,12 +72,12 @@ class TestCommon(object):
 
         assert(np.allclose(t, ref))
 
-    @raises(ValueError)
     def test_squeezable_logspace_fixpointbounds(self):
         """Test ValueError if fixpoint is out of bounds."""
-        math.squeezable_logspace(100, 1, fixpoint=1.1)
+        with pytest.raises(ValueError):
+            math.squeezable_logspace(100, 1, fixpoint=1.1)
 
-    @raises(ValueError)
     def test_squeezable_logspace_squeezebounds(self):
         """Test ValueError if squeeze is out of bounds."""
-        math.squeezable_logspace(100, 1, squeeze=2.01)
+        with pytest.raises(ValueError):
+            math.squeezable_logspace(100, 1, squeeze=2.01)

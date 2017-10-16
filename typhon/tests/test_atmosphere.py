@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.atmosphere.
 """
-
 import numpy as np
 
 from typhon import atmosphere
 
 
-class TestAtmosphere(object):
+class TestAtmosphere:
     """Testing the atmosphere functions."""
     def test_iwv(self):
         """Test the IWV calculation."""

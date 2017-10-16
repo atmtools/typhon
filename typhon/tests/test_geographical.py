@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.geographical.
 """
-
 import numpy as np
 
 from typhon import geographical
 
 
-class TestGeographical(object):
+class TestGeographical:
     """Testing the geographical functions."""
     def test_area_weighted_mean(self):
         """Test calculation of area weighted mean."""

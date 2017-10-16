@@ -1,16 +1,18 @@
+# -*- encoding: utf-8 -*-
 import numpy as np
-import unittest
+import pytest
 
 try:
     from typhon.arts.workspace import Workspace
-    skip_arts_tests = False
 except:
     skip_arts_tests = True
+else:
+    skip_arts_tests = False
 
 
-@unittest.skipIf(skip_arts_tests, 'ARTS library not available')
-class TestWorkspace(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.skipif(skip_arts_tests, reason='ARTS library not available')
+class TestWorkspace:
+    def setup_method(self):
         """This ensures a new Workspace for every test."""
         self.ws = Workspace()
 

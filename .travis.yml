@@ -14,7 +14,7 @@ matrix:
 install:
   - pip install .[tests]
 script:
-  - nosetests
+  - pytest
   - |
     if [[ "${RUN_PEP8}" == "1" ]]; then
       pip install flake8

@@ -1,26 +1,24 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.latex.
 """
-
-from tempfile import mkstemp
 import filecmp
-import numpy as np
 import os
-import unittest
+from tempfile import mkstemp
+
+import numpy as np
 
 from typhon import latex
 
 
-class TestLaTeX(unittest.TestCase):
+class TestLaTeX:
     """Testing the latex functions."""
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
-    def setUp(self):
+    def setup_method(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
 
-    def tearDown(self):
+    def teardown_method(self):
         """Delete temporary file."""
         os.remove(self.f)
 

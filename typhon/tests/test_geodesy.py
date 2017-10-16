@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
-
 """Testing the basic geodetic functions.
 """
-
 import numpy as np
 
 from typhon import constants
 from typhon import geodesy
 
 
-class TestGeodesy(object):
+class TestGeodesy:
     """Testing the geodetic functions."""
     def test_ellipsoidmodels(self):
         """Check ellipsoidmodels for valid excentricities."""

@@ -1,27 +1,25 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.plots.colors.
 """
-
 import filecmp
+import os
+from tempfile import mkstemp
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import unittest
-from tempfile import mkstemp
 
 from typhon.plots import colors
 
 
-class TestColors(unittest.TestCase):
+class TestColors:
     """Testing the cm functions."""
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
-    def setUp(self):
+    def setup_method(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
 
-    def tearDown(self):
+    def teardown_method(self):
         """Delete temporary file."""
         os.remove(self.f)
 

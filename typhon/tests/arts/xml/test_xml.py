@@ -4,12 +4,12 @@
 from os.path import (dirname, join)
 
 import numpy as np
-from nose.tools import raises
+import pytest
 
 from typhon.arts import xml
 
 
-class TestXML(object):
+class TestXML:
     """Testing high-level functionality in typhon.arts.xml."""
     ref_dir = join(dirname(__file__), "reference")
 
@@ -20,8 +20,9 @@ class TestXML(object):
 
         assert np.allclose(t['vector'], ref)
 
-    @raises(KeyError)
     def test_load_directory_exclude(self):
         """Test excluding files when loading directory content."""
         t = xml.load_directory(self.ref_dir, exclude=['vector.xml'])
-        t['vector']
+
+        with pytest.raises(KeyError):
+            t['vector']

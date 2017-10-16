@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
-
 """Testing the basic ARTS XML functions
 
 This module provides basic functions to test the reading and writing
 of ARTS XML files.
 """
-
-import unittest
 import os
 from tempfile import mkstemp
 
 import numpy as np
-from nose.tools import (raises, with_setup)
+import pytest
 
 from typhon.arts import xml
 
@@ -45,7 +42,8 @@ def _create_complex_tensor(n):
         np.ndarray: n-dimensional tensor
 
     """
-    return np.arange(2 ** n, dtype=np.complex128).reshape(2 * np.ones(n).astype(int))
+    return np.arange(2 ** n,
+                     dtype=np.complex128).reshape(2 * np.ones(n).astype(int))
 
 
 def _create_empty_tensor(n):
@@ -63,7 +61,7 @@ def _create_empty_tensor(n):
     return np.ndarray((0,) * n)
 
 
-class TestLoad(object):
+class TestLoad:
     """Testing the ARTS XML reading functions.
 
     This class provides functions to test the reading of XML files. For this
@@ -97,10 +95,16 @@ class TestLoad(object):
         test_data = xml.load(self.ref_dir + 'matrix.xml')
         assert np.array_equal(test_data, reference)
 
-    def test_load_tensor(self):
-        """Load reference XML files for different Tensor types."""
-        for n in range(3, 8):
-            yield self._load_tensor, n
+    @pytest.mark.parametrize('n', range(3, 8))
+    def test_load_tensor(self, n):
+        """Load tensor of dimension n and compare data to reference.
+
+        Args:
+            n (int): number of dimensions
+        """
+        reference = _create_tensor(n)
+        test_data = xml.load(self.ref_dir + 'tensor{}.xml'.format(n))
+        assert np.array_equal(test_data, reference)
 
     def test_load_arrayofindex(self):
         """Load reference XML file for ARTS type ArrayOfIndex."""
@@ -137,19 +141,8 @@ class TestLoad(object):
         test_data = xml.load(self.ref_dir + 'arrayofindex-comment.xml')
         assert np.array_equal(test_data, reference)
 
-    def _load_tensor(self, n):
-        """Load tensor of dimension n and compare data to reference.
 
-        Args:
-            n (int): number of dimensions
-
-        """
-        reference = _create_tensor(n)
-        test_data = xml.load(self.ref_dir + 'tensor{}.xml'.format(n))
-        assert np.array_equal(test_data, reference)
-
-
-class TestSave():
+class TestSave:
     """Testing the ARTS XML saving functions.
 
     This class provides functions to test the saving of XML files. Data is
@@ -161,11 +154,11 @@ class TestSave():
         other function.
 
     """
-    def setUp(self):
+    def setup_method(self):
         """Create a temporary file."""
         _, self.f = mkstemp()
 
-    def tearDown(self):
+    def teardown_method(self):
         """Delete temporary file."""
         for f in [self.f, self.f + '.bin']:
             if os.path.isfile(f):
@@ -250,24 +243,6 @@ class TestSave():
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-    # TODO: Test generators are incompatible with the basic unittests.
-    def test_save_empty_tensor(self):
-        """Save different empty Tensor types to file, read and verify."""
-        for n in range(3, 8):
-            yield self._save_empty_tensor, n
-
-    # TODO: Test generators are incompatible with the basic unittests.
-    def test_save_tensor(self):
-        """Save different Tensor types to file, read and verify."""
-        for n in range(3, 8):
-            yield self._save_tensor, n
-
-    # TODO: Test generators are incompatible with the basic unittests.
-    def test_save_tensor_binary(self):
-        """Save different Tensor types to file, read and verify."""
-        for n in range(3, 8):
-            yield self._save_tensor, n, 'binary'
-
     def test_save_arrayofindex(self):
         """Save ArrayOfIndex to file, read it and compare the results."""
         reference = [1., 2., 3.]
@@ -305,30 +280,34 @@ class TestSave():
 
         assert np.array_equal(ref, xml.load(f))
 
-    @raises(Exception)
     def test_save_binary_gzip(self):
         """Check for exception when attempting to write zipped binary file."""
         f = self.f + '.gz'
         ref = np.arange(10)
 
-        xml.save(ref, f, format='binary')
+        with pytest.raises(Exception):
+            xml.save(ref, f, format='binary')
 
-    def _save_tensor(self, n, format='ascii'):
+    @pytest.mark.parametrize('n', range(3, 8))
+    @pytest.mark.parametrize('fileformat', ['ascii', 'binary'])
+    def test_save_load_tensor(self, n, fileformat):
         """Save tensor of dimension n to file, read it and compare data to
         reference.
 
         Args:
             n (int): number of dimensions
+            fileformat (str): 'ascii' or 'binary'.
 
         """
         reference = _create_tensor(n)
-        xml.save(reference, self.f, format=format)
+        xml.save(reference, self.f, format=fileformat)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
 
-    def _save_empty_tensor(self, n):
-        """Save empty tensor of dimension n to file, read it and compare data to
-        reference.
+    @pytest.mark.parametrize('n', range(3, 8))
+    def test_save_empty_tensor(self, n):
+        """Save empty tensor of dimension n to file, read it and compare data
+        to reference.
 
         Args:
             n (int): number of dimensions

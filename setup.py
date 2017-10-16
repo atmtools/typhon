@@ -97,10 +97,14 @@ setup(
             'pint',
         ],
         'tests': [
-            'nose>=1.3.0',
+            'pytest',
             'pint',
         ],
     },
+
+    # Additional requirements to make `$ python setup.py test` work.
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest'],
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these

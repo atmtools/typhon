@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.plots.
 """
-
 import os
 
 from typhon import plots
 
 
-class TestPlots(object):
+class TestPlots:
     """Testing the plot functions."""
     def test_figsize(self):
         """Test golden ratio for figures sizes."""

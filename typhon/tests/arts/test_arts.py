@@ -1,18 +1,16 @@
 # -*- coding: utf-8 -*-
-
 """Testing the functions in typhon.arts.
 """
-
-import unittest
 import shutil
+
+import pytest
 
 from typhon import arts
 
 
-class TestPlots(object):
+class TestPlots:
     """Testing the plot functions."""
-    # TODO: Currently issue with ipython not displaying it as skipped
-    @unittest.skipIf(not shutil.which('arts'), 'arts not in PATH')
+    @pytest.mark.skipif(not shutil.which('arts'), reason='arts not in PATH')
     def test_run_arts(self):
         """Test ARTS system call.
 
