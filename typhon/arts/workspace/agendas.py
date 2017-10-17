@@ -33,12 +33,15 @@ class Agenda:
         m_id, args_out, args_in, temps = m._parse_output_input_lists(ws, args[3:], kwargs)
         arg_out_ptr = c.cast((c.c_long * len(args_out))(*args_out), c.POINTER(c.c_long))
         arg_in_ptr = c.cast((c.c_long * len(args_in))(*args_in), c.POINTER(c.c_long))
-        for t in temps:
-            arts_api.agenda_insert_set(ws.ptr, self.ptr, t.ws_id, t.group_id)
-        arts_api.agenda_add_method(c.c_void_p(self.ptr), m_id,
-                                   len(args_out), arg_out_ptr,
-                                   len(args_in), arg_in_ptr)
-
+        if not m.name[-3:] == "Set":
+            for t in temps:
+                arts_api.agenda_insert_set(ws.ptr, self.ptr, t.ws_id, t.group_id)
+            arts_api.agenda_add_method(c.c_void_p(self.ptr), m_id,
+                                       len(args_out), arg_out_ptr,
+                                       len(args_in), arg_in_ptr)
+        else:
+            group_id = arts_api.get_variable(args_out[0]).group
+            arts_api.agenda_insert_set(ws.ptr, self.ptr, args_out[0], group_id)
 
     def execute(self, ws):
         """ Execute this agenda on the given workspace.
