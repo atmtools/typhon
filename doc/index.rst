@@ -13,4 +13,5 @@ A collection of tools for atmospheric research with Python 3.
 
    modules
    developer
+   tutorials
 
