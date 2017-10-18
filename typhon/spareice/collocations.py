@@ -7,8 +7,6 @@ TODO: I would like to have this package as typhon.collocations.
 Created by John Mrziglod, June 2017
 """
 
-__all__ = [s for s in dir() if not s.startswith('_')]
-
 from collections import OrderedDict
 import datetime
 import time
@@ -30,191 +28,36 @@ import xarray as xr
 from .datasets import Dataset, InhomogeneousFilesError
 
 __all__ = [
-    "CollocatedData"
     "CollocatedDataset"
 ]
 
-class CollocatedData(OrderedDict):
-    markers = ["o", "+", "*", "x", ".", ">"]
-    colors = ["r", "b", "y", "g", "k"]
-
-    field_names = {
-        "collocations": "collocations",
-        "original_indices": "indices",
-    }
-
-    def __init__(self, data_list=None):
-        """
-
-        Args:
-            data_list: (optional) List of data
-        """
-        super(CollocatedData, self).__init__()
-
-        self.attrs = {
-            "datasets": [],
-        }
-
-        if datasets is not None:
-            for data in data_list:
-                self.add(data)
-
-    def __iadd__(self, value):
-        self.add(*value)
-
-        return self
-
-    def add(self, name, data):
-        if data.name in self:
-            warnings.warn(
-                "CollocatedData: Overwrite dataset with name '%s'!" %
-                data.name, RuntimeWarning)
-
-        self[dataset.name] = dataset.copy()
-
-        if collocations is not None:
-            self[dataset.name]["collocation_id"] = xr.DataArray(
-                np.arange(len(collocations)), dims=["collocation_id"], attrs={
-                    "description": "Collocation id of the %s data." % dataset.name})
-            self[dataset.name]["collocations"] = xr.DataArray(
-                collocations, dims=["collocation_id"], attrs={
-                    "description": "Collocation indices of the %s data." % dataset.name})
-
-        if original_indices is not None:
-            self[dataset.name]["indices"] = xr.DataArray(
-                original_indices, dims=["time_id"],
-                attrs={"description": "Indices of the %s data in the original files." % dataset.name})
-
-        self.attrs["datasets"].append(dataset.name)
-        self.attrs["original_files"].append(original_file)
-
-    def collapse(self, collapser=np.nanmean):
-        # Find the primary dataset (with the coarsest points, i.e. shortest time vector):
-        primary = None
-        for dataset in self.values():
-            if primary is None or len(primary["time_id"]) > len(dataset["time_id"]):
-                primary = dataset
-
-        primary["collocations"]
-
-        self.attrs["collapsed"] = True
-
-    def concat(self, others):
-        """
-
-        Args:
-            others:
-
-        Returns:
-            None
-        """
-        #if self.max_interval != other.max_interval or self.max_distance != other.max_distance:
-        #    warnings.warn("The CollocatedData objects have different maximal distances and time intervals while "
-        #                  "concating.")
-
-        for dataset in self:
-            print("Concating...")
-            last_collocation_id = self[dataset]["collocation_id"].max()
-            for other in others:
-                other[dataset]["collocation_id"] += last_collocation_id
-                last_collocation_id = other[dataset]["collocation_id"].max()
-            self[dataset].concat(others, dimension=["time_id", "collocation_id"])
-
-    @classmethod
-    def from_xarray(cls, xarray_object):
-        """
-
-        Args:
-            xarray_object:
-
-        Returns:
-            CollocatedData object
-        """
-        collocated_data = cls()
-
-
-
-
-        collocated_data.attrs.update(**attrs)
-
-        return collocated_data
-
-    def get_time_coverage(self):
-        times = list(chain.from_iterable(data.get_time_coverage() for data in self.values()))
-        return min(times), max(times)
-
-    @property
-    def max_interval(self):
-        """The maximal time interval between two collocated points in seconds.
-        """
-        return self.attrs["max_interval"][0]
-
-    @max_interval.setter
-    def max_interval(self, value):
-        self.attrs["max_interval"][0] = str(value)
-
-    @property
-    def max_distance(self):
-        """The maximal spatial distance between two collocated points in kilometers.
-        """
-        return self.attrs["max_distance"][0]
-
-    @max_distance.setter
-    def max_distance(self, value):
-        self.attrs["max_distance"][0] = str(value)
-
-    def to_xarray(self):
-        """
-
-        Returns:
-
-        """
-        xarray_object = xr.Dataset()
-
-        for index, dataset in enumerate(self.items()):
-            name, data = dataset
-
-            # It would be nice if xarray supported groups natively. So far it
-            # does not, so we use this approach using the string delimiter ".":
-            renamed_data = data.rename({k : name+"."+k for k in data})
-            xarray_object = xr.merge([xarray_object, renamed_data])
-
-        # Add additional attributes:
-        attrs = {}
-        for key, value in self.attrs.items():
-            if isinstance(value, list):
-                attrs[key] = ";".join(value)
-
-        xarray_object.attrs.update(attrs)
-
-        start_time, end_time = self.get_time_coverage()
-        xarray_object.attrs["start_time"] = start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
-        xarray_object.attrs["end_time"] = end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
-
-        return xarray_object
-
 
 class CollocatedDataset(Dataset):
-    """Still under development."""
+    """Still under development.
+
+    Class that can find collocations amongst different datasets with
+    geographical data and store them.
+
+    Collocations are match-ups between two datasets, i.e. a data point from
+    a dataset that is located close to another data point from a secondary
+    dataset in space and time.
+    """
 
     def __init__(self, *args, datasets=None, **kwargs):
-        """ Class that can find collocations amongst different datasets and
-        store them.
+        """Initializes a CollocatedData object.
 
-        Collocations are match-ups between two datasets, i.e. a data point from
-        a dataset that is located close to another data point from a
-        secondary dataset in space and time.
-
-        Since this class inherits from the typhon.datasets.Dataset class please
-        look also at its documentation.
+        Since this class inherits from the
+        :class:`typhon.spareice.datasets.Dataset` class, please look also at
+        its documentation.
 
         Args:
-            datasets: A list of datasets.Dataset() objects that you want to be
-                collocated with each other. At the moment, it is only
-                possible to find collocations between two different datasets at
-                the same time. This will be changed in the future.
-            *args: Additional arguments that will passed to the
-                datasets.Dataset base class.
+            *args: Positional arguments that will passed to the
+                :class:`typhon.spareice.datasets.Dataset` base class.
+            datasets: A list of :class:`typhon.spareice.datasets.Dataset`
+                objects that you want to be collocated with each other. At
+                the moment, it is only possible to find collocations between
+                two different datasets at the same time. This will be
+                changed in the future.
             **kwargs: Additional keyword arguments that will passed to the
                 datasets.Dataset base class.
 
@@ -225,35 +68,42 @@ class CollocatedDataset(Dataset):
             from typhon.spareice.datasets import Dataset
             from typhon.spareice.collocations import CollocatedDataset
 
-            # Define the two dataset amongst them you want to find collocations.
+            # Define the two dataset amongst them you want to find
+            # collocations.
             dataset1 = Dataset(
                 name="MHS",
                 files="/path/to/files/noaa18_mhs_{year}/{month}/{day}/*.h5",
-                file_handler=tovs.MHSAAPPFile(), # file_handler
+                handler=tovs.MHSAAPP(), # file_handler
                 timestamp_retrieving_method="content"
             )
             dataset2 = Dataset(
                 name="2C-ICE",
                 files="/path2/to/files/{year}/{doy}/{year}{doy}{hour}{minute}{second}_*.hdf.zip",
-                file_handler=cloudsat.CPR2CICEFile(),  # file_handler
+                handler=cloudsat.CPR2CICEFile(),  # file_handler
             )
 
-            # Create the collocated dataset. The parameters "files" and "file_handler" tells the object where the
-            # collocations should be stored and which format should be used.
+            # Create the collocated dataset. The parameters "files" and
+            # "file_handler" tells the object where the collocations should
+            be stored and which format should be used.
             collocated_dataset = CollocatedDataset(
                 datasets=[dataset1, dataset2],
                 name="CollocatedDataset",
-                # The found collocations will be stored as NetCDF4 files in this path:
+                # The found collocations will be stored as NetCDF4 files in
+                # this path:
                 files="CollocatedDataset/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                # If you need another data format than NetCDF4 then pass another file handler object:
+                # If you need another data format than NetCDF4 then pass
+                # another file handler object:
                 handler=common.NetCDF4(),
             )
 
             # Define the period where you want to collocate.
-            start, end = datetime.datetime(2007, 1, 1), datetime.datetime(2007, 1, 2)
+            start = datetime.datetime(2007, 1, 1)
+            end = datetime.datetime(2007, 1, 2)
 
-            # Find the collocations with a maximum distance of 200km and temporal interval of 300 seconds. Extract the
-            # field "brightness_temperature" from the primary and "ice_water_path" from the secondary dataset.
+            # Find the collocations with a maximum distance of 200km and
+            # temporal interval of 300 seconds. Extract the
+            # field "brightness_temperature" from the primary and
+            # "ice_water_path" from the secondary dataset.
             collocated_dataset.collocate(
                 start, end,
                 fields=[["brightness_temperature"], ["ice_water_path"]],
@@ -262,9 +112,10 @@ class CollocatedDataset(Dataset):
         """
         super().__init__(**kwargs)
 
+        self._datasets = []
         self.datasets = datasets
 
-    def collapse(self, start, end, collapse_to, inhomogeneity_filter=None):
+    def collapse(self, start, end, collapse_to, **collapsing_args):
         """ Accumulates the data between two dates but collapses multiple
         collocations from one dataset to a single data point.
 
@@ -279,10 +130,9 @@ class CollocatedDataset(Dataset):
             end: Ending date as datetime.datetime object.
             collapse_to: Name of dataset which has the coarsest footprint. All
                 other datasets will be collapsed to its datapoints.
-            collapser: Collapser function that should be applied on the
-                multiple collocation points. Default is numpy.nanmean.
-            **kwargs: All additional arguments that are valid for
-                Dataset.accumulate as well.
+            **collapsing_args: Additional keyword arguments for the
+                GeoData.collapser method (including collapser function,
+                variation filter, etc.).
 
         Returns:
             TODO
@@ -293,7 +143,7 @@ class CollocatedDataset(Dataset):
         datasets = None
         first_file = None
         for file, _ in self.find_files(start, end, sort=True):
-            collocated_data = self.read(file)
+            collocated_data = GeoData.from_xarray(self.read(file))
 
             # Retrieve all dataset names (only once)
             if datasets is None:
@@ -305,9 +155,26 @@ class CollocatedDataset(Dataset):
                     "different datasets than '{}'!".format(file, first_file)
                 )
 
-            bins = collocated_data.groupby(
-                collapse_to + ".collocations", squeeze=False).groups
-            bin_indices = [bin[0] for bin in bins.values()]
+            # Get the bin indices by the main dataset to which all other
+            # shall be collapsed:
+            bin_indices = collocated_data[name + "/collocations"].groupby(
+                name + "/collocations"
+            )
+            print(bin_indices)
+            exit()
+
+            collapsed_data = GeoData()
+            for dataset in collocated_data.groups(deep=True):
+                if dataset == "/":
+                    continue
+
+                bins = np.split(
+                    collocated_data[dataset + "collocations"].data,
+                    bin_indices)[1:]
+
+                collapsed_data[dataset] = collocated_data.collapse(
+                    bins, **collapsing_args
+                )
 
             binned_collocations = {}
             for name in datasets:
@@ -582,6 +449,24 @@ class CollocatedDataset(Dataset):
                 self.datasets[0].name, total_secondaries_points,
                 self.datasets[1].name,
                 end - start))
+
+    @property
+    def datasets(self):
+        """Gets or sets the datasets that you want to collocate.
+
+        Returns:
+            A list with the dataset objects.
+        """
+        return self._datasets
+
+    @datasets.setter
+    def datasets(self, value):
+        for dataset in value:
+            if ";" in dataset.name:
+                raise NameError("There is no ';' allowed in dataset names "
+                                "that you want to collocate!")
+
+        self._datasets = value
 
     @staticmethod
     def find_collocations(

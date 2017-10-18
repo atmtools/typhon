@@ -20,6 +20,10 @@ __all__ = [
 
 
 class GeoData:
+    """Still under development.
+
+    """
+
     def __init__(self, name=None):
         """A specialised container for geographical indexed data (with
         longitude, latitude and time field).
@@ -27,18 +31,12 @@ class GeoData:
         Since the xarray.Dataset class cannot handle groups and is difficult to
         extend (see http://xarray.pydata.org/en/stable/internals.html#extending-xarray
         for more details).
-
-
-        Args:
-            data: (optional) A xr.Dataset object, must contain a *time*,
-                *lat* and *lon* field.
-            prefix: (optional) The fields might have a prefix before their
-                name (e.g. *DatasetA.time*).
         """
 
-        self._groups = defaultdict(GeoData)
-        # Add the main group:
-        self._groups["/"] = {}
+        self.attrs = {}
+
+        self._groups = {}
+        self._vars = {}
 
         if name is None:
             self.name = "<GeoData="+str(id(self))+">"
@@ -47,17 +45,17 @@ class GeoData:
 
     def __contains__(self, item):
         group, field = self.parse(item)
-        if group not in self._groups:
+        if group not in self._fields:
             return False
 
-        return field in self._groups[group]
+        return field in self._fields[group]
 
     def __iter__(self):
-        self._vars = self.vars(recursive=True)
+        self._iter_vars = self.vars(deep=True)
         return self
 
     def __next__(self):
-        return next(self._vars)
+        return next(self._iter_vars)
 
     def __len__(self):
         if "time" not in self:
@@ -67,7 +65,7 @@ class GeoData:
 
     def __str__(self):
         info = self.name + "\n"
-        for group in self.groups():
+        for group in self.groups(deep=True):
             if group == "/":
                 info += "- Main group:\n"
                 info += "-" * len("- Main group:")
@@ -84,32 +82,63 @@ class GeoData:
 
     def __delitem__(self, key):
         group, field = self.parse(key)
+        if not group:
         if not field:
             del self._groups[group]
         else:
-            del self._groups[group][field]
+            del self._fields[group][field]
 
     def __getitem__(self, item):
-        group, field = self.parse(item)
-        if not field:
-            return self._groups[group]
-        return self._groups[group][field]
+        group, var = self.parse(item)
+
+        # The main group is requested:
+        if not group and not var:
+            return self._vars
+
+        if not group:
+            if var in self._vars:
+                return self._vars[var]
+
+            try:
+                return self._groups[var]
+            except KeyError:
+                raise KeyError("There is neither a variable nor group named "
+                               "'{}'!".format(var))
+
+        if not var:
+            return self._groups[group][var]
+
+        return self._groups[group][var]
 
     def __setitem__(self, key, value):
-        group, field = self.parse(key)
-        if not field:
-            if not isinstance(value, GeoData):
-                raise ValueError("Group value must be a GeoData object!")
-            elif group == "/" and not isinstance(value, dict):
-                raise ValueError("Main group value must be a dictionary "
-                                 "or xarray.DataArray!")
-            self._groups[group] = value
-        else:
-            self._groups[group][field] = value
+        group, var = self.parse(key)
 
-    def bin(self, bins, fields=None):
+        if not group and not var:
+            raise ValueError("You cannot change the main group directly!")
+
+        if not group:
+            if isinstance(value, xr.DataArray):
+                self._vars[var] = value
+            elif isinstance(value, GeoData):
+                self._groups[group] = value
+            else:
+                raise ValueError("Value must be either a GeoData (group) "
+                                 "or xarray.DataArray (variable) object!")
+
+        if not var:
+            if isinstance(value, xr.DataArray):
+                self._vars[var] = value
+            else:
+                raise ValueError("Main group value must be a "
+                                 "xarray.DataArray!")
+            self._vars[group] = value
+        else:
+
+        self._fields[group][field] = value
+
+    def bin(self, bins, fields=None, deep=False):
         new_data = GeoData()
-        for var, data in self.group("/").items():
+        for var, data in self.items(deep):
             if fields is not None and var not in fields:
                 continue
             binned_data = np.asarray([
@@ -122,8 +151,12 @@ class GeoData:
             new_data[var] = xr.DataArray.from_dict(data_dict)
         return new_data
 
-    def collapse(self, bins, collapser=np.nanmean,
-                 variation_filter=None):
+    def collapse(self, bins, collapser=None,
+                 variation_filter=None, deep=False):
+        # Default collapser is the mean function:
+        if collapser:
+            collapser = np.nanmean
+
         # Exclude all bins where the inhomogeneity (variation) is too high
         passed = np.ones_like(bins).astype("bool")
         if isinstance(variation_filter, tuple):
@@ -133,7 +166,12 @@ class GeoData:
                                      "for 1-dimensional data! I.e. the field "
                                      "'{}' must be 1-dimensional!".format(
                                         variation_filter[0]))
+
+                # Bin only one field for testing of inhomogeneities:
                 binned = self.bin(bins, fields=(variation_filter[0]))
+
+                # The user can define a different variation function (
+                # default is the standard deviation).
                 if len(variation_filter) == 2:
                     variation = np.nanstd(binned[variation_filter[0]], 1)
                 else:
@@ -146,8 +184,10 @@ class GeoData:
                                  "variation function (latter is optional).")
 
         bins = np.asarray(bins)
-        collapsed_data = self.bin(bins[passed])
-        for var, data in collapsed_data.items():
+
+        # Before collapsing the data, we must bin it:
+        collapsed_data = self.bin(bins[passed], deep)
+        for var, data in collapsed_data.items(deep):
             data_dict = data.to_dict()
             data_dict["data"] = collapser(data_dict["data"], 1)
             data_dict["dims"] = data_dict["dims"][1:]
@@ -169,35 +209,47 @@ class GeoData:
         return new_data
 
     def data(self):
-        for group in self._groups.values():
+        for group in self._fields.values():
             for data in group.values():
                 yield data
 
     @classmethod
-    def from_xarray(cls, xarray_object, mapping=None, prefix=None):
+    def from_xarray(cls, xarray_object):
         """Creates a GeoData object from a xarray.Dataset object.
 
         Args:
-            xarray_object:
-            mapping:
-            prefix:
+            xarray_object: A xarray.Dataset object.
 
         Returns:
             GeoData object
         """
 
-        if prefix is not None:
-            # Retrieve only those field which start with the searched prefix:
-            fields_to_drop = [
-                field for field in xarray_object
-                if not field.startswith(prefix)]
-            xarray_object = xarray_object.drop(fields_to_drop)
+        geo_data = cls()
+        for var in xarray_object:
+            geo_data[var] = xarray_object[var]
 
-        return cls(xarray_object, prefix)
+        geo_data.attrs.update(**xarray_object.attrs)
 
-    def get_time_coverage(self, to_numpy=False):
-        start = pd.to_datetime(str(self["time"].min().data))
-        end = pd.to_datetime(str(self["time"].max().data))
+        return geo_data
+
+    def get_time_coverage(self, deep=False, to_numpy=False):
+        """
+
+        Args:
+            deep: Including also subgroups (not only main group).
+            to_numpy:
+
+        Returns:
+
+        """
+        start = []
+        end = []
+        for group in self.groups(deep):
+            start.append(pd.to_datetime(str(self[group + "time"].min().data)))
+            end.append(pd.to_datetime(str(self[group + "time"].max().data)))
+
+        start = min(start)
+        end = max(end)
 
         if to_numpy:
             start = np.datetime64(start)
@@ -205,19 +257,33 @@ class GeoData:
         return start, end
 
     def group(self, name):
-        return self._groups[name]
+        return self._fields[name]
 
-    def groups(self):
+    def groups(self, deep=True):
         """Returns the names of all groups in this GeoData object.
+
+        Args:
+            deep: Including also subgroups (not only main group).
 
         Yields:
             Name of groups.
         """
-        for group in self._groups:
-            yield group
+        if deep:
+            for group in self._fields:
+                yield group
+        else:
+            yield "/"
 
-    def items(self, recursive=False):
-        if recursive:
+    def items(self, deep=False):
+        """
+
+        Args:
+            deep: Including also subgroups (not only main group).
+
+        Returns:
+
+        """
+        if deep:
             for var in self:
                 yield var, self[var]
         else:
@@ -241,24 +307,43 @@ class GeoData:
             # Update the main group
             merged_data.group("/").update(**obj.group("/"))
 
-            sub_groups = obj._groups.copy()
+            sub_groups = obj._fields.copy()
             del sub_groups["/"]
 
             # Update sub groups
-            merged_data._groups.update(**sub_groups)
+            merged_data._fields.update(**sub_groups)
 
         return merged_data
 
     @staticmethod
-    def parse(field):
-        if field == "/":
-            return "/", ""
+    def parse(key):
+        """Parses *key* into group and field.
 
-        if "/" not in field:
-            return "/", field
+        You can access the groups and fields via different keys:
 
-        group, key = field.split("/", 1)
-        return group, key
+        * "value": Returns ("", "value")
+        * "/value": Returns ("", "value")
+        * "value1/value2": Returns ("value1", "value2")
+        * "value1/": Returns ("value1", "")
+        * "/": Returns ("", "")
+
+        Args:
+            key:
+
+        Returns:
+
+        """
+        if key == "/":
+            return "", ""
+
+        if key.startswith("/"):
+            return "", key[1:]
+
+        if "/" not in key:
+            return "", key
+
+        group, field = key.split("/", 1)
+        return group, field
 
     def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
         """
@@ -291,7 +376,6 @@ class GeoData:
 
         Args:
             indices:
-            dimension:
             limit_to:
 
         Returns:
@@ -302,24 +386,25 @@ class GeoData:
         for field in self:
             group, var = self.parse(field)
 
-            print("Group: ", group, ", Var:", var)
-
             if limit_to is None or group == limit_to:
-                print(self[field])
-                print(indices)
                 selected_data[field] = self[field][indices]
 
         return selected_data
 
     def to_xarray(self):
-        """
+        """Converts this GeoData object to a xarray.Dataset.
 
         Returns:
-            xarray.Dataset()
+            A xarray.Dataset object
         """
-        xarray_object = self.data
 
-        start_time, end_time = self.get_time_coverage()
+        xarray_object = xr.Dataset()
+        for var, data in self.items(deep=True):
+            xarray_object[var] = data
+
+        xarray_object.attrs.update(**self.attrs)
+
+        start_time, end_time = self.get_time_coverage(deep=True)
         xarray_object.attrs["start_time"] = \
             start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
         xarray_object.attrs["end_time"] = \
@@ -327,23 +412,20 @@ class GeoData:
 
         return xarray_object
 
-    def vars(self, recursive=False):
+    def vars(self, deep=False):
         """Returns the names of all variables in this GeoData object main
         group.
 
         Args:
-            recursive: Include all variables of its subgroups.
+            deep: Including also subgroups (not only main group).
 
         Yields:
             Full name of one variable (including group name).
         """
 
-        for group in self.groups():
-            if group == "/":
-                yield from self.group(group)
-            else:
-                for var in self.group(group).vars():
-                    if group == "/":
-                        yield var
-                    else:
-                        yield group+"/"+var
+        for var in self._vars:
+            yield var
+
+        if deep:
+            for group in self.groups():
+                yield self[group].vars(True)

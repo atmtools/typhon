@@ -160,6 +160,13 @@ class Dataset:
 
             yield file
     """
+    def __contains__(self, item):
+        start = self._to_datetime(item)
+        end = start + datetime.timedelta(seconds=5)
+        for _, _ in self.find_files(start, end):
+            return True
+
+        return False
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -194,8 +201,10 @@ class Dataset:
         """Accumulate all data between two dates in one object.
 
         Args:
-            start: Starting date as datetime.datetime object.
-            end: Ending date as datetime.datetime object.
+            start: Start date either as datetime.datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
             concat_func: Function that concatenates the read data to
                 another. The first argument must be a list of objects to
                 concatenate.
@@ -277,7 +286,7 @@ class Dataset:
             *method_arguments*.
         """
         self, file_info, read_arguments, method, method_arguments, \
-        return_file_info, overwrite = args
+            return_file_info, overwrite = args
         filename, time_coverage = file_info
 
         if read_arguments is None:
@@ -358,8 +367,9 @@ class Dataset:
         file handler.
 
         Args:
-            start: Start date as datetime.datetime object with year, month and
-                day. Hours, minutes and seconds are optional.
+            start: Start date either as datetime.datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             destination: The new path of the files. Must contain place holders
                 (such as {year}, {month}, etc.).
@@ -386,9 +396,9 @@ class Dataset:
                 files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
             )
-            new_dataset = old_dataset.copy_to(
+            new_dataset = old_dataset.copy(
+                date1, date2,
                 "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
-                start=date1, end=date2
             )
 
         .. code-block:: python
@@ -401,9 +411,9 @@ class Dataset:
             # Note that this only works if the converter file handler
             # (FileHandlerPNG in this example) supports
             # writing to a file.
-            new_dataset = old_dataset.copy_to(
+            new_dataset = old_dataset.copy(
+                date1, date2,
                 "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.png",
-                start=date1, end=date2,
                 converter=FileHandlerPNG(),
             )
         """
@@ -733,13 +743,17 @@ class Dataset:
                     yield from self._get_all_files(sub_directory)
 
     def get_info(self, filename):
-        """
+        """Gets info about a file by using the dataset's file handler.
+
+        Notes:
+            You need to specify a file handler for this dataset before you
+            can use this method.
 
         Args:
-            filename:
+            filename: Path and name of the file.
 
         Returns:
-
+            Dictionary with information about the file.
         """
         if self.handler is None:
             raise ValueError("Could not get info from the file '{}'! No file "
@@ -825,7 +839,7 @@ class Dataset:
 
         results = pool.map(
             Dataset._call_function_with_file_info,
-            [(self, x, func, func_arguments, include_file_info_in_results)
+            [(self, x, func, func_arguments, include_file_info)
              for x in self.find_files(start, end, verbose=verbose)]
         )
 
@@ -841,9 +855,9 @@ class Dataset:
 
     def map_content(
             self, start, end,
-            method, method_arguments=None,
+            func, func_arguments=None,
             reading_arguments=None, overwrite=False,
-            max_processes=4, include_file_info_in_results=False, verbose=False):
+            max_processes=4, include_file_info=False, verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
 
@@ -861,33 +875,33 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            method: Depending on the argument read_before_processing, this
-                should be a reference to a function or a
-                method of the object that the file handler read() method
-                returns. If it is a function, it should accept at least
-                three arguments: the dataset object, the filename and the time
-                coverage of the file (tuple of two datetime objects).
-                Additional keyword arguments can be passed via function_arguments.
-            method_arguments: Additional keyword arguments for the function or method.
-            reading_arguments: Additional keyword arguments that will be passed to the reading function
-                (see Dataset.read() for more information).
+            func: A reference to a function. The function should expect
+                as first argument the content object which is returned by
+                the file handler's *read* method.
+            func_arguments: Additional keyword arguments for the function.
+            reading_arguments: Additional keyword arguments that will be passed
+                to the reading function (see Dataset.read() for more
+                information).
             overwrite: Set this to true if you want to overwrite the old file
                 content with the new one (assuming the
                 used method changed something of the file content). The
                 current file handler needs to support writing
                 data to file. Otherwise you should consider to convert your
                 dataset via Dataset.copy_to() first.
-            max_processes: Max. number of parallel processes to use. When lacking performance, you should change this
-                    number. On mistral, this should be at least 18 to show a significant performance boost.
-            include_file_info_in_results: Since the order of the returning results is arbitrary, you can include the
-                name of the processed file and its time coverage in the results.
+            max_processes: Max. number of parallel processes to use. When
+                lacking performance, you should change this number.
+            include_file_info: Since the order of the returning
+                results is arbitrary, you can include the name of the
+                processed file and its time coverage in the results.
             verbose: If this is true, debug information will be printed.
 
         Returns:
-            A list with one item for each processed file. The order is arbitrary. If include_file_info_in_results is
-            true, the item is a tuple with the name of the file, its time coverage (a tuple of two datetime objects) and
-            the return value of the applied method. If include_file_info_in_results is false, it is simply the
-            return value of the applied method.
+            A list with one item for each processed file. The order is
+            arbitrary. If *include_file_info_in_results* is true, the item is
+            a tuple with the name of the file, its time coverage (a tuple of
+            two datetime objects) and the return value of the applied
+            method. If *include_file_info_in_results* is false, it is simply
+            the return value of the applied function.
 
         Examples:
 
@@ -905,8 +919,8 @@ class Dataset:
 
         results = pool.map(
             Dataset._call_method_of_file_content,
-            [(self, x, reading_arguments, method, method_arguments,
-              include_file_info_in_results, overwrite)
+            [(self, x, reading_arguments, func, func_arguments,
+              include_file_info, overwrite)
              for x in self.find_files(start, end, verbose=verbose)]
         )
 
@@ -922,25 +936,32 @@ class Dataset:
 
     @property
     def name(self):
+        """Gets or sets the dataset's name.
+
+        Returns:
+            A string with the dataset's name.
+        """
         return self._name
 
     @name.setter
     def name(self, value):
         if value is None:
             value = str(id(self))
-        elif ";" in value or "." in value:
-            raise ValueError("There are no ';' or '.' allowed in dataset "
-                             "names.")
 
         self._name = value
         self.placeholder["name"] = value
 
     def read(self, filename, **reading_arguments):
-        """Open and reads a file.
+        """Opens and reads a file.
+
+        Notes:
+            You need to specify a file handler for this dataset before you
+            can use this method.
 
         Args:
             filename: Path and name of the file to read.
-            **reading_arguments:
+            **reading_arguments: Additional key word arguments for the
+                *read* method of the used file handler class.
 
         Returns:
             The content of the read file.
@@ -954,13 +975,16 @@ class Dataset:
             return data
 
     def read_period(self, start, end, **reading_arguments):
-        """Reads all files between two dates and returns their content sorted by
-        their starting time.
+        """Reads all files between two dates and returns their content sorted
+        by their starting time.
 
         Args:
-            start:
-            end:
-            **reading_arguments:
+            start: Start date either as datetime.datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            **reading_arguments: Additional key word arguments for the
+                *read* method of the used file handler class.
 
         Yields:
             The content of the read file.
@@ -1070,12 +1094,17 @@ class Dataset:
                            "objects!" % type(obj))
 
     def write(self, filename, data, **writing_arguments):
-        """
+        """Writes content to a file by using the Dataset's file handler.
+
+        Notes:
+            You need to specify a file handler for this dataset before you
+            can use this method.
 
         Args:
-            filename:
-            data:
-            **writing_arguments:
+            filename: Path and name of the file where to put the data.
+            data: An object that can be stored by the used file handler class.
+            **writing_arguments: Additional key word arguments for the
+            *write* method of the used file handler class.
 
         Returns:
             None

@@ -8,20 +8,6 @@ spareice
 .. autosummary::
    :toctree: generated
 
-spareice.datasets
-=================
-
-.. automodule:: typhon.spareice.datasets
-
-.. currentmodule:: typhon.spareice.datasets
-
-.. autosummary::
-   :toctree: generated
-
-   Dataset
-   DatasetManager
-   GeoDataset
-
 spareice.collocations
 =====================
 
@@ -34,6 +20,31 @@ spareice.collocations
 
    CollocatedDataset
 
+spareice.datasets
+=================
+
+.. automodule:: typhon.spareice.datasets
+
+.. currentmodule:: typhon.spareice.datasets
+
+.. autosummary::
+   :toctree: generated
+
+   Dataset
+   DatasetManager
+
+spareice.geographical
+=====================
+
+.. automodule:: typhon.spareice.geographical
+
+.. currentmodule:: typhon.spareice.geographical
+
+.. autosummary::
+   :toctree: generated
+
+   GeoData
+
 spareice.handlers
 =================
 
@@ -44,5 +55,38 @@ spareice.handlers
 .. autosummary::
    :toctree: generated
 
+spareice.handlers.cloudsat
+==========================
 
+.. automodule:: typhon.spareice.handlers.cloudsat
 
+.. currentmodule:: typhon.spareice.handlers.cloudsat
+
+.. autosummary::
+   :toctree: generated
+
+   CPR2CICE
+
+spareice.handlers.common
+========================
+
+.. automodule:: typhon.spareice.handlers.common
+
+.. currentmodule:: typhon.spareice.handlers.common
+
+.. autosummary::
+   :toctree: generated
+
+   NetCDF4
+
+spareice.handlers.tovs
+======================
+
+.. automodule:: typhon.spareice.handlers.tovs
+
+.. currentmodule:: typhon.spareice.handlers.tovs
+
+.. autosummary::
+   :toctree: generated
+
+   MHSAAPP

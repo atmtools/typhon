@@ -1,6 +1,8 @@
 How To Use typhon.spareice.datasets.Dataset?
 ============================================
 
+.. contents:: :local:
+
 .. highlight:: python
    :linenothreshold: 5
 
@@ -10,7 +12,7 @@ What is the idea?
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). Each file covers a certain time period and
 is located in folders which names contain information about the time period.
-See figure :numref:`fig-example-directory` for an example.
+See figure :ref:`fig-example-directory` for an example.
 
 .. _fig-example-directory:
 
@@ -33,7 +35,7 @@ Quick Start
 -----------
 
 We stick to our example from above and want to find all files from our
-*Instrument A* (what a creative name!) dataset between two dates. To do this,
+*Instrument A* dataset (what a creative name!) between two dates. To do this,
 we need to initialize a Dataset object and tell it where to find our files:
 
 .. code-block:: python
@@ -48,7 +50,7 @@ we need to initialize a Dataset object and tell it where to find our files:
             "data_{hour}-{minute}-{second}.nc"
    )
 
-What happen in this piece of code? We import the Dataset class from the typhon
+What happens in this piece of code? We import the Dataset class from the typhon
 module and define the Dataset object, give it a name and tell it where
 to find its files. We do the latter by giving the generalized path
 pattern pointing to each file instead of giving explicit paths. The words
@@ -65,45 +67,44 @@ January 2016 (the whole day, i.e. from 0-24h).
    # Find all files between 01/01/2016 and 02/01/2016:
    date1 = datetime(2016, 1, 1)
    date2 = datetime(2016, 1, 2)
-   for file, time in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(file, time[0], time[1]))
+   for filename, time in instrument_A.find_files(date1, date2, sort=True):
+      print("File: {}\n\tStart: {}, End: {}".format(filename, time[0],
+      time[1]))
 
-Output:
+.. code-block:: none
+   :caption: Output:
 
-..
-
-   File: Data/InstrumentA/2016/01/01/data_00_00_00.nc
+   File: Data/InstrumentA/2016/01/01/data_00-00-00.nc
        Start: 2016-01-01 00:00:00, End: 2016-01-01 00:00:00
-   File: Data/InstrumentA/2016/01/01/data_06_00_00.nc
+   File: Data/InstrumentA/2016/01/01/data_06-00-00.nc
        Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
-   File: Data/InstrumentA/2016/01/01/data_12_00_00.nc
+   File: Data/InstrumentA/2016/01/01/data_12-00-00.nc
        Start: 2016-01-01 12:00:00, End: 2016-01-01 12:00:00
-   File: Data/InstrumentA/2016/01/01/data_18_00_00.nc
+   File: Data/InstrumentA/2016/01/01/data_18-00-00.nc
        Start: 2016-01-01 18:00:00, End: 2016-01-01 18:00:00
 
 The :meth:`typhon.spareice.datasets.Dataset.find_files` method find all
 files between two dates and returns their names and time coverages (start
-and end times). If we want to sort them by their starting times, we the
-*sort* parameter to true.
+and end times). If we want to sort them by their starting times, we can set
+its *sort* parameter to true.
 
 Read and Create Files
 ---------------------
 
 The Dataset class has more interesting functionality that we are going to
 investigate in more detail later. But before doing this, we have to understand
- how
-we can open and read files from one dataset. Since there are a lot of
+how we can open and read files from one dataset. Since there are a lot of
 different types of datasets out there and each one of them might have its own
-file format, the Dataset object needs help from you in order to be able to
+file format, the Dataset object needs help from you in order to
 handle those files. You must tell the Dataset how to read and write its
 files by giving a *file handler* to it. A file handler is an object that
-can read a file in a certain format or write data to it. For example, we
+can read a file in a certain format or write data to it. For example, if we
 want to read the files from our Instrument A and print out their content, we
 need a file handler that can handle those files. The files are stored in the
 NetCDF4 format. Lucky for us, there is a file handler class that can handle
 such files (:class:`typhon.spareice.handlers.commom.NetCDF4`, for a complete
 list of official handler classes in typhon have a look at TODO). The only
-thing that we need to do now, is give this file handler object to the
+thing that we need to do now, is giving this file handler object to the
 dataset object during initialization:
 
 .. code-block:: python
@@ -121,14 +122,57 @@ dataset object during initialization:
       handler=NetCDF4(),
    )
 
+The dataset object knows how to open our files now. We can try it by using the
+:meth:`typhon.spareice.datasets.Dataset.read` method:
+
+.. code-block:: python
+
+   # Open all files between 01/01/2016 and 02/01/2016:
+   date1 = datetime(2016, 1, 1)
+   date2 = datetime(2016, 1, 2)
+   for file, time in instrument_A.find_files(date1, date2, sort=True):
+      print("File: {}\n\tStart: {}, End: {}".format(file, time[0], time[1]))
+      data = instrument_A.read(file)
+      print(data)
+
+.. code-block:: none
+   :caption: Output:
+
+   File: ../../Data/InstrumentA/2016/01/01/data_00-00-00.nc
+       Start: 2016-01-01 00:00:00, End: 2016-01-01 00:00:00
+   <xarray.Dataset>
+   Dimensions:  (dim_0: 100)
+   Dimensions without coordinates: dim_0
+   Data variables:
+       x        (dim_0) int64 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16  ...
+       y        (dim_0) float64 0.0 2.5 5.0 7.5 10.0 12.5 15.0 17.5 ...
+   File: ../../Data/InstrumentA/2016/01/01/data_06-00-00.nc
+       Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
+   ...
+
+How does this work? All file handler objects (i.e.
+:class:`typhon.spareice.handlers.commom.NetCDF4` as well) must have a *read*
+and other methods be implemented. When we call
+:meth:`typhon.spareice.datasets.Dataset`, the dataset object simply calls the
+:meth:`typhon.spareice.handlers.commom.NetCDF4.read` method and redirects its
+output to us. The same works with creating files, when the file handler
+object has implemented a *write* method.
+
+We could use both methods to change the content of each file:
+
+.. code-block:: python
+
+   for filename, time in instrument_A.find_files(date1, date2, sort=True):
+       # Open file:
+       data = instrument_A.read(filename)
+
+       # Change content:
+       data["x"] /= 2
+
+       # Overwrite the old file:
+       instrument_A.write(filename, data)
 
 
-
-FileHandler.write(...)
-++++++++++++++++++++++
-
-FileHandler.get_info(...)
-+++++++++++++++++++++++++
 
 Get the time coverage by filename or content
 --------------------------------------------
@@ -137,7 +181,7 @@ Get the time coverage by filename or content
 .. _sec-placeholders:
 
 Placeholders
-++++++++++++
+------------
 
 
 
