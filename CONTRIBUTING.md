@@ -13,11 +13,12 @@ This checklist also serves as table of contents.
 1. [Fork the project](#fork-the-project)
 2. [Clone your fork](#clone-the-forked-project)
 3. [Set up your fork](#set-up-cloned-fork)
-4. [Create a branch](#create-a-branch)
-5. [Work on your contribution](#work-on-your-contribution)
-6. [Pull request](#pull-request)
-7. [Code review](#code-review)
-8. [Follow up](#follow-up)
+4. [Update your fork](#update-your-fork)
+5. [Create a branch](#create-a-branch)
+6. [Work on your contribution](#work-on-your-contribution)
+7. [Pull request](#pull-request)
+8. [Code review](#code-review)
+9. [Follow up](#follow-up)
 
 ## Fork the project
 The first step is to fork the typhon project. This is done by clicking the Fork
@@ -49,9 +50,11 @@ upstream https://github.com/atmtools/typhon.git (fetch)
 upstream https://github.com/atmtools/typhon.git (push)
 ```
 
+## Update your fork
 Make sure to pull in changes from the upstream master branch at regular
-intervals to keep track of changes done to the project.  We recommend to use
-the `--rebase` flag to maintain a linear history.
+intervals to keep track of changes done to the project.
+We recommend to use the `--rebase` flag. This will replay your commits on top
+of the latest typhon git master and maintain a linear history.
 ```bash
 $ git pull --rebase upstream master
 ```
