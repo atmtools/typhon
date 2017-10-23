@@ -642,7 +642,14 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
         try:
-            if not (M[self.time_field][1:] >= M[self.time_field][:-1]).all():
+            # NB: when datasets erroneously contain duplicate coordinates
+            # (I'm looking at you, FIDUCEO/FCDR_HIRS#159!), this
+            # comparison will cause a failure in xarray.  In this case,
+            # compare values instead.
+            arr = M[self.time_field]
+            if isinstance(arr, xarray.DataArray):
+                arr = arr.values
+            if not (arr[1:] >= arr[:-1]).all():
                 raise InvalidDataError("Reader for {!s} returned data "
                     "with unsorted time.  This must be fixed.".format(
                         f))
