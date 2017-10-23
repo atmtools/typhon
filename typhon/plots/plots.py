@@ -839,7 +839,8 @@ def plot_bitfield(ax, X, Y, bitfield, flag_dict,
         cax=None,
         pcolor_args={},
         colorbar_args={},
-        unflagged="unflagged"):
+        unflagged="unflagged",
+        joiner=", "):
     """Plot a bitfield of categories with pcolor
 
     The numeric values in a bitfield are not directly meaningful.  Rather,
@@ -899,6 +900,9 @@ def plot_bitfield(ax, X, Y, bitfield, flag_dict,
         unflagged (str):
             Label to use for unflagged values.  Defaults to "unflagged".
 
+        joiner (str):
+            How to join different flags.
+
     Returns:
 
         (AxesImage, Colorbar) that were generated
@@ -911,12 +915,19 @@ def plot_bitfield(ax, X, Y, bitfield, flag_dict,
         bitfield.data if isinstance(bitfield, np.ma.MaskedArray) else
         bitfield)
 
+    # ensure 0 is always explicitly considered; we want unflagged to occur
+    # in the legend always, even if it does not occur.  This ensures that
+    # when there are different subplots, unflagged has the same colour in
+    # each
+    if not 0 in unique_values:
+        unique_values = np.concatenate([[0], unique_values])
+
 #    flagdefs = dict(zip(ds["quality_scanline_bitmask"].flag_masks,
 #                        ds["quality_scanline_bitmask"].flag_meanings.split(",")))
 
     # each unique value corresponds to a label that consists of one or
     # more flags, except value 0, which is unflagged
-    labels = {v: ', '.join(flag_dict[x] for x in flag_dict.keys() if v&x)
+    labels = {v: joiner.join(flag_dict[x] for x in flag_dict.keys() if v&x)
                   or unflagged
                   for v in unique_values}
 
