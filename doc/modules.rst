@@ -112,6 +112,14 @@ Spectroscopy
 
    typhon.spectroscopy
 
+Collocations and SPARE-ICE
+--------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   typhon.spareice
+
 Miscellaneous
 -------------
 

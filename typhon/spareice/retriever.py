@@ -9,7 +9,7 @@ __all__ = [
     ]
 
 class Retriever:
-    """
+    """Still under development.
 
     """
     def __init__(self, input_dataset, output_dataset, parameters_file):

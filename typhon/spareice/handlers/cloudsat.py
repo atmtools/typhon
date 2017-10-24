@@ -4,20 +4,21 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from pyhdf.SD import SD, SDC
+#from pyhdf.SD import SD, SDC
 from pyhdf import HDF, VS, V
+import typhon.geographical
 import xarray as xr
 
 from .. import handlers
 from . import common
 
 __all__ = [
-    'CPR2CICEFile',
+    'CPR2CICE',
     ]
 
 
 # This name is simply ugly!
-class CPR2CICEFile(handlers.FileHandler):
+class CPR2CICE(handlers.FileHandler):
 
     internal_mapping = {
         "lat" : "Latitude",
@@ -51,10 +52,9 @@ class CPR2CICEFile(handlers.FileHandler):
         """
 
         if fields is None:
-            raise NotImplementedError("I need field names to extract the correct variables from the file! Native reading"
-                                      " is not yet implemented!")
+            fields = ("time", "lat", "lon")
 
-        dataset = xr.Dataset()
+        dataset = typhon.geographical.GeoData(name="2C-ICE")
 
         # This code is taken from http://hdfeos.org/zoo/OTHER/2010128055614_21420_CS_2B-GEOPROF_GRANULE_P_R04_E03.hdf.py
         # and adapted by John Mrziglod. A description about all variables in CloudSat 2C-ICE dataset can be found in
@@ -90,13 +90,14 @@ class CPR2CICEFile(handlers.FileHandler):
                     # Put all times together so we obtain one full timestamp (date + time) for each data point
                     data = xr.DataArray(
                         pd.to_datetime(profile_times, unit='s', origin=pd.Timestamp(start_time)),
-                        dims=["time"]
+                        dims=["time_id"]
                     )
 
                 else:
                     # All other data (including latitudes, etc.)
-                    if field in CPR2CICEFile.internal_mapping:
-                        field_id = vs.find(CPR2CICEFile.internal_mapping[field])
+
+                    if field in self.internal_mapping:
+                        field_id = vs.find(self.internal_mapping[field])
                     else:
                         field_id = vs.find(field)
 
@@ -110,7 +111,7 @@ class CPR2CICEFile(handlers.FileHandler):
 
                     nrecs, _, _, _, _ = field_id.inquire()
                     raw_data = field_id.read(nRec=nrecs)
-                    data = xr.DataArray(np.asarray(raw_data).flatten(), dims=["time"])
+                    data = xr.DataArray(np.asarray(raw_data).flatten(), dims=["time_id"])
                     field_id.detach()
 
                 # Add the field data to the dataset.
@@ -122,12 +123,3 @@ class CPR2CICEFile(handlers.FileHandler):
             file.close()
 
         return dataset
-
-    def write(self, filename, data):
-        """ Writes a xarray to a NetCDF file.
-
-        See the base class for further documentation.
-        """
-
-        # Data must be a xarray object!
-        data.to_netcdf(filename)

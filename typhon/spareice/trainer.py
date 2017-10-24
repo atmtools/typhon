@@ -9,6 +9,10 @@ __all__ = [
     ]
 
 class Trainer:
+    """Still under development.
+
+    """
+
     def __init__(self, dataset, parameter_file=None, inputs=(), outputs=(), targets=(), hidden_layer_sizes=(20,)):
         """
         
@@ -98,7 +102,7 @@ class Trainer:
             
         """
 
-        for file, timestamp in self.dataset.find_files(all=True):
+        for file, timestamp in self.dataset.find_files():
             data = self.dataset.read_file(file)
 
             # Generate the training tuples.
