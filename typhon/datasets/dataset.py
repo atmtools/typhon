@@ -1635,6 +1635,9 @@ class NetCDFDataset:
                 ds = ds[fields]
             if pseudo_fields is not None:
                 warnings.warn("Ignoring pseudo-fields", UserWarning)
+            # if there is any problem loading the file, I want to know
+            # that now, not whenever I happen to read the data
+            ds.load()
             return ds
 
     def _read_ndarray(self, f, fields="all", pseudo_fields=None,
@@ -1749,7 +1752,26 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
                 warnings.warn("Ignoring fields≠'all'!", UserWarning)
             return numpy.load(f)["arr_0"]
         elif f.endswith("nc"):
-            return super()._read(f, fields=fields)
+            try:
+                return super()._read(f, fields=fields)
+            except ValueError as v:
+                if v.args[0] == ("zero-size array to reduction operation "
+                                 "minimum which has no identity"):
+                    # A bug in xarray will cause a ValueError if trying to
+                    # decode the times in a NetCDF file with length 0.
+                    # See https://github.com/pydata/xarray/issues/1329 .
+                    # Although I can't presently solve this (not decoding
+                    # would be undesirable due to inconsistencies), I can
+                    # at least replace it by an exception that means "bad
+                    # data".
+                    raise InvalidDataError("It looks like the NetCDF file "
+                        "is empty or at least has a datetime variable with "
+                        "length 0.  Due to "
+                        "https://github.com/pydata/xarray/issues/1329 "
+                        "I can't currently handle that.  Original message "
+                        "was: " + v.args[0]) from v
+                else:
+                    raise
 
 #    def find_granules(self, start, end):
 #        raise StopIteration()
