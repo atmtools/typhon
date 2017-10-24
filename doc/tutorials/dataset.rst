@@ -1,4 +1,4 @@
-How To Use typhon.spareice.datasets.Dataset?
+How to use typhon.spareice.datasets.Dataset?
 ============================================
 
 .. contents:: :local:
@@ -174,6 +174,8 @@ We could use both methods to change the content of each file:
 
 
 
+**TODO: Finish tutorial**
+
 Get the time coverage by filename or content
 --------------------------------------------
 
@@ -184,25 +186,13 @@ Placeholders
 ------------
 
 
-
 Iterating over files in a period
 --------------------------------
 
-When you add a new function or class, you also have to add its name the
-corresponing rst file in the doc/ folder.
 
 Via .find_files(...)
 ++++++++++++++++++++
 
-All code documentation in `Typhon` should follow the Google Style Python
-Docstrings format. Below you can find various example on how the docstrings
-should look like. The example is taken from
-http://sphinxcontrib-napoleon.readthedocs.org/en/latest/example_google.html
-
-Download: :download:`example_google.py <example_google.py>`
-
-.. literalinclude:: example_google.py
-   :language: python
 
 Via .read_period(...)
 +++++++++++++++++++++
@@ -212,11 +202,6 @@ Via .read_period(...)
 Via .map(...) or .map_content(...)
 ++++++++++++++++++++++++++++++++++
 
-All documentation for properties should be attached to the getter function
-(@property). No information should be put in the setter function of the
-property. Because all access occurs through the property name and never by
-calling the setter function explicitly, documentation put there will never be
-visible. Neither in the ipython interactive help nor in Sphinx.
 
 Via magic indexing
 ++++++++++++++++++

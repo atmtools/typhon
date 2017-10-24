@@ -2,53 +2,137 @@
 
 """General functions and classes for manipulating geographical data.
 """
-from collections import defaultdict
+import copy
+
 
 import numpy as np
-import pandas as pd
 import typhon.plots
 
 try:
     import xarray as xr
-except:
+except ModuleNotFoundError:
     pass
 
-
 __all__ = [
+    'Array',
+    'ArrayGroup',
     'GeoData',
 ]
 
 
-class GeoData:
-    """Still under development. TODO.
+class Array(np.ndarray):
+    """An extended numpy array with attributes and dimensions.
 
     """
 
-    def __init__(self, name=None):
-        """A specialised container for geographical indexed data (with
-        longitude, latitude and time field).
+    def __new__(cls, data, attrs=None, dims=None):
+        obj = np.asarray(data).view(cls)
 
-        Since the xarray.Dataset class cannot handle groups and is difficult to
-        extend (see http://xarray.pydata.org/en/stable/internals.html#extending-xarray
-        for more details).
+        if attrs is not None:
+            obj.attrs = attrs
+
+        if dims is not None:
+            obj.dims = dims
+
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+
+        self.attrs = getattr(obj, 'attrs', {})
+        self.dims = getattr(
+            obj, 'dims',
+            ["dim_%d" % i for i in range(len(self.shape))]
+        )
+
+    @classmethod
+    def concatenate(cls, objects, dim=None):
+        """Concatenate multiple Array objects together.
+
+        The returned Array object contains the attributes and dimension labels
+        from the first object in the list.
+
+        TODO:
+            Maybe this could be implemented via __array_wrap__ or
+            __array_ufunc__?
+
+        Args:
+            objects: List of GeoData objects to concatenate.
+            dim:
+
+        Returns:
+            An Array object.
+        """
+        concat_array = np.concatenate(objects, dim)
+        array = Array(
+            concat_array, objects[0].attrs, objects[0].dims
+        )
+
+        return array
+
+    @classmethod
+    def from_xarray(cls, xarray_object):
+        return cls(xarray_object.data, xarray_object.attrs, xarray_object.dims)
+
+    def to_string(self, pretty=True):
+        """
+
+        Args:
+            pretty:
+
+        Returns:
+            The array formatted as string object.
+        """
+        items = []
+        if self.shape[0] < 5:
+            items = self[:self.shape[0]]
+        else:
+            items = ", ".join([str(self[0]), str(self[1]), ".. ", str(self[2]),
+                     str(self[3])])
+        return "[{}]".format(items)
+
+    def to_xarray(self):
+        return xr.DataArray(self, attrs=self.attrs, dims=self.dims)
+
+
+class ArrayGroup:
+    """A specialised dictionary for arrays.
+
+    Still under development.
+    """
+
+    def __init__(self, name=None):
+        """Initializes an ArrayGroup object.
+
+        Args:
+            name: Name of the ArrayGroup as string.
         """
 
         self.attrs = {}
 
-        self._groups = {}
+        # All variables (including groups) will be saved into this dictionary:
         self._vars = {}
+        # Only the names of the groups will be saved here. Their content is
+        # in self._vars.
+        self._groups = set()
 
         if name is None:
-            self.name = "<GeoData="+str(id(self))+">"
+            self.name = "{}, {}:".format(type(self), id(self))
         else:
             self.name = name
 
     def __contains__(self, item):
-        group, field = self.parse(item)
-        if group not in self._fields:
-            return False
+        var, rest = self.parse(item)
+        if var == "/":
+            return True
 
-        return field in self._fields[group]
+        if var in self._vars:
+            if rest:
+                return rest in self[var]
+            return True
+
+        return False
 
     def __iter__(self):
         self._iter_vars = self.vars(deep=True)
@@ -57,115 +141,181 @@ class GeoData:
     def __next__(self):
         return next(self._iter_vars)
 
-    def __len__(self):
-        if "time" not in self:
-            return 0
+    def __delitem__(self, key):
+        var, rest = self.parse(key)
+        # The user tries to delete all variables:
+        if not var:
+            raise KeyError("The main group cannot be deleted. Use the clear "
+                           "method to delete all variables and groups.")
 
-        return len(self["time"])
+        if not rest:
+            del self._vars[var]
+
+            if var in self._groups:
+                self._groups.remove(var)
+        else:
+            del self._vars[var][rest]
+
+    def __getitem__(self, item):
+        """Enables dictionary-like access to the ArrayGroup.
+
+        There are different ways to access one element of this ArrayGroup:
+
+        * by *array_group["var"]*: returns a variable (Array) or group
+            (ArrayGroup) object.
+        * by *array_group["group/var"]*: returns the variable from the group
+            object.
+        * by *array_group["/"]*: returns the main group (dictionary of
+            variables and groups).
+        * by *array_group[0:10]*: returns a copy of the first ten elements
+            for each variable in the ArrayGroup object. Note: all variables
+            should have the same length.
+
+        Args:
+            item:
+
+        Returns:
+
+        """
+
+        # Accessing via key:
+        if isinstance(item, str):
+            var, rest = self.parse(item)
+
+            # All variables are requested:
+            if not var:
+                return self._vars
+
+            if not rest:
+                try:
+                    return self._vars[var]
+                except KeyError:
+                    raise KeyError(
+                        "There is neither a variable nor group named "
+                        "'{}'!".format(var))
+            else:
+                if var in self._groups:
+                    return self._vars[var][rest]
+                else:
+                    raise KeyError("'{}' is not a group!".format(var))
+
+        # Selecting elements via slicing:
+        elif isinstance(item, list) \
+                or isinstance(item, int) \
+                or isinstance(item, slice):
+            return self.select(item)
+        else:
+            raise KeyError(
+                "The must be a string, integer, list or slice object!")
+
+    def __setitem__(self, key, value):
+        var, rest = self.parse(key)
+
+        if not var:
+            raise ValueError("You cannot change the main group directly!")
+
+        if not rest:
+            # Automatic conversion from numpy array to Array.
+            if not isinstance(value, ArrayGroup) \
+                    and not isinstance(value, Array):
+                value = Array(value)
+
+            try:
+                self._vars[var] = value
+            except KeyError:
+                raise KeyError(
+                    "There is no variable or group named '{}'!".format(var))
+
+            if isinstance(value, ArrayGroup):
+                # Add this variable name to the group set.
+                self._groups.add(var)
+            elif var in self._groups:
+                # Remove this variable name if it is not a group (GeoData)
+                # object any longer.
+                self._groups.remove(var)
+        else:
+            self._groups.add(var)
+            self._vars[var] = type(self)()
+            self._vars[var][rest] = value
 
     def __str__(self):
-        info = self.name + "\n"
+        info = "Name: {}\n".format(self.name)
+        info += "Attributes:\n"
+        for attr, value in self.attrs.items():
+            info += "\t{} : {}\n".format(attr, value)
+        else:
+            info += "\t--\n"
+
+        info += "Groups:\n"
         for group in self.groups(deep=True):
-            if group == "/":
-                info += "- Main group:\n"
-                info += "-" * len("- Main group:")
-            else:
-                info += "\n- " + group + ":\n"
-                info += "-" * (len(group) + 3)
+            info += "\t{}\n".format(group)
+        else:
+            info += "\t--\n"
 
-            info += "\n"
-
-            for var in self.group(group):
-                info += "\t{}: {}\n".format(var, self.group(group)[var])
+        info += "Variables:\n"
+        for var in self.vars(deep=True):
+            info += "\t{} {}: {}\n".format(
+                var, self[var].shape, self[var].to_string(pretty=True)
+            )
+        else:
+            info += "\t--\n"
 
         return info
 
-    def __delitem__(self, key):
-        group, field = self.parse(key)
-        if not group:
-        if not field:
-            del self._groups[group]
-        else:
-            del self._fields[group][field]
-
-    def __getitem__(self, item):
-        group, var = self.parse(item)
-
-        # The main group is requested:
-        if not group and not var:
-            return self._vars
-
-        if not group:
-            if var in self._vars:
-                return self._vars[var]
-
-            try:
-                return self._groups[var]
-            except KeyError:
-                raise KeyError("There is neither a variable nor group named "
-                               "'{}'!".format(var))
-
-        if not var:
-            return self._groups[group][var]
-
-        return self._groups[group][var]
-
-    def __setitem__(self, key, value):
-        group, var = self.parse(key)
-
-        if not group and not var:
-            raise ValueError("You cannot change the main group directly!")
-
-        if not group:
-            if isinstance(value, xr.DataArray):
-                self._vars[var] = value
-            elif isinstance(value, GeoData):
-                self._groups[group] = value
-            else:
-                raise ValueError("Value must be either a GeoData (group) "
-                                 "or xarray.DataArray (variable) object!")
-
-        if not var:
-            if isinstance(value, xr.DataArray):
-                self._vars[var] = value
-            else:
-                raise ValueError("Main group value must be a "
-                                 "xarray.DataArray!")
-            self._vars[group] = value
-        else:
-
-        self._fields[group][field] = value
-
     def bin(self, bins, fields=None, deep=False):
-        new_data = GeoData()
+        """Bins all arrays in this object.
+
+        Args:
+            bins: List of lists which contain the indices for the bins.
+            fields: Filter
+            deep: Bins also the arrays of the subgroups.
+
+        Returns:
+            An ArrayGroup object with binned arrays.
+        """
+        new_data = type(self)()
         for var, data in self.items(deep):
             if fields is not None and var not in fields:
                 continue
             binned_data = np.asarray([
-                    data.data[indices]
-                    for i, indices in enumerate(bins)
-                ])
-            data_dict = data.to_dict()
-            data_dict["data"] = binned_data
-            data_dict["dims"] = ["bin"] + list(data_dict["dims"])
-            new_data[var] = xr.DataArray.from_dict(data_dict)
+                data[indices]
+                for i, indices in enumerate(bins)
+            ])
+            new_data[var] = binned_data
         return new_data
 
     def collapse(self, bins, collapser=None,
                  variation_filter=None, deep=False):
+        """Fills bins for each variables and apply a function to them.
+
+        Args:
+            bins: List of lists which contain the indices for the bins.
+            collapser: Function that should be applied on each bin (
+                numpy.nanmean is the default).
+            variation_filter: Bins which exceed a certain variation limit
+                can be excluded. For doing this, you must set this parameter to
+                a tuple/list of at least two elements: field name and
+                variation threshold. A third element is optional: the
+                variation function (the default is numpy.nanstd).
+            deep: Collapses also the variables of the subgroups.
+
+        Returns:
+            An ArrayGroup object.
+        """
         # Default collapser is the mean function:
-        if collapser:
+        if collapser is None:
             collapser = np.nanmean
 
         # Exclude all bins where the inhomogeneity (variation) is too high
         passed = np.ones_like(bins).astype("bool")
         if isinstance(variation_filter, tuple):
             if len(variation_filter) >= 2:
-                if len(self[variation_filter[0]].dims) > 1:
-                    raise ValueError("The variation filter can only be used "
-                                     "for 1-dimensional data! I.e. the field "
-                                     "'{}' must be 1-dimensional!".format(
-                                        variation_filter[0]))
+                if len(self[variation_filter[0]].shape) > 1:
+                    raise ValueError(
+                        "The variation filter can only be used for "
+                        "1-dimensional data! I.e. the field '{}' must be "
+                        "1-dimensional!".format(variation_filter[0])
+                    )
 
                 # Bin only one field for testing of inhomogeneities:
                 binned = self.bin(bins, fields=(variation_filter[0]))
@@ -180,38 +330,48 @@ class GeoData:
                 passed = variation < variation_filter[1]
             else:
                 raise ValueError("The inhomogeneity filter must be a tuple "
-                                 "of a field name, a threshold and a "
-                                 "variation function (latter is optional).")
+                                 "of a field name, a threshold and (optional)"
+                                 "a variation function.")
 
         bins = np.asarray(bins)
 
         # Before collapsing the data, we must bin it:
-        collapsed_data = self.bin(bins[passed], deep)
+        collapsed_data = self.bin(bins[passed], deep=deep)
+
+        # Collapse the data:
         for var, data in collapsed_data.items(deep):
-            data_dict = data.to_dict()
-            data_dict["data"] = collapser(data_dict["data"], 1)
-            data_dict["dims"] = data_dict["dims"][1:]
-            collapsed_data[var] = xr.DataArray.from_dict(data_dict)
+            collapsed_data[var] = collapser(data, 1)
         return collapsed_data
 
-    @staticmethod
-    def concat(objects, dimension=None):
-        new_data = GeoData()
+    @classmethod
+    def concatenate(cls, objects, dimension=None):
+        """Concatenate multiple GeoData objects.
+
+        Notes:
+            The attribute and dimension information of some arrays may get
+            lost.
+
+        Args:
+            objects: List of GeoData objects to concatenate.
+            dimension: Dimension on which to concatenate.
+
+        Returns:
+            A
+        """
+        new_data = cls()
         for var in objects[0]:
-            if isinstance(objects[0][var], GeoData):
-                new_data[var] = GeoData.concat([obj[var] for obj in objects])
-            elif isinstance(objects[0][var], xr.DataArray):
+            if isinstance(objects[0][var], cls):
+                new_data[var] = cls.concatenate(
+                    [obj[var] for obj in objects],
+                    dimension)
+            else:
                 if dimension is None:
-                    dimension = objects[0][var].dims[0]
-                new_data[var] = xr.concat([obj[var] for obj in objects],
-                                          dim=dimension)
+                    dimension = 0
+                new_data[var] = Array.concatenate(
+                    [obj[var] for obj in objects],
+                    dimension)
 
         return new_data
-
-    def data(self):
-        for group in self._fields.values():
-            for data in group.values():
-                yield data
 
     @classmethod
     def from_xarray(cls, xarray_object):
@@ -224,55 +384,47 @@ class GeoData:
             GeoData object
         """
 
-        geo_data = cls()
+        array_dict = cls()
         for var in xarray_object:
-            geo_data[var] = xarray_object[var]
+            array_dict[var] = Array.from_xarray(xarray_object[var])
 
-        geo_data.attrs.update(**xarray_object.attrs)
+        array_dict.attrs.update(**xarray_object.attrs)
 
-        return geo_data
+        return array_dict
 
-    def get_time_coverage(self, deep=False, to_numpy=False):
-        """
+    def get_range(self, field, deep=False):
+        """Get the minimum and maximum of one field.
 
         Args:
-            deep: Including also subgroups (not only main group).
-            to_numpy:
+            field: Name of the field.
+            deep: Including also the fields in subgroups (not only main group).
 
         Returns:
 
         """
         start = []
         end = []
-        for group in self.groups(deep):
-            start.append(pd.to_datetime(str(self[group + "time"].min().data)))
-            end.append(pd.to_datetime(str(self[group + "time"].max().data)))
+        for var in self.vars(deep, with_name=field):
+            start.append(np.nanmin(self[var]))
+            end.append(np.nanmax(self[var]))
 
-        start = min(start)
-        end = max(end)
+        return min(start), max(end)
 
-        if to_numpy:
-            start = np.datetime64(start)
-            end = np.datetime64(end)
-        return start, end
-
-    def group(self, name):
-        return self._fields[name]
-
-    def groups(self, deep=True):
+    def groups(self, deep=False):
         """Returns the names of all groups in this GeoData object.
 
         Args:
             deep: Including also subgroups (not only main group).
 
         Yields:
-            Name of groups.
+            Name of group.
         """
-        if deep:
-            for group in self._fields:
-                yield group
-        else:
-            yield "/"
+
+        for group in self._groups:
+            yield group
+            if deep:
+                yield from (group + "/" + subgroup
+                            for subgroup in self[group].groups(deep))
 
     def items(self, deep=False):
         """
@@ -283,35 +435,48 @@ class GeoData:
         Returns:
 
         """
-        if deep:
-            for var in self:
-                yield var, self[var]
-        else:
-            yield from self["/"].items()
+        for var in self.vars(deep):
+            yield var, self[var]
 
     @staticmethod
-    def merge(objects):
-        """Merge multiple GeoData objects to one.
+    def _level(var):
+        level = len(var.split("/")) - 1
+        if var.startswith("/"):
+            level -= 1
+        return level
+
+    @classmethod
+    def merge(cls, objects, groups=None, overwrite_error=True):
+        """Merges multiple GeoData objects to one.
 
         Notes:
             Merging of sub groups with the same name does not work properly.
 
         Args:
             objects: List of GeoData objects.
+            groups: List of strings. You can give each object in
+                :param:`objects` a group. Must have the same length as
+                :param:`objects`.
+            overwrite_error: Throws a KeyError when trying to merge`
+                ArrayGroups containing same keys.
 
         Returns:
-            A GeoData object.
+            An ArrayGroup object.
         """
-        merged_data = GeoData()
-        for obj in objects:
-            # Update the main group
-            merged_data.group("/").update(**obj.group("/"))
-
-            sub_groups = obj._fields.copy()
-            del sub_groups["/"]
-
-            # Update sub groups
-            merged_data._fields.update(**sub_groups)
+        inserted = set()
+        merged_data = cls()
+        for i, obj in enumerate(objects):
+            for var in obj.vars(deep=True):
+                if overwrite_error and var in inserted:
+                    raise KeyError("The variable '{}' occurred multiple "
+                                   "times!".format(var))
+                else:
+                    if groups is not None:
+                        if groups[i] not in merged_data:
+                            merged_data[groups[i]] = cls()
+                        merged_data[groups[i]][var] = obj[var]
+                    else:
+                        merged_data[var] = obj[var]
 
         return merged_data
 
@@ -321,10 +486,10 @@ class GeoData:
 
         You can access the groups and fields via different keys:
 
-        * "value": Returns ("", "value")
-        * "/value": Returns ("", "value")
-        * "value1/value2": Returns ("value1", "value2")
-        * "value1/": Returns ("value1", "")
+        * "value": Returns ("value", "")
+        * "/value": Returns ("value", "")
+        * "value1/value2/value3": Returns ("value1", "value2/value3")
+        * "value/": Returns ("value", "")
         * "/": Returns ("", "")
 
         Args:
@@ -333,17 +498,14 @@ class GeoData:
         Returns:
 
         """
-        if key == "/":
-            return "", ""
-
         if key.startswith("/"):
-            return "", key[1:]
+            return key[1:], ""
 
         if "/" not in key:
-            return "", key
+            return key, ""
 
-        group, field = key.split("/", 1)
-        return group, field
+        var, rest = key.split("/", 1)
+        return var, rest
 
     def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
         """
@@ -371,7 +533,20 @@ class GeoData:
 
         return ax
 
-    def select(self, indices, limit_to=None):
+    def rename(self, mapping, inplace=True):
+        if inplace:
+            obj = self
+        else:
+            obj = copy.deepcopy(self)
+
+        for old_name, new_name in mapping.items():
+            array = obj[old_name]
+            del obj[old_name]
+            obj[new_name] = array
+
+        return obj
+
+    def select(self, indices):
         """Select an TODO.
 
         Args:
@@ -381,18 +556,15 @@ class GeoData:
         Returns:
 
         """
-        selected_data = GeoData(self.name+"-selected")
+        selected_data = ArrayGroup(self.name + "-selected")
 
-        for field in self:
-            group, var = self.parse(field)
-
-            if limit_to is None or group == limit_to:
-                selected_data[field] = self[field][indices]
+        for var in self.vars(deep=True):
+            selected_data[var] = self[var][indices]
 
         return selected_data
 
     def to_xarray(self):
-        """Converts this GeoData object to a xarray.Dataset.
+        """Converts this ArrayGroup object to a xarray.Dataset.
 
         Returns:
             A xarray.Dataset object
@@ -400,32 +572,79 @@ class GeoData:
 
         xarray_object = xr.Dataset()
         for var, data in self.items(deep=True):
-            xarray_object[var] = data
+            xarray_object[var] = data.to_xarray()
 
         xarray_object.attrs.update(**self.attrs)
 
-        start_time, end_time = self.get_time_coverage(deep=True)
-        xarray_object.attrs["start_time"] = \
-            start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
-        xarray_object.attrs["end_time"] = \
-            end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
-
         return xarray_object
 
-    def vars(self, deep=False):
+    def values(self, deep=False):
+        for var in self.vars(deep):
+            yield self[var]
+
+    def vars(self, deep=False, with_name=None):
         """Returns the names of all variables in this GeoData object main
         group.
 
         Args:
-            deep: Including also subgroups (not only main group).
+            deep: Searching also in subgroups (not only main group).
+            with_name: Only the variables with this name will be returned (
+                makes only sense when *deep* is true).
 
         Yields:
             Full name of one variable (including group name).
         """
 
+        # Only the variables of the main group:
         for var in self._vars:
-            yield var
+            if with_name is not None and var != with_name:
+                continue
+            if var not in self._groups:
+                yield var
 
         if deep:
-            for group in self.groups():
-                yield self[group].vars(True)
+            for group in self._groups:
+                yield from (
+                    group + "/" + sub_var
+                    for sub_var in self[group].vars(deep, with_name)
+                )
+
+
+class GeoData(ArrayGroup):
+    """A specialised ArrayGroup for geographical indexed data (with
+    longitude, latitude and time field).
+
+    Still under development. TODO.
+    """
+
+    def __len__(self):
+        if "time" not in self:
+            return 0
+
+        return len(self["time"])
+
+    def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
+        """
+
+        Args:
+            plot_type:
+            fields:
+            fig:
+            ax:
+            **kwargs:
+
+        Returns:
+
+        """
+
+        if plot_type == "worldmap":
+            ax, scatter = typhon.plots.worldmap(
+                self["lat"],
+                self["lon"],
+                self[fields[0]],
+                fig, ax, **kwargs
+            )
+        else:
+            raise ValueError("Unknown plot type: '{}'".format(plot_type))
+
+        return ax

@@ -18,11 +18,9 @@ except:
     pass
 
 import numpy as np
-import pandas as pd
 import scipy.spatial
 import typhon.geodesy
-from .geographical import GeoData
-import warnings
+from typhon.spareice.geographical import GeoData
 import xarray as xr
 
 from .datasets import Dataset, InhomogeneousFilesError
@@ -190,26 +188,6 @@ class CollocatedDataset(Dataset):
             )
             print(collapsed_data)
 
-    @staticmethod
-    def _collapse_data(collocated_data, binned_collocations):
-        # [print(name, bin)
-        #  for name, bin in binned_collocations.items()]
-        ignore = {"time", "collocation_id", "collocations", "indices"}
-        collapsed_data = GeoData()
-        for var in collocated_data.vars:
-            dataset, var_name = name.split(".")
-            if var_name in ignore:
-                continue
-            else:
-                collapsed = [
-                    var.isel({dimension: indices}).mean(dimension)
-                    for indices in binned_collocations[dataset]
-                ]
-            arr = xr.DataArray(
-                np.asarray(collapsed),
-            )
-            collapsed_data[name] = arr
-        return collapsed_data
 
     def collocate(self, start, end, fields, max_interval=300,
                   max_distance=10, verbose=True, **kwargs):
@@ -303,7 +281,7 @@ class CollocatedDataset(Dataset):
                 self.datasets[0].read(primary, fields=primary_fields))
 
             primary_start, primary_end = \
-                primary_data_cache.get_time_coverage(to_numpy=True)
+                primary_data_cache.get_range("time")
 
             # Go through all potential collocated secondary files:
             for secondary in secondaries:
@@ -324,6 +302,7 @@ class CollocatedDataset(Dataset):
                 # Select only the time period in the secondary data where also
                 # primary data is available.
                 if last_timestamp is None:
+                    print(secondary_data_cache)
                     secondary_data = secondary_data_cache.select(
                         (secondary_data_cache["time"] >= primary_start)
                         & (secondary_data_cache["time"] <= primary_end)
@@ -343,7 +322,10 @@ class CollocatedDataset(Dataset):
                 # The "new" start and end times of the secondary data (the time
                 # conversion is a little bit tricky due to a bug in numpy).
                 secondary_start, secondary_end = \
-                    secondary_data.get_time_coverage(to_numpy=True)
+                    secondary_data.get_coverage("time")
+
+                print(secondary_start, secondary_end)
+                exit()
 
                 # Select only the primary data that is in the same time range
                 # as the secondary data.
@@ -388,7 +370,10 @@ class CollocatedDataset(Dataset):
                 secondary_data = secondary_data.select(secondary_indices)
 
                 # Merge the two datasets to one collocation dataset:
-                collocated_data = CollocatedDataset._data_to_xarray(
+                collocated_data = GeoData.merge(
+                    [primary_data, secondary_data]
+                )
+                CollocatedDataset._data_to_xarray(
                     data_list=[
                         [self.datasets[0].name, primary_data.data],
                         [self.datasets[1].name, secondary_data.data]
