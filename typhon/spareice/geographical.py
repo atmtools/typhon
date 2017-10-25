@@ -3,10 +3,16 @@
 """General functions and classes for manipulating geographical data.
 """
 import copy
-
+import textwrap
+import warnings
 
 import numpy as np
 import typhon.plots
+
+try:
+    from netCDF4 import Dataset, num2date, date2num
+except ModuleNotFoundError:
+    pass
 
 try:
     import xarray as xr
@@ -45,6 +51,37 @@ class Array(np.ndarray):
             obj, 'dims',
             ["dim_%d" % i for i in range(len(self.shape))]
         )
+        # self.dims = getattr(
+        #     obj, 'dims',
+        #     [None for _ in range(len(self.shape))]
+        # )
+
+    def __len__(self):
+        return self.shape[0]
+
+    def __str__(self):
+        if self.shape[0] < 5:
+            items = self[:self.shape[0]]
+        else:
+            items = ", ".join([
+                np.array_str(self[0]), np.array_str(self[1]), ".. ",
+                np.array_str(self[-2]), np.array_str(self[-1])])
+        info = "[{}, dtype={}]".format(items, self.dtype)
+        info += "\nDimensions: "
+        info += ", ".join(
+            ["%s (%d)" % (dim, self.shape[i])
+             for i, dim in enumerate(self.dims)])
+        info += "\nAttributes:\n"
+        if self.attrs:
+            for attr, value in self.attrs.items():
+                info += "\t{} : {}\n".format(attr, value)
+        else:
+            info += "\t--\n"
+
+        return info
+
+    # def __repr__(self):
+    #     return self.__str__()
 
     @classmethod
     def concatenate(cls, objects, dim=None):
@@ -74,23 +111,6 @@ class Array(np.ndarray):
     @classmethod
     def from_xarray(cls, xarray_object):
         return cls(xarray_object.data, xarray_object.attrs, xarray_object.dims)
-
-    def to_string(self, pretty=True):
-        """
-
-        Args:
-            pretty:
-
-        Returns:
-            The array formatted as string object.
-        """
-        items = []
-        if self.shape[0] < 5:
-            items = self[:self.shape[0]]
-        else:
-            items = ", ".join([str(self[0]), str(self[1]), ".. ", str(self[2]),
-                     str(self[3])])
-        return "[{}]".format(items)
 
     def to_xarray(self):
         return xr.DataArray(self, attrs=self.attrs, dims=self.dims)
@@ -165,8 +185,7 @@ class ArrayGroup:
             (ArrayGroup) object.
         * by *array_group["group/var"]*: returns the variable from the group
             object.
-        * by *array_group["/"]*: returns the main group (dictionary of
-            variables and groups).
+        * by *array_group["/"]*: returns this object itself.
         * by *array_group[0:10]*: returns a copy of the first ten elements
             for each variable in the ArrayGroup object. Note: all variables
             should have the same length.
@@ -175,16 +194,16 @@ class ArrayGroup:
             item:
 
         Returns:
-
+            Either an Array or an ArrayGroup object.
         """
 
         # Accessing via key:
         if isinstance(item, str):
             var, rest = self.parse(item)
 
-            # All variables are requested:
+            # All variables are requested (return the object itself)
             if not var:
-                return self._vars
+                return self
 
             if not rest:
                 try:
@@ -200,10 +219,8 @@ class ArrayGroup:
                     raise KeyError("'{}' is not a group!".format(var))
 
         # Selecting elements via slicing:
-        elif isinstance(item, list) \
-                or isinstance(item, int) \
-                or isinstance(item, slice):
-            return self.select(item)
+        elif isinstance(item, (list, int, slice)):
+            return self.select(item, deep=True)
         else:
             raise KeyError(
                 "The must be a string, integer, list or slice object!")
@@ -238,27 +255,32 @@ class ArrayGroup:
             self._vars[var] = type(self)()
             self._vars[var][rest] = value
 
-    def __str__(self):
+    def __repr__(self):
         info = "Name: {}\n".format(self.name)
         info += "Attributes:\n"
-        for attr, value in self.attrs.items():
-            info += "\t{} : {}\n".format(attr, value)
+        if self.attrs:
+            for attr, value in self.attrs.items():
+                info += "  {} : {}\n".format(attr, value)
         else:
-            info += "\t--\n"
+            info += "  --\n"
 
         info += "Groups:\n"
-        for group in self.groups(deep=True):
-            info += "\t{}\n".format(group)
+        if self._groups:
+            for group in self.groups(deep=True):
+                info += "  {}\n".format(group)
         else:
-            info += "\t--\n"
+            info += "  --\n"
 
         info += "Variables:\n"
-        for var in self.vars(deep=True):
-            info += "\t{} {}: {}\n".format(
-                var, self[var].shape, self[var].to_string(pretty=True)
-            )
+        if self._vars:
+            coords = self.coords(deep=True)
+            for var in self.vars(deep=True):
+                info += "  {}{}:\n{}".format(
+                    var, " (coord)" if var in coords else "",
+                    textwrap.indent(str(self[var]), ' ' * 4)
+                )
         else:
-            info += "\t--\n"
+            info += "  --\n"
 
         return info
 
@@ -373,6 +395,60 @@ class ArrayGroup:
 
         return new_data
 
+    def coords(self, deep=False):
+        """Returns all variable names that are used as dimensions for other
+        variables.
+
+        Args:
+            deep:
+
+        Returns:
+
+        """
+        variables = list(self.vars(deep))
+        coords = [
+            coord
+            for coord in variables
+            for var in variables
+            if coord in self[var].dims
+        ]
+        return list(set(coords))
+
+    @classmethod
+    def from_netcdf(cls, filename):
+        """Creates a GeoData object from a xarray.Dataset object.
+
+        Args:
+            filename: Path and file name from where to load a new ArrayGroup.
+
+        Returns:
+            GeoData object
+        """
+
+        with Dataset(filename, "r") as root:
+            array_group = cls._get_group_from_netcdf_group(root)
+
+            return array_group
+
+    @classmethod
+    def _get_group_from_netcdf_group(cls, group):
+        array_group = cls()
+
+        array_group.attrs.update(**group.__dict__)
+
+        # Add the variables:
+        for var, data in group.variables.items():
+            array_group[var] = Array(
+                data[:], attrs=data.__dict__, dims=data.dimensions,
+            )
+
+        # Add the groups
+        for subgroup, subgroup_obj in group.groups.items():
+            array_group[subgroup] = \
+                ArrayGroup._get_group_from_netcdf_group(subgroup_obj)
+
+        return array_group
+
     @classmethod
     def from_xarray(cls, xarray_object):
         """Creates a GeoData object from a xarray.Dataset object.
@@ -425,6 +501,12 @@ class ArrayGroup:
             if deep:
                 yield from (group + "/" + subgroup
                             for subgroup in self[group].groups(deep))
+
+    def is_group(self, name):
+        return name in self._groups
+
+    def is_var(self, name):
+        return not self.is_group(name) and name in self._vars
 
     def items(self, deep=False):
         """
@@ -482,7 +564,7 @@ class ArrayGroup:
 
     @staticmethod
     def parse(key):
-        """Parses *key* into group and field.
+        """Parses *key* into first group and rest.
 
         You can access the groups and fields via different keys:
 
@@ -546,22 +628,132 @@ class ArrayGroup:
 
         return obj
 
-    def select(self, indices):
+    def select(self, indices, deep=False):
         """Select an TODO.
 
         Args:
             indices:
-            limit_to:
+            deep:
 
         Returns:
 
         """
         selected_data = ArrayGroup(self.name + "-selected")
 
-        for var in self.vars(deep=True):
+        for var in self.vars(deep):
             selected_data[var] = self[var][indices]
 
         return selected_data
+
+    def to_netcdf(self, filename, attribute_warning=True,
+                  avoid_dimension_errors=True):
+        """Stores the ArrayGroup to a netcdf4 file.
+
+        Args:
+            filename: Path and file name to which to save this object.
+            attribute_warning: Attributes in netCDF4 files may only be a
+                number, list or string. If this is true, this method gives a
+                warning whenever it tries to store an attribute not fulfilling
+                these conditions.
+            avoid_dimension_errors: This method raises an error if two
+                variables use the same dimension but expecting different
+                lengths. If this parameter is true, the error will not be
+                raised but an additional dimension will be created.
+
+        Returns:
+            None
+        """
+        with Dataset(filename, "w", format="NETCDF4") as root_group:
+            # Add all variables of the main group:
+            self._add_group_to_netcdf(
+                "/", root_group, attribute_warning, avoid_dimension_errors)
+
+            # Add all variables of the sub groups:
+            for group in self.groups(deep=True):
+                nc_group = root_group.createGroup(group)
+                self._add_group_to_netcdf(
+                    group, nc_group, attribute_warning,
+                    avoid_dimension_errors)
+
+    def _add_group_to_netcdf(
+            self, group, nc_group, attr_warning, avoid_dimension_errors):
+        for attr, value in self[group].attrs.items():
+            try:
+                setattr(nc_group, attr, value)
+            except TypeError:
+                if attr_warning:
+                    warnings.warn(
+                        "Cannot store attribute '{}' since it is not "
+                        "a number, list or string!".format(attr))
+
+        coords = self[group].coords()
+        for var, data in self[group].items():
+            # Coordinates should be saved in the end, otherwise a netCDF error
+            # will be raised.
+            if var in coords:
+                continue
+
+            self._add_variable_to_netcdf_group(
+                var, data, nc_group, attr_warning, avoid_dimension_errors
+            )
+
+        for coord in coords:
+            data = self[coord]
+
+            self._add_variable_to_netcdf_group(
+                coord, data, nc_group, attr_warning, avoid_dimension_errors
+            )
+
+    @staticmethod
+    def _add_variable_to_netcdf_group(
+            var, data, nc_group, attr_warning, avoid_dimension_errors):
+        for i, dim in enumerate(data.dims):
+            if dim not in nc_group.dimensions:
+                nc_group.createDimension(
+                    dim, data.shape[i]
+                )
+            elif data.shape[i] != len(nc_group.dimensions[dim]):
+                # The dimension already exists but have a different
+                # length than expected. Either we raise an error or we
+                # create a new dimension for this variable.
+                if not avoid_dimension_errors:
+                    raise ValueError(
+                        "The dimension '{}' already exists and does not "
+                        "have the same length as the same named dimension "
+                        "from the variable '{}'. Maybe you should consider"
+                        " renaming it?".format(dim, var))
+                else:
+                    while dim in nc_group.dimensions:
+                        dim += "0"
+                    nc_group.createDimension(
+                        dim, data.shape[i]
+                    )
+                    data.dims[i] = dim
+
+        if str(data.dtype).startswith("datetime64"):
+            nc_var = nc_group.createVariable(
+                var, "f8", data.dims
+            )
+            time_data = date2num(
+                data.astype('M8[ms]').astype('O'),
+                "milliseconds since 1970-01-01T00:00:00Z")
+            nc_var.units = \
+                "microseconds since 1970-01-01T00:00:00Z"
+            nc_var[:] = time_data
+        else:
+            nc_var = nc_group.createVariable(
+                var, data.dtype, data.dims
+            )
+            nc_var[:] = data
+
+        for attr, value in data.attrs.items():
+            try:
+                setattr(nc_var, attr, value)
+            except TypeError:
+                if attr_warning:
+                    warnings.warn(
+                        "Cannot store attribute '{}' since it is not "
+                        "a number, list or string!".format(attr))
 
     def to_xarray(self):
         """Converts this ArrayGroup object to a xarray.Dataset.
