@@ -177,8 +177,6 @@ class Dataset:
             yield self.find_files(start, end, closest=True)
 
     def __setitem__(self, key, value):
-        start, end = None, None
-
         if isinstance(key, slice):
             start = key.start
             end = key.stop
