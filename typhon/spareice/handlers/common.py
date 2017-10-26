@@ -4,7 +4,8 @@ import pickle
 import numpy as np
 import pandas as pd
 import typhon.arts.xml
-#from typhon.geographical import GeoData
+from typhon.spareice.array import ArrayGroup
+from typhon.spareice.geographical import GeoData
 import xarray
 
 from .. import datasets
@@ -97,23 +98,28 @@ class NetCDF4(handlers.FileHandler):
         ...
 
     def read(self, filename, fields=None):
-        """ Reads and parses NetCDF files and load them to a xarray.
+        """Reads and parses NetCDF files and load them to an ArrayGroup.
 
-        See the base class for further documentation.
+        Args:
+            filename: Path and name of the file to read.
+            fields: (optional) List of field names that should be read. The
+                other fields will be ignored.
+
+        Returns:
+            An ArrayGroup object.
         """
-        #
-        ds = xarray.open_dataset(filename)
+        ds = ArrayGroup.from_netcdf(filename)
         if fields is not None:
             ds = ds[fields]
         return ds
 
     def write(self, filename, data):
-        """ Writes a xarray to a NetCDF file.
+        """ Writes a ArrayGroup / xarray.Dataset to a NetCDF file.
 
         See the base class for further documentation.
         """
 
-        # Data must be a xarray object!
+        # Data must be a ArrayGroup or xarray.Dataset object!
         data.to_netcdf(filename)
 
 
