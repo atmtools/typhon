@@ -8,7 +8,7 @@ Created by John Mrziglod, June 2017
 """
 
 from collections import OrderedDict
-import datetime
+from datetime import datetime, timedelta
 import time
 
 try:
@@ -124,8 +124,8 @@ class CollocatedDataset(Dataset):
         points for each MHS data point.
 
         Args:
-            start: Starting date as datetime.datetime object.
-            end: Ending date as datetime.datetime object.
+            start: Starting date as datetime object.
+            end: Ending date as datetime object.
             collapse_to: Name of dataset which has the coarsest footprint. All
                 other datasets will be collapsed to its datapoints.
             **collapsing_args: Additional keyword arguments for the
@@ -212,7 +212,7 @@ class CollocatedDataset(Dataset):
         from the original files, you can use the fields parameter.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as *start*.
@@ -302,18 +302,20 @@ class CollocatedDataset(Dataset):
                 # Select only the time period in the secondary data where also
                 # primary data is available.
                 if last_timestamp is None:
-                    print(secondary_data_cache)
-                    secondary_data = secondary_data_cache.select(
-                        (secondary_data_cache["time"] >= primary_start)
-                        & (secondary_data_cache["time"] <= primary_end)
-                    )
+                    indices = \
+                        (secondary_data_cache["time"].astype("int")
+                         >= primary_start) \
+                        & (secondary_data_cache["time"].astype("int")
+                           <= primary_end)
                 else:
                     # May be we checked a part of this time period already?
                     # Hence, start there where we stopped last time.
-                    secondary_data = secondary_data_cache.select(
-                        (secondary_data_cache["time"] >= last_timestamp)
-                        & (secondary_data_cache["time"] <= primary_end)
-                    )
+                    indices = \
+                        (secondary_data_cache["time"].astype("int")
+                         >= last_timestamp) \
+                        & (secondary_data_cache["time"].astype("int")
+                           <= primary_end)
+                secondary_data = secondary_data_cache[indices]
 
                 if not secondary_data:
                     print("Skip this file.")
@@ -322,17 +324,15 @@ class CollocatedDataset(Dataset):
                 # The "new" start and end times of the secondary data (the time
                 # conversion is a little bit tricky due to a bug in numpy).
                 secondary_start, secondary_end = \
-                    secondary_data.get_coverage("time")
-
-                print(secondary_start, secondary_end)
-                exit()
+                    secondary_data.get_range("time")
 
                 # Select only the primary data that is in the same time range
                 # as the secondary data.
-                primary_data = primary_data_cache.select(
-                    (primary_data_cache["time"] >= secondary_start)
-                    & (primary_data_cache["time"] <= secondary_end)
-                )
+                indices = (primary_data_cache["time"].astype("int")
+                           >= secondary_start) \
+                    & (primary_data_cache["time"].astype("int")
+                       <= secondary_end)
+                primary_data = primary_data_cache[indices]
 
                 # We are going to check the data until secondary_end. Hence,
                 # we save this timestamp to avoid duplicates the next time.
@@ -344,7 +344,8 @@ class CollocatedDataset(Dataset):
                     continue
 
                 print("Search for collocations between %s and %s." % (
-                    secondary_start, secondary_end))
+                    datetime.fromtimestamp(secondary_start / 1e9),
+                    datetime.fromtimestamp(secondary_end / 1e9)))
 
                 print("\tTaking {} {} and {} {} points for collocation "
                       "search.".format(
@@ -356,7 +357,7 @@ class CollocatedDataset(Dataset):
                 primary_indices, primary_collocation_indices, \
                     secondary_indices, secondary_collocation_indices = \
                     self.find_collocations(
-                        primary_data.data, secondary_data.data,
+                        primary_data, secondary_data,
                         max_interval, max_distance, **kwargs
                     )
 
@@ -364,46 +365,37 @@ class CollocatedDataset(Dataset):
                 if not primary_indices:
                     continue
 
-                # Retrieve with the indices the collocation points from the
-                # data.
-                primary_data = primary_data.select(primary_indices)
-                secondary_data = secondary_data.select(secondary_indices)
-
-                # Merge the two datasets to one collocation dataset:
-                collocated_data = GeoData.merge(
-                    [primary_data, secondary_data]
-                )
-                CollocatedDataset._data_to_xarray(
-                    data_list=[
-                        [self.datasets[0].name, primary_data.data],
-                        [self.datasets[1].name, secondary_data.data]
+                collocated_data = self._merge_collocated_data(
+                    data_list=[primary_data, secondary_data],
+                    original_indices=[
+                        primary_indices,
+                        secondary_indices
                     ],
                     collocations=[
                         primary_collocation_indices,
                         secondary_collocation_indices],
-                    original_indices=[primary_indices, secondary_indices],
-                    original_files=[primary, secondary],
+                    original_files=[
+                        primary, secondary
+                    ],
                     max_interval=max_interval, max_distance=max_distance
                 )
 
-                start_times, end_times = list(zip(
-                    *[data.get_time_coverage()
-                      for data in [primary_data, secondary_data]]
-                ))
-
-                collocation_start_time = min(start_times)
-                collocation_end_time = max(end_times)
-
+                collocations_start, collocations_end = \
+                    collocated_data.get_range("time", deep=True)
+                collocations_start = \
+                    datetime.fromtimestamp(collocations_start / 1e9)
+                collocations_end = \
+                    datetime.fromtimestamp(collocations_end / 1e9)
                 collocated_data.attrs["start_time"] = \
-                    collocation_start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    collocations_start.strftime("%Y-%m-%dT%H:%M:%S.%f")
                 collocated_data.attrs["end_time"] = \
-                    collocation_end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
-                # Prepare the new file name:
+                # Prepare the name for the output file:
                 filename = self.generate_filename_from_time(
                     self.files,
-                    collocation_start_time,
-                    collocation_end_time
+                    collocations_start,
+                    collocations_end
                 )
 
                 # Write the data to the file.
@@ -434,6 +426,37 @@ class CollocatedDataset(Dataset):
                 self.datasets[0].name, total_secondaries_points,
                 self.datasets[1].name,
                 end - start))
+
+    def _merge_collocated_data(
+            self, data_list, original_indices, collocations,
+            original_files, max_interval, max_distance):
+        """Merge the data, original indices, collocation indices and
+        additional information of the datasets to one GeoData object.
+
+        Args:
+            data_list:
+            collocations:
+            original_files:
+            original_indices:
+            max_interval:
+            max_distance:
+
+        Returns:
+            A GeoData object.
+        """
+        collocated_data = GeoData(name="CollocatedData")
+        collocated_data.attrs["max_interval"] = \
+            "Max. interval in seconds: %d" % max_interval
+        collocated_data.attrs["max_interval"] = \
+            "Max. distance in kilometers: %d" % max_distance
+        for i, all_data in enumerate(data_list):
+            data = all_data[original_indices[i]]
+            data["collocations"] = collocations[i]
+            data["original_indices"] = original_indices[i]
+            data.attrs["original_file"] = original_files[i]
+            collocated_data[self.datasets[i].name] = data
+
+        return collocated_data
 
     @property
     def datasets(self):
@@ -498,8 +521,8 @@ class CollocatedDataset(Dataset):
 
         timer = time.time()
 
-        if not isinstance(max_interval, datetime.timedelta):
-            max_interval = datetime.timedelta(seconds=max_interval)
+        if not isinstance(max_interval, timedelta):
+            max_interval = timedelta(seconds=max_interval)
 
         # We try to find collocations by building one 3-d tree for each dataset
         # (see https://en.wikipedia.org/wiki/K-d_tree) and searching for the
@@ -508,8 +531,8 @@ class CollocatedDataset(Dataset):
         # coordinates.
         x, y, z = typhon.geodesy.geocentric2cart(
             typhon.constants.earth_radius,
-            np.asarray(primary_data["lat"]),
-            np.asarray(primary_data["lon"])
+            primary_data["lat"],
+            primary_data["lon"]
         )
 
         primary_points = np.asarray(list(zip(x, y, z)))
@@ -517,8 +540,8 @@ class CollocatedDataset(Dataset):
         # We need to convert the secondary data as well:
         x, y, z = typhon.geodesy.geocentric2cart(
             typhon.constants.earth_radius,
-            np.asarray(secondary_data["lat"]),
-            np.asarray(secondary_data["lon"])
+            secondary_data["lat"],
+            secondary_data["lon"]
         )
         secondary_points = np.asarray(list(zip(x, y, z)))
 

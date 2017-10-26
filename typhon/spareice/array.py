@@ -2,6 +2,7 @@
 to bundle them in labeled groups and store them to netCDF4 files.
 """
 
+from collections import defaultdict
 import copy
 import textwrap
 import warnings
@@ -130,12 +131,11 @@ class ArrayGroup:
 
         self.attrs = {}
 
-        # All variables (including groups) will be saved into this dictionary:
-        # TODO: Actually, groups should not be saved here.
+        # All variables (excluding groups) will be saved into this dictionary:
         self._vars = {}
-        # Only the names of the groups will be saved here. Their content is
-        # in self._vars.
-        self._groups = set()
+
+        # All groups will be saved here.
+        self._groups = defaultdict(type(self))
 
         if name is None:
             self.name = "{}, {}:".format(type(self), id(self))
@@ -148,6 +148,9 @@ class ArrayGroup:
             return True
 
         if var in self._vars:
+            return True
+
+        if var in self._groups:
             if rest:
                 return rest in self[var]
             return True
@@ -163,18 +166,25 @@ class ArrayGroup:
 
     def __delitem__(self, key):
         var, rest = self.parse(key)
-        # The user tries to delete all variables:
+
+        # If the user tries to delete all variables:
         if not var:
             raise KeyError("The main group cannot be deleted. Use the clear "
                            "method to delete all variables and groups.")
 
-        if not rest:
-            del self._vars[var]
-
-            if var in self._groups:
-                self._groups.remove(var)
-        else:
+        if rest:
             del self._vars[var][rest]
+            return
+
+        if var in self._vars:
+            del self._vars[var]
+        else:
+            try:
+                del self._groups[var]
+            except KeyError:
+                raise KeyError(
+                    "Cannot delete! There is neither a variable nor group "
+                    "named '{}'!".format(var))
 
     def __getitem__(self, item):
         """Enables dictionary-like access to the ArrayGroup.
@@ -206,24 +216,23 @@ class ArrayGroup:
                 return self
 
             if not rest:
-                try:
+                if var in self._vars:
                     return self._vars[var]
+
+                try:
+                    return self._groups[var]
                 except KeyError:
                     raise KeyError(
                         "There is neither a variable nor group named "
                         "'{}'!".format(var))
             else:
                 if var in self._groups:
-                    return self._vars[var][rest]
+                    return self._groups[var][rest]
                 else:
                     raise KeyError("'{}' is not a group!".format(var))
-
-        # Selecting elements via slicing:
-        elif isinstance(item, (list, int, slice)):
-            return self.select(item, deep=True)
         else:
-            raise KeyError(
-                "The must be a string, integer, list or slice object!")
+            # Selecting elements via slicing:
+            return self.select(item, deep=True)
 
     def __setitem__(self, key, value):
         var, rest = self.parse(key)
@@ -232,28 +241,34 @@ class ArrayGroup:
             raise ValueError("You cannot change the main group directly!")
 
         if not rest:
-            # Automatic conversion from numpy array to Array.
-            if not isinstance(value, ArrayGroup) \
-                    and not isinstance(value, Array):
+            # Try automatic conversion from numpy array to Array.
+            if not isinstance(value, (Array, ArrayGroup, type(self))):
                 value = Array(value)
 
-            try:
+            if isinstance(value, Array):
                 self._vars[var] = value
-            except KeyError:
-                raise KeyError(
-                    "There is no variable or group named '{}'!".format(var))
 
-            if isinstance(value, ArrayGroup):
-                # Add this variable name to the group set.
-                self._groups.add(var)
-            elif var in self._groups:
-                # Remove this variable name if it is not a group (GeoData)
-                # object any longer.
-                self._groups.remove(var)
+                # Maybe someone wants to create a variable with a name that
+                # has been the name of a group earlier?
+                if var in self._groups:
+                    del self._groups[var]
+            else:
+                self._groups[var] = value
+
+                # May be someone wants to create a group with a name that
+                # has been the name of a variable earlier?
+                if var in self._vars:
+                    del self._vars[var]
         else:
-            self._groups.add(var)
-            self._vars[var] = type(self)()
-            self._vars[var][rest] = value
+            # Auto creation of groups
+            if var not in self._groups:
+                self._groups[var] = type(self)()
+
+                # May be someone wants to create a group with a name that
+                # has been the name of a variable earlier?
+                if var in self._vars:
+                    del self._vars[var]
+            self._groups[var][rest] = value
 
     def __str__(self):
         info = "Name: {}\n".format(self.name)
@@ -272,9 +287,10 @@ class ArrayGroup:
             info += "    --\n"
 
         info += "  Variables:\n"
-        if self._vars:
+        variables = list(self.vars(deep=True))
+        if variables:
             coords = self.coords(deep=True)
-            for var in self.vars(deep=True):
+            for var in variables:
                 info += "    {}{}:\n{}".format(
                     var, " (coord)" if var in coords else "",
                     textwrap.indent(str(self[var]), ' ' * 6)
@@ -445,7 +461,7 @@ class ArrayGroup:
         # Add the groups
         for subgroup, subgroup_obj in group.groups.items():
             array_group[subgroup] = \
-                ArrayGroup._get_group_from_netcdf_group(subgroup_obj)
+                cls._get_group_from_netcdf_group(subgroup_obj)
 
         return array_group
 
@@ -472,7 +488,7 @@ class ArrayGroup:
         """Get the minimum and maximum of one field.
 
         Args:
-            field: Name of the field.
+            field: Name of the variable.
             deep: Including also the fields in subgroups (not only main group).
 
         Returns:
@@ -503,16 +519,16 @@ class ArrayGroup:
         return name in self._groups
 
     def is_var(self, name):
-        return not self.is_group(name) and name in self._vars
+        return name in self._vars
 
     def items(self, deep=False):
-        """
+        """Iterate over all pairs of variables and their content.
 
         Args:
-            deep: Including also subgroups (not only main group).
+            deep: Including also variables from the subgroups.
 
-        Returns:
-
+        Yields:
+            Tuple of variable name and content.
         """
         for var in self.vars(deep):
             yield var, self[var]
@@ -635,7 +651,7 @@ class ArrayGroup:
         Returns:
 
         """
-        selected_data = ArrayGroup(self.name + "-selected")
+        selected_data = type(self)()
 
         for var in self.vars(deep):
             selected_data[var] = self[var][indices]
@@ -660,6 +676,7 @@ class ArrayGroup:
         Returns:
             None
         """
+
         with Dataset(filename, "w", format="NETCDF4") as root_group:
             # Add all variables of the main group:
             self._add_group_to_netcdf(
@@ -695,7 +712,7 @@ class ArrayGroup:
             )
 
         for coord in coords:
-            data = self[coord]
+            data = self[group][coord]
 
             self._add_variable_to_netcdf_group(
                 coord, data, nc_group, attr_warning, avoid_dimension_errors
@@ -785,13 +802,10 @@ class ArrayGroup:
         """
 
         # Only the variables of the main group:
-        for var in self._vars:
-            if (with_name is None or var == with_name) \
-                    and var not in self._groups:
-                yield var
-                # There can be only one variable with this name:
-                if var == with_name:
-                    break
+        if with_name is None:
+            yield from self._vars
+        elif with_name in self._vars:
+            yield with_name
 
         if deep:
             for group in self._groups:
