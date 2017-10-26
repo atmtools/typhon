@@ -356,11 +356,14 @@ class ArrayGroup:
         """
         if new_object:
             new_data = type(self)()
+            for var, data in self.items(deep):
+                new_data[var] = func_with_args[0](data, **func_with_args[1:])
         else:
-            new_data = dict()
+            new_data = {
+                var: func_with_args[0](data, **func_with_args[1:])
+                for var, data in self.items(deep)
+            }
 
-        for var, data in self.items(deep):
-            new_data[var] = func_with_args[0](data, **func_with_args[1:])
         return new_data
 
     def collapse(self, bins, collapser=None,
@@ -468,6 +471,22 @@ class ArrayGroup:
             if coord in self[var].dims
         ]
         return list(set(coords))
+
+    @classmethod
+    def from_dict(cls, dictionary):
+        """Create an ArrayGroup from a dictionary.
+
+        Args:
+            dictionary: Dictionary-like object of Arrays or numpy.arrays.
+
+        Returns:
+            An ArrayGroup object.
+        """
+        obj = cls()
+        for var, data in dictionary.items():
+            obj[var] = data
+
+        return obj
 
     @classmethod
     def from_netcdf(cls, filename):
@@ -711,6 +730,17 @@ class ArrayGroup:
                                               "dimension length?")
 
         return selected_data
+
+    def to_dict(self, deep=True):
+        """Exports variables to a dictionary.
+
+        Args:
+            deep: Export also variables from the subgroups.
+
+        Returns:
+            A dictionary object.
+        """
+        return {var: data for var, data in self.items(deep)}
 
     def to_netcdf(self, filename, attribute_warning=True,
                   avoid_dimension_errors=True):
