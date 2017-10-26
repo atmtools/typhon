@@ -113,6 +113,45 @@ class CollocatedDataset(Dataset):
         self._datasets = []
         self.datasets = datasets
 
+    def accumulate(self, start, end, concat_func=None, concat_args=None,
+                   reading_args=None):
+        """Accumulate all data between two dates in one GeoData object.
+
+        Args:
+            start: Start date either as datetime.datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            concat_func: Function that concatenates the read data to
+                another. The first expected argument must be a list of
+                objects to concatenate. Default is GeoData.concatenate.
+            concat_args: A dictionary with additional arguments for
+                *concat_func*.
+            reading_args: A dictionary with additional arguments for reading
+                the data (specified by the used file handler).
+
+        Returns:
+            Concatenated object.
+
+        Examples:
+            .. :code-block:: python
+
+            dataset = CollocatedDataset(
+                files="path/to/files.nc", handler=handlers.common.NetCDF4()
+            )
+            data = dataset.accumulate("2016-1-1", "2016-1-2",
+                read_args={"fields" : ("temperature", )})
+
+            # do something with data["temperature"]
+            ...
+        """
+
+        if concat_func is None:
+            concat_func = GeoData.concatenate
+
+        return super(CollocatedDataset, self).accumulate(
+            start, end, concat_func, concat_args, reading_args)
+
     def collapse(self, start, end, collapse_to, **collapsing_args):
         """ Accumulates the data between two dates but collapses multiple
         collocations from one dataset to a single data point.
@@ -127,7 +166,7 @@ class CollocatedDataset(Dataset):
             start: Starting date as datetime object.
             end: Ending date as datetime object.
             collapse_to: Name of dataset which has the coarsest footprint. All
-                other datasets will be collapsed to its datapoints.
+                other datasets will be collapsed to its data points.
             **collapsing_args: Additional keyword arguments for the
                 GeoData.collapser method (including collapser function,
                 variation filter, etc.).
@@ -138,56 +177,42 @@ class CollocatedDataset(Dataset):
         Examples:
         """
 
-        datasets = None
-        first_file = None
+        collapsed_data_list = []
         for file, _ in self.find_files(start, end, sort=True):
-            collocated_data = GeoData.from_xarray(self.read(file))
-
-            # Retrieve all dataset names (only once)
-            if datasets is None:
-                datasets = collocated_data.attrs["datasets"].split(";")
-                first_file = file
-            elif datasets != collocated_data.attrs["datasets"].split(";"):
-                raise InhomogeneousFilesError(
-                    "The file '{}' contains collocations from "
-                    "different datasets than '{}'!".format(file, first_file)
-                )
+            collocated_data = self.read(file)
 
             # Get the bin indices by the main dataset to which all other
             # shall be collapsed:
-            bin_indices = collocated_data[name + "/collocations"].groupby(
-                name + "/collocations"
+            bins = list(
+                collocated_data[collapse_to]["collocations"].group().values()
             )
-            print(bin_indices)
-            exit()
 
             collapsed_data = GeoData()
-            for dataset in collocated_data.groups(deep=True):
-                if dataset == "/":
-                    continue
+            for dataset in collocated_data.groups():
+                collocations = collocated_data[dataset]["collocations"]
 
-                bins = np.split(
-                    collocated_data[dataset + "collocations"].data,
-                    bin_indices)[1:]
+                # We do not need the original and collocation indices any
+                # longer because they will soon become useless. Moreover,
+                # they could have a different dimension length than the
+                # other variables and lead to errors in the selecting process:
+                del collocated_data[dataset]["original_indices"]
+                del collocated_data[dataset]["collocations"]
 
-                collapsed_data[dataset] = collocated_data.collapse(
-                    bins, **collapsing_args
-                )
+                if dataset == collapse_to:
+                    # This is the main dataset to which all other will be
+                    # collapsed. Therefore, we do not need explicit
+                    # collapsing here.
+                    collapsed_data[dataset] = \
+                        collocated_data[dataset][np.unique(collocations)]
+                else:
+                    collapsed_data[dataset] = \
+                        collocated_data[dataset].collapse(
+                            bins, **collapsing_args
+                        )
 
-            binned_collocations = {}
-            for name in datasets:
-                #if name == collapse_to:
-                #    continue
+            collapsed_data_list.append(collapsed_data)
 
-                binned_collocations[name] = np.split(
-                    collocated_data[name+".collocations"].data,
-                    bin_indices)[1:]
-
-            collapsed_data = self._collapse_data(
-                    collocated_data, binned_collocations
-            )
-            print(collapsed_data)
-
+        return GeoData.concatenate(collapsed_data_list, dimension=0)
 
     def collocate(self, start, end, fields, max_interval=300,
                   max_distance=10, verbose=True, **kwargs):

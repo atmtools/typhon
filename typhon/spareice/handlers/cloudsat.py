@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 #from pyhdf.SD import SD, SDC
 from pyhdf import HDF, VS, V
-import typhon.geographical
+from typhon.spareice.geographical import GeoData
 import xarray as xr
 
 from .. import handlers
@@ -54,7 +54,7 @@ class CPR2CICE(handlers.FileHandler):
         if fields is None:
             fields = ("time", "lat", "lon")
 
-        dataset = typhon.geographical.GeoData(name="2C-ICE")
+        dataset = GeoData(name="2C-ICE")
 
         # This code is taken from http://hdfeos.org/zoo/OTHER/2010128055614_21420_CS_2B-GEOPROF_GRANULE_P_R04_E03.hdf.py
         # and adapted by John Mrziglod. A description about all variables in CloudSat 2C-ICE dataset can be found in

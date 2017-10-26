@@ -83,6 +83,12 @@ class Array(np.ndarray):
     # def __repr__(self):
     #     return self.__str__()
 
+    def bin(self, bins):
+        return [
+            self[indices]
+            for i, indices in enumerate(bins)
+        ]
+
     @classmethod
     def concatenate(cls, objects, dim=None):
         """Concatenate multiple Array objects together.
@@ -112,6 +118,37 @@ class Array(np.ndarray):
     def from_xarray(cls, xarray_object):
         return cls(xarray_object.data, xarray_object.attrs, xarray_object.dims)
 
+    def group(self):
+        """Groups all elements and returns their appearances.
+
+        This works with a pretty efficient algorithm posted in
+        https://stackoverflow.com/a/23271510.
+
+        Returns:
+            A dictionary with the elements as keys and a list of their indices
+            as values.
+
+        Examples:
+            .. :code-block:: python
+            array = Array([0, 0, 1, 2, 2, 4, 2, 6])
+            groups = array.group()
+            print(groups)
+            # Prints:
+            # {0: Array([0, 1]), 1: Array([2]), 2: Array([3, 4, 6]),
+            # 4: Array([5]), 6: Array([7])}
+        """
+        sort_idx = np.argsort(self)
+        sorted_array = self[sort_idx]
+        unq_first = np.concatenate(
+            ([True], sorted_array[1:] != sorted_array[:-1]))
+        unq_items = sorted_array[unq_first]
+        unq_count = np.diff(np.nonzero(unq_first)[0])
+        unq_idx = np.split(sort_idx, np.cumsum(unq_count))
+        return dict(zip(unq_items, unq_idx))
+
+    def to_string(self):
+        return super(Array, self).__str__()
+
     def to_xarray(self):
         return xr.DataArray(self, attrs=self.attrs, dims=self.dims)
 
@@ -135,7 +172,7 @@ class ArrayGroup:
         self._vars = {}
 
         # All groups will be saved here.
-        self._groups = defaultdict(type(self))
+        self._groups = {}
 
         if name is None:
             self.name = "{}, {}:".format(type(self), id(self))
@@ -199,6 +236,9 @@ class ArrayGroup:
         * by *array_group[0:10]*: returns a copy of the first ten elements
             for each variable in the ArrayGroup object. Note: all variables
             should have the same length.
+        * by *array_group[("var1", "var2", )]*: selects the fields "var1"
+            and "var2" from the array group and returns them as a new array
+            group object.
 
         Args:
             item:
@@ -300,26 +340,27 @@ class ArrayGroup:
 
         return info
 
-    def bin(self, bins, fields=None, deep=False):
-        """Bins all arrays in this object.
+    def apply(self, func_with_args, deep=False, new_object=False):
+        """Apply a function to all variables.
 
         Args:
-            bins: List of lists which contain the indices for the bins.
-            fields: Filter
-            deep: Bins also the arrays of the subgroups.
+            func_with_args: Tuple of reference to the function and arguments.
+            deep: Apply the function also on variables of subgroups.
+            new_object: If this is true, a new ArrayGroup will be created
+                with variables of the return values. Otherwise the return
+                value is simply a dictionary with the variables names and the
+                return values.
 
         Returns:
-            An ArrayGroup object with binned arrays.
+            An ArrayGroup or dictionary object with the return values.
         """
-        new_data = type(self)()
+        if new_object:
+            new_data = type(self)()
+        else:
+            new_data = dict()
+
         for var, data in self.items(deep):
-            if fields is not None and var not in fields:
-                continue
-            binned_data = np.asarray([
-                data[indices]
-                for i, indices in enumerate(bins)
-            ])
-            new_data[var] = binned_data
+            new_data[var] = func_with_args[0](data, **func_with_args[1:])
         return new_data
 
     def collapse(self, bins, collapser=None,
@@ -356,15 +397,14 @@ class ArrayGroup:
                     )
 
                 # Bin only one field for testing of inhomogeneities:
-                binned = self.bin(bins, fields=(variation_filter[0]))
+                binned_data = self[variation_filter[0]].bin(bins)
 
                 # The user can define a different variation function (
                 # default is the standard deviation).
                 if len(variation_filter) == 2:
-                    variation = np.nanstd(binned[variation_filter[0]], 1)
+                    variation = np.nanstd(binned_data, 1)
                 else:
-                    variation = variation_filter[2](
-                        binned[variation_filter[0]], 1)
+                    variation = variation_filter[2](binned_data, 1)
                 passed = variation < variation_filter[1]
             else:
                 raise ValueError("The inhomogeneity filter must be a tuple "
@@ -373,12 +413,11 @@ class ArrayGroup:
 
         bins = np.asarray(bins)
 
-        # Before collapsing the data, we must bin it:
-        collapsed_data = self.bin(bins[passed], deep=deep)
-
         # Collapse the data:
-        for var, data in collapsed_data.items(deep):
-            collapsed_data[var] = collapser(data, 1)
+        collapsed_data = type(self)()
+        for var, data in self.items(deep):
+            binned_data = data.bin(bins[passed])
+            collapsed_data[var] = [collapser(bin, 0) for bin in binned_data]
         return collapsed_data
 
     @classmethod
@@ -602,31 +641,31 @@ class ArrayGroup:
         var, rest = key.split("/", 1)
         return var, rest
 
-    def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
-        """
-
-        Args:
-            plot_type:
-            fields:
-            fig:
-            ax:
-            **kwargs:
-
-        Returns:
-
-        """
-
-        if plot_type == "worldmap":
-            ax, scatter = typhon.plots.worldmap(
-                self["lat"],
-                self["lon"],
-                self[fields[0]],
-                fig, ax, **kwargs
-            )
-        else:
-            raise ValueError("Unknown plot type: '{}'".format(plot_type))
-
-        return ax
+    # def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
+    #     """
+    #
+    #     Args:
+    #         plot_type:
+    #         fields:
+    #         fig:
+    #         ax:
+    #         **kwargs:
+    #
+    #     Returns:
+    #
+    #     """
+    #
+    #     if plot_type == "worldmap":
+    #         ax, scatter = typhon.plots.worldmap(
+    #             self["lat"],
+    #             self["lon"],
+    #             self[fields[0]],
+    #             fig, ax, **kwargs
+    #         )
+    #     else:
+    #         raise ValueError("Unknown plot type: '{}'".format(plot_type))
+    #
+    #     return ax
 
     def rename(self, mapping, inplace=True):
         if inplace:
@@ -641,20 +680,35 @@ class ArrayGroup:
 
         return obj
 
-    def select(self, indices, deep=False):
+    def select(self, indices_or_fields, deep=False):
         """Select an TODO.
 
         Args:
-            indices:
+            indices_or_fields:
             deep:
 
         Returns:
 
         """
         selected_data = type(self)()
+        selected_data.attrs.update(**self.attrs)
 
-        for var in self.vars(deep):
-            selected_data[var] = self[var][indices]
+        if (isinstance(indices_or_fields, (tuple, list))
+                and isinstance(indices_or_fields[0], str)):
+            # Selecting by field names:
+            for var in self.vars(deep):
+                if var in indices_or_fields:
+                    selected_data[var] = self[var]
+        else:
+            # Selecting by indices or slices:
+            for var in self.vars(deep):
+                try:
+                    selected_data[var] = self[var][indices_or_fields]
+                except IndexError as e:
+                    raise IndexError(str(e) + "\nDid you check whether all "
+                                              "arrays in this ArrayGroup "
+                                              "object have the same first"
+                                              "dimension length?")
 
         return selected_data
 

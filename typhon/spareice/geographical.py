@@ -4,6 +4,7 @@
 """
 
 from .array import ArrayGroup
+import typhon.plots
 
 __all__ = [
     'GeoData',
@@ -23,7 +24,7 @@ class GeoData(ArrayGroup):
 
         return len(self["time"])
 
-    def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
+    def plot_worldmap(self, field, fig=None, ax=None, **kwargs):
         """
 
         Args:
@@ -37,14 +38,11 @@ class GeoData(ArrayGroup):
 
         """
 
-        if plot_type == "worldmap":
-            ax, scatter = typhon.plots.worldmap(
-                self["lat"],
-                self["lon"],
-                self[fields[0]],
-                fig, ax, **kwargs
-            )
-        else:
-            raise ValueError("Unknown plot type: '{}'".format(plot_type))
+        ax, scatter = typhon.plots.worldmap(
+            self["lat"],
+            self["lon"],
+            self[field],
+            fig, ax, **kwargs
+        )
 
         return ax
