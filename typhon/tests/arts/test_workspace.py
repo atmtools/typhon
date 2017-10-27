@@ -56,3 +56,6 @@ class TestWorkspace:
     def test_creation(self):
         self.ws.ArrayOfIndexCreate("array_of_index")
         self.ws.ArrayOfIndexCreate("array_of_index")
+        with pytest.raises(Exception):
+            self.ws.VectorCreate("array_of_index")
+

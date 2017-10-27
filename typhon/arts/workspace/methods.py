@@ -305,7 +305,7 @@ class WorkspaceMethod:
                 v = arts_api.get_variable(ws_id)
                 if not v.group == group_id:
                     raise Exception("A WSV with the name " + name + " but of goup "
-                                    + group_names(v.group) + " already exists.")
+                                    + group_names[v.group] + " already exists.")
             # Otherwise we add the variable.
             else:
                 ws_id = arts_api.add_variable(ws.ptr, group_id, name.encode())
