@@ -1,16 +1,23 @@
 # -*- coding: utf-8 -*-
 
-"""This package provides file handler classes. The file handler classes provide specialized reading (sometimes as well
-writing) methods for several data formats. All reading methods return a xarray.Dataset in a standardized format.
-TODO: Find a standard format (e.g. arrays of time/lat/lon)."""
+"""This package provides file handler classes. The file handler classes provide
+specialized reading (sometimes as well writing) methods for several data
+formats."""
+
+import abc
 
 __all__ = [
     'FileHandler'
 ]
 
-import abc
 
 class FileHandler:
+    """Base class for all file handlers.
+
+    File handler classes that shall be used with the Dataset classes should
+    inherit from this base class and implement its abstract methods (the
+    implementation of the *write* method is optional).
+    """
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, **kwargs):
@@ -18,26 +25,29 @@ class FileHandler:
 
     @abc.abstractmethod
     def get_info(self, filename):
-        """ Returns a dictionary with info parameters about the file content.
+        """Returns a :class:`FileInfo` object with parameters about the
+        file content.
 
-            It must contain the key "times" with a tuple of two datetime.datetime as value, indicating the start and end
-            time of this file.
+        It must contain the key "times" with a tuple of two datetime
+        objects as value, indicating the start and end time of this file.
 
         Args:
-            filename: Path and name of the file of which to retrieve the info about.
+            filename: Path and name of the file of which to retrieve the info
+                about.
 
         Returns:
-            A dictionary with info parameters.
+            A FileInfo object.
         """
         pass
 
 
     @staticmethod
     def parse_fields(fields):
-        """ Checks whether the element of fields are strings or tuples.
+        """Checks whether the element of fields are strings or tuples.
 
-        So far, this function does not do much. But I want it to be here as a central, static method to make it easier
-        if we want to change the behaviour of the field selection in the future.
+        So far, this function does not do much. But I want it to be here as a
+        central, static method to make it easier if we want to change the
+        behaviour of the field selection in the future.
 
         Args:
             fields: An iterable object of strings or fields.
@@ -52,31 +62,20 @@ class FileHandler:
                 yield field
             else:
                 raise ValueError(
-                    "Unknown field element: {}. The elements in fields must be strings or tuples!".format(type(field)))
-
+                    "Unknown field element: {}. The elements in fields must be"
+                    "strings or tuples!".format(type(field)))
 
     @abc.abstractmethod
     def read(self, filename):
-        """This method should open a file by its name, read its content and return a numpy.array (or xarray) with the
-        following structure:
-
-            data = [
-                "times" : [...],
-                "lats" : [...],
-                "lons" : [...],
-                "field[0]" : [...],
-                "field[1]" : [...],
-                ...
-            ]
-
-        This method is abstract therefore it has to be implemented in the specific file handler subclass.
+        """This method open a file by its name, read its content and return
+        a object containing this content.
 
         Args:
-            filename:
-            **kwargs:
+            filename: Path and name of the file from which to read.
+            **kwargs: Additional key word arguments.
 
         Returns:
-            numpy.array
+            An object containing the file's content.
         """
         pass
 
@@ -84,8 +83,9 @@ class FileHandler:
     def select(data, dimensions):
         """ Returns only the selected dimensions of the data.
 
-        So far, this function does not do much. But I want it to be here as a central, static method to make it easier
-        if we want to change the behaviour of the field selection in the future.
+        So far, this function does not do much. But I want it to be here as a
+        central, static method to make it easier if we want to change the
+        behaviour of the field selection in the future.
 
         Args:
             data: A sliceable object such as xarray.DataArray or numpy.array.
@@ -103,8 +103,8 @@ class FileHandler:
     def write(self, filename, data):
         """This method should store data to a file.
 
-        This method is not abstract and therefore it is optional whether a file handler subclass does support a
-        writing-data-to-file feature.
+        This method is not abstract and therefore it is optional whether a file
+        handler subclass does support a writing-data-to-file feature.
 
         Args:
             filename:
@@ -113,5 +113,13 @@ class FileHandler:
         Returns:
             None
         """
-        raise NotImplementedError("This file handler does not support writing data to a file. You should use a "
-                                  "different file handler.")
+        raise NotImplementedError(
+            "This file handler does not support writing data to a file. You "
+            "should use a different file handler.")
+
+
+class FileInfo(dict):
+    """Contains information about a file (time coverage, etc.)
+    """
+    def __init__(self):
+        super(FileInfo, self).__init__()
