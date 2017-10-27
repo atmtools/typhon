@@ -37,6 +37,11 @@ class NoFilesError(Exception):
         Exception.__init__(self, *args)
 
 
+class NoHandlerError(Exception):
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+
+
 class InhomogeneousFilesError(Exception):
     def __init__(self, *args):
         Exception.__init__(self, *args)
@@ -754,8 +759,9 @@ class Dataset:
             Dictionary with information about the file.
         """
         if self.handler is None:
-            raise ValueError("Could not get info from the file '{}'! No file "
-                             "handler is specified!".format(filename))
+            raise NoHandlerError(
+                "Could not get info from the file '{}'! No file handler is "
+                "specified!".format(filename))
 
         with typhon.files.decompress(filename) as file:
             return self.handler.get_info(file)
@@ -965,8 +971,9 @@ class Dataset:
             The content of the read file.
         """
         if self.handler is None:
-            raise ValueError("Could not read the file '{}'! No file handler "
-                             "is specified!".format(filename))
+            raise NoHandlerError(
+                "Could not get info from the file '{}'! No file handler is "
+                "specified!".format(filename))
 
         with typhon.files.decompress(filename) as file:
             data = self.handler.read(file, **reading_arguments)
@@ -1108,8 +1115,9 @@ class Dataset:
             None
         """
         if self.handler is None:
-            raise ValueError("Could not write the data to '{}'! No file "
-                             "handler is specified!".format(filename))
+            raise NoHandlerError(
+                "Could not get info from the file '{}'! No file handler is "
+                "specified!".format(filename))
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         return self.handler.write(filename, data, **writing_arguments)
