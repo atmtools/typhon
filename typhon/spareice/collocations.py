@@ -23,7 +23,7 @@ import typhon.geodesy
 from typhon.spareice.geographical import GeoData
 import xarray as xr
 
-from .datasets import Dataset, InhomogeneousFilesError
+from .datasets import Dataset
 
 __all__ = [
     "CollocatedDataset"

@@ -12,7 +12,6 @@ from .. import datasets
 from .. import handlers
 
 __all__ = [
-    'GeoFile'
     'NetCDF4',
     'Numpy',
     'Pickle',
@@ -20,85 +19,54 @@ __all__ = [
     ]
 
 
-# class GeoFile(handlers.FileHandler):
-#     def __init__(self, file_format="netcdf", output="GeoData", **kwargs):
-#         """File handler to read and write geographical data (stored in a typhon.geographical.GeoData or
-#         typhon.geographical.CollocatedData object).
-#
-#         Args:
-#             file_format:
-#             output: Defines what the .read() method should return:
-#                 * "GeoData" - a GeoData object.
-#                 * "CollocatedData" - a CollocatedData object.
-#             **kwargs:
-#         """
-#         # Call the base class initializer
-#         super().__init__(**kwargs)
-#
-#         self.file_format = file_format
-#         self.output = output
-#
-#     def get_info(self, filename):
-#         # Get info parameters from a file (time coverage, etc)
-#         ds = xarray.open_dataset(filename)
-#
-#         info = {
-#             "times": [
-#                 datetime.datetime.strptime(ds.attrs["start_time"], "%Y-%m-%dT%H:%M:%S.%f"),
-#                 datetime.datetime.strptime(ds.attrs["end_time"], "%Y-%m-%dT%H:%M:%S.%f")
-#             ],
-#         }
-#
-#         ds.close()
-#
-#         return info
-#
-#     def read(self, filename, fields=None, mapping=None):
-#         """ Reads and parses NetCDF files and load them to a xarray.
-#
-#         See the base class for further documentation.
-#         """
-#
-#         ds = xarray.open_dataset(filename)
-#         if fields is not None:
-#             ds = ds[fields]
-#
-#         if mapping is not None:
-#             ds.rename(mapping, inplace=True)
-#
-#         if self.output == "CollocatedData":
-#             return CollocatedData.from_xarray(ds)
-#         elif self.output == "GeoData":
-#             return GeoData.from_xarray(ds)
-#         else:
-#             raise ValueError("Unknown output type: %s" % self.output)
-#
-#     def write(self, filename, data):
-#         """ Writes a GeoData or CollocatedData object to a file.
-#
-#         See the base class for further documentation.
-#         """
-#
-#         if self.file_format == "netcdf":
-#             if isinstance(data, xarray.Dataset):
-#                 data.to_netcdf(filename)
-#             else:
-#                 data.to_xarray().to_netcdf(filename)
-#         else:
-#             raise ValueError("Unknown output format: '%s'" % self.file_format)
-
-
 class NetCDF4(handlers.FileHandler):
-    def __init__(self, **kwargs):
+    """File handler that can read / write data from / to a netCDF4 or HDF5
+    file.
+    """
+    def __init__(self, file_loader=None, info_loader=None, **kwargs):
+        """Initializes a NetCDF4 file handler class.
+
+        Args:
+            file_loader: (optional) Defines how to return the read data.
+                Default is the *ArrayGroup.from_netcdf* class method but
+                possible are others, e.g. *xarray.open_dataset* or
+                *GeoData.from_netcdf*.
+            info_loader: (optional) You cannot use the :meth:`get_info`
+                without giving a function here that returns a FileInfo object.
+        """
         # Call the base class initializer
         super().__init__(**kwargs)
 
+        if file_loader is None:
+            self.file_loader = ArrayGroup.from_netcdf
+        else:
+            self.file_loader = file_loader
+
+        self.info_loader = info_loader
+
     def get_info(self, filename):
-        # Get info parameters from a file (time coverage, etc)
-        ...
+        """
+
+        Args:
+            filename:
+
+        Returns:
+
+        """
+        if self.info_loader is None:
+            raise NotImplementedError(
+                "The NetCDF4 file handler does not have a native get_info "
+                "support. You have to define one via 'info_loader' during "
+                "initialization.")
+        else:
+            # Get info parameters from a file (time coverage, etc)
+            return self.info_loader(filename)
 
     def read(self, filename, fields=None):
         """Reads and parses NetCDF files and load them to an ArrayGroup.
+
+        If you need another return value, change it via the parameter
+        *file_loader* of the :meth:`__init__` method.
 
         Args:
             filename: Path and name of the file to read.
@@ -108,21 +76,20 @@ class NetCDF4(handlers.FileHandler):
         Returns:
             An ArrayGroup object.
         """
-        ds = ArrayGroup.from_netcdf(filename)
+        ds = self.file_loader(filename)
         if fields is not None:
             ds = ds[fields]
         return ds
 
     def write(self, filename, data):
-        """ Writes a ArrayGroup / xarray.Dataset to a NetCDF file.
+        """ Writes a data object to a NetCDF file.
 
-        See the base class for further documentation.
+        The data object must have a *to_netcdf* method, e.g. an ArrayGroup
+        or xarray.Dataset object.
         """
 
-        # Data must be a ArrayGroup or xarray.Dataset object!
+        # Data can be a ArrayGroup or xarray.Dataset object!
         data.to_netcdf(filename)
-
-
 
 
 class Numpy(handlers.FileHandler):

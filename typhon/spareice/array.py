@@ -11,7 +11,7 @@ import numpy as np
 import typhon.plots
 
 try:
-    from netCDF4 import Dataset, num2date, date2num
+    import netCDF4
 except ModuleNotFoundError:
     pass
 
@@ -46,11 +46,14 @@ class Array(np.ndarray):
         if obj is None:
             return
 
-        self.attrs = getattr(obj, 'attrs', {})
-        self.dims = getattr(
-            obj, 'dims',
-            ["dim_%d" % i for i in range(len(self.shape))]
-        )
+        self.attrs = getattr(obj, "attrs", {})
+
+        # Update the number of dimensions if the shape has been changed.
+        if not hasattr(obj, "dims") or len(obj.dims) != len(self.shape):
+            self.dims = ["dim_%d" % i for i in range(len(self.shape))]
+        else:
+            self.dims = obj.dims
+
         # self.dims = getattr(
         #     obj, 'dims',
         #     [None for _ in range(len(self.shape))]
@@ -210,7 +213,7 @@ class ArrayGroup:
                            "method to delete all variables and groups.")
 
         if rest:
-            del self._vars[var][rest]
+            del self._groups[var][rest]
             return
 
         if var in self._vars:
@@ -472,6 +475,26 @@ class ArrayGroup:
         ]
         return list(set(coords))
 
+    def drop(self, fields, inplace=True):
+        """Remove fields from the object.
+
+        Args:
+            fields:
+            inplace:
+
+        Returns:
+            An ArrayGroup without the dropped fields.
+        """
+        if inplace:
+            obj = self
+        else:
+            obj = copy.deepcopy(self)
+
+        for field in fields:
+            del obj[field]
+
+        return obj
+
     @classmethod
     def from_dict(cls, dictionary):
         """Create an ArrayGroup from a dictionary.
@@ -489,27 +512,45 @@ class ArrayGroup:
         return obj
 
     @classmethod
-    def from_netcdf(cls, filename):
-        """Creates a GeoData object from a xarray.Dataset object.
+    def from_netcdf(cls, filename, fields=None):
+        """Creates an ArrayGroup object from a netCDF file.
 
         Args:
             filename: Path and file name from where to load a new ArrayGroup.
+            fields: (optional) List or tuple of variable or
+                group names). Only those fields are going to be read.
 
         Returns:
-            GeoData object
+            An ArrayGroup object.
         """
 
-        with Dataset(filename, "r") as root:
-            array_group = cls._get_group_from_netcdf_group(root)
+        with netCDF4.Dataset(filename, "r") as root:
+            array_group = cls._get_group_from_netcdf_group(root, fields)
 
             return array_group
 
     @classmethod
-    def _get_group_from_netcdf_group(cls, group):
+    def _get_group_from_netcdf_group(cls, group, fields):
         array_group = cls()
 
         array_group.attrs.update(**group.__dict__)
 
+        # Limit the reading of the file to some fields:
+        if fields is not None:
+            for field in fields:
+                if isinstance(group[field], netCDF4._netCDF4.Group):
+                    array_group[field] = \
+                        cls._get_group_from_netcdf_group(field, None)
+                    continue
+
+                array_group[field] = Array(
+                    group[field][:], attrs=group[field].__dict__,
+                    dims=group[field].dimensions,
+                )
+
+            return array_group
+
+        # Otherwise, we want to read all variables and groups:
         # Add the variables:
         for var, data in group.variables.items():
             array_group[var] = Array(
@@ -519,19 +560,19 @@ class ArrayGroup:
         # Add the groups
         for subgroup, subgroup_obj in group.groups.items():
             array_group[subgroup] = \
-                cls._get_group_from_netcdf_group(subgroup_obj)
+                cls._get_group_from_netcdf_group(subgroup_obj, None)
 
         return array_group
 
     @classmethod
     def from_xarray(cls, xarray_object):
-        """Creates a GeoData object from a xarray.Dataset object.
+        """Creates an ArrayGroup object from a xarray.Dataset object.
 
         Args:
             xarray_object: A xarray.Dataset object.
 
         Returns:
-            GeoData object
+            An ArrayGroup object.
         """
 
         array_dict = cls()
@@ -761,7 +802,7 @@ class ArrayGroup:
             None
         """
 
-        with Dataset(filename, "w", format="NETCDF4") as root_group:
+        with netCDF4.Dataset(filename, "w", format="NETCDF4") as root_group:
             # Add all variables of the main group:
             self._add_group_to_netcdf(
                 "/", root_group, attribute_warning, avoid_dimension_errors)
@@ -856,8 +897,11 @@ class ArrayGroup:
     def to_xarray(self):
         """Converts this ArrayGroup object to a xarray.Dataset.
 
+        Warnings:
+            Still contain bugs!
+
         Returns:
-            A xarray.Dataset object
+            A xarray.Dataset object.
         """
 
         xarray_object = xr.Dataset()
