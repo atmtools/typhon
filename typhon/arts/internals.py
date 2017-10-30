@@ -215,6 +215,26 @@ class ARTSCAT5:
         for line in artscat5:
             self._append_line_(line)
 
+    def set_testline(self, i_know_what_i_am_doing=False):
+        assert(i_know_what_i_am_doing)
+        self._n += 1
+        self.LineRecordData = {
+                        'freq': np.array([100e9]),
+                        'afgl': np.array([626], dtype='int'),
+                        'str': np.array([1]),
+                        'glow': np.array([0]),
+                        'gupp': np.array([3]),
+                        'elow': np.array([0]),
+                        'spec': np.array(['CO2'], dtype='str'),
+                        'ein': np.array([1]),
+                        't0': np.array([300])}
+        self._dictionaries = np.array([
+                {"QN": QuantumNumberRecord(as_quantumnumbers("J 1"),
+                                           as_quantumnumbers("J 0")),
+                 "PB": PressureBroadening([10e3, 20e3, 0.8, 0.8, 1e3,
+                                           -1, -1, -1, -1, -1]),
+                 "LM": LineMixing([300, 1e-10, 0.8])}])
+
     def append(self, other, sort=True):
         """Appends data to ARTSCAT5.  Used at initialization
 
@@ -967,7 +987,7 @@ class LineMixing:
         elif self._type is self._first_order:
             self._t0 = self._data[0]
             self._y0 = self._data[1]
-            self._n0 = self._data[2]
+            self._ey = self._data[2]
         elif self._type is self._second_order:
             self._t0 = self._data[6]
 
@@ -997,7 +1017,7 @@ class LineMixing:
         elif self._type is self._first_order:
             self._data[0] = self._t0
             self._data[1] = self._y0
-            self._data[2] = self._n0
+            self._data[2] = self._ey
         elif self._type is self._second_order:
             self._data[6] = self._t0
 
