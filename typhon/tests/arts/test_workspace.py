@@ -3,12 +3,14 @@ import numpy as np
 import pytest
 
 try:
-    from typhon.arts.workspace import Workspace
+    from typhon.arts.workspace import Workspace, arts_agenda
 except:
     skip_arts_tests = True
 else:
     skip_arts_tests = False
 
+def agenda(ws):
+    ws.Print(ws.y, 0)
 
 @pytest.mark.skipif(skip_arts_tests, reason='ARTS library not available')
 class TestWorkspace:
@@ -59,3 +61,5 @@ class TestWorkspace:
         with pytest.raises(Exception):
             self.ws.VectorCreate("array_of_index")
 
+    def test_agenda(self):
+        arts_agenda(agenda)

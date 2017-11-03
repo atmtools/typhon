@@ -66,7 +66,7 @@ def arts_agenda(func):
     ws = Workspace()
 
     context = func.__globals__
-    context[arg_name] == ws
+    context.update({arg_name : ws})
 
     # Create agenda
     a_ptr = arts_api.create_agenda(func.__name__.encode())
