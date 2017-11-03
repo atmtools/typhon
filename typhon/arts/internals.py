@@ -170,9 +170,17 @@ class ARTSCAT5:
     def F0(self):
         return self.LineRecordData['freq']
 
+    @F0.setter
+    def F0(self, nums):
+        self.LineRecordData['freq'] = nums
+
     @property
     def S0(self):
         return self.LineRecordData['str']
+
+    @S0.setter
+    def S0(self, nums):
+        self.LineRecordData['str'] = nums
 
     @property
     def Species(self):
@@ -217,21 +225,21 @@ class ARTSCAT5:
 
     def set_testline(self, i_know_what_i_am_doing=False):
         assert(i_know_what_i_am_doing)
-        self._n += 1
+        self._n = 1
         self.LineRecordData = {
-                        'freq': np.array([100e9]),
+                        'freq': np.array([100e9], dtype='float'),
                         'afgl': np.array([626], dtype='int'),
-                        'str': np.array([1]),
-                        'glow': np.array([0]),
-                        'gupp': np.array([3]),
-                        'elow': np.array([0]),
+                        'str': np.array([1], dtype='float'),
+                        'glow': np.array([0], dtype='float'),
+                        'gupp': np.array([3], dtype='float'),
+                        'elow': np.array([0], dtype='float'),
                         'spec': np.array(['CO2'], dtype='str'),
-                        'ein': np.array([1]),
-                        't0': np.array([300])}
+                        'ein': np.array([1], dtype='float'),
+                        't0': np.array([300], dtype='float')}
         self._dictionaries = np.array([
                 {"QN": QuantumNumberRecord(as_quantumnumbers("J 1"),
                                            as_quantumnumbers("J 0")),
-                 "PB": PressureBroadening([10e3, 20e3, 0.8, 0.8, 1e3,
+                 "PB": PressureBroadening([10e3, 0.8, 20e3, 0.8, 1e3,
                                            -1, -1, -1, -1, -1]),
                  "LM": LineMixing([300, 1e-10, 0.8])}])
 
@@ -742,7 +750,7 @@ class ARTSCAT5:
         .. math::
             \\sigma(f) = \\sum_{k=0}^{k=n-1}
             r_k S_{0, k}(T_0) K_1 K_2 \\frac{Q(T_0)}{Q(T)}
-            \\frac{1 + G_k \\; p^2 + iY_k \\; p }{\\gamma_{D,k}\\sqrt{\\pi}}
+            \\frac{1 + g_k \\; p^2 + iy_k \\; p }{\\gamma_{D,k}\\sqrt{\\pi}}
             \\; F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
