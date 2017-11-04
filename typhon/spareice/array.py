@@ -8,6 +8,7 @@ import textwrap
 import warnings
 
 import numpy as np
+from scipy.stats import variation
 import typhon.plots
 
 try:
@@ -86,36 +87,42 @@ class Array(np.ndarray):
     # def __repr__(self):
     #     return self.__str__()
 
+    def apply_on_bins(self, bins, functions, return_dict=False):
+        """A convenient function to apply functions on a binned array.
+
+        Args:
+            bins: List of lists which contain the indices for the bins.
+            functions: Must be a dictionary of names (keys) and function
+                references (values).
+            return_dict: If true, a dictionary instead of an ArrayGroup will be
+                returned.
+
+        Returns:
+            An ArrayGroup or dictionary with the return values.
+        """
+        binned_data = self.bin(bins)
+
+        if return_dict:
+            return_values = {
+                name: np.asarray(
+                    [func(bin, 0) for bin in binned_data]
+                ).flatten()
+                for name, func in functions.items()
+            }
+        else:
+            return_values = ArrayGroup()
+            for name, func in functions.items():
+                return_values[name] = np.asarray([
+                    func(bin, 0) for bin in binned_data]
+                ).flatten()
+
+        return return_values
+
     def bin(self, bins):
         return [
             self[indices]
             for i, indices in enumerate(bins)
         ]
-
-    @classmethod
-    def concatenate(cls, objects, dim=None):
-        """Concatenate multiple Array objects together.
-
-        The returned Array object contains the attributes and dimension labels
-        from the first object in the list.
-
-        TODO:
-            Maybe this could be implemented via __array_wrap__ or
-            __array_ufunc__?
-
-        Args:
-            objects: List of GeoData objects to concatenate.
-            dim:
-
-        Returns:
-            An Array object.
-        """
-        concat_array = np.concatenate(objects, dim)
-        array = Array(
-            concat_array, objects[0].attrs, objects[0].dims
-        )
-
-        return array
 
     @classmethod
     def from_xarray(cls, xarray_object):
@@ -369,60 +376,31 @@ class ArrayGroup:
 
         return new_data
 
-    def collapse(self, bins, collapser=None,
-                 variation_filter=None, deep=False):
-        """Fills bins for each variables and apply a function to them.
+    def collapse(self, bins, collapser=None, deep=False):
+        """Divide the data of each variables in bins and apply a function to
+        them.
 
         Args:
             bins: List of lists which contain the indices for the bins.
             collapser: Function that should be applied on each bin (
                 numpy.nanmean is the default).
-            variation_filter: Bins which exceed a certain variation limit
-                can be excluded. For doing this, you must set this parameter to
-                a tuple/list of at least two elements: field name and
-                variation threshold. A third element is optional: the
-                variation function (the default is numpy.nanstd).
             deep: Collapses also the variables of the subgroups.
 
         Returns:
-            An ArrayGroup object.
+            One ArrayGroup object with the collapsed data and if
+            *variation_stats* is set another ArrayGroup with variation
+            statistics of one field.
         """
         # Default collapser is the mean function:
         if collapser is None:
             collapser = np.nanmean
-
-        # Exclude all bins where the inhomogeneity (variation) is too high
-        passed = np.ones_like(bins).astype("bool")
-        if isinstance(variation_filter, tuple):
-            if len(variation_filter) >= 2:
-                if len(self[variation_filter[0]].shape) > 1:
-                    raise ValueError(
-                        "The variation filter can only be used for "
-                        "1-dimensional data! I.e. the field '{}' must be "
-                        "1-dimensional!".format(variation_filter[0])
-                    )
-
-                # Bin only one field for testing of inhomogeneities:
-                binned_data = self[variation_filter[0]].bin(bins)
-
-                # The user can define a different variation function (
-                # default is the standard deviation).
-                if len(variation_filter) == 2:
-                    variation = np.nanstd(binned_data, 1)
-                else:
-                    variation = variation_filter[2](binned_data, 1)
-                passed = variation < variation_filter[1]
-            else:
-                raise ValueError("The inhomogeneity filter must be a tuple "
-                                 "of a field name, a threshold and (optional)"
-                                 "a variation function.")
 
         bins = np.asarray(bins)
 
         # Collapse the data:
         collapsed_data = type(self)()
         for var, data in self.items(deep):
-            binned_data = data.bin(bins[passed])
+            binned_data = data.bin(bins)
             collapsed_data[var] = [collapser(bin, 0) for bin in binned_data]
         return collapsed_data
 
@@ -450,7 +428,7 @@ class ArrayGroup:
             else:
                 if dimension is None:
                     dimension = 0
-                new_data[var] = Array.concatenate(
+                new_data[var] = np.concatenate(
                     [obj[var] for obj in objects],
                     dimension)
 
@@ -598,18 +576,21 @@ class ArrayGroup:
         end = [np.nanmax(self[var], axis).item(0) for var in variables]
         return min(start), max(end)
 
-    def groups(self, deep=False):
+    def groups(self, deep=False, exclude_prefix=None):
         """Returns the names of all groups in this GeoData object.
 
         Args:
             deep: Including also subgroups (not only main group).
+            exclude_prefix: All group names starting with this prefix are not
+                going to be returned.
 
         Yields:
             Name of group.
         """
 
         for group in self._groups:
-            yield group
+            if exclude_prefix is None or not group.startswith(exclude_prefix):
+                yield group
             if deep:
                 yield from (group + "/" + subgroup
                             for subgroup in self[group].groups(deep))
@@ -873,7 +854,7 @@ class ArrayGroup:
             nc_var = nc_group.createVariable(
                 var, "f8", data.dims
             )
-            time_data = date2num(
+            time_data = netCDF4.date2num(
                 data.astype('M8[ms]').astype('O'),
                 "milliseconds since 1970-01-01T00:00:00Z")
             nc_var.units = \
