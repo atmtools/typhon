@@ -5,7 +5,6 @@
 import numpy as np
 import functools
 
-
 __all__ = [
     'integrate_column',
     'interpolate_halflevels',
@@ -104,6 +103,14 @@ def nlogspace(start, stop, num=50):
     """
     return np.exp(np.linspace(np.log(start), np.log(stop), num))
 
+# Any commits made to this module between 2015-05-01 and 2017-03-01
+# by Gerrit Holl are developed for the EC project “Fidelity and
+# Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
+# Grant agreement: 638822.  That specifically applies to the functions
+# promote_maximally and calculate_precisely.
+# 
+# All those contributions are dual-licensed under the MIT license for use
+# in typhon, and the GNU General Public License version 3.
 
 def promote_maximally(x):
     """Return copy of x with high precision dtype.
