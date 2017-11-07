@@ -192,9 +192,7 @@ class FirstlineDBFilter(OverlapFilter):
                 bar.finish()
             logging.info("Updated {:d}/{:d} granules".format(count_updated, count_all))
 
-
-
-class FirstlineNoFilter(OverlapFilter):
+class NullLineFilter(OverlapFilter):
     """Do not filter firstlines at all
     """
 

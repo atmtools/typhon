@@ -397,7 +397,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
                         "As data are supposed to be sorted in time, this "
                         "probably means duplicate removal is not working "
-                        "as it should. ".format(gran,
+                        "as it should, or you are using an implementation "
+                        "that deliberately leaves duplicates in, and you "
+                        "should be passing enforce_no_duplicates=False to "
+                        "read_period.".format(gran,
                             conttime.astype(datetime.datetime),
                             latest.astype(datetime.datetime)))
                 cont = self._apply_limits_and_filters(cont, limits, filters)

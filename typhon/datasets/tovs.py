@@ -229,7 +229,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         # counting-based removal of overlap scanlines will be buggy
         # (see FCDR_HIRS#139 and FCDR_HIRS#141).  Remove overlaps already now.
         try:
-            scanlines = self.filter_firstline.filter_overlap(
+            scanlines = filter_firstline.filter_overlap(
                 path, header, scanlines)
         except KeyError as e:
                 raise dataset.InvalidFileError(
