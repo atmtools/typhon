@@ -164,6 +164,14 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
 
     return img
 
+# Any commits made to this module between 2015-05-01 and 2017-03-01
+# by Gerrit Holl are developed for the EC project “Fidelity and
+# Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
+# Grant agreement: 638822.  This specifically applies to the functions
+# scatter_density_plot_matrix and plot_bitfield.
+# 
+# All those contributions are dual-licensed under the MIT license for use
+# in typhon, and the GNU General Public License version 3.
 
 def scatter_density_plot_matrix(
         M=None,
@@ -833,6 +841,14 @@ def colored_bars(x, y, c=None, cmap=None, vmin=None, vmax=None, ax=None,
     # Return the ScalarMappable as well as all return values of ``plt.bar``.
     return sm, ret
 
+# Any commits made to this module between 2015-05-01 and 2017-03-01
+# by Gerrit Holl are developed for the EC project “Fidelity and
+# Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
+# Grant agreement: 638822.  This specifically applies to the functions
+# scatter_density_plot_matrix and plot_bitfield.
+# 
+# All those contributions are dual-licensed under the MIT license for use
+# in typhon, and the GNU General Public License version 3.
 
 def plot_bitfield(ax, X, Y, bitfield, flag_dict,
         cmap,

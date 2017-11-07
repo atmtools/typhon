@@ -299,6 +299,14 @@ def get_time_coordinates(ds):
     time_dims = get_time_dimensions(ds)
     return {k for (k, v) in ds.coords.items() if set(v.dims)&time_dims}
 
+# Any commits made to this module between 2015-05-01 and 2017-03-01
+# by Gerrit Holl are developed for the EC project “Fidelity and
+# Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
+# Grant agreement: 638822.  This specifically applies to the function
+# concat_each_time_coordinate.
+# 
+# All those contributions are dual-licensed under the MIT license for use
+# in typhon, and the GNU General Public License version 3.
 
 def concat_each_time_coordinate(*datasets):
     """Concatenate xarray datasets along each time coordinate

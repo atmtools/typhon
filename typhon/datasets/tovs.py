@@ -5,6 +5,14 @@ dependency on the pint units library.  Import this module only if you can
 accept such a dependency.
 """
 
+# Any commits made to this module between 2015-05-01 and 2017-03-01
+# by Gerrit Holl are developed for the EC project “Fidelity and
+# Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
+# Grant agreement: 638822
+# 
+# All those contributions are dual-licensed under the MIT license for use
+# in typhon, and the GNU General Public License version 3.
+
 import sys
 import io
 import tempfile
