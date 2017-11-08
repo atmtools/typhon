@@ -472,7 +472,7 @@ class CollocatedDataset(Dataset):
                     collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
                 # Prepare the name for the output file:
-                filename = self.generate_filename_from_time(
+                filename = self.generate_filename(
                     self.files,
                     collocations_start,
                     collocations_end
