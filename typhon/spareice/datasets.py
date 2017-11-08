@@ -8,7 +8,7 @@ Created by John Mrziglod, June 2017
 
 import atexit
 from collections import defaultdict
-import datetime
+from datetime import datetime, timedelta
 import glob
 import json
 from multiprocessing import Pool
@@ -18,13 +18,12 @@ import shutil
 import time
 import warnings
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
+from typhon.spareice.array import ArrayGroup
 from typhon.trees import IntervalTree
-import xarray as xr
 
 __all__ = [
     "Dataset",
@@ -85,7 +84,9 @@ class Dataset:
                 placeholder documentation). For example, the Dataset class
                 finds with the argument files="/path/to/files/{year}/{
                 month}/{day}/{hour}{minute}{second}.nc.gz" files such as
-                "/path/to/files/2016/11/12/051422.nc.gz".
+                "/path/to/files/2016/11/12/051422.nc.gz". If this path is
+                relative, it will be appended on the current working directory
+                during the initialization of this object.
             name: (optional) The name of the dataset.
             handler: (optional) An object which can handle the dataset files.
                 This dataset class does not care which format its files have
@@ -124,6 +125,7 @@ class Dataset:
         self._name = None
         self.name = name
         self.handler = handler
+
         self.files = files
         self.files_placeholders = re.findall("\{(\w+)\}", self.files)
 
@@ -167,7 +169,7 @@ class Dataset:
     """
     def __contains__(self, item):
         start = self._to_datetime(item)
-        end = start + datetime.timedelta(seconds=5)
+        end = start + timedelta(seconds=5)
         for _, _ in self.find_files(start, end):
             return True
 
@@ -175,11 +177,12 @@ class Dataset:
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            yield from self.read_period(item.start, item.stop)
-        else:
-            start = self._to_datetime(item)
-            end = start + datetime.timedelta(seconds=5)
-            yield self.find_files(start, end, closest=True)
+            return list(self.read_period(item.start, item.stop))
+        elif isinstance(item, (datetime, str)):
+            filename = self.find_file(item)
+            if filename is not None:
+                return self.read(filename)
+            return None
 
     def __setitem__(self, key, value):
         if isinstance(key, slice):
@@ -188,7 +191,7 @@ class Dataset:
         else:
             start = end = key
 
-        filename = self.generate_filename_from_time(self.files, start, end)
+        filename = self.generate_filename(self.files, start, end)
         self.write(filename, value)
 
     def __repr__(self):
@@ -199,18 +202,18 @@ class Dataset:
         info += "\nFiles:\t" + self.files
         return info
 
-    def accumulate(self, start, end, concat_func, concat_args=None,
+    def accumulate(self, start, end, concat_func=None, concat_args=None,
                    reading_args=None):
         """Accumulate all data between two dates in one object.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             concat_func: Function that concatenates the read data to
-                another. The first argument must be a list of objects to
-                concatenate.
+                another. The first accepted argument must be a list of objects
+                to concatenate. Default is ArrayGroup.concatenate.
             concat_args: A dictionary with additional arguments for
                 *concat_func*.
             reading_args: A dictionary with additional arguments for reading
@@ -228,13 +231,16 @@ class Dataset:
                 files="path/to/files.nc", handler=handlers.common.NetCDF4()
             )
             data = dataset.accumulate(
-                datetime.datetime(2016, 1, 1), datetime.datetime(2016, 2, 1),
+                datetime(2016, 1, 1), datetime(2016, 2, 1),
                 xarray.concat, read_args={fields : ("temperature", )})
 
             # do something with data["temperature"]
             data["temperature"].plot()
             ...
         """
+
+        if concat_func is None:
+            concat_func = ArrayGroup.concatenate
 
         if reading_args is None:
             contents = list(self.read_period(start, end))
@@ -333,7 +339,7 @@ class Dataset:
             None
         """
         # Generate the new file name
-        new_filename = dataset.generate_filename_from_time(
+        new_filename = dataset.generate_filename(
             path, *time_coverage)
 
         # Create the new directory if necessary.
@@ -370,7 +376,7 @@ class Dataset:
         file handler.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
@@ -393,8 +399,8 @@ class Dataset:
         .. code-block:: python
 
             # Copy all the files between the 15th and 23rd September 2016:
-            date1 = datetime.datetime(2017, 9, 15)
-            date2 = datetime.datetime(2017, 9, 23)
+            date1 = datetime(2017, 9, 15)
+            date2 = datetime(2017, 9, 23)
             old_dataset = Dataset(
                 files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
@@ -498,17 +504,66 @@ class Dataset:
                     date_args[placeholder[len(prefix):]] = value
 
         if prefix + "doy" in placeholders:
-            date = datetime.datetime(date_args["year"], 1, 1) \
-                   + datetime.timedelta(date_args["doy"] - 1)
+            date = datetime(date_args["year"], 1, 1) \
+                   + timedelta(date_args["doy"] - 1)
             date_args["month"] = date.month
             date_args["day"] = date.day
             del date_args["doy"]
 
         return date_args
 
+    def find_file(self, timestamp, max_interval=None):
+        """Finds the closest file to a timestamp.
+
+        Args:
+            timestamp: date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            max_interval: Maximal time interval in seconds that should be
+                between *timestamp* and the found closest file. If this
+                argument is None (default value), then simply the closest file
+                name is returned regardless of their interval in time.
+
+        Returns:
+            The found file name as a string. If no file was found, None is
+            returned.
+        """
+
+        # Maybe there is a file with exact this timestamp?
+        path = self.generate_filename(
+            self.files, timestamp, timestamp
+        )
+
+        timestamp = self._to_datetime(timestamp)
+
+        if os.path.exists(path):
+            return path
+
+        if max_interval is None:
+            files = []
+            while not files and path:
+                path = path.rsplit("/", 1)[0]
+                files = list(self._get_all_files(path))
+                times = [self.retrieve_time_coverage(file) for file in files]
+        else:
+            interval = timedelta(seconds=max_interval)
+            files, times = zip(
+                *self.find_files(
+                    timestamp-interval, timestamp+interval
+                )
+            )
+
+        if not files:
+            return None
+
+        intervals = np.abs(np.asarray(times) - timestamp)
+        closest_index = np.argmin(intervals) // 2
+
+        return files[closest_index]
+
     def find_files(
             self, start, end,
-            sort=False, closest=False, verbose=False,
+            sort=False, verbose=False,
             no_files_error=True,
     ):
         """ Finds all files between the given start and end date.
@@ -518,15 +573,13 @@ class Dataset:
         files. This is a generator method if the 'sort' argument is false.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             sort: If this is set to true, all files will be returned sorted by
                 their starting time.
-            closest: If this is true, this method will only find the closest
-                file to the given period.
-            verbose:
+            verbose: If this is set to true, debug messages will be printed.
             no_files_error: Raises an NoFilesError when no files are found.
 
         Yields:
@@ -534,12 +587,9 @@ class Dataset:
             tuple of two datetime objects).
         """
 
-        if closest:
-            raise NotImplementedError(
-                "The find-closest-file functionality is not yet implemented!")
-
         path_parts = self.files.split("/")
 
+        #
         day_index = 0
         for index, part in enumerate(path_parts):
             # TODO: What about file path identifier which does not contain the
@@ -548,7 +598,7 @@ class Dataset:
                 day_index = index
                 break
 
-        # If the user wants sorted files we have to save them here first:
+        # If the user wants sorted files we have to collect them first:
         found_files = []
         found_counter = 0
 
@@ -556,13 +606,13 @@ class Dataset:
         regex = self.files.format(**Dataset.placeholder)
         regex = re.compile(regex.replace("*", ".*?"))
 
-        # Convert start and date to datetime objects:
+        # The user can give string instead of datetime objects:
         start = self._to_datetime(start)
         end = self._to_datetime(end)
 
         # At first, get all days between start and end date (including the last
         # day so we catch overlapping files as well).
-        for date in pd.date_range(start-datetime.timedelta(days=1), end):
+        for date in pd.date_range(start-timedelta(days=1), end):
 
             # Generate the daily path string for the files
             path_name = '/'.join(path_parts[:day_index+1])
@@ -572,7 +622,7 @@ class Dataset:
             if "{doy}" in path_name:
                 day_indices.append(path_name.index("{doy}")+5)
 
-            daily_path = self.generate_filename_from_time(
+            daily_path = self.generate_filename(
                 path_name[:min(day_indices)], date)
             if os.path.isdir(daily_path):
                 daily_path += "/"
@@ -588,7 +638,7 @@ class Dataset:
                 # Test whether the file matches the files parameter.
                 if regex.match(filename):
                     if verbose:
-                        print("\tPassed regex match")
+                        print("\tMatched files path pattern")
                     file_start, file_end = \
                         self.retrieve_time_coverage(filename)
 
@@ -599,9 +649,7 @@ class Dataset:
                         if verbose:
                             print("\tPassed time check")
 
-                        if closest:
-                            ...
-                        elif sort:
+                        if sort:
                             found_files.append(
                                 [filename, [file_start, file_end]])
                         else:
@@ -613,7 +661,7 @@ class Dataset:
 
         if found_counter == 0 and no_files_error:
             raise NoFilesError(
-                "Found no files for %s between %s and %s! Are you sure you "
+                "Found no files for %s between %s and %s!\nAre you sure you "
                 "gave the correct files parameter? Or is there maybe no data "
                 "for this time period?" % (self.name, start, end))
 
@@ -623,7 +671,7 @@ class Dataset:
         overlap in time between two dates.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
@@ -659,7 +707,7 @@ class Dataset:
             yield primary_files[i], \
                   [secondary_files[oi] for oi in overlapping_files]
 
-    def generate_filename_from_time(self, template, start_time, end_time=None):
+    def generate_filename(self, template, start_time, end_time=None):
         """ Generates the file name for a specific date by using the template
         argument.
 
@@ -692,9 +740,9 @@ class Dataset:
 
         .. code-block:: python
 
-            Dataset.generate_filename_from_time(
+            Dataset.generate_filename(
                 "{year2}/{month}/{day}.dat",
-                datetime.datetime(2016, 1, 1))
+                datetime(2016, 1, 1))
             # Returns 16/01/01.dat
 
         """
@@ -712,7 +760,7 @@ class Dataset:
             month="{:02d}".format(start_time.month),
             day="{:02d}".format(start_time.day),
             doy="{:03d}".format(
-                (start_time - datetime.datetime(start_time.year, 1, 1)).days
+                (start_time - datetime(start_time.year, 1, 1)).days
                 + 1),
             hour="{:02d}".format(start_time.hour),
             minute="{:02d}".format(start_time.minute),
@@ -722,7 +770,7 @@ class Dataset:
             end_month="{:02d}".format(end_time.month),
             end_day="{:02d}".format(end_time.day),
             end_doy="{:03d}".format(
-                (end_time - datetime.datetime(end_time.year, 1, 1)).days
+                (end_time - datetime(end_time.year, 1, 1)).days
                 + 1),
             end_hour="{:02d}".format(end_time.hour),
             end_minute="{:02d}".format(end_time.minute),
@@ -779,9 +827,9 @@ class Dataset:
                 time_coverages = json.load(file)
                 # Parse string times into datetime objects:
                 time_coverages = {
-                    file : (datetime.datetime.strptime(
+                    file : (datetime.strptime(
                         times[0], "%Y-%m-%dT%H:%M:%S.%f"),
-                            datetime.datetime.strptime(
+                            datetime.strptime(
                                 times[1], "%Y-%m-%dT%H:%M:%S.%f"))
                     for file, times in time_coverages.items()
                 }
@@ -804,7 +852,7 @@ class Dataset:
         different numbers for max_processes.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
@@ -875,7 +923,7 @@ class Dataset:
         work, you should try different numbers for max_processes.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
@@ -984,7 +1032,7 @@ class Dataset:
         by their starting time.
 
         Args:
-            start: Start date either as datetime.datetime object or as string
+            start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
@@ -1048,15 +1096,15 @@ class Dataset:
                 self.files_placeholders, values, prefix="end_",
                 default=start_date_args)
 
-            start_date = datetime.datetime(**start_date_args)
-            end_date = datetime.datetime(**end_date_args)
+            start_date = datetime(**start_date_args)
+            end_date = datetime(**end_date_args)
 
             # Sometimes the filename does not explicitly provide the complete
             # end date. Imagine there is only hour and minute given, then day
             # change would not be noticed. Therefore, make sure that the end
             # date is always bigger (later) than the start date.
             if end_date < start_date:
-                end_date += datetime.timedelta(days=1)
+                end_date += timedelta(days=1)
 
             time_coverage = (start_date, end_date)
         else:
@@ -1091,7 +1139,7 @@ class Dataset:
     def _to_datetime(obj):
         if isinstance(obj, str):
             return pd.Timestamp(obj).to_pydatetime()
-        elif isinstance(obj, datetime.datetime):
+        elif isinstance(obj, datetime):
             return obj
         else:
             raise KeyError("Cannot convert object of type '%s' to datetime "

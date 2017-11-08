@@ -19,7 +19,9 @@ except:
 
 import numpy as np
 import scipy.spatial
+import scipy.stats
 import typhon.geodesy
+from typhon.spareice.array import ArrayGroup
 from typhon.spareice.geographical import GeoData
 import xarray as xr
 
@@ -152,7 +154,8 @@ class CollocatedDataset(Dataset):
         return super(CollocatedDataset, self).accumulate(
             start, end, concat_func, concat_args, reading_args)
 
-    def collapse(self, start, end, collapse_to, **collapsing_args):
+    def collapse(self, start, end, collapse_to,
+                 include_stats=None, **collapsing_args):
         """ Accumulates the data between two dates but collapses multiple
         collocations from one dataset to a single data point.
 
@@ -167,15 +170,45 @@ class CollocatedDataset(Dataset):
             end: Ending date as datetime object.
             collapse_to: Name of dataset which has the coarsest footprint. All
                 other datasets will be collapsed to its data points.
+            include_stats: Set this to a name of a variable and in the return
+                object will be statistical parameters included about the built
+                data bins of the variable before collapsing. The variable
+                should be one-dimensional.
             **collapsing_args: Additional keyword arguments for the
-                GeoData.collapser method (including collapser function,
-                variation filter, etc.).
+                GeoData.collapser method (including collapser function, etc.).
 
         Returns:
-            TODO
+            A GeoData object with the collapsed data.
 
         Examples:
+
         """
+
+        # Exclude all bins where the inhomogeneity (variation) is too high
+        # passed = np.ones_like(bins).astype("bool")
+        # if isinstance(variation_filter, tuple):
+        #     if len(variation_filter) >= 2:
+        #         if len(self[variation_filter[0]].shape) > 1:
+        #             raise ValueError(
+        #                 "The variation filter can only be used for "
+        #                 "1-dimensional data! I.e. the field '{}' must be "
+        #                 "1-dimensional!".format(variation_filter[0])
+        #             )
+        #
+        #         # Bin only one field for testing of inhomogeneities:
+        #         binned_data = self[variation_filter[0]].bin(bins)
+        #
+        #         # The user can define a different variation function (
+        #         # default is the standard deviation).
+        #         if len(variation_filter) == 2:
+        #             variation_values = variation(binned_data, 1)
+        #         else:
+        #             variation_values = variation_filter[2](binned_data, 1)
+        #         passed = variation_values < variation_filter[1]
+        #     else:
+        #         raise ValueError("The inhomogeneity filter must be a tuple "
+        #                          "of a field name, a threshold and (optional)"
+        #                          "a variation function.")
 
         collapsed_data_list = []
         for file, _ in self.find_files(start, end, sort=True):
@@ -188,7 +221,29 @@ class CollocatedDataset(Dataset):
             )
 
             collapsed_data = GeoData()
+
+            # Add additional statistics about one binned variable:
+            if include_stats is not None:
+                statistic_functions = {
+                    "variation": scipy.stats.variation,
+                    "mean": np.nanmean,
+                    "number": lambda x, _: x.shape[0],
+                    "std": np.nanstd,
+                }
+
+                collapsed_data["__statistics"] = \
+                    collocated_data[include_stats].apply_on_bins(
+                        bins, statistic_functions
+                    )
+                collapsed_data["__statistics"].attrs["description"] = \
+                    "Statistics about the collapsed bins of '{}'.".format(
+                        include_stats
+                    )
+
             for dataset in collocated_data.groups():
+                if dataset.startswith("__"):
+                    collapsed_data[dataset] = collocated_data[dataset]
+
                 collocations = collocated_data[dataset]["collocations"]
 
                 # We do not need the original and collocation indices any
@@ -417,7 +472,7 @@ class CollocatedDataset(Dataset):
                     collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
                 # Prepare the name for the output file:
-                filename = self.generate_filename_from_time(
+                filename = self.generate_filename(
                     self.files,
                     collocations_start,
                     collocations_end

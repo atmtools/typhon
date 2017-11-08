@@ -24,24 +24,23 @@ class GeoData(ArrayGroup):
 
         return len(self["time"])
 
-    def plot_worldmap(self, field, fig=None, ax=None, **kwargs):
-        """
+    def plot_worldmap(self, var, fig=None, ax=None, **kwargs):
+        """Create a scatter plot projected on a world map.
 
         Args:
-            plot_type:
-            fields:
-            fig:
-            ax:
-            **kwargs:
+            var: Variable name that should be plotted.
+            fig: (optional) A matplotlib figure object.
+            ax: (optional) A matplotlib axis object.
+            **kwargs: Additional arguments for :func:`typhon.plots.worldmap`.
 
         Returns:
-
+            Axis on which the data was plotted.
         """
 
         ax, scatter = typhon.plots.worldmap(
             self["lat"],
             self["lon"],
-            self[field],
+            self[var],
             fig, ax, **kwargs
         )
 

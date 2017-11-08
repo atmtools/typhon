@@ -65,7 +65,7 @@ spareice.handlers.cloudsat
 .. autosummary::
    :toctree: generated
 
-   CPR2CICE
+   C2CICE
 
 spareice.handlers.common
 ========================
