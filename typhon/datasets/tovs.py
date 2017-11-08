@@ -81,10 +81,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     Specifically for HIRS: when reading a single file (i.e. h.read(path)),
     takes keyword arguments:
 
-        return_header.  If true, returns tuple (header, lines).
-        Otherwise, only return the lines.  The latter is default
-        behaviour, in particular when reading many
-
         radiance_units.  Defaults to "si", by which I annoyingly mean
         W/(m²·sr·Hz).  Set to "classic" if you want mW/(m²·sr·cm^{-1}),
         which is the unit more commonly used for HIRS and which it is
@@ -168,7 +164,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
     max_valid_time_ptp = numpy.timedelta64(3, 'h')
     filter_calibcounts = filter_prttemps = filters.MEDMAD(10)
-    filter_firstline = None
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -177,8 +172,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         if not self.granules_firstline_file.is_absolute():
             self.granules_firstline_file = self.basedir.joinpath(
                 self.granules_firstline_file)
-        self.filter_firstline = filters.FirstlineDBFilter(
-            self, self.granules_firstline_file)
+        self.default_orbit_filters = [
+            filters.FirstlineDBFilter(self, self.granules_firstline_file),
+            filters.TimeMaskFilter(self),
+            filters.HIRSTimeSequenceDuplicateFilter(),
+            ]
         if self.satname is not None:
             (self.start_date, self.end_date) = _tovs_defs.HIRS_periods[self.satname]
         # set here so inheriting classes can extend
@@ -188,11 +186,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         self._data_vars_props = _tovs_defs.HIRS_data_vars_props[self.version].copy()
 
     # docstring in class and parent
-    def _read(self, path, fields="all", return_header=False,
+    def _read(self, path, fields="all",
                     apply_scale_factors=True, calibrate=True,
                     apply_flags=True,
                     radiance_units="si",
-                    filter_firstline=filter_firstline,
                     apply_filter=True,
                     max_flagged=0.5):
         if path.endswith(".gz"):
@@ -227,21 +224,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         # In the following, several processes may lead to scanlines
         # being removed.  This means counting changes, which means the
         # counting-based removal of overlap scanlines will be buggy
-        # (see FCDR_HIRS#139 and FCDR_HIRS#141).  Remove overlaps already now.
-        try:
-            scanlines = filter_firstline.filter_overlap(
-                path, header, scanlines)
-        except KeyError as e:
-                raise dataset.InvalidFileError(
-                    "Unable to filter firstline: {:s}".format(e.args[0])) from e
-        if scanlines.shape[0] < 2:
-            raise dataset.InvalidFileError(
-                "{shape:d}/{n_lines:d} lines are left. "
-                "This either means the granule is entirely contained "
-                "in the previous one, or the previous granule "
-                "contains time outliers that cause the current one "
-                "to be mistaken for such (see #142).".format(
-                    n_lines=n_lines))
+        # (see FCDR_HIRS#139 and FCDR_HIRS#141).  
+        # Solution after November 2017 refactoring: make sure ALL
+        # filtering happens external to the core reading routine...
         n_lines = scanlines.shape[0]
 
         if apply_scale_factors:
@@ -257,8 +242,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                         lat.ptp(), lon.ptp()))
             other = self.get_other(scanlines)
 
-#            cc = scanlines["hrs_calcof"].reshape(n_lines, self.n_channels, 
-#                    self.line_dtype["hrs_calcof"].shape[0]//self.n_channels)
             cc = self.get_cc(scanlines)
             cc = cc[:, numpy.argsort(self.channel_order), ...]
             elem = scanlines["hrs_elem"].reshape(n_lines,
@@ -304,14 +287,10 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             if radiance_units == "si":
                 scanlines_new["radiance"] = rad_wn.to(rad_u["si"],
                     "radiance")
-#                    ureg.W / (ureg.sr * ureg.m**2 * (1/ureg.m))).to(
-#                    rad_u["si"])
             elif radiance_units == "classic":
                 # earlier, I converted to base units: W / (m^2 sr m^-1).
                 scanlines_new["radiance"] = rad_wn.to(rad_u["ir"],
                     "radiance")
-#                    ureg.W  / (ureg.sr * ureg.m**2 * (1/ureg.m) )).to(
-#                    rad_u["ir"])
             else:
                 raise ValueError("Invalid value for radiance_units. "
                     "Expected 'si' or 'classic'.  Got "
@@ -341,57 +320,16 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     exc.args[0])
                 header_new["dataname"] = pathlib.Path(path).stem
             header = header_new
+
             if apply_flags:
-                #scanlines = numpy.ma.masked_array(scanlines)
                 scanlines = self.get_mask_from_flags(header, scanlines,
                                     max_flagged=max_flagged)
-                # when time is masked, we should REALLY despair.  We want
-                # to have sequential scanlines.  Throw them out already!
-                if scanlines["time"].mask.any():
-                    logging.warning("Throwing out {:d} scanlines because "
-                        "their times are flagged and not sequential".format(
-                            scanlines["time"].mask.sum()))
-                    good = ~scanlines["time"].mask
-                    scanlines = scanlines[good]
-                    cc = cc[good, :, :]
-            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
-            if not goodorder.all():
-                logging.warning("{!s} has {:d} scanlines are out of "
-                    "order, resorting".format(path, (~goodorder).sum()))
-                neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
-                scanlines = scanlines[neworder]
-                cc = cc[neworder, :, :]
-            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
-            if not goodorder.all():
-                logging.warning("{!s} has {:d} duplicate "
-                    "scanlines, removing".format(path, (~goodorder).sum()))
-                (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
-                                       return_index=True)
-                scanlines = scanlines[ii]
-                cc = cc[ii, :, :]
-
-            goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
-            if not goodtime.all():
-                logging.warning("{!s} (still) has time sequence issues. "
-                    "Dropping {:d} scanlines to be on the safe side. "
-                    "This is probably overconservative.".format(path,
-                    (~goodtime).sum()))
-                scanlines = scanlines[goodtime]
-                cc = cc[goodtime, :, :]
-
-            # in some cases, like 1985-11-30T17:19:45.056 on NOAA-9,
-            # there are scanlines with different scanline numbers but
-            # the same time!
-            (_, ii) = numpy.unique(scanlines["time"], return_index=True)
-            if ii.size < scanlines["time"].size:
-                logging.warning("Oops!  There are scanlines with different "
-                    "scanline numbers but the same time!  Removing {:d} "
-                    "more lines.  I hope that's it!".format(
-                        scanlines["time"].size-ii.size))
-                scanlines = scanlines[ii]
-                cc = cc[ii, :, :]
 
             if apply_filter:
+                # FIXME: this should probably be moved to the 'filters'
+                # approach but leaving it in for now, as applying
+                # calibration counts masking should be done before
+                # applying the calibration, or?
                 scanlines = self.apply_calibcount_filter(scanlines)
                 if cc.ndim == 4:
                     calibzero = (cc[:, :, 1, :]==0).all(2)
@@ -432,7 +370,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
         # TODO:
         # - Add other meta-information from TIP
-        return (header, scanlines) if return_header else scanlines
+        extra = {"header": header}
+        return (scanlines, extra)
        
     def _add_pseudo_fields(self, M, pseudo_fields):
         if isinstance(M, tuple):
@@ -601,14 +540,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 raise dataset.InvalidDataError("Out of {:d} scanlines, "
                     "found no {:s} views, cannot calibrate!".format(
                         lines.shape[0], v))
-#            C = lines["counts"][x, 8:, :]
             lines.mask["counts"][x, 8:, :] = self.filter_calibcounts.filter_outliers(
                 lines["counts"][x, 8:, :])
-#            med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
-#            mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
-#            fracdev = (C - med_per_ch)/mad_per_ch
-#            mix = numpy.ones(dtype=bool, shape=lines["counts"].shape)
-#            lines.mask["counts"][x, 8:, :] |= abs(fracdev)>cutoff
 
         return lines
 
@@ -1777,7 +1710,7 @@ class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
         fieldall = numpy.transpose(fieldall, [3, 0, 1, 2])
         return fieldall
 
-    def _read(self, path, fields="all", return_header=False):
+    def _read(self, path, fields="all"):
         tmpdira = config.conf["main"]["tmpdir"]
         tmpdirb = config.conf["main"]["tmpdirb"]
         tmpdir = (tmpdira 
@@ -1845,7 +1778,7 @@ class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
                 self.wavenumber = wavenumber
             elif abs(self.wavenumber - wavenumber).max() > (0.05 * 1/(ureg.centimetre)):
                 raise ValueError("Inconsistent wavenumbers")
-            return M
+            return (M, {})
 
 class IASISub(dataset.HomemadeDataset, dataset.HyperSpectral):
     name = section = "iasisub"
@@ -1960,7 +1893,7 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
     end_date = datetime.datetime(2014, 1, 1)
     
     def _read(self, f, fields="all"):
-        M = super()._read(f, fields)
+        (M, extra) = super()._read(f, fields)
         # functionality in numpy.lib.recfunctions.append_fields is too
         # slow!
         MM = numpy.zeros(shape=M.shape,
@@ -1968,7 +1901,7 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
         MM["time"] = M["mon_time"].astype("M8[s]")
         for f in M.dtype.names:
             MM[f][...] = M[f][...]
-        return MM[numpy.argsort(MM["time"])]
+        return (MM[numpy.argsort(MM["time"])], extra)
 
     def combine(self, M, other_obj, *args, **kwargs):
         MM = super().combine(M, other_obj, *args, col_field="mon_column", **kwargs)
@@ -1991,7 +1924,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
     concat_coor = "matchup_count"
 
     def _read(self, f, fields="all"):
-        M = super()._read(f, fields)
+        (M, extra) = super()._read(f, fields)
 
         if self.read_returns == "ndarray":
             timefields = [x for x in M.dtype.descr
@@ -2033,7 +1966,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
             if iiu.size < MM.size:
                 logging.warning("There were duplicates in {!s}!  Removing " 
                 "{:.2%}".format(f, 1-iiu.size/MM.size))
-            return MM[ii][iiu]
+            return (MM[ii][iiu], extra)
         elif self.read_returns == "xarray":
             # acquisition_time has attribute "unit" instead of "units";
             # use regular "time" instead
@@ -2090,7 +2023,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
             M = M[{"matchup_count": iiu}]
             M = M[{"matchup_count": numpy.argsort(M["time"])}]
 
-            return M
+            return (M, extra)
             
         else:
             raise ValueError("read_returns should be xarray or ndarray, "
@@ -2123,7 +2056,7 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
 
     def _read(self, f, fields="all"):
         try:
-            M = super()._read(f, fields)
+            (M, extra) = super()._read(f, fields)
         except ValueError as e:
             # some MHS L1C files have multiple 'phony_0' dimensions, even
             # though they should have different dimensions with the same
@@ -2139,7 +2072,7 @@ class MHSL1C(ATOVS, dataset.NetCDFDataset, dataset.MultiFileDataset):
         #MM["time"] = M["mon_time"].astype("M8[s]")
         for f in M.dtype.names:
             MM[f][...] = M[f][...]
-        return MM
+        return (MM, extra)
 
 def which_hirs(satname):
     """Given a satellite, return right HIRS object

@@ -29,11 +29,11 @@ class ERAInterim(dataset.NetCDFDataset, dataset.MultiFileDataset):
     def _read(self, f, *args, **kwargs):
         # may need to convert, but I currently need gg/as which on CEMS is
         # already in converted format, so will assume NetCDF
-        M = super()._read(f, *args,
+        (M, extra) = super()._read(f, *args,
                           pseudo_fields={"time": self._get_time_from_ds},
                           prim="t",
                           **kwargs)
-        return M
+        return (M, extra)
 
     @staticmethod
     def _get_time_from_ds(ds):
