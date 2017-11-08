@@ -39,6 +39,8 @@ from .. import math as tpmath
 from ..physics.units import em
 from ..constants import MiB
 
+from . import filter
+
 try:
     import progressbar
 except ImportError:
@@ -140,6 +142,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
     maxsize = 10000*MiB
     my_pseudo_fields = None
     read_returns = "ndarray"
+    default_orbit_filters = []
 
     # in case of xarray returns, if concatenation is NOT along time
     # coordinate, this should be set to something else
@@ -278,7 +281,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           locator_args=None,
                           reader_args=None,
                           limits=None,
-                          filters=None,
+                          filters=(),
+                          orbit_filters=None,
                           enforce_no_duplicates=True):
         """Read all granules between start and end, in bulk.
 
@@ -327,7 +331,17 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
             filters (container/iterable): collection of functions to be
                 applied for filtering.  Must take ndarray input, must give
-                ndarray output.
+                ndarray output.  For more advanced filtering, pass
+                instances of implementations of filter.OrbitFilter to
+                orbit_filters.
+    
+            orbit_filters (Sequence[filter.OrbitFilter]): more advanced
+                filters to apply for each orbit or after all orbits.
+                Those are instances of filter.OrbitFilter and thus have
+                state, which can be useful for e.g. overlap checking.  For
+                each of those, the system will call .reset() before the
+                first orbit is read, .filter(...) after each orbit, and
+                .finalise() at the end.
 
         Returns:
             
@@ -345,8 +359,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         if limits is None:
             limits = {}
 
-        if filters is None:
-            filters = set()
+        if orbit_filters is None:
+            orbit_filters = self.default_orbit_filters
 
         start = start or self.start_date
         end = end or self.end_date
@@ -373,12 +387,24 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         arr = None
         N = 0
         time = self.time_field
+        for of in orbit_filters:
+            of.reset()
+        # NB: https://stackoverflow.com/a/37585628/974555
+        extra_filter_args = collections.ChainMap(*(of.args_to_reader
+            for of in orbit_filters))
+
         for (g_start, gran) in finder(start, end, return_time=True, 
                                       include_last_before=True,
                                       **locator_args):
             try:
-                cont = self.read(str(gran), fields=fields,
-                    pseudo_fields=pseudo_fields, **reader_args)
+                (cont, extra) = self.read(str(gran), fields=fields,
+                    pseudo_fields=pseudo_fields, **reader_args,
+                    **extra_filter_args)
+                for of in orbit_filters:
+                    cont = of.filter(cont, **extra)
+                # FIXME: handle cases where very few scanlines are left
+                # after filtering.  We may find errors downstream if there
+                # are very few scanlines left.
                 if (enforce_no_duplicates and
                     sorted and
                     arr is not None and
@@ -404,7 +430,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                             conttime.astype(datetime.datetime),
                             latest.astype(datetime.datetime)))
                 cont = self._apply_limits_and_filters(cont, limits, filters)
-            except DataFileError as exc:
+            except (DataFileError, filter.FilterError) as exc:
                 if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
@@ -424,6 +450,9 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             bar.update(1)
             bar.finish()
         if anygood:
+            # FIXME: filter finalise before or after dataset finalise?
+            for of in orbit_filters:
+                arr = of.finalise(arr)
             arr = self._finalise_arr(arr, N)
 
             if "flags" in self.related:
@@ -648,7 +677,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         # should not pass pseudo_fields on to reader, it will get confused
         fields = (fields if fields == "all" else
                   [f for f in fields if not f in pseudo_fields])
-        M = (self._read(f, fields=fields, **kwargs)
+        (M, extra) = (self._read(f, fields=fields, **kwargs)
                 if f is not None
                 else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
@@ -666,7 +695,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         f))
         except (KeyError, TypeError): # no time field or things returned differently
             pass
-        return M
+        return (M, extra)
 
     def _add_pseudo_fields(self, M, pseudo_fields):
         D = collections.OrderedDict()
@@ -1606,7 +1635,7 @@ class SingleMeasurementPerFileDataset(MultiFileDataset):
             for nm in self.filename_fields.keys():
                 D[nm] = info[nm]
 
-        return D
+        return (D, {})
 
 class NetCDFDataset:
     """Mixin for any dataset where the contents are in NetCDF.
@@ -1649,7 +1678,7 @@ class NetCDFDataset:
             # if there is any problem loading the file, I want to know
             # that now, not whenever I happen to read the data
             ds.load()
-            return ds
+            return (ds, {})
 
     def _read_ndarray(self, f, fields="all", pseudo_fields=None,
                       prim=None):
@@ -1761,7 +1790,7 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
         if f.endswith("npz") or f.endswith("npy"):
             if fields != "all":
                 warnings.warn("Ignoring fields≠'all'!", UserWarning)
-            return numpy.load(f)["arr_0"]
+            return (numpy.load(f)["arr_0"], {})
         elif f.endswith("nc"):
             try:
                 return super()._read(f, fields=fields)
