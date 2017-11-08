@@ -850,21 +850,28 @@ class ArrayGroup:
                     )
                     data.dims[i] = dim
 
-        if str(data.dtype).startswith("datetime64"):
+        # Try to catch up datetime objects:
+        if str(data.dtype) == "object" or \
+                str(data.dtype).startswith("datetime64"):
             nc_var = nc_group.createVariable(
                 var, "f8", data.dims
             )
             time_data = netCDF4.date2num(
-                data.astype('M8[ms]').astype('O'),
-                "milliseconds since 1970-01-01T00:00:00Z")
+                data.astype('M8[s]').astype('O'),
+                "seconds since 1970-01-01T00:00:00Z")
             nc_var.units = \
-                "microseconds since 1970-01-01T00:00:00Z"
+                "seconds since 1970-01-01T00:00:00Z"
             nc_var[:] = time_data
         else:
-            nc_var = nc_group.createVariable(
-                var, data.dtype, data.dims
-            )
-            nc_var[:] = data
+            if str(data.dtype) == "bool":
+                data = data.astype("int")
+            try:
+                nc_var = nc_group.createVariable(
+                    var, data.dtype, data.dims
+                )
+                nc_var[:] = data
+            except TypeError as e:
+                raise TypeError("Tried to save '{}': {}".format(var, str(e)))
 
         for attr, value in data.attrs.items():
             try:
