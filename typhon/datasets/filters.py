@@ -94,12 +94,93 @@ class OrbitFilter(metaclass=abc.ABCMeta):
     def finalise(self, arr):
         ...
 
+class TimeMaskFilter(OrbitFilter):
+    """Throw out bad (masked) times.
+    """
+
+    def __init__(self, ds):
+        self.ds = ds
+
+    def reset(self):
+        pass
+
+    def filter(self, scanlines, **extra):
+        # when time is masked, we should REALLY despair.  We want
+        # to have sequential scanlines.  Throw them out already!
+        if scanlines["time"].mask.any():
+            logging.warning("Throwing out {:d} scanlines because "
+                "their times are flagged and not sequential".format(
+                    scanlines["time"].mask.sum()))
+            good = ~scanlines["time"].mask
+            return scanlines[good] 
+        else:
+            return scanlines
+
+    def finalise(self, arr):
+        return arr
+
+class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
+    """Force scanlines to be in the proper sequence without duplicates
+
+    This is for handling time sequence and duplicate issues within a
+    single orbit file.  The two have to be in one filter because the
+    application of the latter relies on the application of the first.
+    I suppose one could conceivably want to remove time sequence problems
+    but keep duplicate scanlines.
+    """
+
+    def reset(self):
+        pass
+
+    def filter(self, scanlines, **extra):
+        goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
+        if not goodorder.all():
+            logging.warning("{!s} has {:d} scanlines are out of "
+                "order, resorting".format(path, (~goodorder).sum()))
+            neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
+            scanlines = scanlines[neworder]        
+
+        # if there still are any now, it can only be due to duplicates
+        goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
+        if not goodorder.all():
+            logging.warning("{!s} has {:d} duplicate "
+                "scanlines (judging from scanline number), removing".format(path, (~goodorder).sum()))
+            (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
+                                   return_index=True)
+            scanlines = scanlines[ii]
+
+
+        # still time sequence issues?
+        goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
+        if not goodtime.all():
+            logging.warning("{!s} (still) has time sequence issues. "
+                "Dropping {:d} scanlines to be on the safe side. "
+                "This is probably overconservative.".format(path,
+                (~goodtime).sum()))
+            scanlines = scanlines[goodtime]
+
+        # in some cases, like 1985-11-30T17:19:45.056 on NOAA-9,
+        # there are scanlines with different scanline numbers but
+        # the same time!
+        (_, ii) = numpy.unique(scanlines["time"], return_index=True)
+        if ii.size < scanlines["time"].size:
+            logging.warning("Oops!  There are scanlines with different "
+                "scanline numbers but the same time!  Removing {:d} "
+                "more lines.  I hope that's it!".format(
+                    scanlines["time"].size-ii.size))
+            scanlines = scanlines[ii]
+            cc = cc[ii, :, :]
+
+        return scanlines
+
+    def finalise(self, arr):
+        return arr
+
 class OverlapFilter(OrbitFilter):
     """Implementations to feed into firstline filtering
 
     This is used in tovs HIRS reading routine.
     """
-
 
 class FirstlineDBFilter(OverlapFilter):
     def __init__(self, ds, granules_firstline_file):
@@ -282,4 +363,5 @@ class HIRSBestLineFilter(OverlapFilter):
 
     def finalise(self, arr):
         return arr
+
 

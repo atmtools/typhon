@@ -163,7 +163,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
     _data_vars_props = None
 
     max_valid_time_ptp = numpy.timedelta64(3, 'h')
-    filter_calibcounts = filter_prttemps = filter.MEDMAD(10)
+    filter_calibcounts = filter_prttemps = filters.MEDMAD(10)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -173,7 +173,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             self.granules_firstline_file = self.basedir.joinpath(
                 self.granules_firstline_file)
         self.default_orbit_filters = [
-            filter.FirstlineDBFilter(self, self.granules_firstline_file),
+            filters.FirstlineDBFilter(self, self.granules_firstline_file),
+            filters.TimeMaskFilter(self),
+            filters.HIRSTimeSequenceDuplicateFilter(),
             ]
         if self.satname is not None:
             (self.start_date, self.end_date) = _tovs_defs.HIRS_periods[self.satname]
@@ -319,65 +321,15 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 header_new["dataname"] = pathlib.Path(path).stem
             header = header_new
 
-            # FIXME: move to 'filters' approach
             if apply_flags:
-                #scanlines = numpy.ma.masked_array(scanlines)
                 scanlines = self.get_mask_from_flags(header, scanlines,
                                     max_flagged=max_flagged)
-                # when time is masked, we should REALLY despair.  We want
-                # to have sequential scanlines.  Throw them out already!
-                if scanlines["time"].mask.any():
-                    logging.warning("Throwing out {:d} scanlines because "
-                        "their times are flagged and not sequential".format(
-                            scanlines["time"].mask.sum()))
-                    good = ~scanlines["time"].mask
-                    scanlines = scanlines[good]
-                    cc = cc[good, :, :]
-
-            # FIXME: move to 'filters' approach
-            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
-            if not goodorder.all():
-                logging.warning("{!s} has {:d} scanlines are out of "
-                    "order, resorting".format(path, (~goodorder).sum()))
-                neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
-                scanlines = scanlines[neworder]
-                cc = cc[neworder, :, :]
-
-            # FIXME: move to 'filters' approach
-            goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
-            if not goodorder.all():
-                logging.warning("{!s} has {:d} duplicate "
-                    "scanlines, removing".format(path, (~goodorder).sum()))
-                (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
-                                       return_index=True)
-                scanlines = scanlines[ii]
-                cc = cc[ii, :, :]
-
-            # FIXME: move to 'filters' approach
-            goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
-            if not goodtime.all():
-                logging.warning("{!s} (still) has time sequence issues. "
-                    "Dropping {:d} scanlines to be on the safe side. "
-                    "This is probably overconservative.".format(path,
-                    (~goodtime).sum()))
-                scanlines = scanlines[goodtime]
-                cc = cc[goodtime, :, :]
-
-            # in some cases, like 1985-11-30T17:19:45.056 on NOAA-9,
-            # there are scanlines with different scanline numbers but
-            # the same time!
-            # FIXME: move to 'filters' approach
-            (_, ii) = numpy.unique(scanlines["time"], return_index=True)
-            if ii.size < scanlines["time"].size:
-                logging.warning("Oops!  There are scanlines with different "
-                    "scanline numbers but the same time!  Removing {:d} "
-                    "more lines.  I hope that's it!".format(
-                        scanlines["time"].size-ii.size))
-                scanlines = scanlines[ii]
-                cc = cc[ii, :, :]
 
             if apply_filter:
-                # FIXME: move to 'filters' approach
+                # FIXME: this should probably be moved to the 'filters'
+                # approach but leaving it in for now, as applying
+                # calibration counts masking should be done before
+                # applying the calibration, or?
                 scanlines = self.apply_calibcount_filter(scanlines)
                 if cc.ndim == 4:
                     calibzero = (cc[:, :, 1, :]==0).all(2)
@@ -588,14 +540,8 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 raise dataset.InvalidDataError("Out of {:d} scanlines, "
                     "found no {:s} views, cannot calibrate!".format(
                         lines.shape[0], v))
-#            C = lines["counts"][x, 8:, :]
             lines.mask["counts"][x, 8:, :] = self.filter_calibcounts.filter_outliers(
                 lines["counts"][x, 8:, :])
-#            med_per_ch = numpy.ma.median(C.reshape(-1, self.n_channels), 0)
-#            mad_per_ch = numpy.ma.median(abs(C - med_per_ch).reshape(-1, self.n_channels), 0)
-#            fracdev = (C - med_per_ch)/mad_per_ch
-#            mix = numpy.ones(dtype=bool, shape=lines["counts"].shape)
-#            lines.mask["counts"][x, 8:, :] |= abs(fracdev)>cutoff
 
         return lines
 

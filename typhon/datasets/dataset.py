@@ -39,7 +39,7 @@ from .. import math as tpmath
 from ..physics.units import em
 from ..constants import MiB
 
-from . import filter
+from . import filters
 
 try:
     import progressbar
@@ -281,7 +281,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                           locator_args=None,
                           reader_args=None,
                           limits=None,
-                          filters=(),
+                          simple_filters=(),
                           orbit_filters=None,
                           enforce_no_duplicates=True):
         """Read all granules between start and end, in bulk.
@@ -329,15 +329,15 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             limits (dict): Limitations to apply to each granule.  For the
                 exact format, see `:func:typhon.math.array.limit_ndarray`.
 
-            filters (container/iterable): collection of functions to be
+            simple_filters (container/iterable): collection of functions to be
                 applied for filtering.  Must take ndarray input, must give
                 ndarray output.  For more advanced filtering, pass
-                instances of implementations of filter.OrbitFilter to
+                instances of implementations of filters.OrbitFilter to
                 orbit_filters.
     
-            orbit_filters (Sequence[filter.OrbitFilter]): more advanced
+            orbit_filters (Sequence[filters.OrbitFilter]): more advanced
                 filters to apply for each orbit or after all orbits.
-                Those are instances of filter.OrbitFilter and thus have
+                Those are instances of filters.OrbitFilter and thus have
                 state, which can be useful for e.g. overlap checking.  For
                 each of those, the system will call .reset() before the
                 first orbit is read, .filter(...) after each orbit, and
@@ -429,8 +429,8 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         "read_period.".format(gran,
                             conttime.astype(datetime.datetime),
                             latest.astype(datetime.datetime)))
-                cont = self._apply_limits_and_filters(cont, limits, filters)
-            except (DataFileError, filter.FilterError) as exc:
+                cont = self._apply_limits_and_filters(cont, limits, simple_filters)
+            except (DataFileError, filters.FilterError) as exc:
                 if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
@@ -462,20 +462,20 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         else:
             raise DataFileError("Can not find any valid data!")
 
-    def _apply_limits_and_filters(self, cont, limits, filters):
+    def _apply_limits_and_filters(self, cont, limits, simple_filters):
         if isinstance(cont, xarray.Dataset):
             if len(limits)>0:
                 raise NotImplementedError( 
                     "limits not implemented on xarray datasets")
             oldsize = cont[self.time_field].size
-            for f in filters:
+            for f in simple_filters:
                 cont = f(cont)
             logging.debug("Filters reduced number from "
                 "{:d} to {:d}".format(oldsize, cont[self.time_field].size))
             return cont
         oldsize = cont.size
         cont = tpmath.array.limit_ndarray(cont, limits)
-        for f in filters:
+        for f in simple_filters:
             cont = f(cont)
         if cont.size < oldsize:
             logging.debug("Applying limitations, reducing "
