@@ -45,9 +45,7 @@ we need to initialize a Dataset object and tell it where to find our files:
 
    # Define a dataset object with the files.
    instrument_A = Dataset(
-      name="InstrumentA",
-      files="Data/InstrumentA/{year}/{month}/{day}/"
-            "data_{hour}-{minute}-{second}.nc"
+      "Data/InstrumentA/{year}/{month}/{day}/data_{hour}-{minute}-{second}.nc"
    )
 
 What happens in this piece of code? We import the Dataset class from the typhon
@@ -115,9 +113,7 @@ dataset object during initialization:
 
    # Define a dataset object with the files.
    instrument_A = Dataset(
-      name="InstrumentA",
-      files="Data/InstrumentA/{year}/{month}/{day}/"
-            "data_{hour}-{minute}-{second}.nc",
+      "Data/InstrumentA/{year}/{month}/{day}/data_{hour}-{minute}-{second}.nc",
       # With the next line, the dataset object knows how to handle its files:
       handler=NetCDF4(),
    )
@@ -130,8 +126,8 @@ The dataset object knows how to open our files now. We can try it by using the
    # Open all files between 01/01/2016 and 02/01/2016:
    date1 = datetime(2016, 1, 1)
    date2 = datetime(2016, 1, 2)
-   for file, time in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(file, time[0], time[1]))
+   for file, times in instrument_A.find_files(date1, date2, sort=True):
+      print("File: {}\n\tStart: {}, End: {}".format(file, times[0], times[1]))
       data = instrument_A.read(file)
       print(data)
 
@@ -151,18 +147,29 @@ The dataset object knows how to open our files now. We can try it by using the
    ...
 
 How does this work? All file handler objects (i.e.
-:class:`typhon.spareice.handlers.commom.NetCDF4` as well) must have a *read*
-and other methods be implemented. When we call
-:meth:`typhon.spareice.datasets.Dataset`, the dataset object simply calls the
-:meth:`typhon.spareice.handlers.commom.NetCDF4.read` method and redirects its
-output to us. The same works with creating files, when the file handler
+:class:`typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
+implemented. When we call
+:meth:`typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
+the :meth:`typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
+its output to us. The same works with creating files, when the file handler
 object has implemented a *write* method.
+
++---------------------+-----------------------+-------------------------------+
+| Dataset method      | FileHandler method    | Description                   |
++=====================+=======================+===============================+
+| Dataset.read()      | FileHandler.read()    | Opens and reads a file.       |
++---------------------+-----------------------+-------------------------------+
+| Dataset.write()     | FileHandler.write()   | Writes data to a file.        |
++---------------------+-----------------------+-------------------------------+
+| Dataset.get_info()  | FileHandler.get_info()| Gets information (e.g. time \ |
+|                     |                       | coverage) of a file.          |
++---------------------+-----------------------+-------------------------------+
 
 We could use both methods to change the content of each file:
 
 .. code-block:: python
 
-   for filename, time in instrument_A.find_files(date1, date2, sort=True):
+   for filename, times in instrument_A.find_files(date1, date2, sort=True):
        # Open file:
        data = instrument_A.read(filename)
 
