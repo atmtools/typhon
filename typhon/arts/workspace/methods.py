@@ -16,6 +16,7 @@ import re
 import ctypes as c
 import numpy as np
 
+
 from typhon.arts.workspace.api       import arts_api
 from typhon.arts.workspace.variables import WorkspaceVariable, group_ids, group_names
 from typhon.arts.workspace import variables, workspace
@@ -87,6 +88,9 @@ class WorkspaceMethod:
         self.is_create = False
         if (WorkspaceMethod.create_regexp.match(name)):
                 self.is_create = True
+
+    def __repr__(self):
+        return arts_api.method_print_doc(self.m_ids[0]).decode("utf8")
 
     def add_overload(self, m_ids, g_in_types, g_out_types):
         """ Add one or more overloads to a workspace method.
