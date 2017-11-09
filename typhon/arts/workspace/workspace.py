@@ -16,6 +16,8 @@ from   ast      import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Na
                        Expression, FunctionDef
 from   inspect  import getsource, getsourcelines
 from contextlib import contextmanager
+from copy       import copy
+from functools  import wraps
 
 from typhon.arts.workspace.api       import arts_api, VariableValueStruct
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods
@@ -27,6 +29,9 @@ from typhon.arts.workspace import variables as V
 imports = dict()
 
 
+################################################################################
+# ARTS Agenda Macro
+################################################################################
 def arts_agenda(func):
     """
     Parse python method as ARTS agenda
@@ -65,7 +70,7 @@ def arts_agenda(func):
 
     ws = Workspace()
 
-    context = func.__globals__
+    context = copy(func.__globals__)
     context.update({arg_name : ws})
 
     # Create agenda
@@ -110,6 +115,32 @@ def arts_agenda(func):
         agenda.add_method(*args, **kwargs)
     return agenda
 
+
+################################################################################
+# Workspace Method Wrapper Class
+################################################################################
+class WSMCall:
+    """
+    Wrapper class for workspace methods. This is necessary to be able to print
+    the method doc as __repr__, which doesn't work for python function objects.
+
+    Attributes:
+
+        ws: The workspace object to which the method belongs.
+        m:  The WorkspaceMethod object
+
+    """
+    def __init__(self, ws, m):
+        self.ws = ws
+        self.m  = m
+        self.__doc__  = m.__doc__
+
+    def __call__(self, *args, **kwargs):
+        self.m.call(self.ws, *args, **kwargs)
+
+    def __repr__(self):
+        return repr(self.m)
+
 ################################################################################
 # The Workspace Class
 ################################################################################
@@ -144,10 +175,7 @@ class Workspace:
         self.workspace_size = arts_api.get_number_of_variables()
         for name in workspace_methods:
             m = workspace_methods[name]
-            def make_fun(method):
-                return lambda *args, **kwargs: method.call(self, *args, **kwargs)
-            setattr(self, m.name, make_fun(m))
-            getattr(self, m.name).__doc__ = m.description
+            setattr(self, m.name, WSMCall(self, m))
 
     def __del__(self):
         """
