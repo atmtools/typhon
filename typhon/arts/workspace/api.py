@@ -31,7 +31,7 @@ from typhon.environment import ARTS_BUILD_PATH, ARTS_DATA_PATH, ARTS_INCLUDE_PAT
 
 arts_minimum_major    = 2
 arts_minimum_minor    = 3
-arts_minimum_revision = 829
+arts_minimum_revision = 867
 
 ################################################################################
 # Load ARTS C API
@@ -365,13 +365,17 @@ arts_api.get_method_g_in_default.argtypes = [c.c_long, c.c_long]
 arts_api.get_method_g_in_default.restype  = c.c_char_p
 
 # Execute a given workspace method.
-arts_api.execute_workspace_method.restype  = c.c_char_p
 arts_api.execute_workspace_method.argtypes = [c.c_void_p,
                                               c.c_long,
                                               c.c_ulong,
                                               c.POINTER(c.c_long),
                                               c.c_ulong,
                                               c.POINTER(c.c_long)]
+arts_api.execute_workspace_method.restype  = c.c_char_p
+
+# Print method documentation.
+arts_api.method_print_doc.argtypes = [c.c_long]
+arts_api.method_print_doc.restype  = c.c_char_p
 
 ################################################################################
 # Setup ARTS Environment
