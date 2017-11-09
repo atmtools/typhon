@@ -9,8 +9,10 @@ except:
 else:
     skip_arts_tests = False
 
+
 def agenda(ws):
     ws.Print(ws.y, 0)
+
 
 @pytest.mark.skipif(skip_arts_tests, reason='ARTS library not available')
 class TestWorkspace:
@@ -61,5 +63,14 @@ class TestWorkspace:
         with pytest.raises(Exception):
             self.ws.VectorCreate("array_of_index")
 
+    def test_wsm_error(self):
+        with pytest.raises(Exception):
+            self.ws.yCalc()
+
+    def test_doc(self):
+        repr(self.ws.yCalc)
+
     def test_agenda(self):
+        self.ws.atmosphere_dim = 1
         arts_agenda(agenda)
+        assert self.ws.atmosphere_dim.value == 1
