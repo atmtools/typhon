@@ -78,6 +78,16 @@ class OrbitFilter(metaclass=abc.ABCMeta):
     to extract this).  Each filterer can state what keyword arguments need
     to be passed on to the reading routine using the args_to_reader
     attribute.
+
+    Moments in filtering that this class takes is responsible for:
+
+    - Before the first orbit is read: .reset()
+    - After each orbit is read. .filter(...)
+    - After the last orbit is read: .finalise(...)
+
+    You can also use this class for validation, i.e. to check that data
+    are correct and if they aren't, raise an exception, if they are,
+    return data as-is.
     """
 
     args_to_reader = {}
@@ -93,6 +103,9 @@ class OrbitFilter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def finalise(self, arr):
         ...
+    
+    def __eq__(self, other):
+        return cmp(self.__dict__, other.__dict__)
 
 class TimeMaskFilter(OrbitFilter):
     """Throw out bad (masked) times.
@@ -171,6 +184,87 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
             scanlines = scanlines[ii]
             cc = cc[ii, :, :]
 
+        return scanlines
+
+    def finalise(self, arr):
+        return arr
+
+class HIRSFlagger(OrbitFilter):
+    """Apply HIRS flags and raise error in case of failure
+    """
+
+    def __init__(self, ds, max_flagged=0.5):
+        self.ds = ds
+        self.max_flagged = max_flagged
+
+    def reset(self):
+        pass
+
+    def filter(self, scanlines, **extra):
+        scanlines = self.ds.get_mask_from_flags(extra["header"],
+            scanlines, max_flagged=self.max_flagged)
+
+        return scanlines
+
+    def finalise(self, arr):
+        return arr
+
+class HIRSCalibCountFilter(OrbitFilter):
+    """Apply masking based on calibration count filter for HIRS
+    """
+
+    def __init__(self, ds, filter_calibcounts:OutlierFilter):
+        self.ds = ds
+        self.filter_calibcounts = filter_calibcounts
+
+    def reset(self):
+        pass
+
+    def filter(self, scanlines, **extra):
+
+        for v in self.ds.views:
+            x = scanlines[self.ds.scantype_fieldname] == getattr(self.ds,
+                    "typ_{:s}".format(v))
+            if not x.any():
+                raise dataset.InvalidDataError("Out of {:d} scanlines, "
+                    "found no {:s} views, cannot calibrate!".format(
+                        scanlines.shape[0], v))
+            scanlines.mask["counts"][x, 8:, :] = self.ds.filter_calibcounts.filter_outliers(
+                scanlines["counts"][x, 8:, :])
+
+
+        cc = scanlines["calcof_sorted"]
+#        scanlines = self.ds.apply_calibcount_filter(scanlines)
+        if cc.ndim == 4:
+            calibzero = (cc[:, :, 1, :]==0).all(2)
+        if cc.ndim == 3:
+            calibzero = (cc==0).all(2)
+        scanlines["bt"].mask[...] |= calibzero[:, numpy.newaxis, :19]
+        scanlines["radiance"].mask[...] |= calibzero[:, numpy.newaxis, :20]
+        # if one is masked, so should the other…
+        scanlines["radiance"].mask[:, :, :19] |= scanlines["bt"].mask
+
+        return scanlines
+
+    def finalise(self, arr):
+        return arr
+
+class HIRSPRTTempFilter(OrbitFilter):
+    """Apply masking to PRT counts when they are outliers
+    """
+
+    def __init__(self, ds, filter_prttemps:OutlierFilter):
+        self.ds = ds
+        self.filter_prttemps = filter_prttemps
+
+    def reset(self):
+        pass
+
+    def filter(self, scanlines, **extra):
+        for fld in [nm for nm in scanlines.dtype.names if
+                    nm.startswith("temp_")]:
+            scanlines[fld].mask |= self.ds.filter_prttemps.filter_outliers(
+                                    scanlines[fld])
         return scanlines
 
     def finalise(self, arr):
@@ -266,8 +360,7 @@ class FirstlineDBFilter(OverlapFilter):
                             return_time=True, satname=satname):
                 try:
                     (cur_line, extra) = self.ds.read(gran,
-                        apply_scale_factors=False, calibrate=False,
-                        apply_flags=False)
+                        apply_scale_factors=False, calibrate=False)
                     cur_head = extra["header"]
                     cur_time = self.ds._get_time(cur_line)
                 except (dataset.InvalidFileError,
@@ -352,9 +445,7 @@ class HIRSBestLineFilter(OverlapFilter):
                     scanlines["time"][idx].astype(datetime.datetime) +
                         datetime.timedelta(minutes=Δmin)),
                 fields=["hrs_qualind", "hrs_scnlin", "time"],
-                return_header=False,
-                apply_scale_factors=False, calibrate=False, apply_flags=False,
-                filter_firstline=False, apply_filter=False, max_flagged=1.0)
+                apply_scale_factors=False, calibrate=False)[0]
                         for (idx, Δmin) in [(0, -1), (-1, 1)]]
 
         #
