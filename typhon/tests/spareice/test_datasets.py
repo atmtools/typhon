@@ -33,7 +33,7 @@ class TestDataset:
         ds = Dataset(dataset_files)
 
         found_files = list(
-            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23))
+            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23), sort=True)
         )
 
         files = [
@@ -75,10 +75,8 @@ class TestDataset:
         ds = Dataset(dataset_files)
 
         found_files = list(
-            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23))
+            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23), sort=True)
         )
-
-        print(found_files)
 
         files = [
             (join(self.refdir, '2017/01/01/000000-060000.nc'), (
@@ -106,7 +104,5 @@ class TestDataset:
                  datetime(2017, 1, 2, 18, 0),
                  datetime(2017, 1, 2, 18, 0)))
         ]
-
-        print(files)
 
         assert found_files == files
