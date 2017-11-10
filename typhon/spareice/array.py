@@ -2,14 +2,12 @@
 to bundle them in labeled groups and store them to netCDF4 files.
 """
 
-from collections import defaultdict
 import copy
+from datetime import datetime
 import textwrap
 import warnings
 
 import numpy as np
-from scipy.stats import variation
-import typhon.plots
 
 try:
     import netCDF4
@@ -68,8 +66,8 @@ class Array(np.ndarray):
             items = np.array_str(self[:self.shape[0]])
         else:
             items = ", ".join([
-                np.array_str(self[0]), np.array_str(self[1]), ".. ",
-                np.array_str(self[-2]), np.array_str(self[-1])])
+                str(self[0]), str(self[1]), ".. ",
+                str(self[-2]), str(self[-1])])
         info = "[{}, dtype={}]".format(items, self.dtype)
         info += "\nDimensions: "
         info += ", ".join(
@@ -240,8 +238,8 @@ class ArrayGroup:
 
         * by *array_group["var"]*: returns a variable (Array) or group
             (ArrayGroup) object.
-        * by *array_group["group/var"]*: returns the variable from the group
-            object.
+        * by *array_group["group1/var"]*: returns the variable *var* from the
+            group *group1*.
         * by *array_group["/"]*: returns this object itself.
         * by *array_group[0:10]*: returns a copy of the first ten elements
             for each variable in the ArrayGroup object. Note: all variables
@@ -251,7 +249,7 @@ class ArrayGroup:
             group object.
 
         Args:
-            item:
+            item: Can be a string, integer, slice or tuple of strings.
 
         Returns:
             Either an Array or an ArrayGroup object.
@@ -521,8 +519,19 @@ class ArrayGroup:
                         cls._get_group_from_netcdf_group(field, None)
                     continue
 
+                # Handle time fields differently
+                if ("units" in group[field].__dict__
+                        and "since" in group[field].units):
+                    try:
+                        data = netCDF4.num2date(
+                            group[field][:], group[field].units)
+                    except:
+                        data = group[field][:]
+                else:
+                    data = group[field][:]
+
                 array_group[field] = Array(
-                    group[field][:], attrs=group[field].__dict__,
+                    data, attrs=group[field].__dict__,
                     dims=group[field].dimensions,
                 )
 
@@ -567,9 +576,24 @@ class ArrayGroup:
         Args:
             field: Name of the variable.
             deep: Including also the fields in subgroups (not only main group).
+            axis: Axis where to calculate the minimum or maximum from.
 
         Returns:
+            The minimum and the maximum value of a field.
 
+        Examples:
+
+        .. code-block:: python
+
+            # Imagine you have an ArrayGroup with multiple subgroups, each with
+            # a field "time". You want to have the lowest and the highest time
+            # value of all subgroups. Simply do:
+            ag = ArrayGroup()
+            ag["group1/time"] = np.arange(10)
+            ag["group2/time"] = np.arange(100, 200)
+            ag["group3/time"] = np.arange(50, 250)
+            print(ag.get_range("time", deep=True))
+            # Prints: (0, 250)
         """
         variables = list(self.vars(deep, with_name=field))
         start = [np.nanmin(self[var], axis).item(0) for var in variables]
@@ -850,17 +874,28 @@ class ArrayGroup:
                     )
                     data.dims[i] = dim
 
-        # Try to catch up datetime objects:
-        if str(data.dtype) == "object" or \
-                str(data.dtype).startswith("datetime64"):
+        # Try to catch up time objects:
+        if isinstance(data.item(0), datetime):
             nc_var = nc_group.createVariable(
                 var, "f8", data.dims
             )
-            time_data = netCDF4.date2num(
-                data.astype('M8[s]').astype('O'),
-                "seconds since 1970-01-01T00:00:00Z")
+            # TODO: Per default we save seconds since blabla. Maybe this should
+            # TODO: be dynamic?
             nc_var.units = \
                 "seconds since 1970-01-01T00:00:00Z"
+            time_data = netCDF4.date2num(
+                data,
+                nc_var.units)
+            nc_var[:] = time_data
+        elif str(data.dtype).startswith("datetime64"):
+            nc_var = nc_group.createVariable(
+                var, "f8", data.dims
+            )
+            nc_var.units = \
+                "seconds since 1970-01-01T00:00:00Z"
+            time_data = netCDF4.date2num(
+                data.astype('M8[s]').astype('O'),
+                nc_var.units)
             nc_var[:] = time_data
         else:
             if str(data.dtype) == "bool":
@@ -874,6 +909,9 @@ class ArrayGroup:
                 raise TypeError("Tried to save '{}': {}".format(var, str(e)))
 
         for attr, value in data.attrs.items():
+            # Do not overwrite already set attributes
+            if hasattr(nc_var, attr):
+                continue
             try:
                 setattr(nc_var, attr, value)
             except TypeError:
