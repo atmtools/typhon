@@ -47,16 +47,20 @@ class InhomogeneousFilesError(Exception):
 
 
 class Dataset:
+    """Class which provides methods to handle a set of multiple files
+    (dataset).
+
+    """
     placeholder = {
         # "placeholder_name" : [regex to find the placeholder]
-        "year" : "(\d{4})",
-        "year2" : "(\d{2})",
-        "month" : "(\d{2})",
-        "day" : "(\d{2})",
-        "doy" : "(\d{3})",
-        "hour" : "(\d{2})",
-        "minute" : "(\d{2})",
-        "second" : "(\d{2})",
+        "year": "(\d{4})",
+        "year2": "(\d{2})",
+        "month": "(\d{2})",
+        "day": "(\d{2})",
+        "doy": "(\d{3})",
+        "hour": "(\d{2})",
+        "minute": "(\d{2})",
+        "second": "(\d{2})",
         "millisecond": "(\d{3})",
         "end_year": "(\d{4})",
         "end_year2": "(\d{2})",
@@ -74,8 +78,7 @@ class Dataset:
             self, files, name=None, handler=None,
             time_coverage_retrieving_method="filename", times_cache=None
     ):
-        """Class which provides methods to handle a set of multiple files
-        (dataset).
+        """Initializes a dataset object.
 
         Args:
             files: A string with the complete path to the dataset files. The
@@ -112,9 +115,9 @@ class Dataset:
         .. code-block:: python
 
             dataset = Dataset(
-                name="TestData",
                 files="/path/to/daily/files/{year}/{month}/{day}/*.nc",
-                handler=handlers.common.NetCDF4File(),
+                handler=handlers.common.NetCDF4(),
+                name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
                 # filename, you should set this to "content":
                 timestamp_retrieving_method="filename"
