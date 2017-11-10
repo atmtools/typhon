@@ -653,7 +653,7 @@ class Dataset:
                             found_files.append(
                                 [filename, [file_start, file_end]])
                         else:
-                            yield filename, (file_start, file_end)
+                            yield filename, [file_start, file_end]
 
                         found_counter += 1
         if sort:
