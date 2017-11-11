@@ -10,6 +10,7 @@ import atexit
 from collections import defaultdict
 from datetime import datetime, timedelta
 import glob
+from itertools import tee
 import json
 from multiprocessing import Pool
 import os.path
@@ -173,7 +174,7 @@ class Dataset:
     def __contains__(self, item):
         start = self._to_datetime(item)
         end = start + timedelta(seconds=5)
-        for _, _ in self.find_files(start, end):
+        for _, _ in self.find_files(start, end, no_files_error=False):
             return True
 
         return False
@@ -491,7 +492,7 @@ class Dataset:
             value = int(values[index])
             if placeholder == prefix + "year2":
                 # TODO: What should be the threshold that decides whether the
-                # year is 19xx or 20xx?
+                # TODO: year is 19xx or 20xx?
                 if value < 65:
                     date_args["year"] = 2000 + value
                 else:
@@ -572,15 +573,14 @@ class Dataset:
         """ Finds all files between the given start and end date.
 
         This method calculates the days between the start and end date. It uses
-        those days to loop over the dataset
-        files. This is a generator method if the 'sort' argument is false.
+        those days to loop over the dataset files.
 
         Args:
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            sort: If this is set to true, all files will be returned sorted by
+            sort: If this is set to true, all files will be yielded sorted by
                 their starting time.
             verbose: If this is set to true, debug messages will be printed.
             no_files_error: Raises an NoFilesError when no files are found.
@@ -601,10 +601,6 @@ class Dataset:
                 day_index = index
                 break
 
-        # If the user wants sorted files we have to collect them first:
-        found_files = []
-        found_counter = 0
-
         # Prepare the regex for the file path
         regex = self.files.format(**Dataset.placeholder)
         regex = re.compile(regex.replace("*", ".*?"))
@@ -613,60 +609,85 @@ class Dataset:
         start = self._to_datetime(start)
         end = self._to_datetime(end)
 
-        # At first, get all days between start and end date (including the last
-        # day so we catch overlapping files as well).
-        for date in pd.date_range(start-timedelta(days=1), end):
+        # Find all files by iterating over all possible paths, get all files in
+        # those paths and checking whether they match the path regex and the
+        # time period.
+        found_files = (
+            [filename, self.retrieve_time_coverage(filename)]
+            for date in pd.date_range(start - timedelta(days=1), end)
+            for filename in self._get_all_files(
+                self._get_files_path(date, path_parts, day_index, verbose))
+            if self._check_file(filename, regex, start, end, verbose)
+        )
 
-            # Generate the daily path string for the files
-            path_name = '/'.join(path_parts[:day_index+1])
-            day_indices = []
-            if "{day}" in path_name:
-                day_indices.append(path_name.index("{day}")+5)
-            if "{doy}" in path_name:
-                day_indices.append(path_name.index("{doy}")+5)
+        if not no_files_error:
+            # Even if no files were found, the user does not want to know.
+            if sort:
+                yield from sorted(found_files, key=lambda x: x[1][0])
+            else:
+                yield from found_files
 
-            daily_path = self.generate_filename(
-                path_name[:min(day_indices)], date)
-            if os.path.isdir(daily_path):
-                daily_path += "/"
+            raise StopIteration
 
-            if verbose:
-                print("Daily path:", daily_path)
+        # The users wants an error to be raised if no files were found. I do
+        # not know whether there is a more pythonic way to check whether an
+        # iterator is empty. Matthew Flaschen shows how to do it with
+        # itertools.tee: https://stackoverflow.com/a/3114423
+        untouched_files, file_check = tee(found_files)
+        try:
+            next(file_check)
 
-            # Find all files in that daily path
-            for filename in self._get_all_files(daily_path):
-                if verbose:
-                    print(filename)
-
-                # Test whether the file matches the files parameter.
-                if regex.match(filename):
-                    if verbose:
-                        print("\tMatched files path pattern")
-                    file_start, file_end = \
-                        self.retrieve_time_coverage(filename)
-
-                    # Test whether the file is overlapping the interval between
-                    # start and end date.
-                    if IntervalTree.overlaps(
-                            (file_start, file_end), (start, end)):
-                        if verbose:
-                            print("\tPassed time check")
-
-                        if sort:
-                            found_files.append(
-                                [filename, [file_start, file_end]])
-                        else:
-                            yield filename, [file_start, file_end]
-
-                        found_counter += 1
-        if sort:
-            yield from sorted(found_files, key=lambda x: x[1][0])
-
-        if found_counter == 0 and no_files_error:
+            # We have found some files:
+            if sort:
+                yield from sorted(untouched_files, key=lambda x: x[1][0])
+            else:
+                yield from untouched_files
+        except StopIteration:
             raise NoFilesError(
                 "Found no files for %s between %s and %s!\nAre you sure you "
-                "gave the correct files parameter? Or is there maybe no data "
-                "for this time period?" % (self.name, start, end))
+                "gave the correct files parameter? Or is there maybe no data"
+                " for this time period?" % (self.name, start, end)
+            )
+
+    def _get_files_path(self, date, path_parts, day_index, verbose):
+        # Generate the daily path string for the files
+        path_name = '/'.join(path_parts[:day_index + 1])
+        day_indices = []
+        if "{day}" in path_name:
+            day_indices.append(path_name.index("{day}") + 5)
+        if "{doy}" in path_name:
+            day_indices.append(path_name.index("{doy}") + 5)
+
+        daily_path = self.generate_filename(
+            path_name[:min(day_indices)], date)
+        if os.path.isdir(daily_path):
+            daily_path += "/"
+
+        if verbose:
+            print("Daily path:", daily_path)
+
+        return daily_path
+
+    def _check_file(self, filename, regex, start, end, verbose):
+        if verbose:
+            print(filename)
+
+        # Test whether the file matches the files parameter.
+        if regex.match(filename):
+            if verbose:
+                print("\tMatched files path pattern")
+            file_start, file_end = \
+                self.retrieve_time_coverage(filename)
+
+            # Test whether the file is overlapping the interval between
+            # start and end date.
+            if IntervalTree.overlaps(
+                    (file_start, file_end), (start, end)):
+                if verbose:
+                    print("\tPassed time check")
+                return True
+
+        return False
 
     def find_overlapping_files(
             self, start, end, other_dataset, max_interval=10):
