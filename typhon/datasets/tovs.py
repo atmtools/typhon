@@ -96,10 +96,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         calibration, not to any new calibration such as developed for
         FIDUCEO.
 
-        apply_flags.  If true, apply flags when reading data.
-
-        apply_filter.  Apply an outlier filter.  FIXME DOC.
-
         max_flagged.  Float between 0 and 1.  If a larger proportion than
         this number is flagged, raise an exception (FIXME DOC) and throw
         away the entire granule.
@@ -164,19 +160,24 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
     max_valid_time_ptp = numpy.timedelta64(3, 'h')
     filter_calibcounts = filter_prttemps = filters.MEDMAD(10)
+    flag_fields = set()
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mandatory_fields |= {"hrs_scnlin"}
+        self.mandatory_fields |= {"hrs_scnlin", "calcof_sorted"}
+        self.mandatory_fields |= self.flag_fields
         self.granules_firstline_file = pathlib.Path(self.granules_firstline_file)
         if not self.granules_firstline_file.is_absolute():
             self.granules_firstline_file = self.basedir.joinpath(
                 self.granules_firstline_file)
-        self.default_orbit_filters = [
+        self.default_orbit_filters = (
             filters.FirstlineDBFilter(self, self.granules_firstline_file),
             filters.TimeMaskFilter(self),
             filters.HIRSTimeSequenceDuplicateFilter(),
-            ]
+            filters.HIRSFlagger(self, max_flagged=0.5),
+            filters.HIRSCalibCountFilter(self, self.filter_calibcounts),
+            filters.HIRSPRTTempFilter(self, self.filter_prttemps),
+            )
         if self.satname is not None:
             (self.start_date, self.end_date) = _tovs_defs.HIRS_periods[self.satname]
         # set here so inheriting classes can extend
@@ -187,11 +188,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
     # docstring in class and parent
     def _read(self, path, fields="all",
-                    apply_scale_factors=True, calibrate=True,
-                    apply_flags=True,
-                    radiance_units="si",
-                    apply_filter=True,
-                    max_flagged=0.5):
+                    apply_scale_factors=True, 
+                    apply_calibration=True,
+                    radiance_units="si"):
         if path.endswith(".gz"):
             opener = gzip.open
         else:
@@ -221,17 +220,11 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 "Problem reading {!s}.  File contains only {:d} scanlines. "
                 "My reading routine cannot currently handle that.".format(
                     path, n_lines))
-        # In the following, several processes may lead to scanlines
-        # being removed.  This means counting changes, which means the
-        # counting-based removal of overlap scanlines will be buggy
-        # (see FCDR_HIRS#139 and FCDR_HIRS#141).  
-        # Solution after November 2017 refactoring: make sure ALL
-        # filtering happens external to the core reading routine...
         n_lines = scanlines.shape[0]
 
         if apply_scale_factors:
             (header, scanlines) = self._apply_scale_factors(header, scanlines)
-        if calibrate:
+        if apply_calibration:
             if not apply_scale_factors:
                 raise ValueError("Can't calibrate if not also applying"
                                  " scale factors!")
@@ -252,18 +245,21 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             counts = counts - self.counts_offset
             counts = counts[:, :, numpy.argsort(self.channel_order)]
             rad_wn = self.calibrate(cc, counts)
+
             # Convert radiance to BT
-            #(wn, c1, c2) = header["hrs_h_tempradcnv"].reshape(self.n_calibchannels, 3).T
             (wn, c1, c2) = self.get_wn_c1_c2(header)
+
             # convert wn to SI units
             wn = wn * (1 / ureg.cm)
             wn = wn.to(1 / ureg.m)
             bt = self.rad2bt(rad_wn[:, :, :self.n_calibchannels], wn, c1, c2)
+
             # extract more info from TIP
             temp = self.get_temp(header, elem,
                 scanlines["hrs_anwrd"]
                     if "hrs_anwrd" in scanlines.dtype.names
                     else None)
+
             # Copy over all fields... should be able to use
             # numpy.lib.recfunctions.append_fields but incredibly slow!
             scanlines_new = numpy.ma.empty(shape=scanlines.shape,
@@ -288,7 +284,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                 scanlines_new["radiance"] = rad_wn.to(rad_u["si"],
                     "radiance")
             elif radiance_units == "classic":
-                # earlier, I converted to base units: W / (m^2 sr m^-1).
                 scanlines_new["radiance"] = rad_wn.to(rad_u["ir"],
                     "radiance")
             else:
@@ -320,29 +315,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     exc.args[0])
                 header_new["dataname"] = pathlib.Path(path).stem
             header = header_new
-
-            if apply_flags:
-                scanlines = self.get_mask_from_flags(header, scanlines,
-                                    max_flagged=max_flagged)
-
-            if apply_filter:
-                # FIXME: this should probably be moved to the 'filters'
-                # approach but leaving it in for now, as applying
-                # calibration counts masking should be done before
-                # applying the calibration, or?
-                scanlines = self.apply_calibcount_filter(scanlines)
-                if cc.ndim == 4:
-                    calibzero = (cc[:, :, 1, :]==0).all(2)
-                if cc.ndim == 3:
-                    calibzero = (cc==0).all(2)
-                scanlines["bt"].mask[...] |= calibzero[:, numpy.newaxis, :19]
-                scanlines["radiance"].mask[...] |= calibzero[:, numpy.newaxis, :20]
-                # if one is masked, so should the other…
-                scanlines["radiance"].mask[:, :, :19] |= scanlines["bt"].mask
-            if not (apply_flags or apply_filter):
-                scanlines = scanlines.data # no ma when no flags
-        elif apply_flags:
-            raise ValueError("I refuse to apply flags when not calibrating ☹")
         else: # i.e. not calibrating
             # FIXME: this violates DRY a bit, as those lines also occur
             # in the If:-block, but hard to do incrementally.  However, I
@@ -532,20 +504,6 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
                     targ[f] = src[f]
         return (new_head, new_line)
 
-    def apply_calibcount_filter(self, lines, cutoff=10):
-        for v in self.views:
-            x = lines[self.scantype_fieldname] == getattr(self,
-                    "typ_{:s}".format(v))
-            if not x.any():
-                raise dataset.InvalidDataError("Out of {:d} scanlines, "
-                    "found no {:s} views, cannot calibrate!".format(
-                        lines.shape[0], v))
-            lines.mask["counts"][x, 8:, :] = self.filter_calibcounts.filter_outliers(
-                lines["counts"][x, 8:, :])
-
-        return lines
-
-
     def get_iwt(self, header, elem):
         """Get temperature of internal warm target
         """
@@ -596,10 +554,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         else:
             raise NotImplementedError("ndim = {:d}".format(counts.ndim))
 
-        # although caller may not have asked for this, all we are doing is
-        # setting some flags so it should be OK here
         M = numpy.ma.asarray(M)
-        M.mask |= self.filter_prttemps.filter_outliers(M)
         return M
 
     @abc.abstractmethod
@@ -944,6 +899,7 @@ class HIRSPOD(HIRS):
         25.6 ,  27.69,  29.79,  31.9 ,  34.02,  36.16,  38.32,  40.49,
         42.69,  44.92,  47.18,  49.47,  51.81,  54.2 ,  56.65,  59.18]))
 
+    flag_fields = {"hrs_qualind"}
     # docstring in parent
     def seekhead(self, f):
         f.seek(0, io.SEEK_SET)
@@ -1038,16 +994,6 @@ class HIRSPOD(HIRS):
                     lines["counts"].mask.sum()/lines["counts"].size) +
                 ', '.join("{:s} ({:.2%})".format(k[2:], (v!=0).sum()/v.size) for (k, v)
                     in qidict.items() if (v!=0).sum()/v.size > 0.01))
-#                "Earth not found ({:.2%}), mirror position error ({:.2%}), "
-#                "mirror moved ({:.2%}), DACS QC error ({:.2%}).".format(
-#                    lines["counts"].mask.sum()/lines["counts"].size,
-#                    (qinoearth!=0).sum()/qinoearth.size,
-#                    (qimirrorpos!=0).sum()/qimirrorpos.size,
-#                    (qimirrorrepos!=0).sum()/qimirrorrepos.size))
-#                    (mfmirposerr[:, :self.n_perline]!=0).sum()/
-#                     mfmirposerr[:, :self.n_perline].size,
-#                    (mfmirmoved[:, :self.n_perline]!=0).sum()/
-#                     mfmirmoved[:, :self.n_perline].size))
 
         return lines
 
@@ -1227,6 +1173,8 @@ class HIRSKLM(ATOVS, HIRS):
     # “distance” between space and IWCT views
     dist_space_iwct = 1
 
+    flag_fields = {"hrs_qualind", "hrs_linqualflgs", "hrs_mnfrqual",
+                   "hrs_elem", "hrs_chqualflg"}
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.temperature_fields |= {"an_rd", "an_baseplate", "an_el",
