@@ -870,6 +870,29 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         
         return ds
 
+    def flagscore(self, M):
+        """Calculate "flag score"; higher is worse.
+
+        To aid the selection of the "best" scanline between subsequenc
+        scanlines, calculate a "flag score".
+        """
+        score = numpy.zeros(shape=M.shape, dtype="f4")
+
+        qif = _tovs_defs.QualIndFlagsHIRS[self.version]
+        mff = _tovs_defs.MinorFrameFlagsHIRS[self.version]
+
+        qi = M["hrs_qualind"]
+        mf = M["hrs_mnfrqual"]
+
+        for flag in qif:
+            score += ((qi & flag)!=0)
+        # add extra penalty for donotuse
+        score += 10 * ((qi & qif.qidonotuse)!=0)
+
+        for flag in mff:
+            score += ((mf & flag)!=0).mean(1)
+
+        return score
 
 class HIRSPOD(HIRS):
     """Read early HIRS such as documented in POD guide.
@@ -1516,8 +1539,23 @@ class HIRSKLM(ATOVS, HIRS):
     def get_dataname(self, header, robust=False):
         return header["hrs_h_dataname"][0].decode("US-ASCII")
 
-    # various calculation methods that are not strictly part of the
-    # reader.  Could be moved elsewhere.
+    def flagscore(self, M):
+        score = super().flagscore(M)
+
+        lqf = _tovs_defs.LinQualFlagsHIRS[self.version]
+        chf = _tovs_defs.ChQualFlagsHIRS[self.version]
+
+        lq = M["hrs_linqualflgs"]
+        ch = M["hrs_chqualflg"]
+
+        for flag in lqf:
+            score += ((lq & flag)!=0)
+
+        for flag in chf:
+            score += ((ch & flag)!=0).mean(1)
+
+        return score
+
 # docstring in parent
 class HIRS3(HIRSKLM):
     pdf_definition_pages = (26, 37)
