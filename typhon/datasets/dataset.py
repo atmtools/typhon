@@ -393,6 +393,12 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
         extra_filter_args = collections.ChainMap(*(of.args_to_reader
             for of in orbit_filters))
 
+        overlap_filters = [
+            f for f in orbit_filters if isinstance(f, filters.OverlapFilter)]
+        late = overlap_filters[0].late if len(overlap_filters) > 0 else True
+        if len(overlap_filters) > 1:
+            raise ValueError("Found {:d} overlap filters: {!s}".format(
+                len(overlap_filters), overlap_filters))
         for (g_start, gran) in finder(start, end, return_time=True, 
                                       include_last_before=True,
                                       **locator_args):
@@ -406,6 +412,7 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 # after filtering.  We may find errors downstream if there
                 # are very few scanlines left.
                 if (enforce_no_duplicates and
+                    not late and
                     sorted and
                     arr is not None and
                     cont[time].size > 0 and
@@ -450,10 +457,11 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
             bar.update(1)
             bar.finish()
         if anygood:
-            # FIXME: filter finalise before or after dataset finalise?
+            # NB: filter finalise before or after dataset finalise?
+            #
+            arr = self._finalise_arr(arr, N)
             for of in orbit_filters:
                 arr = of.finalise(arr)
-            arr = self._finalise_arr(arr, N)
 
             if "flags" in self.related:
                 arr = self.flag(arr)

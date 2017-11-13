@@ -2027,6 +2027,32 @@ LinQualFlagsHIRS = {
             LinQualFlagsHIRSKLM,
             LinQualFlagsHIRS4)}
 
+class ChQualFlagsCommon(IntFlag):
+    pass
+
+class ChQualFlagsHIRSKLM(ChQualFlagsCommon):
+    pass
+
+class ChQualFlagsHIRS3(ChQualFlagsHIRSKLM):
+    cqcalibfailed = 1<<5
+    cqanomsporbb =  1<<4
+    cqcalibhcf =    1<<3
+    cqbbfailsnedc = 1<<2
+    cqspfailsnedc = 1<<1
+    cqqcnotappl =   1<<0
+
+class ChQualFlagsHIRS4(ChQualFlagsHIRSKLM):
+    cqbadbb =       1<<5
+    cqbadspace =    1<<4
+    cqbadprts =     1<<3
+    cqmargbb =      1<<2
+    cqmargsp =      1<<1
+    cqmargprt =     1<<0
+
+ChQualFlagsHIRS = {
+    3: ChQualFlagsHIRS3,
+    4: ChQualFlagsHIRS4}
+
 # this one appears to be identical across all HIRS
 class MinorFrameFlagsHIRSCommon(IntFlag):
     mfsusptime =    1<<7

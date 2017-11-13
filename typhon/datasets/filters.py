@@ -18,6 +18,7 @@ import tempfile
 import pathlib
 import shutil
 import datetime
+import warnings
 
 import numpy
 try:
@@ -105,7 +106,7 @@ class OrbitFilter(metaclass=abc.ABCMeta):
         ...
     
     def __eq__(self, other):
-        return cmp(self.__dict__, other.__dict__)
+        return self.__dict__ == other.__dict__
 
 class TimeMaskFilter(OrbitFilter):
     """Throw out bad (masked) times.
@@ -275,6 +276,11 @@ class OverlapFilter(OrbitFilter):
 
     This is used in tovs HIRS reading routine.
     """
+    
+    # the 'late' attribute should be set to True if all duplicate checking
+    # is done late; this will suppress after-orbit verification of absense
+    # of duplicates.
+    late = False
 
 class FirstlineDBFilter(OverlapFilter):
     def __init__(self, ds, granules_firstline_file):
@@ -413,7 +419,7 @@ class NullLineFilter(OverlapFilter):
     def reset(self):
         pass
 
-    def filter(self, path, header, scanlines):
+    def filter(self, scanlines, header):
         return scanlines
 
     def finalise(self, arr):
@@ -424,35 +430,97 @@ class HIRSBestLineFilter(OverlapFilter):
 
     Currently works only for HIRS.
     """
+
+    # those are expected to be different between orbits, others are not
+    knowndiff = {'hrs_scnlin', 'hrs_qualind', 'hrs_linqualflgs',
+                 'hrs_chqualflg'}
+
+    late = True
     def __init__(self, ds):
         self.ds = ds
 
+    orbits = []
     def reset(self):
-        pass
+        self.orbits.clear()
 
-    def filter(self, path, header, scanlines):
-        """Choose best lines in overlap between last/current/next granule
+    def filter(self, scanlines, header):
+        self.orbits.append(
+            (self.ds.get_dataname(header, robust=True),
+             scanlines["time"].min(),
+             scanlines["time"].max(),
+             scanlines.size))
+        return scanlines
+
+    def select_winner(self, rep):
+        """Select "winning" scanline among 2 or more
+
+        Between 2 or more identical scanlines, select the one that fits
+        best.  That probably means least flags etc.
+
+        Takes a ndarray with dtype containing at least the HIRS flag
+        fields.  Dimension should be (n,) where n>1.
+
+        Returns the index of the best choice.
         """
-
-        # self.ds.read should be using caching already, so no need to keep
-        # track of what I've already read here.  Except that caching only
-        # works if the arguments are identical, which they aren't.
-        # Consider applying caching on a lower level?  But then I need to
-        # store more…
-        prevnext = [
-            self.ds.read(
-                self.ds.find_most_recent_granule_before(
-                    scanlines["time"][idx].astype(datetime.datetime) +
-                        datetime.timedelta(minutes=Δmin)),
-                fields=["hrs_qualind", "hrs_scnlin", "time"],
-                apply_scale_factors=False, calibrate=False)[0]
-                        for (idx, Δmin) in [(0, -1), (-1, 1)]]
-
+        
+        # relevant fields:
         #
-        raise NotImplementedError("Not implemented yet beyond this point")
+        # - hrs_qualind
+        # - hrs_linqualflgs
+        # - hrs_chqualflg
+        # - hrs_mnfrqual
+        #
+        # But this differs between HIRS/2/3/4...
+        # need some neutral way of "scoring" how bad it is
 
+        scores = self.ds.flagscore(rep)
+        return numpy.argmin(scores)
 
     def finalise(self, arr):
-        return arr
+        """For all sets of duplicates, select optimal one
 
+        Arguments:
+
+            arr [ndarray], dtype with structured ndarray according to what
+            the HIRS reading routine produces
+
+        Returns:
+
+            same array but sorted and with duplicates removed; for each
+            pair of duplicates, best alternative is chosen
+        """
+        # Find all pairs of duplicates (usually in sets of 2) and the
+        # with corresponding indices and multiplicity (count).  
+        arrsrt = arr[numpy.argsort(arr["time"])]
+        _, ii, cnt = numpy.unique(arrsrt["time"],
+            return_index=True, return_counts=True)
+        logging.debug("Selecting optimal scanlines for "
+            f"{ii.size:d} overlapping pairs")
+        # (mult_ii, mult_cnt) take the same values as if I were to do:
+        # for (mult_ii, mult_cnt) in zip(ii[cnt>1], cnt[cnt>1]), but I
+        # want to keep the indices so I can /write/ to ii
+        multcnt_i_all = (cnt>1).nonzero()[0]
+        for multcnt_i in multcnt_i_all:
+            mult_ii = ii[multcnt_i]
+            mult_cnt = cnt[multcnt_i]
+            rep = arrsrt[mult_ii:mult_ii+mult_cnt]
+            fields_notclose = {nm for nm in rep.dtype.names
+                if not
+                (rep[nm][0]==rep[nm]
+                 if rep[nm].dtype.kind[0] in "Mm"
+                 else numpy.isclose(rep[nm][0, ...], rep[nm])
+                ).all()} - self.knowndiff
+            if len(fields_notclose) > 0:
+                warnings.warn(
+                    "Overlapping or duplicate scanlines "
+                    "have inconsistent values for ".format(
+                        rep[0]["time"].astype(datetime.datetime))
+                    + ", ".join(list(fields_notclose)),
+                        UserWarning)
+            # ii normally contains the index of the first of a sequence of
+            # duplicates; select_winner returns the index of the optimal
+            # choice within the set 'rep' of repeated scanlines; the sum
+            # will thus be the index of our scanline of choice
+            ii[multcnt_i] += self.select_winner(rep)
+        return arrsrt[ii]
 
