@@ -90,6 +90,8 @@ def find_controlfile(name):
         name(str): Name of the file.
     Raises:
         Exception: If the file cannot be found.
+    Returns:
+        path(str): The full path of the file.
     """
     path = None
     for p in arts_include_path:
