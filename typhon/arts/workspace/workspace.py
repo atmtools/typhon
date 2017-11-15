@@ -1,4 +1,5 @@
-""" The workspace submodule.
+"""
+The workspace submodule.
 
 Contains the Workspace which implements the main functionality of the ARTS interface.
 Users should only have to use this class to interact with ARTS.
@@ -216,7 +217,6 @@ class Workspace:
                                      group_names[group_id],
                                      "User defined variable.",
                                      self)
-
         # Set WSV value using the ARTS C API
         s  = VariableValueStruct(var)
         if s.ptr:
