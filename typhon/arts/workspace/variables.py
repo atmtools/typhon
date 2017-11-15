@@ -5,6 +5,8 @@ This module contains symbolic representations of all ARTS workspace variables.
 The variables are loaded dynamically when the module is imported, which ensures that they
 up to date with the current ARTS build.
 
+TODO: The group names list is redudant w.rt. group_ids.keys(). Should be removed.
+
 Attributes:
     group_names([str]): List of strings holding the groups of ARTS WSV variables.
     group_ids(dict):    Dictionary mapping group names to the group IDs which identify
@@ -118,6 +120,8 @@ class WorkspaceVariable:
                 return group_ids["ArrayOfString"]
             if t == int:
                 return group_ids["ArrayOfIndex"]
+        elif hasattr(value, 'write_xml') and type(value).__name__ in group_names:
+            return group_ids[type(value).__name__]
         else:
             raise ValueError("Type " + str(type(value)) + " currently not supported.")
 
@@ -199,13 +203,16 @@ class WorkspaceVariable:
             m    = v.dimensions[0]
             n    = v.dimensions[1]
             nnz  = v.dimensions[2]
-            data = np.ctypeslib.as_array(c.cast(v.ptr,
-                                                c.POINTER(c.c_double)),
-                                         (nnz,))
-            row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
-            col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
-            return sp.sparse.csr_matrix((data, row_indices, col_starts),
-                                        shape=(m,n))
+            if nnz == 0:
+                return sp.sparse.csr_matrix(0)
+            else:
+                data = np.ctypeslib.as_array(c.cast(v.ptr,
+                                                    c.POINTER(c.c_double)),
+                                             (nnz,))
+                row_indices = np.ctypeslib.as_array(v.inner_ptr, (nnz,))
+                col_starts  = np.ctypeslib.as_array(v.outer_ptr, (m + 1,))
+                return sp.sparse.csr_matrix((data, row_indices, col_starts),
+                                            shape=(m,n))
         elif self.group == "Agenda":
             return Agenda(v.ptr)
         elif self.ndim:

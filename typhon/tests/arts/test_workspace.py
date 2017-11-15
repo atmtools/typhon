@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import numpy as np
 import pytest
+import os
 
 try:
     from typhon.arts.workspace import Workspace, arts_agenda
@@ -8,6 +9,8 @@ except:
     skip_arts_tests = True
 else:
     skip_arts_tests = False
+
+from typhon.arts.catalogues import Sparse
 
 
 def agenda(ws):
@@ -49,6 +52,16 @@ class TestWorkspace:
         m = np.random.rand(10, 10)
         self.ws.matrix_variable = m
         assert all(self.ws.matrix_variable.value.ravel() == m.ravel())
+
+    def test_sparse_transfer(self):
+        s = Sparse(np.random.rand(10, 10))
+        self.ws.SparseCreate("s")
+        self.ws.s = s
+
+        s_array = s.toarray()
+        ws_s_array = self.ws.s.value.toarray()
+
+        assert np.allclose(s_array, ws_s_array)
 
     def test_supergeneric_overload_resolution(self):
         self.ws.ArrayOfIndexCreate("array_of_index")
