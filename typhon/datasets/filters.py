@@ -507,7 +507,7 @@ class HIRSBestLineFilter(OverlapFilter):
             fields_notclose = {nm for nm in rep.dtype.names
                 if not
                 (rep[nm][0]==rep[nm]
-                 if rep[nm].dtype.kind[0] in "Mm"
+                 if rep[nm].dtype.kind[0] in "MmS"
                  else numpy.isclose(rep[nm][0, ...], rep[nm])
                 ).all()} - self.knowndiff
             if len(fields_notclose) > 0:
