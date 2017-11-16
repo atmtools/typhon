@@ -1,7 +1,4 @@
-"""
-Markov Chain Monte-Carlo Retrievals
-===================================
-
+r"""
 This subpackage provides functionality to sample posterior distributions of
 inverse problems in atmospheric soundings using ARTS as forward model.
 

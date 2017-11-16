@@ -7,6 +7,42 @@ retrieval
 .. autosummary::
    :toctree: generated
 
+retrieval.bmci
+==============
+
+.. automodule:: typhon.retrieval.bmci
+
+.. currentmodule:: typhon.retrieval.bmci
+
+.. autosummary::
+   :toctree: generated
+
+   BMCI
+
+retrieval.mcmc
+==============
+
+.. automodule:: typhon.retrieval.mcmc
+
+.. currentmodule:: typhon.retrieval.mcmc
+
+.. autosummary::
+   :toctree: generated
+
+   MCMC
+
+retrieval.qrnn
+==============
+
+.. automodule:: typhon.retrieval.qrnn
+
+.. currentmodule:: typhon.retrieval.qrnn
+
+.. autosummary::
+   :toctree: generated
+
+   QRNN
+
 retrieval.scores
 ================
 
@@ -21,28 +57,3 @@ retrieval.scores
     bias
     quantile_score
     mean_quantile_score
-
-retrieval.qrnn
-==============
-
-.. automodule:: typhon.retrieval.qrnn
-
-.. currentmodule:: typhon.retrieval.qrnn
-
-.. autosummary::
-   :toctree: generated
-
-   QRNN
-
-retrieval.bmci
-==============
-
-.. automodule:: typhon.retrieval.bmci
-
-.. currentmodule:: typhon.retrieval.bmci
-
-.. autosummary::
-   :toctree: generated
-
-   BMCI
-
