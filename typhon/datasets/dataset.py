@@ -411,32 +411,45 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 # FIXME: handle cases where very few scanlines are left
                 # after filtering.  We may find errors downstream if there
                 # are very few scanlines left.
-                if (enforce_no_duplicates and
-                    not late and
-                    sorted and
-                    arr is not None and
-                    cont[time].size > 0 and
-                    N>0 and
-                    (cont[time][0] <= latest)):
-                    if isinstance(latest, xarray.DataArray):
-                        latest = latest.values.astype("M8[ms]")
-                    if isinstance(cont[time][0], xarray.DataArray):
-                        conttime = cont[time][0].values.astype("M8[ms]")
-                    else:
-                        conttime = cont[time][0]
-                    raise InvalidDataError(
-                        "Reading routine for {!s} returned data starting "
-                        "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
-                        "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
-                        "As data are supposed to be sorted in time, this "
-                        "probably means duplicate removal is not working "
-                        "as it should, or you are using an implementation "
-                        "that deliberately leaves duplicates in, and you "
-                        "should be passing enforce_no_duplicates=False to "
-                        "read_period.".format(gran,
-                            conttime.astype(datetime.datetime),
-                            latest.astype(datetime.datetime)))
+                if (not late and
+                    cont[time].size > 0):
+
+                    if (enforce_no_duplicates and sorted and
+                            arr is not None and
+                            N>0 and (cont[time][0] <= latest)):
+                        if isinstance(latest, xarray.DataArray):
+                            latest = latest.values.astype("M8[ms]")
+                        if isinstance(cont[time][0], xarray.DataArray):
+                            conttime = cont[time][0].values.astype("M8[ms]")
+                        else:
+                            conttime = cont[time][0]
+                        raise InvalidDataError(
+                            "Reading routine for {!s} returned data starting "
+                            "{:%Y-%m-%d %H:%M:%S}, which precedes last entry "
+                            "for preceding granule at {:%Y-%m-%d %H:%M:%S}. "
+                            "As data are supposed to be sorted in time, this "
+                            "probably means duplicate removal is not working "
+                            "as it should, or you are using an implementation "
+                            "that deliberately leaves duplicates in, and you "
+                            "should be passing enforce_no_duplicates=False to "
+                            "read_period.".format(gran,
+                                conttime.astype(datetime.datetime),
+                                latest.astype(datetime.datetime)))
+
+                    # NB: when datasets erroneously contain duplicate coordinates
+                    # (I'm looking at you, FIDUCEO/FCDR_HIRS#159!), this
+                    # comparison will cause a failure in xarray.  In this case,
+                    # compare values instead.
+                    arr = cont[time]
+                    if isinstance(arr, xarray.DataArray):
+                        arr = arr.values
+                    if not (arr[1:] >= arr[:-1]).all():
+                        raise InvalidDataError("Reader for {!s} returned data "
+                            "with unsorted time.  This must be fixed.".format(
+                                f))
+
                 cont = self._apply_limits_and_filters(cont, limits, simple_filters)
+
             except (DataFileError, filters.FilterError) as exc:
                 if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
@@ -689,20 +702,6 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                 if f is not None
                 else self._read(fields=fields, **kwargs))
         M = self._add_pseudo_fields(M, pseudo_fields)
-        try:
-            # NB: when datasets erroneously contain duplicate coordinates
-            # (I'm looking at you, FIDUCEO/FCDR_HIRS#159!), this
-            # comparison will cause a failure in xarray.  In this case,
-            # compare values instead.
-            arr = M[self.time_field]
-            if isinstance(arr, xarray.DataArray):
-                arr = arr.values
-            if not (arr[1:] >= arr[:-1]).all():
-                raise InvalidDataError("Reader for {!s} returned data "
-                    "with unsorted time.  This must be fixed.".format(
-                        f))
-        except (KeyError, TypeError): # no time field or things returned differently
-            pass
         return (M, extra)
 
     def _add_pseudo_fields(self, M, pseudo_fields):
