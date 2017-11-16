@@ -15,31 +15,30 @@ class BMCI:
 
     This class implements methods for solving Bayesian inverse problems using
     Monte Carlo integration. The method uses a data base of atmospheric states
-    :math:`x_i` and corresponding  observations :math:`\mathbf{y}_i`, which are used
-    to compute integrals of the posterior distribution by means of importance sampling:
+    :math:`x_i` and corresponding observations :math:`\mathbf{y}_i`, which are
+    used to compute integrals of the posterior distribution by means of
+    importance sampling:
 
     .. math::
 
         \int_a^b f(x') p(x' | \mathbf{y}) \: dx' \approx
-        \sum_{a \leq x_i \leq b} \frac{w_i(\mathbf{y}) f(x)}{\sum_j w_j(\mathbf{y})}
+        \sum_{a \leq x_i \leq b} \frac{w_i(\mathbf{y}) f(x)}
+        {\sum_j w_j(\mathbf{y})}.
 
-    The measurements in the database are assumed to be given by a
-    :math:`n \times m` matrix :math:`\mathbf{y}`, where n is the number of
-    cases in the database. Currently only scalar retrievals are supported,
-    which means that :math:`\mathbf{x}` is assumed to an be :math:`n`-element vector
-    containing the retrieval quantities corresponding to the observations in
-    :math:`\mathbf{y}`.
-
-    The method assumes that the measurement uncertainty can be described by
-    a zero-mean Gaussian distribution with covariance matrix :math:`\mathbf{S}_o`
-    so that given an ideal forward model :math:`F: \mathrm{R}^n \rightarrow \mathrm{R}^m`
-    the probability of a measurement :math:`\mathbf{y}` conditional on an
-    atmospheric state :math:`\mathbf{x}` is proportional to
+    The method assumes that measurement uncertainties can be described by a
+    multivariate Gaussian distribution with covariance matrix $\mathbf{S}_o$,
+    so that the weights :math:`w_i(\mathbf{y})` are given by
 
     .. math::
-        P(\mathbf{y} | \mathbf{x}) \sim \exp
-        \{ -\frac{1}{2} (\mathbf{y} - F(\mathbf{x}))^T
-        \mathbf{S}_o^{-1} (\mathbf{y} - F(\mathbf{x})) \}
+        w_i(\mathbf{y}) = \exp
+        \{ -\frac{1}{2} (\mathbf{y} - \mathbf{y}_i)^T
+        \mathbf{S}_o^{-1} (\mathbf{y} - \mathbf{y}_i) \}.
+
+    The measurements in the database :code:`y` is assumed to be given as an
+    array of shape :code:`(n, m)`, where n is the number of cases in the
+    database. Currently only scalar retrievals are supported, which means that
+    :code:`x` is assumed to a n-element vector containing the retrieval
+    quantities corresponding to the observations in :math:`\mathbf{y}`.
 
     Attributes
 
@@ -215,26 +214,33 @@ class BMCI:
         of the posterior distribution:
 
         .. math::
-            \int x p(x | \mathbf{y}) \: dx \approx
+            \bar{x} = \int x p(x | \mathbf{y}) \: dx \approx
             \sum_i \frac{w_i(\mathbf{y}) x}{\sum_j w_j(\mathbf{y})}
 
 
-            \int x^2 p(x | \mathbf{y}) \: dx \approx
+            \text{var}(x) = \int (x - \bar{x})^2 p(x | \mathbf{y}) \: dx \approx
             \sum_i \frac{w_i(\mathbf{y}) x^2}{\sum_j w_j(\mathbf{y})}
 
-        If the keyword arg `x2_max` is provided, then the weights will be
-        computed exluding database entries that are guaranteed to have a
-        :math:`\chi^2` value higher than `x2_max`.
+        By default this method computes weights for all entries in the database,
+        which is slow for large databases. This can be avoided by setting the
+        :code:`x2_max` keyword to a non-negative value. This will be used to
+        exclude weights that can be guaranteed to have a larger :math:`\Chi^2`
+        value than :code:`x2_max`.
 
         Arguments:
 
-            y_obs (numpy.ndarray): 2-D array containing the observations for
-                                   which to perform the retrieval.
+            y_obs (numpy.ndarray): Array of shape `(n, m)` containing the `n`
+                                   observations for which to perform the
+                                   retrieval.
+
+            x2_max (float): If non-negative, database elements that can be
+                            guaranteed to have a higher chi-square value are
+                            excluded.
 
         Returns:
 
-            A tuple `(xs, sigmas)` containing the retrieved means (`xs`) and
-            the corresponding standard deviations (`sigmas`).
+            A tuple :code:`(xs, sigmas)` containing the retrieved means (`xs`)
+            and the corresponding standard deviations (:code:`sigmas`).
 
         """
         xs = np.zeros(y_obs.shape[0])
@@ -254,10 +260,11 @@ class BMCI:
 
     def crps(self, y_obs, x_true, x2_max = -1.0):
         r"""
+        Compute the Continuous Ranked Probability Score.
 
         This function approximates the cumulative probability density of the
-        posterior distribution for the given observations in `y_obs` and
-        computes the continuously ranked probability score:
+        posterior distribution for the observations in :code:`y_obs` and
+        computes the continuously ranked probability score (CRPS):
 
         .. math::
             CRPS(\mathbf{y}, x) = \int_{-\infty}^\infty (F_{x | \mathbf{y}}(x')
@@ -265,8 +272,9 @@ class BMCI:
 
         Arguments:
 
-            y_obs(numpy.ndarray): 2-D array with shape `(n, m)` containing the
-                                   n observations for which to evaluate the CRPS.
+            y_obs (numpy.ndarray): Array of shape `(n, m)` containing the `n`
+                                   observations for which to perform the
+                                   retrieval.
             x_true(numpy.ndarray): 1-D array containing the `n` x values to test
                                    the predictions against.
 
@@ -299,7 +307,7 @@ class BMCI:
 
     def cdf(self, y_obs, x2_max = -1):
         r"""
-        Cumulative posterior density function.
+        A posteriori cumulative distribution function (CDF).
 
         This function approximates the cumulative posterior distribution
         :math:`F(x | \mathbf{y})` for the given observation `y_obs` using
@@ -351,9 +359,9 @@ class BMCI:
             ws_cum = np.float("nan")
         return xs, ws_cum
 
-    def predict_quantiles(self, y_obs, taus, x2_max = -1):
+    def predict_quantiles(self, y_obs, quantiles, x2_max = -1):
         r"""
-        This estimates the quantiles given in `taus` by approximating
+        This estimates the quantiles given in `quantiles` by approximating
         the CDF of the posterior as
 
         .. math::
@@ -369,7 +377,7 @@ class BMCI:
                                  observations with `m` channels for which to
                                  compute the percentiles.
 
-            taus(numpy.array): 1D array containing the `k` quantiles
+            quantiles(numpy.array): 1D array containing the `k` quantiles
                                :math:`\tau \in [0,1]` to compute.
 
             x2_max(float): The :math:`\chi^2` cutoff to apply to elements in the
