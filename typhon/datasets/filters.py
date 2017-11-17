@@ -149,16 +149,17 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
     def filter(self, scanlines, **extra):
         goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
         if not goodorder.all():
-            logging.warning("{!s} has {:d} scanlines are out of "
-                "order, resorting".format(path, (~goodorder).sum()))
+            logging.warning("{:d} scanlines are out of "
+                "order, resorting".format(
+                (~goodorder).sum()))
             neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
             scanlines = scanlines[neworder]        
 
         # if there still are any now, it can only be due to duplicates
         goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
         if not goodorder.all():
-            logging.warning("{!s} has {:d} duplicate "
-                "scanlines (judging from scanline number), removing".format(path, (~goodorder).sum()))
+            logging.warning("{:d} duplicate "
+                "scanlines (judging from scanline number), removing".format((~goodorder).sum()))
             (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
                                    return_index=True)
             scanlines = scanlines[ii]
@@ -167,10 +168,9 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
         # still time sequence issues?
         goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
         if not goodtime.all():
-            logging.warning("{!s} (still) has time sequence issues. "
+            logging.warning("Still has time sequence issues! "
                 "Dropping {:d} scanlines to be on the safe side. "
-                "This is probably overconservative.".format(path,
-                (~goodtime).sum()))
+                "This is probably overconservative.".format((~goodtime).sum()))
             scanlines = scanlines[goodtime]
 
         # in some cases, like 1985-11-30T17:19:45.056 on NOAA-9,
@@ -183,7 +183,6 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
                 "more lines.  I hope that's it!".format(
                     scanlines["time"].size-ii.size))
             scanlines = scanlines[ii]
-            cc = cc[ii, :, :]
 
         return scanlines
 
@@ -507,7 +506,7 @@ class HIRSBestLineFilter(OverlapFilter):
             fields_notclose = {nm for nm in rep.dtype.names
                 if not
                 (rep[nm][0]==rep[nm]
-                 if rep[nm].dtype.kind[0] in "Mm"
+                 if rep[nm].dtype.kind[0] in "MmS"
                  else numpy.isclose(rep[nm][0, ...], rep[nm])
                 ).all()} - self.knowndiff
             if len(fields_notclose) > 0:
