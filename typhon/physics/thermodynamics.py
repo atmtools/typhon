@@ -11,6 +11,12 @@ __all__ = [
     'e_eq_ice_mk',
     'e_eq_water_mk',
     'density',
+    'mixing_ratio2specific_humidity',
+    'mixing_ratio2vmr',
+    'specific_humidity2mixing_ratio',
+    'specific_humidity2vmr',
+    'vmr2mixing_ratio',
+    'vmr2specific_humidity',
 ]
 
 
@@ -116,3 +122,129 @@ def density(p, T, R=constants.gas_constant_dry_air):
         1.1763056653021122
     """
     return p / (R * T)
+
+
+def mixing_ratio2specific_humidity(w):
+    r"""Convert mass mixing ratio to specific humidity.
+
+    .. math::
+        q = \frac{w}{1 + w}
+
+    Parameters:
+        w (float or ndarray): Mass mixing ratio.
+
+    Returns:
+        float or ndarray: Specific humidity.
+
+    Examples:
+        >>> mixing_ratio2specific_humidity(0.02)
+        0.0196078431372549
+    """
+    return w / (1 + w)
+
+
+def mixing_ratio2vmr(w):
+    r"""Convert mass mixing ratio to volume mixing ratio.
+
+    .. math::
+        x = \frac{w}{w + \frac{M_w}{M_d}}
+
+    Parameters:
+        w (float or ndarray): Mass mixing ratio.
+
+    Returns:
+        float or ndarray: Volume mixing ratio.
+
+    Examples:
+        >>> mixing_ratio2vmr(0.02)
+        0.03115371853180794
+    """
+    Md = constants.molar_mass_dry_air
+    Mw = constants.molar_mass_water
+
+    return w / (w + Mw / Md)
+
+
+def specific_humidity2mixing_ratio(q):
+    r"""Convert specific humidity to mass mixing ratio.
+
+    .. math::
+        w = \frac{q}{1 - q}
+
+    Parameters:
+        q (float or ndarray): Specific humidity.
+
+    Returns:
+        float or ndarray: Mass mixing ratio.
+
+    Examples:
+        >>> specific_humidity2mixing_ratio(0.02)
+        0.020408163265306124
+    """
+    return q / (1 - q)
+
+
+def specific_humidity2vmr(q):
+    r"""Convert specific humidity to volume mixing ratio.
+
+    .. math::
+        x = \frac{q}{(1 - q) \frac{M_w}{M_d} + q}
+
+    Parameters:
+        q (float or ndarray): Specific humidity.
+
+    Returns:
+        float or ndarray: Volume mixing ratio.
+
+    Examples:
+        >>> specific_humidity2vmr(0.02)
+        0.03176931009073226
+    """
+    Md = constants.molar_mass_dry_air
+    Mw = constants.molar_mass_water
+
+    return q / ((1 - q) * Mw / Md + q)
+
+
+def vmr2mixing_ratio(x):
+    r"""Convert volume mixing ratio to mass mixing ratio.
+
+    .. math::
+        w = \frac{x}{1 - x} \frac{M_w}{M_d}
+
+    Parameters:
+        x (float or ndarray): Volume mixing ratio.
+
+    Returns:
+        float or ndarray: Mass mixing ratio.
+
+    Examples:
+        >>> vmr2mixing_ratio(0.04)
+        0.025915747437955664
+    """
+    Md = constants.molar_mass_dry_air
+    Mw = constants.molar_mass_water
+
+    return x / (1 - x) * Mw / Md
+
+
+def vmr2specific_humidity(x):
+    r"""Convert volume mixing ratio to specific humidity.
+
+    .. math::
+        q = \frac{x}{(1 - x) \frac{M_d}{M_w} + x}
+
+    Parameters:
+        x (float or ndarray): Volume mixing ratio.
+
+    Returns:
+        float or ndarray: Specific humidity.
+
+    Examples:
+        >>> vmr2specific_humidity(0.04)
+        0.025261087474946833
+    """
+    Md = constants.molar_mass_dry_air
+    Mw = constants.molar_mass_water
+
+    return x / ((1 - x) * Md / Mw + x)

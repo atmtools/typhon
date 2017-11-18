@@ -14,6 +14,8 @@ physics
    frequency2wavelength
    frequency2wavenumber
    fresnel
+   mixing_ratio2specific_humidity
+   mixing_ratio2vmr
    planck
    planck_wavelength
    planck_wavenumber
@@ -22,6 +24,10 @@ physics
    rayleighjeans
    rayleighjeans_wavelength
    snell
+   specific_humidity2mixing_ratio
+   specific_humidity2vmr
+   vmr2mixing_ratio
+   vmr2specific_humidity
    wavelength2frequency
    wavelength2wavenumber
    wavenumber2frequency
