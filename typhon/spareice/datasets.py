@@ -172,10 +172,29 @@ class Dataset:
             yield file
     """
     def __contains__(self, item):
-        start = self._to_datetime(item)
-        end = start + timedelta(seconds=5)
-        for _, _ in self.find_files(start, end, no_files_error=False):
+        """Checks whether a timestamp is covered by this dataset.
+
+        Args:
+            item: Either a string with time information or datetime object.
+                Can be also a tuple or list of strings / datetime objects that
+                will be checked.
+
+        Returns:
+            True if timestamp is covered.
+        """
+        if isinstance(item, (tuple, list)):
+            for elem in item:
+                if elem not in self:
+                    return False
+
             return True
+        else:
+            start = self._to_datetime(item)
+            # TODO: Here we set an interval of 5 seconds per default. This
+            # TODO: is not good.
+            end = start + timedelta(seconds=5)
+            for _, _ in self.find_files(start, end, no_files_error=False):
+                return True
 
         return False
 
@@ -389,9 +408,9 @@ class Dataset:
             converter: If you want to convert the files during copying to a
                 different format, you can pass a file handler object with
                 writing-to-file support here.
-            delete_originals: If true, then all original files will be deleted.
-                Be careful, this cannot be undone!
-            verbose:
+            delete_originals: If true, then all copied original files will be
+                deleted. Be careful, this cannot get undone!
+            verbose: If true, it prints debug messages during copying.
             new_name: The name of the new dataset. If it is not given,
                 the new name is the the old name followed by "_copy".
 
@@ -406,19 +425,19 @@ class Dataset:
             date1 = datetime(2017, 9, 15)
             date2 = datetime(2017, 9, 23)
             old_dataset = Dataset(
-                files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
             )
             new_dataset = old_dataset.copy(
                 date1, date2,
-                "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
             )
 
         .. code-block:: python
 
             # When you want to convert the files during copying:
             old_dataset = Dataset(
-                files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
             )
             # Note that this only works if the converter file handler
@@ -426,7 +445,7 @@ class Dataset:
             # writing to a file.
             new_dataset = old_dataset.copy(
                 date1, date2,
-                "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.png",
+                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.png",
                 converter=FileHandlerPNG(),
             )
         """
@@ -592,7 +611,8 @@ class Dataset:
 
         path_parts = self.files.split("/")
 
-        #
+        # We need the last appearance of a day placeholder to create the
+        # corresponding search paths.
         day_index = 0
         for index, part in enumerate(path_parts):
             # TODO: What about file path identifier which does not contain the
@@ -609,12 +629,15 @@ class Dataset:
         start = self._to_datetime(start)
         end = self._to_datetime(end)
 
+        if verbose:
+            print("Find files between %s and %s" % (start, end))
+
         # Find all files by iterating over all possible paths, get all files in
         # those paths and checking whether they match the path regex and the
         # time period.
         found_files = (
             [filename, self.retrieve_time_coverage(filename)]
-            for date in pd.date_range(start - timedelta(days=1), end)
+            for date in pd.date_range(start.date() - timedelta(days=1), end)
             for filename in self._get_all_files(
                 self._get_files_path(date, path_parts, day_index, verbose))
             if self._check_file(filename, regex, start, end, verbose)
@@ -648,6 +671,18 @@ class Dataset:
                 "gave the correct files parameter? Or is there maybe no data"
                 " for this time period?" % (self.name, start, end)
             )
+
+    def _get_all_files(self, directory):
+        if os.path.isdir(directory):
+            for sub_directory in glob.iglob(directory + "/*", recursive=True):
+                yield from self._get_all_files(sub_directory)
+        else:
+            if os.path.isfile(directory):
+                yield directory
+            else:
+                for sub_directory in glob.iglob(directory + "*",
+                                                recursive=True):
+                    yield from self._get_all_files(sub_directory)
 
     def _get_files_path(self, date, path_parts, day_index, verbose):
         # Generate the daily path string for the files
@@ -690,7 +725,7 @@ class Dataset:
         return False
 
     def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=10):
+            self, start, end, other_dataset, max_interval=None):
         """Finds all files from this dataset and from another dataset that
         overlap in time between two dates.
 
@@ -700,11 +735,15 @@ class Dataset:
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             other_dataset: A Dataset object which holds the other files.
-            max_interval: Maximal time interval between two overlapping files.
+            max_interval: (optional) Maximal time interval in seconds between
+                two overlapping files. Must be an integer or float.
 
         Yields:
             A tuple with the names of two files which correspond to each other.
         """
+        if max_interval is not None:
+            start = self._to_datetime(start) - timedelta(seconds=max_interval)
+            end = self._to_datetime(end) + timedelta(seconds=max_interval)
 
         primary_files, primary_times = list(
             zip(*self.find_files(start, end, sort=True)))
@@ -717,19 +756,22 @@ class Dataset:
         secondary_times = np.asarray([[dt[0].timestamp(), dt[1].timestamp()]
                                       for dt in secondary_times]).astype('int')
 
-        # Expand the intervals of the secondary dataset to close-in-time
-        # intervals.
-        secondary_times[:, 0] -= max_interval
-        secondary_times[:, 1] += max_interval
+        if max_interval is not None:
+            # Expand the intervals of the secondary dataset to close-in-time
+            # intervals.
+            secondary_times[:, 0] -= max_interval
+            secondary_times[:, 1] += max_interval
 
         tree = IntervalTree(secondary_times)
 
         # Search for all overlapping intervals:
         results = tree.query(primary_times)
 
-        for i, overlapping_files in enumerate(results):
-            yield primary_files[i], \
-                  [secondary_files[oi] for oi in overlapping_files]
+        yield from (
+            (primary_files[i],
+             [secondary_files[oi] for oi in overlapping_files])
+            for i, overlapping_files in enumerate(results)
+        )
 
     def generate_filename(self, template, start_time, end_time=None):
         """ Generates the file name for a specific date by using the template
@@ -804,18 +846,6 @@ class Dataset:
         )
 
         return template
-
-    def _get_all_files(self, directory):
-        if os.path.isdir(directory):
-            for sub_directory in glob.iglob(directory + "/*", recursive=True):
-                yield from self._get_all_files(sub_directory)
-        else:
-            if os.path.isfile(directory):
-                yield directory
-            else:
-                for sub_directory in glob.iglob(directory + "*",
-                                               recursive=True):
-                    yield from self._get_all_files(sub_directory)
 
     def get_info(self, filename):
         """Gets info about a file by using the dataset's file handler.

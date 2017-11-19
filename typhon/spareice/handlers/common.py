@@ -1,3 +1,4 @@
+import csv
 from inspect import signature
 import pickle
 
@@ -9,11 +10,78 @@ import xarray
 from .. import handlers
 
 __all__ = [
+    'CSV',
     'NetCDF4',
     # 'Numpy',
     # 'Pickle',
     # 'XML'
     ]
+
+
+class CSV(handlers.FileHandler):
+    """File handler that can read / write data from / to a ASCII file with
+    comma separated values (or by any other delimiter).
+    """
+    def __init__(
+            self, delimiter=None, header=None,
+            skip_column=None, skip_header=None,
+            **kwargs):
+        """Initializes a CSV file handler class.
+
+        Args:
+            info_reader: (optional) You cannot use the :meth:`get_info`
+                without giving a function here that returns a FileInfo object.
+        """
+        # Call the base class initializer
+        super().__init__(**kwargs)
+
+        self.delimiter = delimiter
+        self.header = header
+        self.skip_column = skip_column
+        self.skip_header = skip_header
+
+    def read(self, filename, fields=None):
+        """Reads a CSV file and returns an ArrayGroup object.
+
+        Args:
+            filename:
+            fields:
+
+        Returns:
+            An ArrayGroup object.
+        """
+        with open(filename, "r") as file:
+            column_names = None
+
+            if self.skip_header is not None:
+                # Skip the header by ourselves because we may need the names
+                # of the columns.
+                line_number = 0
+                while line_number < self.skip_header:
+                    line = next(file)
+                    line_number += 1
+                    if line_number == self.header:
+                        column_names = line.rstrip('\n').split(self.delimiter)
+
+            raw_data = np.genfromtxt(
+                (line.encode('utf-8') for line in file),
+                delimiter=self.delimiter,
+                dtype=None,
+            )
+
+            column_data = list(zip(*raw_data))
+
+            table = ArrayGroup()
+            if column_names is None:
+                column_names = [
+                    "col_" + str(c)
+                    for c in range(len(column_data))]
+
+            for column, name in enumerate(column_names):
+                #name = str(name, 'utf-8')
+                table[name] = column_data[column]
+
+            return table
 
 
 class NetCDF4(handlers.FileHandler):

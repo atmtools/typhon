@@ -10,6 +10,11 @@ import warnings
 import numpy as np
 
 try:
+    import matplotlib.pyplot as plt
+except:
+    pass
+
+try:
     import netCDF4
 except ModuleNotFoundError:
     pass
@@ -706,31 +711,28 @@ class ArrayGroup:
         var, rest = key.split("/", 1)
         return var, rest
 
-    # def plot(self, fields, plot_type="worldmap", fig=None, ax=None, **kwargs):
-    #     """
-    #
-    #     Args:
-    #         plot_type:
-    #         fields:
-    #         fig:
-    #         ax:
-    #         **kwargs:
-    #
-    #     Returns:
-    #
-    #     """
-    #
-    #     if plot_type == "worldmap":
-    #         ax, scatter = typhon.plots.worldmap(
-    #             self["lat"],
-    #             self["lon"],
-    #             self[fields[0]],
-    #             fig, ax, **kwargs
-    #         )
-    #     else:
-    #         raise ValueError("Unknown plot type: '{}'".format(plot_type))
-    #
-    #     return ax
+    def plot(self, fields, ptype=None, fig=None):
+        """
+
+        Args:
+            fields:
+            ptype:
+            fig:
+            **kwargs:
+
+        Returns:
+
+        """
+
+        axes = plt.subplots(len(fields), sharex='col')
+
+        coords = self.coords()
+        for i, field in enumerate(fields):
+            data = self[field]
+            if data.dims[0] in coords:
+                axes[0].plot(self[data.dims[0]], data)
+
+        return axes
 
     def rename(self, mapping, inplace=True):
         if inplace:

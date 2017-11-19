@@ -50,9 +50,9 @@ class IntervalTree:
         self.left = np.min(intervals)
         self.right = np.max(intervals)
 
-        # We want to return the indices of the intervals instead of their actual
-        # bounds. But the original indices will be lost due resorting. Hence, we
-        # add the original indices to the intervals themselves.
+        # We want to return the indices of the intervals instead of their
+        # actual bounds. But the original indices will be lost due resorting.
+        # Hence, we add the original indices to the intervals themselves.
         indices = np.arange(intervals.shape[0]).reshape(intervals.shape[0], 1)
         indexed_intervals = np.hstack([intervals, indices])
         self.root = self._build_tree(np.sort(indexed_intervals, axis=0))
@@ -91,8 +91,8 @@ class IntervalTree:
             True if the interval overlap.
         """
         return interval1[0] <= interval2[0] <= interval1[1] or \
-               interval1[0] <= interval2[1] <= interval1[1] or \
-               (interval2[0] <= interval1[0] and interval2[1] >= interval1[1])
+            interval1[0] <= interval2[1] <= interval1[1] or \
+            (interval2[0] <= interval1[0] and interval2[1] >= interval1[1])
 
     @staticmethod
     def contains(interval, point):
