@@ -43,7 +43,7 @@ for key in ENVIRONMENT:
     # If the key was not found in the process environment,
     # try to get the value from the TYPHONRC configuration file.
     try:
-        value = typhon.config.get_config(key, section='environment')
+        value = typhon.config.conf.get(section='environment', option=key)
     except:
         value = None
     finally:
