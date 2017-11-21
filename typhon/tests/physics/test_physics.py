@@ -109,3 +109,33 @@ class TestThermodynamics:
         """Test calculation of air density."""
         x = physics.density(1013.15e2, 273.15)
         assert np.allclose(x, 1.2921250376634072)
+
+    def test_mixing_ratio2specific_humidity(self):
+        """Test conversion of mass mixing ratio to specific humidity."""
+        q = physics.mixing_ratio2specific_humidity(0.02)
+        assert np.isclose(q, 0.0196078431372549)
+
+    def test_mixing_ratio2vmr(self):
+        """Test conversion of mass mixing ratio to VMR."""
+        x = physics.mixing_ratio2vmr(0.02)
+        assert np.isclose(x, 0.03115371853180794)
+
+    def test_specific_humidity2mixing_ratio(self):
+        """Test conversion of specific humidity to mass mixing ratio."""
+        w = physics.specific_humidity2mixing_ratio(0.02)
+        assert np.isclose(w, 0.020408163265306124)
+
+    def test_specific_humidity2vmr(self):
+        """Test conversion of specific humidity to VMR."""
+        x = physics.specific_humidity2vmr(0.02)
+        assert np.isclose(x, 0.03176931009073226)
+
+    def test_vmr2mixing_ratio(self):
+        """Test conversion of VMR to mass mixing ratio."""
+        w = physics.vmr2mixing_ratio(0.04)
+        assert np.isclose(w, 0.025915747437955664)
+
+    def test_vmr2specific_humidity(self):
+        """Test conversion of VMR to specific humidity."""
+        q = physics.vmr2specific_humidity(0.04)
+        assert np.isclose(q, 0.025261087474946833)
