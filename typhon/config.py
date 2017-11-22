@@ -20,5 +20,6 @@ __all__ = [
 
 
 conf = ConfigParser(interpolation=ExtendedInterpolation())
+conf.optionxform = str
 p = pathlib.Path(os.getenv("TYPHONRC", "~/.typhonrc")).expanduser()
 conf.read(str(p))

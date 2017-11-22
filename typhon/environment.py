@@ -1,53 +1,75 @@
 # -*- coding: utf-8 -*-
-
 """Handling of environment variables.
 
-The environment variables are represented as package-wide constants.
+Implements a mapping object for environment variables.
 
-===================== ======================================
-``ARTS_BUILD_PATH``   ARTS ``build/`` directory.
-``ARTS_DATA_PATH``    Additional search path for data files.
-``ARTS_INCLUDE_PATH`` Search path for include files.
-===================== ======================================
+The handler is used like ``os.environ``:
 
-The environment variables can be set in the in the configuration file
-(:mod:`typhon.config`) under the section ``environment``::
+>>> typhon.environ['ARTS_DATA_PATH']
+'path/to/data'
+>>> typhon.environ.get('ARTS_DATA_PATH')
+'path/to/data'
+
+In addition to the user's environment, variables can be set in the in the
+configuration file (:mod:`typhon.config`) in the ``environment`` section::
 
     [environment]
     ARTS_BUILD_PATH: /path/to/arts/build/
 
 Note:
-    If the environment variable is also set explicitly,
-    the value set in the configuration file is ignored.
-
+    If the environment variable is set explicitly, the value set in
+    the configuration file is ignored.
 """
 import os
 
-import typhon.config
+from typhon.config import conf
 
 
-# Environment variables that are recognized and handled by ARTS.
-ENVIRONMENT = [
-    'ARTS_BUILD_PATH',
-    'ARTS_DATA_PATH',
-    'ARTS_INCLUDE_PATH',
+__all__ = [
+    'environ',
 ]
 
-for key in ENVIRONMENT:
-    # Check if the given key is set as process environment variable.
-    if key in os.environ:
-        # If so, set the same-named constant and continue with the next key.
-        globals()[key] = os.environ.get(key)
-        continue
 
-    # If the key was not found in the process environment,
-    # try to get the value from the TYPHONRC configuration file.
-    try:
-        value = typhon.config.conf.get(section='environment', option=key)
-    except:
-        value = None
-    finally:
-        # Set the variable name in the global naming space.
-        globals()[key] = value
+class _EnvironmentHandler:
+    """A mapping object for environment variables.
 
-__all__ = ENVIRONMENT
+    See module docstring of :mod:`typhon.environment` for more information.
+    """
+    def __getitem__(self, key):
+        try:
+            # First, try to return the value from the user's environment...
+            return os.environ[key]
+        except KeyError:
+            # if the key is not set, try to find it in the config.
+            # If this also fails, a KeyError is raised.
+            return conf['environment'][key]
+
+    def __setitem__(self, key, value):
+        # If an environment variable is set, pass it to the actual user's
+        # environment. This ensures consistent environments for subprocesses.
+        os.environ[key] = value
+
+    def __contains__(self, item):
+        """Implement membership test operators.
+
+        Returns:
+            `True` if item is in self, `False` otherwise.
+        """
+        try:
+            self[item]
+            return True
+        except KeyError:
+            return False
+
+    def get(self, key, default=None):
+        """D.get(k[, d]) -> D[k] if k in D, else d.d defaults to None."""
+        # Try to return the value from the user's environment.
+        # If the key is not set, try to find it in the config.
+        # If this also fails, return a default value.
+        return os.environ.get(key, default=conf.get(section='environment',
+                                                    option=key,
+                                                    fallback=default)
+                              )
+
+
+environ = _EnvironmentHandler()
