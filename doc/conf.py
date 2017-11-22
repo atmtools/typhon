@@ -43,6 +43,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'matplotlib.sphinxext.plot_directive',
+    'typhon.utils.sphinxext',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
