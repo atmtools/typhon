@@ -64,7 +64,7 @@ class MEDMAD(OutlierFilter):
         fracdev = ((C - med)/mad)
         return abs(fracdev) > cutoff
 
-class OrbitFilter(metaclass=abc.ABCMeta):
+class OrbitFilter:
     """Generic, abstract class for any kind of filtering.
 
     Implementations of this class are intended to be used between and
@@ -93,17 +93,14 @@ class OrbitFilter(metaclass=abc.ABCMeta):
 
     args_to_reader = {}
 
-    @abc.abstractmethod
     def reset(self):
-        ...
+        pass
 
-    @abc.abstractmethod
     def filter(self, scanlines, **extra):
-        ...
+        return scanlines
 
-    @abc.abstractmethod
     def finalise(self, arr):
-        ...
+        return arr
     
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
