@@ -636,7 +636,7 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
 
     Parameters:
         met_mm_backend (ndarray): Backend description for meteorological
-            millimeter sensors with passbands. See ARTS_ documentation.
+            millimeter sensors with passbands (:arts:`met_mm_backend`).
         ylim (tuple): A tuple-like container with the lower and upper y-limits
             for the rectangles.
         ax (AxesSubplot): Axes to plot in.
@@ -675,8 +675,6 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
         ax.set_xlabel('Frequency [GHz]')
 
         plt.show()
-
-    .. _ARTS: http://arts.mi.uni-hamburg.de/docserver-trunk/variables/met_mm_backend
     """
     # TODO: mpl.patch.Patch do not set the axis limits properly. Consider
     # adding a small convenience code to adjust limits automatically.

@@ -22,11 +22,7 @@ __all__ = ['ArrayOfLineRecord',
 
 
 class ArrayOfLineRecord:
-    """Represents an ArrayOfLineRecord object.
-
-    See online ARTS documentation for object details.
-
-    """
+    """Represents an :arts:`ArrayOfLineRecord` object."""
 
     def __init__(self, data=None, version=None):
         self.data = data
@@ -475,13 +471,8 @@ class Sparse(scipy.sparse.csc_matrix):
 
     This class wraps around the SciPy Compressed Sparse Column matrix. The
     usage is exactly the same, but support for reading and writing XML files
-    is added. Also additional attributes were added, which follow the ARTS
-    names.
-
-    See ARTS_ and SciPy_ documentations for more details.
-
-    .. _ARTS: http://arts.mi.uni-hamburg.de/docserver-trunk/groups/Sparse
-    .. _SciPy: http://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_matrix.html
+    is added. Also additional attributes were added to map the ARTS
+    implementation of :arts:`Sparse`.
 
     """
     @property

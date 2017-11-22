@@ -18,11 +18,14 @@ import numpy as np
 
 from . import cache
 from . import metaclass
+from . import sphinxext
+
 
 __all__ = [
     "cache",
-    "deprecated",
     "metaclass",
+    "sphinxext",
+    "deprecated",
     "extract_block_diag",
     "Timer",
     "path_append",
