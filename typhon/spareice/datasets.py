@@ -632,9 +632,8 @@ class Dataset:
         if verbose:
             print("Find files between %s and %s" % (start, end))
 
-        # Find all files by iterating over all possible paths, get all files in
-        # those paths and checking whether they match the path regex and the
-        # time period.
+        # Find all files by iterating over all possible paths and check whether
+        # they match the path regex and the time period.
         found_files = (
             [filename, self.retrieve_time_coverage(filename)]
             for date in pd.date_range(start.date() - timedelta(days=1), end)
@@ -673,6 +672,15 @@ class Dataset:
             )
 
     def _get_all_files(self, directory):
+        """Yields all files in a directory recursively (checks also for sub
+        directories).
+
+        Args:
+            directory:
+
+        Yields:
+            A filename.
+        """
         if os.path.isdir(directory):
             for sub_directory in glob.iglob(directory + "/*", recursive=True):
                 yield from self._get_all_files(sub_directory)
@@ -704,6 +712,21 @@ class Dataset:
         return daily_path
 
     def _check_file(self, filename, regex, start, end, verbose):
+        """Checks whether a file matches the file searching conditions.
+
+        The conditions are specified by the arguments:
+
+        Args:
+            filename: Name of the file.
+            regex: A regular expression that should match the filename.
+            start: Datetime that defines the start of a time interval.
+            end: Datetime that defines the end of a time interval. The time
+                coverage of the file should overlap with this interval.
+            verbose: If True, prints debug messages.
+
+        Returns:
+            True if the file passed the check, False otherwise.
+        """
         if verbose:
             print(filename)
 
