@@ -440,10 +440,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                     # (I'm looking at you, FIDUCEO/FCDR_HIRS#159!), this
                     # comparison will cause a failure in xarray.  In this case,
                     # compare values instead.
-                    arr = cont[time]
-                    if isinstance(arr, xarray.DataArray):
-                        arr = arr.values
-                    if not (arr[1:] >= arr[:-1]).all():
+                    arrrr = cont[time]
+                    if isinstance(arrrr, xarray.DataArray):
+                        arrrr = arrrr.values
+                    if not (arrrr[1:] >= arrrr[:-1]).all():
                         raise InvalidDataError("Reader for {!s} returned data "
                             "with unsorted time.  This must be fixed.".format(
                                 f))
