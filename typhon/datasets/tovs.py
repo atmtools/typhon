@@ -1007,16 +1007,19 @@ class HIRSPOD(HIRS):
         bad_calibcounts = calibcounts & ((lines["hrs_qualind"] & 0xccdbfe00) != 0)
         # different for non-earth-views
 
-        lines["bt"].mask[bad_bt, :, :] = True
-        lines["radiance"].mask[bad_bt, :, :] = True
-        lines["counts"].mask[bad_earthcounts|bad_calibcounts, :, :] = True
+        if "bt" in lines.dtype.names:
+            lines["bt"].mask[bad_bt, :, :] = True
+        if "radiance" in lines.dtype.names:
+            lines["radiance"].mask[bad_bt, :, :] = True
+        if "counts" in lines.dtype.names:
+            lines["counts"].mask[bad_earthcounts|bad_calibcounts, :, :] = True
 
-        if lines["counts"].mask.sum() > lines["counts"].size*max_flagged:
-            raise dataset.InvalidDataError(
-                "Excessive amount of flagged data ({:.2%}). ".format(
-                    lines["counts"].mask.sum()/lines["counts"].size) +
-                ', '.join("{:s} ({:.2%})".format(k[2:], (v!=0).sum()/v.size) for (k, v)
-                    in qidict.items() if (v!=0).sum()/v.size > 0.01))
+            if lines["counts"].mask.sum() > lines["counts"].size*max_flagged:
+                raise dataset.InvalidDataError(
+                    "Excessive amount of flagged data ({:.2%}). ".format(
+                        lines["counts"].mask.sum()/lines["counts"].size) +
+                    ', '.join("{:s} ({:.2%})".format(k[2:], (v!=0).sum()/v.size) for (k, v)
+                        in qidict.items() if (v!=0).sum()/v.size > 0.01))
 
         return lines
 
