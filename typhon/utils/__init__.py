@@ -344,7 +344,7 @@ def concat_each_time_coordinate(*datasets):
                      else datasets[0].dims[k]
                  for k in datasets[0].dims.keys()}
     # note data vars per time coordinate
-    time_vars = {k: (set(v.dims)&time_coords).pop() for (k, v) in datasets[0].items() if set(v.dims)&time_coords}
+    time_vars = {k: (set(v.dims)&time_coords).pop() for (k, v) in datasets[0].variables.items() if set(v.dims)&time_coords}
     time_vars_per_time_dim = {k: {vn for (vn, dn) in time_vars.items() if dn==k} for k in time_coords}
     untimed_vars = datasets[0].data_vars.keys() - time_vars.keys()
 
@@ -392,7 +392,7 @@ def concat_each_time_coordinate(*datasets):
             n_per_dim[timedim] += ds.dims[timedim]
     # copy attributes
     new.attrs.update(**datasets[0].attrs)
-    for k in new.keys():
+    for k in new.variables.keys():
         new[k].attrs.update(**datasets[0][k].attrs)
     return new.assign_coords(**new_coords)
 
