@@ -379,6 +379,11 @@ class ArrayGroup:
 
         return new_data
 
+    def as_type(self, new_type):
+        new_object = new_type()
+        new_object.__dict__ = self.__dict__
+        return new_object
+
     def collapse(self, bins, collapser=None, deep=False):
         """Divide the data of each variables in bins and apply a function to
         them.
