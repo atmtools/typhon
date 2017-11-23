@@ -236,10 +236,16 @@ class HIRSCalibCountFilter(OrbitFilter):
             calibzero = (cc[:, :, 1, :]==0).all(2)
         if cc.ndim == 3:
             calibzero = (cc==0).all(2)
-        scanlines["bt"].mask[...] |= calibzero[:, numpy.newaxis, :19]
-        scanlines["radiance"].mask[...] |= calibzero[:, numpy.newaxis, :20]
-        # if one is masked, so should the other…
-        scanlines["radiance"].mask[:, :, :19] |= scanlines["bt"].mask
+        if "bt" in scanlines.dtype.names:
+            scanlines["bt"].mask[...] |= calibzero[:, numpy.newaxis, :19]
+        if "radiance" in scanlines.dtype.names:
+            scanlines["radiance"].mask[...] |= calibzero[:, numpy.newaxis, :20]
+        try:
+            # if one is masked, so should the other…
+            scanlines["radiance"].mask[:, :, :19] |= scanlines["bt"].mask
+        except ValueError: # xarray raises ValueError, not KeyError
+            # not a problem if either of those fields does not exists
+            pass
 
         return scanlines
 
