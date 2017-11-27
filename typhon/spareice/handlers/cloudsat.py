@@ -41,9 +41,9 @@ class C2CICE(handlers.FileHandler):
         """
 
         if fields is None:
-            fields = ("time", "lat", "lon")
+            fields = ["time", "lat", "lon"]
         else:
-            fields = list(set(fields + ("time", "lat", "lon")))
+            fields = list(set(fields + ["time", "lat", "lon"]))
 
         dataset = GeoData(name="2C-ICE")
 
@@ -93,6 +93,8 @@ class C2CICE(handlers.FileHandler):
                         ),
                         dims=["time_id"]
                     )
+
+                    print(data)
 
                 else:
                     # All other data (including latitudes, etc.)
