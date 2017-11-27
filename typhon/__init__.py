@@ -23,6 +23,7 @@ if not __TYPHON_SETUP__:
     from . import spectroscopy
     from . import trees
     from . import utils
+    from .environment import environ
 
 
     def test():

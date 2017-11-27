@@ -23,7 +23,8 @@ import ctypes as c
 import numpy  as np
 import os
 
-from typhon.environment import ARTS_BUILD_PATH, ARTS_DATA_PATH, ARTS_INCLUDE_PATH
+from typhon.environment import environ
+
 
 ################################################################################
 # Version Requirements
@@ -37,12 +38,13 @@ arts_minimum_revision = 867
 # Load ARTS C API
 ################################################################################
 
-if ARTS_BUILD_PATH is None:
+if environ.get("ARTS_BUILD_PATH") is None:
     raise EnvironmentError("ARTS_BUILD_PATH environment variable required to"
                            + " locate ARTS API.")
 
 try:
-    lib_path = os.path.join(ARTS_BUILD_PATH, "src", "libarts_api.so")
+    lib_path = os.path.join(environ.get("ARTS_BUILD_PATH"), "src",
+                            "libarts_api.so")
     print("Loading ARTS API from: " + lib_path)
     arts_api = c.cdll.LoadLibrary(lib_path)
 except:
@@ -384,12 +386,12 @@ arts_api.method_print_doc.restype  = c.c_char_p
 ################################################################################
 
 try:
-    arts_include_path = ARTS_INCLUDE_PATH.split(":")
+    arts_include_path = environ.get("ARTS_INCLUDE_PATH").split(":")
 except:
     arts_include_path = []
 
 try:
-    arts_data_path = ARTS_DATA_PATH.split(":")
+    arts_data_path = environ.get("ARTS_DATA_PATH").split(":")
 except:
     arts_data_path = []
 
