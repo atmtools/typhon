@@ -10,8 +10,10 @@ import atexit
 from collections import defaultdict
 from datetime import datetime, timedelta
 import glob
+from itertools import tee
 import json
 from multiprocessing import Pool
+import numbers
 import os.path
 import re
 import shutil
@@ -32,31 +34,45 @@ __all__ = [
 
 
 class NoFilesError(Exception):
+    """Should be raised if no files were found by the :meth:`find_files`
+    method.
+
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
 
 class NoHandlerError(Exception):
+    """Should be raised if no file handler is specified in a dataset object but
+    a handler is required.
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
 
 class InhomogeneousFilesError(Exception):
+    """Should be raised if the files of a dataset do not have the same internal
+    structure but it is required.
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
 
 class Dataset:
+    """Class which provides methods to handle a set of multiple files
+    (dataset).
+
+    """
     placeholder = {
         # "placeholder_name" : [regex to find the placeholder]
-        "year" : "(\d{4})",
-        "year2" : "(\d{2})",
-        "month" : "(\d{2})",
-        "day" : "(\d{2})",
-        "doy" : "(\d{3})",
-        "hour" : "(\d{2})",
-        "minute" : "(\d{2})",
-        "second" : "(\d{2})",
+        "year": "(\d{4})",
+        "year2": "(\d{2})",
+        "month": "(\d{2})",
+        "day": "(\d{2})",
+        "doy": "(\d{3})",
+        "hour": "(\d{2})",
+        "minute": "(\d{2})",
+        "second": "(\d{2})",
         "millisecond": "(\d{3})",
         "end_year": "(\d{4})",
         "end_year2": "(\d{2})",
@@ -74,8 +90,7 @@ class Dataset:
             self, files, name=None, handler=None,
             time_coverage_retrieving_method="filename", times_cache=None
     ):
-        """Class which provides methods to handle a set of multiple files
-        (dataset).
+        """Initializes a dataset object.
 
         Args:
             files: A string with the complete path to the dataset files. The
@@ -112,9 +127,9 @@ class Dataset:
         .. code-block:: python
 
             dataset = Dataset(
-                name="TestData",
                 files="/path/to/daily/files/{year}/{month}/{day}/*.nc",
-                handler=handlers.common.NetCDF4File(),
+                handler=handlers.common.NetCDF4(),
+                name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
                 # filename, you should set this to "content":
                 timestamp_retrieving_method="filename"
@@ -168,10 +183,29 @@ class Dataset:
             yield file
     """
     def __contains__(self, item):
-        start = self._to_datetime(item)
-        end = start + timedelta(seconds=5)
-        for _, _ in self.find_files(start, end):
+        """Checks whether a timestamp is covered by this dataset.
+
+        Args:
+            item: Either a string with time information or datetime object.
+                Can be also a tuple or list of strings / datetime objects that
+                will be checked.
+
+        Returns:
+            True if timestamp is covered.
+        """
+        if isinstance(item, (tuple, list)):
+            for elem in item:
+                if elem not in self:
+                    return False
+
             return True
+        else:
+            start = self._to_datetime(item)
+            # TODO: Here we set an interval of 5 seconds per default. This
+            # TODO: is not good.
+            end = start + timedelta(seconds=5)
+            for _, _ in self.find_files(start, end, no_files_error=False):
+                return True
 
         return False
 
@@ -385,9 +419,9 @@ class Dataset:
             converter: If you want to convert the files during copying to a
                 different format, you can pass a file handler object with
                 writing-to-file support here.
-            delete_originals: If true, then all original files will be deleted.
-                Be careful, this cannot be undone!
-            verbose:
+            delete_originals: If true, then all copied original files will be
+                deleted. Be careful, this cannot get undone!
+            verbose: If true, it prints debug messages during copying.
             new_name: The name of the new dataset. If it is not given,
                 the new name is the the old name followed by "_copy".
 
@@ -402,19 +436,19 @@ class Dataset:
             date1 = datetime(2017, 9, 15)
             date2 = datetime(2017, 9, 23)
             old_dataset = Dataset(
-                files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
             )
             new_dataset = old_dataset.copy(
                 date1, date2,
-                "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
             )
 
         .. code-block:: python
 
             # When you want to convert the files during copying:
             old_dataset = Dataset(
-                files="old/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
                 handler=FileHandlerJPG()
             )
             # Note that this only works if the converter file handler
@@ -422,7 +456,7 @@ class Dataset:
             # writing to a file.
             new_dataset = old_dataset.copy(
                 date1, date2,
-                "new/path/to/files/{year}/{month}/{day}/{hour}{minute}{second}.png",
+                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.png",
                 converter=FileHandlerPNG(),
             )
         """
@@ -488,7 +522,7 @@ class Dataset:
             value = int(values[index])
             if placeholder == prefix + "year2":
                 # TODO: What should be the threshold that decides whether the
-                # year is 19xx or 20xx?
+                # TODO: year is 19xx or 20xx?
                 if value < 65:
                     date_args["year"] = 2000 + value
                 else:
@@ -512,17 +546,14 @@ class Dataset:
 
         return date_args
 
-    def find_file(self, timestamp, max_interval=None):
-        """Finds the closest file to a timestamp.
+    def find_file(self, timestamp):
+        """Finds either the file that covers a timestamp or is the closest to
+        it.
 
         Args:
             timestamp: date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
-            max_interval: Maximal time interval in seconds that should be
-                between *timestamp* and the found closest file. If this
-                argument is None (default value), then simply the closest file
-                name is returned regardless of their interval in time.
 
         Returns:
             The found file name as a string. If no file was found, None is
@@ -539,27 +570,27 @@ class Dataset:
         if os.path.exists(path):
             return path
 
-        if max_interval is None:
-            files = []
-            while not files and path:
-                path = path.rsplit("/", 1)[0]
-                files = list(self._get_all_files(path))
-                times = [self.retrieve_time_coverage(file) for file in files]
-        else:
-            interval = timedelta(seconds=max_interval)
-            files, times = zip(
-                *self.find_files(
-                    timestamp-interval, timestamp+interval
-                )
-            )
+        # We need all possible files that are close to the timestamp.
+        # Prepare the regex for the file path
+        regex = self.files.format(**Dataset.placeholder)
+        regex = re.compile(regex.replace("*", ".*?"))
+        files = []
+        while not files and path:
+            path = path.rsplit("/", 1)[0]
+            files = list(self._get_all_files(path, regex))
+            times = [self.retrieve_time_coverage(file) for file in files]
 
         if not files:
             return None
 
-        intervals = np.abs(np.asarray(times) - timestamp)
-        closest_index = np.argmin(intervals) // 2
+        # Either we find a file that covers the certain timestamp:
+        for index, time_coverage in enumerate(times):
+            if IntervalTree.contains(time_coverage, timestamp):
+                return files[index]
 
-        return files[closest_index]
+        # Or we find the closest file.
+        intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
+        return files[np.argmin(intervals)]
 
     def find_files(
             self, start, end,
@@ -569,15 +600,14 @@ class Dataset:
         """ Finds all files between the given start and end date.
 
         This method calculates the days between the start and end date. It uses
-        those days to loop over the dataset
-        files. This is a generator method if the 'sort' argument is false.
+        those days to loop over the dataset files.
 
         Args:
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            sort: If this is set to true, all files will be returned sorted by
+            sort: If this is set to true, all files will be yielded sorted by
                 their starting time.
             verbose: If this is set to true, debug messages will be printed.
             no_files_error: Raises an NoFilesError when no files are found.
@@ -589,7 +619,8 @@ class Dataset:
 
         path_parts = self.files.split("/")
 
-        #
+        # We need the last appearance of a day placeholder to create the
+        # corresponding search paths.
         day_index = 0
         for index, part in enumerate(path_parts):
             # TODO: What about file path identifier which does not contain the
@@ -597,10 +628,6 @@ class Dataset:
             if "{day}" in part or "{doy}" in part:
                 day_index = index
                 break
-
-        # If the user wants sorted files we have to collect them first:
-        found_files = []
-        found_counter = 0
 
         # Prepare the regex for the file path
         regex = self.files.format(**Dataset.placeholder)
@@ -610,63 +637,122 @@ class Dataset:
         start = self._to_datetime(start)
         end = self._to_datetime(end)
 
-        # At first, get all days between start and end date (including the last
-        # day so we catch overlapping files as well).
-        for date in pd.date_range(start-timedelta(days=1), end):
+        if verbose:
+            print("Find files between %s and %s" % (start, end))
 
-            # Generate the daily path string for the files
-            path_name = '/'.join(path_parts[:day_index+1])
-            day_indices = []
-            if "{day}" in path_name:
-                day_indices.append(path_name.index("{day}")+5)
-            if "{doy}" in path_name:
-                day_indices.append(path_name.index("{doy}")+5)
+        # Find all files by iterating over all possible paths and check whether
+        # they match the path regex and the time period.
+        found_files = (
+            [filename, self.retrieve_time_coverage(filename)]
+            for date in pd.date_range(start.date() - timedelta(days=1), end)
+            for filename in self._get_all_files(
+                self._get_files_path(date, path_parts, day_index, verbose),
+                regex)
+            if self._check_file(filename, start, end, verbose)
+        )
 
-            daily_path = self.generate_filename(
-                path_name[:min(day_indices)], date)
-            if os.path.isdir(daily_path):
-                daily_path += "/"
+        if not no_files_error:
+            # Even if no files were found, the user does not want to know.
+            if sort:
+                yield from sorted(found_files, key=lambda x: x[1][0])
+            else:
+                yield from found_files
 
-            if verbose:
-                print("Daily path:", daily_path)
+            raise StopIteration
 
-            # Find all files in that daily path
-            for filename in self._get_all_files(daily_path):
-                if verbose:
-                    print(filename)
+        # The users wants an error to be raised if no files were found. I do
+        # not know whether there is a more pythonic way to check whether an
+        # iterator is empty. Matthew Flaschen shows how to do it with
+        # itertools.tee: https://stackoverflow.com/a/3114423
+        untouched_files, file_check = tee(found_files)
+        try:
+            next(file_check)
 
-                # Test whether the file matches the files parameter.
-                if regex.match(filename):
-                    if verbose:
-                        print("\tMatched files path pattern")
-                    file_start, file_end = \
-                        self.retrieve_time_coverage(filename)
-
-                    # Test whether the file is overlapping the interval between
-                    # start and end date.
-                    if IntervalTree.overlaps(
-                            (file_start, file_end), (start, end)):
-                        if verbose:
-                            print("\tPassed time check")
-
-                        if sort:
-                            found_files.append(
-                                [filename, [file_start, file_end]])
-                        else:
-                            yield filename, [file_start, file_end]
-
-                        found_counter += 1
-        if sort:
-            yield from sorted(found_files, key=lambda x: x[1][0])
-
-        if found_counter == 0 and no_files_error:
+            # We have found some files:
+            if sort:
+                yield from sorted(untouched_files, key=lambda x: x[1][0])
+            else:
+                yield from untouched_files
+        except StopIteration:
             raise NoFilesError(
                 "Found no files for %s between %s and %s!\nAre you sure you "
-                "gave the correct files parameter? Or is there maybe no data "
-                "for this time period?" % (self.name, start, end))
+                "gave the correct files parameter? Or is there maybe no data"
+                " for this time period?" % (self.name, start, end)
+            )
+
+    def _get_all_files(self, path, regex):
+        """Yields all files in a directory recursively (checks also for sub
+        directories).
+
+        Args:
+            path:
+            regex: A regular expression that should match the filename.
+
+        Yields:
+            A filename.
+        """
+        if os.path.isfile(path):
+            if regex.match(path):
+                yield path
+        else:
+            yield from (
+                file
+                for sub_directory in glob.iglob(path + "/*", recursive=True)
+                for file in self._get_all_files(sub_directory, regex)
+            )
+
+    def _get_files_path(self, date, path_parts, day_index, verbose):
+        # Generate the daily path string for the files
+        path_name = '/'.join(path_parts[:day_index + 1])
+        day_indices = []
+        if "{day}" in path_name:
+            day_indices.append(path_name.index("{day}") + 5)
+        if "{doy}" in path_name:
+            day_indices.append(path_name.index("{doy}") + 5)
+
+        daily_path = self.generate_filename(
+            path_name[:min(day_indices)], date)
+        if os.path.isdir(daily_path):
+            daily_path += "/"
+
+        if verbose:
+            print("Daily path:", daily_path)
+
+        return daily_path
+
+    def _check_file(self, filename, start, end, verbose):
+        """Checks whether a file matches the file searching conditions.
+
+        The conditions are specified by the arguments:
+
+        Args:
+            filename: Name of the file.
+            start: Datetime that defines the start of a time interval.
+            end: Datetime that defines the end of a time interval. The time
+                coverage of the file should overlap with this interval.
+            verbose: If True, prints debug messages.
+
+        Returns:
+            True if the file passed the check, False otherwise.
+        """
+        if verbose:
+            print(filename)
+
+        file_start, file_end = \
+            self.retrieve_time_coverage(filename)
+
+        # Test whether the file is overlapping the interval between
+        # start and end date.
+        if IntervalTree.overlaps(
+                (file_start, file_end), (start, end)):
+            if verbose:
+                print("\tPassed time check")
+            return True
+
+        return False
 
     def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=10):
+            self, start, end, other_dataset, max_interval=None):
         """Finds all files from this dataset and from another dataset that
         overlap in time between two dates.
 
@@ -676,11 +762,16 @@ class Dataset:
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             other_dataset: A Dataset object which holds the other files.
-            max_interval: Maximal time interval between two overlapping files.
+            max_interval: (optional) Maximal time interval in seconds between
+                two overlapping files. Must be an integer or float.
 
         Yields:
             A tuple with the names of two files which correspond to each other.
         """
+        if max_interval is not None:
+            max_interval = self._to_timedelta(max_interval)
+            start = self._to_datetime(start) - max_interval
+            end = self._to_datetime(end) + max_interval
 
         primary_files, primary_times = list(
             zip(*self.find_files(start, end, sort=True)))
@@ -693,19 +784,22 @@ class Dataset:
         secondary_times = np.asarray([[dt[0].timestamp(), dt[1].timestamp()]
                                       for dt in secondary_times]).astype('int')
 
-        # Expand the intervals of the secondary dataset to close-in-time
-        # intervals.
-        secondary_times[:, 0] -= max_interval
-        secondary_times[:, 1] += max_interval
+        if max_interval is not None:
+            # Expand the intervals of the secondary dataset to close-in-time
+            # intervals.
+            secondary_times[:, 0] -= int(max_interval.total_seconds())
+            secondary_times[:, 1] += int(max_interval.total_seconds())
 
         tree = IntervalTree(secondary_times)
 
         # Search for all overlapping intervals:
         results = tree.query(primary_times)
 
-        for i, overlapping_files in enumerate(results):
-            yield primary_files[i], \
-                  [secondary_files[oi] for oi in overlapping_files]
+        yield from (
+            (primary_files[i],
+             [secondary_files[oi] for oi in overlapping_files])
+            for i, overlapping_files in enumerate(results)
+        )
 
     def generate_filename(self, template, start_time, end_time=None):
         """ Generates the file name for a specific date by using the template
@@ -781,18 +875,6 @@ class Dataset:
 
         return template
 
-    def _get_all_files(self, directory):
-        if os.path.isdir(directory):
-            for sub_directory in glob.iglob(directory + "/*", recursive=True):
-                yield from self._get_all_files(sub_directory)
-        else:
-            if os.path.isfile(directory):
-                yield directory
-            else:
-                for sub_directory in glob.iglob(directory + "*",
-                                               recursive=True):
-                    yield from self._get_all_files(sub_directory)
-
     def get_info(self, filename):
         """Gets info about a file by using the dataset's file handler.
 
@@ -838,7 +920,7 @@ class Dataset:
     def map(
             self, start, end,
             func, func_arguments=None,
-            max_processes=4, include_file_info=False, verbose=False):
+            max_processes=None, include_file_info=False, verbose=False):
         """Applies a function on all files of this dataset between two dates.
 
         This method can work on two different ways: if the argument read_before
@@ -886,6 +968,9 @@ class Dataset:
         # Measure the time for profiling.
         start_time = time.time()
 
+        if max_processes is None:
+            max_processes = 4
+
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
 
@@ -909,7 +994,7 @@ class Dataset:
             self, start, end,
             func, func_arguments=None,
             reading_arguments=None, overwrite=False,
-            max_processes=4, include_file_info=False, verbose=False):
+            max_processes=None, include_file_info=False, verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
 
@@ -935,11 +1020,10 @@ class Dataset:
                 to the reading function (see Dataset.read() for more
                 information).
             overwrite: Set this to true if you want to overwrite the old file
-                content with the new one (assuming the
-                used method changed something of the file content). The
-                current file handler needs to support writing
-                data to file. Otherwise you should consider to convert your
-                dataset via Dataset.copy_to() first.
+                content with the new one (assuming the used method changed
+                something of the file content). The current file handler needs
+                to support writing data to file. Otherwise you should consider
+                to convert your dataset via Dataset.copy() first.
             max_processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
             include_file_info: Since the order of the returning
@@ -965,6 +1049,9 @@ class Dataset:
 
         # Measure the time for profiling.
         start_time = time.time()
+
+        if max_processes is None:
+            max_processes = 4
 
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
@@ -1074,8 +1161,6 @@ class Dataset:
         if retrieve_method is None:
             retrieve_method = self.time_coverage_retrieving_method
 
-        time_coverage = None
-
         if retrieve_method == "filename":
             regex = self.files.format(**Dataset.placeholder)
             regex = re.compile(regex.replace("*", ".*?"))
@@ -1144,6 +1229,17 @@ class Dataset:
         else:
             raise KeyError("Cannot convert object of type '%s' to datetime "
                            "object! Allowed are only datetime or string "
+                           "objects!" % type(obj))
+
+    @staticmethod
+    def _to_timedelta(obj):
+        if isinstance(obj, numbers.Number):
+            return timedelta(seconds=obj)
+        elif isinstance(obj, timedelta):
+            return obj
+        else:
+            raise KeyError("Cannot convert object of type '%s' to timedelta"
+                           "object! Allowed are only timedelta or number "
                            "objects!" % type(obj))
 
     def write(self, filename, data, **writing_arguments):

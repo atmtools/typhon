@@ -45,7 +45,7 @@ class MHSAAPP(handlers.FileHandler):
         self.user_mapping = mapping
         self.apply_scaling = apply_scaling
 
-    def get_info(self, filename):
+    def get_info(self, filename, **kwargs):
         with h5py.File(filename, "r") as file:
             start = \
                 datetime(int(file.attrs["startdatayr"][0]), 1, 1) \

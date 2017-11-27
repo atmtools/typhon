@@ -1,6 +1,7 @@
 """
-This module contains classes to find collocations between datasets. They are inspired by the implemented
-CollocatedDataset classes in atmlab written by Gerrit Holl.
+This module contains classes to find collocations between datasets. They are
+inspired by the implemented CollocatedDataset classes in atmlab written by
+Gerrit Holl.
 
 TODO: I would like to have this package as typhon.collocations.
 
@@ -21,9 +22,7 @@ import numpy as np
 import scipy.spatial
 import scipy.stats
 import typhon.geodesy
-from typhon.spareice.array import ArrayGroup
 from typhon.spareice.geographical import GeoData
-import xarray as xr
 
 from .datasets import Dataset
 
@@ -32,88 +31,55 @@ __all__ = [
 ]
 
 
+class NotCollapsedError(Exception):
+    """Should be raised if a file from a CollocatedDataset object is not yet
+    collapsed but it is required.
+    """
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+
+
 class CollocatedDataset(Dataset):
     """Still under development.
 
-    Class that can find collocations amongst different datasets with
-    geographical data and store them.
+    A dataset that finds and stores collocations amongst different datasets
+    with geographical data.
 
     Collocations are match-ups between two datasets, i.e. a data point from
     a dataset that is located close to another data point from a secondary
     dataset in space and time.
     """
 
-    def __init__(self, *args, datasets=None, **kwargs):
-        """Initializes a CollocatedData object.
+    def __init__(self, *args, **kwargs):
+        """Opens existing files with collocated data as a CollocatedDataset
+        object.
 
-        Since this class inherits from the
-        :class:`typhon.spareice.datasets.Dataset` class, please look also at
-        its documentation.
+        If you have already collocated some datasets, you can open the stored
+        collocations with this command.
+
+        If you want to collocate two datasets, you should use the
+        :meth:`from_datasets` method.
 
         Args:
-            *args: Positional arguments that will passed to the
-                :class:`typhon.spareice.datasets.Dataset` base class.
-            datasets: A list of :class:`typhon.spareice.datasets.Dataset`
-                objects that you want to be collocated with each other. At
-                the moment, it is only possible to find collocations between
-                two different datasets at the same time. This will be
-                changed in the future.
-            **kwargs: Additional keyword arguments that will passed to the
-                datasets.Dataset base class.
+            *args: Same positional arguments that the
+                :class:`typhon.spareice.datasets.Dataset` base class accepts.
+            **kwargs: Same key word arguments that the
+                :class:`typhon.spareice.datasets.Dataset` base class accepts.
+
+        Returns:
+            A CollocatedDataset object.
 
         Examples:
-
-        .. :code-block:: python
-
-            from typhon.spareice.datasets import Dataset
-            from typhon.spareice.collocations import CollocatedDataset
-
-            # Define the two dataset amongst them you want to find
-            # collocations.
-            dataset1 = Dataset(
-                name="MHS",
-                files="/path/to/files/noaa18_mhs_{year}/{month}/{day}/*.h5",
-                handler=tovs.MHSAAPP(), # file_handler
-                timestamp_retrieving_method="content"
-            )
-            dataset2 = Dataset(
-                name="2C-ICE",
-                files="/path2/to/files/{year}/{doy}/{year}{doy}{hour}{minute}{second}_*.hdf.zip",
-                handler=cloudsat.CPR2CICEFile(),  # file_handler
-            )
-
-            # Create the collocated dataset. The parameters "files" and
-            # "file_handler" tells the object where the collocations should
-            be stored and which format should be used.
-            collocated_dataset = CollocatedDataset(
-                datasets=[dataset1, dataset2],
-                name="CollocatedDataset",
-                # The found collocations will be stored as NetCDF4 files in
-                # this path:
-                files="CollocatedDataset/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                # If you need another data format than NetCDF4 then pass
-                # another file handler object:
-                handler=common.NetCDF4(),
-            )
-
-            # Define the period where you want to collocate.
-            start = datetime.datetime(2007, 1, 1)
-            end = datetime.datetime(2007, 1, 2)
-
-            # Find the collocations with a maximum distance of 200km and
-            # temporal interval of 300 seconds. Extract the
-            # field "brightness_temperature" from the primary and
-            # "ice_water_path" from the secondary dataset.
-            collocated_dataset.collocate(
-                start, end,
-                fields=[["brightness_temperature"], ["ice_water_path"]],
-                max_distance=200, max_interval=300,
-            )
+            >>> CollocatedDataset(
+            >>>     "/path/to/{year}/{month}/{day}.nc",
+            >>>     handler=NetCDF4(),
+            >>> )
         """
-        super().__init__(**kwargs)
+        super(CollocatedDataset, self).__init__(*args, **kwargs)
 
-        self._datasets = []
-        self.datasets = datasets
+        # Which dataset should be taken when we collocate this dataset with
+        # other datasets?
+        self.primary_dataset = None
 
     def accumulate(self, start, end, concat_func=None, concat_args=None,
                    reading_args=None):
@@ -155,25 +121,37 @@ class CollocatedDataset(Dataset):
             start, end, concat_func, concat_args, reading_args)
 
     def collapse(self, start, end, collapse_to,
-                 include_stats=None, **collapsing_args):
-        """ Accumulates the data between two dates but collapses multiple
-        collocations from one dataset to a single data point.
+                 include_stats=None, processes=None,
+                 verbose=False, **collapsing_args):
+        """Collapses all multiple collocation points (collocations that refer
+        to the same point from another dataset) to a single data point.
+
+        Notes:
+            This method overwrites content of this dataset. If you want to keep
+            the original data, you should copy them first (e.g. via the
+            :meth:`copy` method).
 
         During searching for collocations, one might find multiple collocation
-        points of the secondary dataset for one single point of the primary
-        dataset. For example, the MHS instrument has a bigger footprint than
-        the AVHRR instrument, hence one will find several AVHRR colloocation
-        points for each MHS data point.
+        points from one dataset for one single point of the other dataset. For
+        example, the MHS instrument has a larger footprint than the AVHRR
+        instrument, hence one will find several AVHRR colloocation points for
+        each MHS data point. This method performs a function on the multiple
+        collocation points to merge them to one single point (e.g. the mean
+        function).
 
         Args:
             start: Starting date as datetime object.
             end: Ending date as datetime object.
-            collapse_to: Name of dataset which has the coarsest footprint. All
+            collapse_to: Name of dataset which has the largest footprint. All
                 other datasets will be collapsed to its data points.
             include_stats: Set this to a name of a variable and in the return
                 object will be statistical parameters included about the built
                 data bins of the variable before collapsing. The variable
                 should be one-dimensional.
+            processes: This method will be run in multiple processes to give a
+                performance boost. You can specify the number of used processes
+                here.
+            verbose: If true, debug messages will be printed.
             **collapsing_args: Additional keyword arguments for the
                 GeoData.collapser method (including collapser function, etc.).
 
@@ -210,135 +188,233 @@ class CollocatedDataset(Dataset):
         #                          "of a field name, a threshold and (optional)"
         #                          "a variation function.")
 
-        collapsed_data_list = []
-        for file, _ in self.find_files(start, end, sort=True):
-            collocated_data = self.read(file)
+        func_args = {
+            "collapse_to": collapse_to,
+            "include_stats": include_stats,
+            **collapsing_args
+        }
 
-            # Get the bin indices by the main dataset to which all other
-            # shall be collapsed:
-            bins = list(
-                collocated_data[collapse_to]["collocations"].group().values()
-            )
+        self.map(
+            start, end, CollocatedDataset._collapse_file,
+            func_args, verbose=verbose, max_processes=processes
+        )
 
-            collapsed_data = GeoData()
+    @staticmethod
+    def collapse_data(
+            collocated_data, collapse_to, include_stats, **collapsing_args):
 
-            # Add additional statistics about one binned variable:
-            if include_stats is not None:
-                statistic_functions = {
-                    "variation": scipy.stats.variation,
-                    "mean": np.nanmean,
-                    "number": lambda x, _: x.shape[0],
-                    "std": np.nanstd,
-                }
+        # Get the bin indices by the main dataset to which all other
+        # shall be collapsed:
+        bins = list(
+            collocated_data[collapse_to]["__collocations"].group().values()
+        )
 
-                collapsed_data["__statistics"] = \
-                    collocated_data[include_stats].apply_on_bins(
-                        bins, statistic_functions
+        collapsed_data = GeoData()
+
+        # Add additional statistics about one binned variable:
+        if include_stats is not None:
+            statistic_functions = {
+                "variation": scipy.stats.variation,
+                "mean": np.nanmean,
+                "number": lambda x, _: x.shape[0],
+                "std": np.nanstd,
+            }
+
+            collapsed_data["__statistics"] = \
+                collocated_data[include_stats].apply_on_bins(
+                    bins, statistic_functions
+                )
+            collapsed_data["__statistics"].attrs["description"] = \
+                "Statistics about the collapsed bins of '{}'.".format(
+                    include_stats
+                )
+
+        for dataset in collocated_data.groups():
+            if dataset.startswith("__"):
+                collapsed_data[dataset] = collocated_data[dataset]
+
+            collocations = collocated_data[dataset]["__collocations"]
+
+            # We do not need the original and collocation indices any
+            # longer because they will soon become useless. Moreover,
+            # they could have a different dimension length than the
+            # other variables and lead to errors in the selecting process:
+            del collocated_data[dataset]["__original_indices"]
+            del collocated_data[dataset]["__collocations"]
+
+            if (dataset == collapse_to
+                or collocated_data[dataset].attrs.get("COLLAPSED_TO", None)
+                    == collapse_to):
+                # This is the main dataset to which all other will be
+                # collapsed. Therefore, we do not need explicitly
+                # collapse here.
+                collapsed_data[dataset] = \
+                    collocated_data[dataset][np.unique(collocations)]
+            else:
+                collapsed_data[dataset] = \
+                    collocated_data[dataset].collapse(
+                        bins, **collapsing_args
                     )
-                collapsed_data["__statistics"].attrs["description"] = \
-                    "Statistics about the collapsed bins of '{}'.".format(
-                        include_stats
-                    )
 
-            for dataset in collocated_data.groups():
-                if dataset.startswith("__"):
-                    collapsed_data[dataset] = collocated_data[dataset]
+                collapsed_data[dataset].attrs["COLLAPSED_TO"] = collapse_to
 
-                collocations = collocated_data[dataset]["collocations"]
+        # Set the collapsed flag:
+        collapsed_data.attrs["COLLAPSED"] = 1
 
-                # We do not need the original and collocation indices any
-                # longer because they will soon become useless. Moreover,
-                # they could have a different dimension length than the
-                # other variables and lead to errors in the selecting process:
-                del collocated_data[dataset]["original_indices"]
-                del collocated_data[dataset]["collocations"]
+        # Overwrite the content of the old file:
+        return collapsed_data
 
-                if dataset == collapse_to:
-                    # This is the main dataset to which all other will be
-                    # collapsed. Therefore, we do not need explicit
-                    # collapsing here.
-                    collapsed_data[dataset] = \
-                        collocated_data[dataset][np.unique(collocations)]
-                else:
-                    collapsed_data[dataset] = \
-                        collocated_data[dataset].collapse(
-                            bins, **collapsing_args
-                        )
+    @staticmethod
+    def _collapse_file(
+            collocated_dataset, filename, _,
+            collapse_to, include_stats, **collapsing_args):
 
-            collapsed_data_list.append(collapsed_data)
+        collocated_data = collocated_dataset.read(filename)
+        collapsed_data = CollocatedDataset.collapse_data(
+            collocated_data, collapse_to, include_stats, **collapsing_args
+        )
 
-        return GeoData.concatenate(collapsed_data_list, dimension=0)
+        # Overwrite the content of the old file:
+        collocated_dataset.write(filename, collapsed_data)
 
-    def collocate(self, start, end, fields, max_interval=300,
-                  max_distance=10, verbose=True, **kwargs):
-        """This function finds all collocations between two dates and store
-        them to files.
+    @classmethod
+    def create_from(
+            cls, primary, secondary, start, end,
+            fields, max_interval=None, max_distance=None, optimizer=None,
+            processes=4, *args, **kwargs):
+        """Finds all collocations between two datasets and store them in files.
 
-        Where and how this function stores the collocations is controlled by
-        the *Dataset.files* and *Dataset.handler* parameters. Each collocation
-        output file provides these standard fields for each dataset:
+        This takes all files from the datasets between two dates and find
+        collocations of their data points. Where and how the collocated data is
+        stored is controlled by the *files* and *handler* parameter.
 
-        dataset_name.lat - Latitudes of the collocations.
-        dataset_name.lon - Longitude of the collocations.
-        dataset_name.time - Timestamp of the collocations.
-        dataset_name.indices - Indices of the collocation data in the original
-            files.
-        dataset_name.collocations - Tells you which data points collocate with
-            each other by giving their indices to you.
+        If you want to collocate multiple datasets (more than two), you can
+        give as primary or secondary dataset also a CollocatedDataset. Please
+        note, that the data in the CollocatedDataset have to be collapsed
+        before (via the :meth:`collapse` method).
 
-        For example, if you collocated the datasets "MHS" and "CloudSat" then
-        you will find the latitude information of their collocations in
-        "MHS.lat" and "CloudSat.lat". If you want to copy additional fields
-        from the original files, you can use the fields parameter.
+        Each collocation output file provides these standard fields:
+
+        *dataset_name/lat* - Latitudes of the collocations.
+        *dataset_name/lon* - Longitude of the collocations.
+        *dataset_name/time* - Timestamp of the collocations.
+        *dataset_name/__original_indices* - Indices of the collocation data in
+            the original files.
+        *dataset_name/__collocations* - Tells you which data points collocate
+            with each other by giving their indices.
+
+        Since this class inherits from the
+        :class:`typhon.spareice.datasets.Dataset` class, please look also at
+        its documentation.
+
+        TODO: Revise and extend documentation. Maybe rename this method?
 
         Args:
+            primary: A Dataset or CollocatedDataset object.
+            secondary: A Dataset or CollocatedDataset object.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as *start*.
             fields: The fields that should be extracted from the datasets and
                 copied to the new collocation files. This should be a list
-                of two lists containing the field names for each dataset. They
-                will be accessible via "dataset_name.field_name" in the new
-                collocation files. If you want to learn more about how to
-                extract specific dimension from those fields, please read
-                the documentation of the typhon.handlers classes.
-            max_interval: The maximum interval of time between two data points
-                in seconds.
-            max_distance: The maximum distance between two data points in
-                kilometers to meet the collocation criteria.
-            verbose: If true, this method will print debug information.
-            **kwargs: Additional arguments that will be passed to
-                Dataset.find_collocations(..).
+                of two lists containing the field names for the primary and
+                secondary dataset. Please note if one dataset is a
+                CollocatedDataset object, its field selection will be ignored.
+                If you want to learn more about how to extract specific
+                dimension from those fields, please read the documentation of
+                the typhon.handlers classes.
+            max_interval: (optional) The maximum interval of time between two
+                data points in seconds. Default is 300 seconds. If this is
+                None, the data will be searched for spatial collocations only.
+            max_distance: (optional) The maximum distance between two data
+                points in kilometers to meet the collocation criteria. Default
+                is 10km.
+            optimizer: (optional) Finding of collocations can sometimes be
+                optimized by giving here a Optimizer object.
+            processes: The number of processes that should be used to boost the
+                collocation process. The optimal number of processes heavily
+                depends on your machine where you are working. I recommend to
+                start with 8 processes and to in/decrease this parameter
+                when lacking performance.
+            *args: Positional arguments that will passed to the
+                :class:`typhon.spareice.datasets.Dataset` base class.
+            **kwargs: Additional keyword arguments that will passed to the
+                datasets.Dataset base class.
 
         Returns:
-            None
+            A CollocatedDataset object.
 
         Examples:
-            TODO
+
+        .. :code-block:: python
+
+            from typhon.spareice.datasets import Dataset
+            from typhon.spareice.collocations import CollocatedDataset
+
+            # Define the two dataset amongst them you want to find
+            # collocations.
+            dataset1 = Dataset(
+                "/path/to/files/noaa18_mhs_{year}/{month}/{day}/*.h5",
+                name="MHS",
+                handler=tovs.MHSAAPP(), # file_handler
+                timestamp_retrieving_method="content"
+            )
+            dataset2 = Dataset(
+                "dir/{year}/{doy}/{year}{doy}{hour}{minute}{second}_*.hdf.zip",
+                handler=cloudsat.C2CICE(),
+                name="2C-ICE",
+            )
+
+            # Create the collocated dataset. The parameters "files" and
+            # "file_handler" tells the object where the collocations should
+            be stored and which format should be used.
+            collocated_dataset = CollocatedDataset.create_from(
+                dataset1, dataset2,
+                # Define the period where you want to collocate.
+                start="2007-01-01", end="2007-01-02",
+                # Find the collocations with a maximum distance of 200km and
+                # temporal interval of 300 seconds. Extract the
+                # field "brightness_temperature" from the primary and
+                # "ice_water_path" from the secondary dataset.
+                max_distance=200, max_interval=300,
+                fields=[["brightness_temperature"], ["ice_water_path"]],
+                name="CollocatedDataset",
+                # The found collocations will be stored as NetCDF4 files in
+                # this path:
+                files="CollocatedDataset/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                # If you need another data format than NetCDF4 then pass
+                # another file handler object here:
+                handler=common.NetCDF4(),
+            )
+
+            # You can treat the collocated_dataset as a normal Dataset object.
+            found_files = collocated_dataset.find_files(
+                "2007-01-01", "2007-01-02", sort=True
+            )
+            for file, time_coverage in found_files:
+                print("File:", file)
         """
+        dataset = cls(*args, **kwargs)
+        dataset.primary_dataset = primary.name
 
-        # start and end could have been string objects:
-        start = self._to_datetime(start)
-        end = self._to_datetime(end)
+        # start and end can be string objects:
+        start = dataset._to_datetime(start)
+        end = dataset._to_datetime(end)
 
-        # Check whether are some datasets to collocate:
-        if self.datasets is None or len(self.datasets) != 2:
-            raise ValueError("Need two datasets to perform collocations! "
-                             "You can set them via the attribute 'datasets'.")
-
-        # All additional fields given by the user and the standard fields that
-        # we need for finding collocations.
-        primary_fields = list(set(fields[0]) | {"time", "lat", "lon"})
-        secondary_fields = list(set(fields[1]) | {"time", "lat", "lon"})
+        if max_interval is not None \
+                and not isinstance(max_interval, timedelta):
+            max_interval = timedelta(seconds=max_interval)
 
         # The data of secondary files can overlap multiple primary files.
-        last_secondary = None
-        secondary_data_cache = None
+        dataset._last_file1 = None
+        dataset._last_file2 = None
+        dataset._file1_data = None
+        dataset._file2_data = None
 
         # Use this variable to store the point in time to which the were
         # checked. This avoids checking duplicates.
-        last_timestamp = None
+        dataset._last_timestamp = None
 
         total_primaries_points, total_secondaries_points = 0, 0
 
@@ -346,222 +422,209 @@ class CollocatedDataset(Dataset):
         timer = time.time()
 
         # Go through all primary files and find the secondaries to them:
-        for primary, secondaries in self.datasets[0].find_overlapping_files(
-                start, end, self.datasets[1], max_interval):
+        for primary_file, secondary_files in primary.find_overlapping_files(
+                start, end, secondary, max_interval):
 
-            print("Primary:", primary)
+            print("Primary:", primary_file)
 
             # Skip this primary file if there are no secondaries found.
-            if not secondaries:
-                print("\tNo secondaries were found!")
+            if not secondary_files:
+                print("\tNo files of the secondary dataset were found!")
                 continue
 
-            # Read the data of the primary file
-            primary_data_cache = GeoData.from_xarray(
-                self.datasets[0].read(primary, fields=primary_fields))
-
-            primary_start, primary_end = \
-                primary_data_cache.get_range("time")
-
             # Go through all potential collocated secondary files:
-            for secondary in secondaries:
-                print("Secondary:", secondary)
+            for secondary_file in secondary_files:
+                print("Secondary:", secondary_file)
 
-                # Only read in this secondary if you have not read it already
-                # the last time!
-                if last_secondary is None or last_secondary != secondary:
-                    secondary_data_cache = GeoData.from_xarray(
-                            self.datasets[1].read(secondary,
-                                                  fields=secondary_fields))
-
-                    # Save this secondary as last cached secondary
-                    last_secondary = secondary
-                else:
-                    print("This secondary is still in cache.")
-
-                # Select only the time period in the secondary data where also
-                # primary data is available.
-                if last_timestamp is None:
-                    indices = \
-                        (secondary_data_cache["time"].astype("int")
-                         >= primary_start) \
-                        & (secondary_data_cache["time"].astype("int")
-                           <= primary_end)
-                else:
-                    # May be we checked a part of this time period already?
-                    # Hence, start there where we stopped last time.
-                    indices = \
-                        (secondary_data_cache["time"].astype("int")
-                         >= last_timestamp) \
-                        & (secondary_data_cache["time"].astype("int")
-                           <= primary_end)
-                secondary_data = secondary_data_cache[indices]
-
-                if not secondary_data:
-                    print("Skip this file.")
-                    continue
-
-                # The "new" start and end times of the secondary data (the time
-                # conversion is a little bit tricky due to a bug in numpy).
-                secondary_start, secondary_end = \
-                    secondary_data.get_range("time")
-
-                # Select only the primary data that is in the same time range
-                # as the secondary data.
-                indices = (primary_data_cache["time"].astype("int")
-                           >= secondary_start) \
-                    & (primary_data_cache["time"].astype("int")
-                       <= secondary_end)
-                primary_data = primary_data_cache[indices]
-
-                # We are going to check the data until secondary_end. Hence,
-                # we save this timestamp to avoid duplicates the next time.
-                last_timestamp = secondary_end
-
-                # No collocations have been found.
-                if not primary_data:
-                    print("Skip this file.")
-                    continue
-
-                print("Search for collocations between %s and %s." % (
-                    datetime.fromtimestamp(secondary_start / 1e9),
-                    datetime.fromtimestamp(secondary_end / 1e9)))
-
-                print("\tTaking {} {} and {} {} points for collocation "
-                      "search.".format(
-                        len(primary_data), self.datasets[0].name,
-                        len(secondary_data), self.datasets[1].name,
-                        ))
-
-                # Find the collocations
-                primary_indices, primary_collocation_indices, \
-                    secondary_indices, secondary_collocation_indices = \
-                    self.find_collocations(
-                        primary_data, secondary_data,
-                        max_interval, max_distance, **kwargs
-                    )
-
-                # Found no collocations
-                if not primary_indices:
-                    continue
-
-                collocated_data = self._merge_collocated_data(
-                    data_list=[primary_data, secondary_data],
-                    original_indices=[
-                        primary_indices,
-                        secondary_indices
-                    ],
-                    collocations=[
-                        primary_collocation_indices,
-                        secondary_collocation_indices],
-                    original_files=[
-                        primary, secondary
-                    ],
-                    max_interval=max_interval, max_distance=max_distance
+                # Find the collocations in those files and save the results:
+                primary_points, secondary_points = dataset._collocate_files(
+                    primary, secondary, primary_file, secondary_file,
+                    start, end, fields,
+                    max_interval, max_distance, processes
                 )
 
-                collocations_start, collocations_end = \
-                    collocated_data.get_range("time", deep=True)
-                collocations_start = \
-                    datetime.fromtimestamp(collocations_start / 1e9)
-                collocations_end = \
-                    datetime.fromtimestamp(collocations_end / 1e9)
-                collocated_data.attrs["start_time"] = \
-                    collocations_start.strftime("%Y-%m-%dT%H:%M:%S.%f")
-                collocated_data.attrs["end_time"] = \
-                    collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
-
-                # Prepare the name for the output file:
-                filename = self.generate_filename(
-                    self.files,
-                    collocations_start,
-                    collocations_end
-                )
-
-                # Write the data to the file.
-                print("\tWrite collocations to '{0}'".format(filename))
-                self.write(filename, collocated_data)
-
-                # Plot the collocations
-                """fig = plt.figure(figsize=(8, 6), dpi=80, )
-                collocation_data.plot(
-                    "collocations", fields=("time", ), 
-                    s=10, cmap="qualitative1")
-                plt.savefig("plots/overview%d.png" % index)
-                plt.close(fig)
-
-                fig = plt.figure(figsize=(8, 6), dpi=80, )
-                collocation_data.plot(
-                    "collocations", s=10, 
-                    cmap="qualitative1")
-                plt.savefig("plots/map%d.png" % index)
-                plt.close(fig)"""
-
-                total_primaries_points += len(primary_indices)
-                total_secondaries_points += len(secondary_indices)
+                total_primaries_points += primary_points
+                total_secondaries_points += secondary_points
 
         print("Needed {0:.2f} seconds to find {1} ({2}) and {3} ({4}) "
               "collocation points for a period of {5} hours.".format(
                 time.time() - timer, total_primaries_points,
-                self.datasets[0].name, total_secondaries_points,
-                self.datasets[1].name,
-                end - start))
+                primary.name, total_secondaries_points,
+                secondary.name,
+                end - start)
+        )
 
-    def _merge_collocated_data(
-            self, data_list, original_indices, collocations,
-            original_files, max_interval, max_distance):
-        """Merge the data, original indices, collocation indices and
-        additional information of the datasets to one GeoData object.
+        return dataset
+
+    def _collocate_files(
+            self, dataset1, dataset2, file1, file2, start_user, end_user,
+            fields, max_interval, max_distance, processes
+    ):
+        """Find the collocations between two files and store them in a file of
+        this dataset.
 
         Args:
-            data_list:
-            collocations:
-            original_files:
-            original_indices:
+            dataset1:
+            dataset2:
+            file1:
+            file2:
             max_interval:
             max_distance:
+            processes:
 
         Returns:
-            A GeoData object.
+            The number of the found collocations of the first and second
+            dataset.
         """
-        collocated_data = GeoData(name="CollocatedData")
-        collocated_data.attrs["max_interval"] = \
-            "Max. interval in seconds: %d" % max_interval
-        collocated_data.attrs["max_interval"] = \
-            "Max. distance in kilometers: %d" % max_distance
-        for i, all_data in enumerate(data_list):
-            data = all_data[original_indices[i]]
-            data["collocations"] = collocations[i]
-            data["original_indices"] = original_indices[i]
-            data.attrs["original_file"] = original_files[i]
-            collocated_data[self.datasets[i].name] = data
 
-        return collocated_data
+        # All additional fields given by the user and the standard fields that
+        # we need for finding collocations.
+        fields1 = list(set(fields[0]) | {"time", "lat", "lon"})
+        fields2 = list(set(fields[1]) | {"time", "lat", "lon"})
 
-    @property
-    def datasets(self):
-        """Gets or sets the datasets that you want to collocate.
+        # TODO: This is duplicated code for each dataset. Fix this.
+        # We do want to open the same file twice. Hence, have a look whether we
+        # have the needed file still in our cache:
+        if self._last_file1 is None or self._last_file1 != file1:
+            if isinstance(dataset1, CollocatedDataset):
+                # The data comes from a collocated dataset, i.e. we pick its
+                # internal primary dataset for finding collocations. After
+                # collocating we use the original indices and copy also
+                # its other datasets to the newly created files.
+                self._file1_data_all = dataset1.read(file1).as_type(GeoData)
 
-        Returns:
-            A list with the dataset objects.
-        """
-        return self._datasets
+                # The whole collocation routine does not work with non
+                # collapsed data.
+                if "COLLAPSED" not in self._file1_data_all.attrs:
+                    raise NotCollapsedError(
+                        "I cannot proceed since the dataset '{}' is not "
+                        "collapsed. Use the method 'collapse' on that dataset "
+                        "first.".format(dataset1.name)
+                    )
 
-    @datasets.setter
-    def datasets(self, value):
-        for dataset in value:
-            if ";" in dataset.name:
-                raise NameError("There is no ';' allowed in dataset names "
-                                "that you want to collocate!")
+                if dataset1.primary_dataset is not None:
+                    # Very good, the user set a primary dataset by themselves.
+                    pass
+                elif "primary_dataset" in self._file1_data_all.attrs:
+                    # There is a primary dataset flag in the file.
+                    dataset1.primary_dataset = \
+                        self._file1_data_all.attrs["primary_dataset"]
+                else:
+                    raise AttributeError(
+                        "There is no primary dataset set in '{0}'! I do not "
+                        "know which dataset to use for collocating. You can"
+                        "set this via the primary_dataset attribute from "
+                        "'{0}'.".format(dataset1.name))
 
-        self._datasets = value
+                # Select only the dataset from the collocated data that we want
+                # to use for finding the collocations.
+                self._file1_data = \
+                    self._file1_data_all[dataset1.primary_dataset]
+            else:
+                self._file1_data = dataset1.read(
+                    file1, fields=fields1).as_type(GeoData)
+                self._file1_data_all = None
+
+            self._last_file1 = file1
+
+        if self._last_file2 is None or self._last_file2 != file2:
+            if isinstance(dataset2, CollocatedDataset):
+                # The data comes from a collocated dataset, i.e. we pick its
+                # internal primary dataset for finding collocations. After
+                # collocating we use the original indices and copy also
+                # its other datasets to the newly created files.
+                self._file2_data_all = dataset2.read(file1).as_type(GeoData)
+
+                # The whole collocation routine does not work with non
+                # collapsed data.
+                if "COLLAPSED" not in self._file2_data_all.attrs:
+                    raise NotCollapsedError(
+                        "I cannot proceed since the dataset '{}' is not "
+                        "collapsed. Use the method 'collapse' on that dataset "
+                        "first.".format(dataset2.name)
+                    )
+
+                if dataset2.primary_dataset is not None:
+                    # Very good, the user set a primary dataset by themselves.
+                    pass
+                elif "primary_dataset" in self._file2_data_all.attrs:
+                    # There is a primary dataset flag in the file.
+                    dataset2.primary_dataset = \
+                        self._file2_data_all.attrs["primary_dataset"]
+                else:
+                    raise AttributeError(
+                        "There is no primary dataset set in '{0}'! I do not "
+                        "know which dataset to use for collocating. You can"
+                        "set this via the primary_dataset attribute from "
+                        "'{0}'.".format(dataset1.name))
+
+                # Select only the dataset from the collocated data that we want
+                # to use for finding the collocations.
+                self._file2_data = \
+                    self._file2_data_all[dataset2.primary_dataset]
+            else:
+                self._file2_data = dataset2.read(
+                    file2, fields=fields2).as_type(GeoData)
+                self._file2_data_all = None
+            self._last_file2 = file2
+
+        # Firstly, we start by selecting only the time period where both
+        # datasets have data and that lies in the time period requested by the
+        # user.
+        time_indices1, time_indices2 = \
+            self._select_common_time_period(start_user, end_user)
+
+        if time_indices1 is None:
+            # There was no common time window found
+            return 0, 0
+
+        print("\tTaking {} {} and {} {} points for collocation search.".format(
+                sum(time_indices1), dataset1.name,
+                sum(time_indices2), dataset2.name,
+            )
+        )
+
+        # Select the relevant data:
+        data1 = self._file1_data[time_indices1]
+        data2 = self._file2_data[time_indices2]
+
+        # Get the offset between the original data and the selected data.
+        offset1 = np.where(time_indices1)[0][0]
+        offset2 = np.where(time_indices2)[0][0]
+
+        # Secondly, find the collocations.
+        indices1, indices2, collocations1, collocations2 = \
+            self.find_collocations(
+                data1, data2,
+                max_interval, max_distance, processes
+            )
+
+        # Found no collocations
+        if not indices1:
+            return 0, 0
+
+        # These are the indices of the points in the original data that have
+        # collocations.
+        original_indices1 = np.asarray(indices1) + offset1
+        original_indices2 = np.asarray(indices2) + offset2
+
+        # Store the collocated data into a file:
+        self._store_collocated_data(
+            datasets=[dataset1, dataset2],
+            original_indices=[original_indices1, original_indices2],
+            collocations=[collocations1, collocations2],
+            original_files=[file1, file2],
+            max_interval=max_interval, max_distance=max_distance
+        )
+
+        return len(indices1), len(indices2)
 
     @staticmethod
     def find_collocations(
             primary_data, secondary_data,
             max_interval=300, max_distance=10,
-            processes=8, check_temporal_boundaries=True):
-        """Finds collocations between two xarray.Datasets.
+            processes=8):
+        """Finds collocations between two ArrayGroups / xarray.Datasets.
 
         TODO: Rename this function. Improve this doc string.
 
@@ -574,7 +637,8 @@ class CollocatedDataset(Dataset):
                 primary_data ("lat", "lon" and "time" fields).
             max_interval: The maximum interval of time between two data points
                 in seconds. As well you can give here a datetime.timedelta
-                object.
+                object. If this is None, the data will be searched for
+                spatial collocations only.
             max_distance: The maximum distance between two data points in
                 kilometers to meet the collocation criteria.
             processes: The number of processes that should be used to boost the
@@ -582,27 +646,25 @@ class CollocatedDataset(Dataset):
                 depends on your machine where you are working. I recommend to
                 start with 8 processes and to in/decrease this parameter
                 when lacking performance.
-            check_temporal_boundaries: Whether to check the temporal interval
-                as well. If this is false, the data will be searched for
-                spatial collocations only.
 
         Returns:
             Four lists:
-            (1) primary indices - The indices of the data in primary_data that
-                meet the collocation conditions.
-            (2) primary collocations - All collocation points of the primary
-                data. Each element is an index of an element in the primary
-                indices list (1).
-            (3) secondary indices - The indices of the data in secondary_data
-                that meet the collocation conditions.
-            (4) secondary collocations - TODO
-
+            (1) primary indices - The indices of the data in *primary_data*
+                that have collocations.
+            (2) secondary indices - The indices of the data in *secondary_data*
+                that have collocations.
+            (3) primary collocations - This and (4) define the collocation
+                pairs. It is a list containing indices of the corresponding
+                data points. The first element of this list is collocated with
+                the first element of the *secondary collocations* list (4),
+                etc.
+            (4) secondary collocations - Same as (2) but containing the
+                collocations of the secondary data.
         """
 
         timer = time.time()
 
-        if not isinstance(max_interval, timedelta):
-            max_interval = timedelta(seconds=max_interval)
+        max_interval = Dataset._to_timedelta(max_interval)
 
         # We try to find collocations by building one 3-d tree for each dataset
         # (see https://en.wikipedia.org/wiki/K-d_tree) and searching for the
@@ -629,6 +691,8 @@ class CollocatedDataset(Dataset):
               "/latitudes to cartesian.".format(
             time.time() - timer))
 
+        # TODO: Using multiple processes is deprecated so far. How to implement
+        # TODO: them?
         # We want to use parallel processes to find spatial collocations since
         # it can take a lot of time. Hence, split the secondary data into N
         # chunks, where N is the number of parallel processes to use.
@@ -647,7 +711,8 @@ class CollocatedDataset(Dataset):
         # offset_indices = [
         #   sum(offset_indices[:i+1]) for i, _ in enumerate(offset_indices)]
 
-        # Prepare the k-d tree for the priary dataset:
+        # Prepare the k-d tree for the primary dataset already here, to save
+        # the building time (in case of using multiple processes).
         primary_tree = scipy.spatial.cKDTree(primary_points, leafsize=5)
         print("\tAfter {:.2f}s: finished building primary tree.".format(
             time.time() - timer))
@@ -724,20 +789,21 @@ class CollocatedDataset(Dataset):
             time.time() - timer))
 
         # Check here for temporal collocations:
-        if check_temporal_boundaries:
+        if max_interval is not None:
+            # TODO: Put this into a function to make this replaceable by an
+            # TODO: optimizer.
+
             # Convert them from datetime objects to timestamps (seconds since
             # 1970-1-1) to make them faster for temporal distance checking.
-            primary_time = np.asarray(
-                primary_data["time"].astype('uint64')) / 1e9
-            secondary_time = np.asarray(
-                secondary_data["time"].astype('uint64')) / 1e9
+            primary_time = primary_data["time"].astype('M8[s]')
+            secondary_time = secondary_data["time"].astype('M8[s]')
 
             # Check whether the time differences between the spatial
             # collocations are less than the temporal boundary:
             collocation_indices = np.abs(
                 primary_time[primary_collocation_indices]
                 - secondary_time[secondary_collocation_indices]
-            ) < max_interval.total_seconds()
+            ) < np.timedelta64(max_interval)
 
             # Just keep all indices which satisfy the temporal condition.
             primary_collocation_indices = \
@@ -792,7 +858,7 @@ class CollocatedDataset(Dataset):
 
         primary_collocations = \
             [primary_index_ids[primary_index]
-            for primary_index in primary_collocation_indices]
+             for primary_index in primary_collocation_indices]
         secondary_collocations = \
             [secondary_index_ids[secondary_index]
              for secondary_index in secondary_collocation_indices]
@@ -802,8 +868,8 @@ class CollocatedDataset(Dataset):
                                     len(secondary_indices),
                                     time.time() - timer))
 
-        return primary_indices, primary_collocations, \
-            secondary_indices, secondary_collocations
+        return primary_indices, secondary_indices, \
+            primary_collocations, secondary_collocations
 
     @staticmethod
     def _find_spatial_collocations(
@@ -811,7 +877,7 @@ class CollocatedDataset(Dataset):
         """ This finds spatial collocations between the primary and secondary
         data points and it does not regard the temporal dimension.
 
-        One should not call this function directly but .find_collocations()
+        One should not call this function directly but .collocate()
         which offers a performance boost by using multiple processes.
 
         Args:
@@ -820,8 +886,8 @@ class CollocatedDataset(Dataset):
                 assign the results to the corresponding process.
             primary_tree: The primary data points, as scipy.spatial.cKDTree
                 object.
-            secondary_data: The secondary data points, an array of arrays with
-                three elements: [x, y, z]
+            secondary_points: The secondary data points, an array of arrays
+                with three elements: [x, y, z]
             max_distance: The maximum distance between two data points in
                 kilometers to meet the collocation criteria.
 
@@ -843,76 +909,150 @@ class CollocatedDataset(Dataset):
         return sequence_id, collocation_indices
 
     @staticmethod
-    def _data_to_xarray(data_list, collocations,
-                        original_indices, original_files,
-                        max_interval, max_distance):
-        xarray = xr.Dataset()
+    def _find_temporal_collocations(
+            sequence_id, primary_points, secondary_points, max_interval):
+        """This finds temporal collocations between the primary and secondary
+        data points.
 
-        for i, pair in enumerate(data_list):
-            name, data = pair
+        TODO:
+            Fill this function.
 
-            # Put the dataset name as prefix on all variable names and add
-            # them to the output xarray:
-            var_names = {k: name + "." + k for k in data}
-            var_names.update(**{k: name + "." + k for k in data.dims})
-            renamed_data = data.rename(var_names)
-            xarray = xr.merge([xarray, renamed_data])
+        Args:
+            sequence_id:
+            primary_points:
+            secondary_points:
+            max_interval:
 
-            # Add the collocation attributes
-            xarray[name+".collocation_id"] = xr.DataArray(
-                np.arange(len(collocations[i])), dims=[name+".collocation_id"],
-                attrs={
-                    "description": "Collocation id of the %s data." % name
-                })
-            xarray[name+".collocations"] = xr.DataArray(
-                collocations[i], dims=[name+".collocation_id"],
-                attrs={
-                    "description": "Collocation indices of the %s data." % name
-                })
+        Returns:
 
-            xarray[name+".indices"] = xr.DataArray(
-                original_indices[i], dims=[name+".time_id"],
-                attrs={
-                    "description": "Indices of the %s data in the original "
-                                   "files." % name
-                })
+        """
+        ...
 
-        # One cannot save list in xarray's attributes (one could, but they
-        # will be flatten when saving to NetCDF4). There we separate the
-        # elements by using this delimiter:
-        delimiter = ";"
+    def _select_common_time_period(self, start_user, end_user):
+        """Selects only the time window where both datasets have data. Sets
+        also the last timestamp marker.
 
-        # Save additional attributes:
-        xarray.attrs["datasets"] = delimiter.join(
-            [data[0] for data in data_list])
-        xarray.attrs["original_files"] = \
-            delimiter.join(
-                [file for file in original_files])
-        xarray.attrs["max_interval"] = "%f;Max. time interval in seconds." %\
-                                       max_interval
-        xarray.attrs["max_distance"] = "%f;Max. distance in kilometers." % \
-                                       max_distance
+        Returns:
+            Two lists. Each contains the selected indices for the primary or
+            second dataset file, respectively.
+        """
 
-        return xarray
+        print(self._file1_data)
 
-    def plot(self, start, end, plot_type="overview", fig=None, **plotting_arguments):
-        if fig is None:
-            fig = plt.gcf()
+        start1, end1 = \
+            self._file1_data.get_range("time")
 
-        colors = ["r", "b", "y", "g", "k"]
+        # Find no collocations outside from the time period given by the user.
+        if start1 < start_user:
+            start1 = start_user
+        if end1 > end_user:
+            end1 = end_user
 
-        if plot_type == "overview":
+        if self._last_timestamp is None:
+            indices2 = \
+                (self._file2_data["time"] >= start1) \
+                & (self._file2_data["time"] <= end1)
+        else:
+            # May be we checked a part of this time period already?
+            # Hence, start there where we stopped last time.
+            indices2 = \
+                (self._file2_data["time"] >= self._last_timestamp) \
+                & (self._file2_data["time"] <= end1)
 
+        # Maybe there is no overlapping between those files?
+        if not indices2.any():
+            return None, None
 
-            trajectories_map = fig.subplot(4, 1, 1,
-                                           projection=ccrs.PlateCarree())
-            legend = []
-            for i, dataset in enumerate(self.datasets):
-                typhon.plots.worldmap(
-                    data.get_field(dataset.name, "lat"),
-                    data.get_field(dataset.name, "lon"),
-                    colors[i],
-                    ax=trajectories_map
+        # The "new" start and end times of the secondary data.
+        start2, end2 = \
+            self._file2_data.get_range("time")
+
+        # Select only the primary data that is in the same time range
+        # as the secondary data.
+        indices1 = \
+            (self._file1_data["time"] >= start2) \
+            & (self._file1_data["time"] <= end2)
+
+        # We save this timestamp to avoid duplicates the next time.
+        self._last_timestamp = end2
+
+        print("Search for collocations between %s and %s." % (
+            start2, end2))
+
+        return indices1, indices2
+
+    def _store_collocated_data(
+            self, datasets, original_indices, collocations,
+            original_files, max_interval, max_distance):
+        """Merge the data, original indices, collocation indices and
+        additional information of the datasets to one GeoData object.
+
+        Args:
+            data_list:
+            collocations:
+            original_files:
+            original_indices:
+            max_interval:
+            max_distance:
+
+        Returns:
+            A GeoData object.
+        """
+
+        collocated_data = GeoData(name="CollocatedData")
+        collocated_data.attrs["max_interval"] = \
+            "Max. interval in seconds: %d" % max_interval.total_seconds()
+        collocated_data.attrs["max_distance"] = \
+            "Max. distance in kilometers: %d" % max_distance
+        collocated_data.attrs["primary_dataset"] = datasets[0].name
+
+        data_list = [self._file1_data, self._file2_data]
+        # If a dataset is a CollocatedDataset, then we have to store also its
+        # other collocated datasets:
+        data_all_list = [self._file1_data_all, self._file2_data_all]
+
+        for i, dataset in enumerate(datasets):
+            if isinstance(dataset, CollocatedDataset):
+                # This dataset contains multiple already-collocated datasets.
+                for group in data_all_list[i].groups(exclude_prefix="__"):
+                    data = self._prepare_data(
+                        data_all_list[i][group][original_indices[i]],
+                        collocations[i],
+                        original_indices[i],
+                        data_all_list[i][group].attrs["original_file"]
+                    )
+
+                    collocated_data[group] = data
+            else:
+                data = self._prepare_data(
+                    data_list[i][original_indices[i]],
+                    collocations[i],
+                    original_indices[i],
+                    original_files[i]
                 )
-                legend.append(dataset.name)
-            trajectories_map.legend(legend)
+                collocated_data[datasets[i].name] = data
+
+        collocations_start, collocations_end = \
+            collocated_data.get_range("time", deep=True)
+        collocated_data.attrs["start_time"] = \
+            collocations_start.strftime("%Y-%m-%dT%H:%M:%S.%f")
+        collocated_data.attrs["end_time"] = \
+            collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+        # Prepare the name for the output file:
+        filename = self.generate_filename(
+            self.files,
+            collocations_start,
+            collocations_end
+        )
+
+        # Write the data to the file.
+        print("\tWrite collocations to '{0}'".format(filename))
+        self.write(filename, collocated_data)
+
+    @staticmethod
+    def _prepare_data(data, collocations, original_indices, original_file):
+        data["__collocations"] = collocations
+        data["__original_indices"] = original_indices
+        data.attrs["original_file"] = original_file
+        return data

@@ -26,7 +26,7 @@ class C2CICE(handlers.FileHandler):
         # Call the base class initializer
         super().__init__(**kwargs)
 
-    def get_info(self, filename):
+    def get_info(self, filename, **kwargs):
         with Dataset(filename, "r") as file:
             info = handlers.FileInfo()
             start = datetime.strptime(file.start_time, "%Y%m%d%H%M%S")
