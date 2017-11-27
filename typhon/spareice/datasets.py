@@ -13,6 +13,7 @@ import glob
 from itertools import tee
 import json
 from multiprocessing import Pool
+import numbers
 import os.path
 import re
 import shutil
@@ -33,16 +34,26 @@ __all__ = [
 
 
 class NoFilesError(Exception):
+    """Should be raised if no files were found by the :meth:`find_files`
+    method.
+
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
 
 class NoHandlerError(Exception):
+    """Should be raised if no file handler is specified in a dataset object but
+    a handler is required.
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
 
 class InhomogeneousFilesError(Exception):
+    """Should be raised if the files of a dataset do not have the same internal
+    structure but it is required.
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
 
@@ -569,7 +580,7 @@ class Dataset:
                 files = list(self._get_all_files(path))
                 times = [self.retrieve_time_coverage(file) for file in files]
         else:
-            interval = timedelta(seconds=max_interval)
+            interval = self._to_timedelta(max_interval)
             files, times = zip(
                 *self.find_files(
                     timestamp-interval, timestamp+interval
@@ -765,8 +776,9 @@ class Dataset:
             A tuple with the names of two files which correspond to each other.
         """
         if max_interval is not None:
-            start = self._to_datetime(start) - timedelta(seconds=max_interval)
-            end = self._to_datetime(end) + timedelta(seconds=max_interval)
+            max_interval = self._to_timedelta(max_interval)
+            start = self._to_datetime(start) - max_interval
+            end = self._to_datetime(end) + max_interval
 
         primary_files, primary_times = list(
             zip(*self.find_files(start, end, sort=True)))
@@ -782,8 +794,8 @@ class Dataset:
         if max_interval is not None:
             # Expand the intervals of the secondary dataset to close-in-time
             # intervals.
-            secondary_times[:, 0] -= max_interval
-            secondary_times[:, 1] += max_interval
+            secondary_times[:, 0] -= int(max_interval.total_seconds())
+            secondary_times[:, 1] += int(max_interval.total_seconds())
 
         tree = IntervalTree(secondary_times)
 
@@ -915,7 +927,7 @@ class Dataset:
     def map(
             self, start, end,
             func, func_arguments=None,
-            max_processes=4, include_file_info=False, verbose=False):
+            max_processes=None, include_file_info=False, verbose=False):
         """Applies a function on all files of this dataset between two dates.
 
         This method can work on two different ways: if the argument read_before
@@ -963,6 +975,9 @@ class Dataset:
         # Measure the time for profiling.
         start_time = time.time()
 
+        if max_processes is None:
+            max_processes = 4
+
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
 
@@ -986,7 +1001,7 @@ class Dataset:
             self, start, end,
             func, func_arguments=None,
             reading_arguments=None, overwrite=False,
-            max_processes=4, include_file_info=False, verbose=False):
+            max_processes=None, include_file_info=False, verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
 
@@ -1012,11 +1027,10 @@ class Dataset:
                 to the reading function (see Dataset.read() for more
                 information).
             overwrite: Set this to true if you want to overwrite the old file
-                content with the new one (assuming the
-                used method changed something of the file content). The
-                current file handler needs to support writing
-                data to file. Otherwise you should consider to convert your
-                dataset via Dataset.copy_to() first.
+                content with the new one (assuming the used method changed
+                something of the file content). The current file handler needs
+                to support writing data to file. Otherwise you should consider
+                to convert your dataset via Dataset.copy() first.
             max_processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
             include_file_info: Since the order of the returning
@@ -1042,6 +1056,9 @@ class Dataset:
 
         # Measure the time for profiling.
         start_time = time.time()
+
+        if max_processes is None:
+            max_processes = 4
 
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
@@ -1221,6 +1238,17 @@ class Dataset:
         else:
             raise KeyError("Cannot convert object of type '%s' to datetime "
                            "object! Allowed are only datetime or string "
+                           "objects!" % type(obj))
+
+    @staticmethod
+    def _to_timedelta(obj):
+        if isinstance(obj, numbers.Number):
+            return timedelta(seconds=obj)
+        elif isinstance(obj, timedelta):
+            return obj
+        else:
+            raise KeyError("Cannot convert object of type '%s' to timedelta"
+                           "object! Allowed are only timedelta or number "
                            "objects!" % type(obj))
 
     def write(self, filename, data, **writing_arguments):
