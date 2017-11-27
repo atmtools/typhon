@@ -546,17 +546,14 @@ class Dataset:
 
         return date_args
 
-    def find_file(self, timestamp, max_interval=None):
-        """Finds the closest file to a timestamp.
+    def find_file(self, timestamp):
+        """Finds either the file that covers a timestamp or is the closest to
+        it.
 
         Args:
             timestamp: date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
-            max_interval: Maximal time interval in seconds that should be
-                between *timestamp* and the found closest file. If this
-                argument is None (default value), then simply the closest file
-                name is returned regardless of their interval in time.
 
         Returns:
             The found file name as a string. If no file was found, None is
@@ -573,27 +570,27 @@ class Dataset:
         if os.path.exists(path):
             return path
 
-        if max_interval is None:
-            files = []
-            while not files and path:
-                path = path.rsplit("/", 1)[0]
-                files = list(self._get_all_files(path))
-                times = [self.retrieve_time_coverage(file) for file in files]
-        else:
-            interval = self._to_timedelta(max_interval)
-            files, times = zip(
-                *self.find_files(
-                    timestamp-interval, timestamp+interval
-                )
-            )
+        # We need all possible files that are close to the timestamp.
+        # Prepare the regex for the file path
+        regex = self.files.format(**Dataset.placeholder)
+        regex = re.compile(regex.replace("*", ".*?"))
+        files = []
+        while not files and path:
+            path = path.rsplit("/", 1)[0]
+            files = list(self._get_all_files(path, regex))
+            times = [self.retrieve_time_coverage(file) for file in files]
 
         if not files:
             return None
 
-        intervals = np.abs(np.asarray(times) - timestamp)
-        closest_index = np.argmin(intervals) // 2
+        # Either we find a file that covers the certain timestamp:
+        for index, time_coverage in enumerate(times):
+            if IntervalTree.contains(time_coverage, timestamp):
+                return files[index]
 
-        return files[closest_index]
+        # Or we find the closest file.
+        intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
+        return files[np.argmin(intervals)]
 
     def find_files(
             self, start, end,
@@ -649,8 +646,9 @@ class Dataset:
             [filename, self.retrieve_time_coverage(filename)]
             for date in pd.date_range(start.date() - timedelta(days=1), end)
             for filename in self._get_all_files(
-                self._get_files_path(date, path_parts, day_index, verbose))
-            if self._check_file(filename, regex, start, end, verbose)
+                self._get_files_path(date, path_parts, day_index, verbose),
+                regex)
+            if self._check_file(filename, start, end, verbose)
         )
 
         if not no_files_error:
@@ -682,26 +680,26 @@ class Dataset:
                 " for this time period?" % (self.name, start, end)
             )
 
-    def _get_all_files(self, directory):
+    def _get_all_files(self, path, regex):
         """Yields all files in a directory recursively (checks also for sub
         directories).
 
         Args:
-            directory:
+            path:
+            regex: A regular expression that should match the filename.
 
         Yields:
             A filename.
         """
-        if os.path.isdir(directory):
-            for sub_directory in glob.iglob(directory + "/*", recursive=True):
-                yield from self._get_all_files(sub_directory)
+        if os.path.isfile(path):
+            if regex.match(path):
+                yield path
         else:
-            if os.path.isfile(directory):
-                yield directory
-            else:
-                for sub_directory in glob.iglob(directory + "*",
-                                                recursive=True):
-                    yield from self._get_all_files(sub_directory)
+            yield from (
+                file
+                for sub_directory in glob.iglob(path + "/*", recursive=True)
+                for file in self._get_all_files(sub_directory, regex)
+            )
 
     def _get_files_path(self, date, path_parts, day_index, verbose):
         # Generate the daily path string for the files
@@ -722,14 +720,13 @@ class Dataset:
 
         return daily_path
 
-    def _check_file(self, filename, regex, start, end, verbose):
+    def _check_file(self, filename, start, end, verbose):
         """Checks whether a file matches the file searching conditions.
 
         The conditions are specified by the arguments:
 
         Args:
             filename: Name of the file.
-            regex: A regular expression that should match the filename.
             start: Datetime that defines the start of a time interval.
             end: Datetime that defines the end of a time interval. The time
                 coverage of the file should overlap with this interval.
@@ -741,20 +738,16 @@ class Dataset:
         if verbose:
             print(filename)
 
-        # Test whether the file matches the files parameter.
-        if regex.match(filename):
-            if verbose:
-                print("\tMatched files path pattern")
-            file_start, file_end = \
-                self.retrieve_time_coverage(filename)
+        file_start, file_end = \
+            self.retrieve_time_coverage(filename)
 
-            # Test whether the file is overlapping the interval between
-            # start and end date.
-            if IntervalTree.overlaps(
-                    (file_start, file_end), (start, end)):
-                if verbose:
-                    print("\tPassed time check")
-                return True
+        # Test whether the file is overlapping the interval between
+        # start and end date.
+        if IntervalTree.overlaps(
+                (file_start, file_end), (start, end)):
+            if verbose:
+                print("\tPassed time check")
+            return True
 
         return False
 
@@ -1167,8 +1160,6 @@ class Dataset:
 
         if retrieve_method is None:
             retrieve_method = self.time_coverage_retrieving_method
-
-        time_coverage = None
 
         if retrieve_method == "filename":
             regex = self.files.format(**Dataset.placeholder)
