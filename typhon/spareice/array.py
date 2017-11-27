@@ -67,17 +67,21 @@ class Array(np.ndarray):
         return self.shape[0]
 
     def __str__(self):
-        if self.shape[0] < 5:
-            items = np.array_str(self[:self.shape[0]])
-        else:
-            items = ", ".join([
-                str(self[0]), str(self[1]), ".. ",
-                str(self[-2]), str(self[-1])])
-        info = "[{}, dtype={}]".format(items, self.dtype)
-        info += "\nDimensions: "
-        info += ", ".join(
-            ["%s (%d)" % (dim, self.shape[i])
-             for i, dim in enumerate(self.dims)])
+        # TODO: Sometimes this crashes because the shape attribute has no items
+        try:
+            if self.shape[0] < 5:
+                items = np.array_str(self[:self.shape[0]])
+            else:
+                items = ", ".join([
+                    str(self[0]), str(self[1]), ".. ",
+                    str(self[-2]), str(self[-1])])
+            info = "[{}, dtype={}]".format(items, self.dtype)
+            info += "\nDimensions: "
+            info += ", ".join(
+                ["%s (%d)" % (dim, self.shape[i])
+                 for i, dim in enumerate(self.dims)])
+        except IndexError:
+            info = np.array_str(self)
         info += "\nAttributes:\n"
         if self.attrs:
             for attr, value in self.attrs.items():
@@ -407,9 +411,23 @@ class ArrayGroup:
 
         # Collapse the data:
         collapsed_data = type(self)()
+        collapsed_data.attrs.update(**self.attrs)
         for var, data in self.items(deep):
-            binned_data = data.bin(bins)
-            collapsed_data[var] = [collapser(bin, 0) for bin in binned_data]
+            # The data could contain datetime objects. A numerical collapser
+            # function will crash with such an object. Hence, we convert the
+            # datetime objects to floats temporarily.
+            if isinstance(data.item(0), datetime):
+                numerical_data = Array([d.timestamp() for d in data])
+                binned_data = numerical_data.bin(bins)
+                collapsed_data[var] = \
+                    [datetime.fromtimestamp(collapser(bin, 0))
+                     for bin in binned_data]
+            else:
+                binned_data = data.bin(bins)
+                collapsed_data[var] = \
+                    [collapser(bin, 0) for bin in binned_data]
+
+            collapsed_data[var].attrs.update(**data.attrs)
         return collapsed_data
 
     @classmethod
@@ -550,8 +568,20 @@ class ArrayGroup:
         # Otherwise, we want to read all variables and groups:
         # Add the variables:
         for var, data in group.variables.items():
+            attrs = data.__dict__
+            dims = data.dimensions
+
+            # Handle time fields differently
+            if ("units" in attrs
+                    and "since" in data.units):
+                try:
+                    data = netCDF4.num2date(
+                        data[:], data.units)
+                except:
+                    pass
+
             array_group[var] = Array(
-                data[:], attrs=data.__dict__, dims=data.dimensions,
+                data[:], attrs=attrs, dims=dims,
             )
 
         # Add the groups
@@ -777,10 +807,10 @@ class ArrayGroup:
                 try:
                     selected_data[var] = self[var][indices_or_fields]
                 except IndexError as e:
-                    raise IndexError(str(e) + "\nDid you check whether all "
-                                              "arrays in this ArrayGroup "
-                                              "object have the same first"
-                                              "dimension length?")
+                    raise IndexError(
+                        str(e) + "\nCould not select parts of '%s'.\nDid you "
+                        "check whether all arrays in this ArrayGroup object "
+                        "have the same first dimension length?" % var)
 
         return selected_data
 
