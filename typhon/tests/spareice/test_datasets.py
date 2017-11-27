@@ -35,7 +35,10 @@ class TestDataset:
 
         found_file = ds.find_file("2017-01-01 10:00:00")
         file = self.refdir + "/2017/01/01/060000-120000.nc"
+        assert found_file == file
 
+        found_file = ds.find_file("2017-01-04 13:00:00")
+        file = self.refdir + "/2017/01/03/180000-000000.nc"
         assert found_file == file
 
     def test_find_files1(self):
