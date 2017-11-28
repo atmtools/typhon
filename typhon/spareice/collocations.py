@@ -58,7 +58,7 @@ class CollocatedDataset(Dataset):
         collocations with this command.
 
         If you want to collocate two datasets, you should use the
-        :meth:`from_datasets` method.
+        :meth:`create_from` method.
 
         Args:
             *args: Same positional arguments that the
@@ -877,8 +877,9 @@ class CollocatedDataset(Dataset):
         """ This finds spatial collocations between the primary and secondary
         data points and it does not regard the temporal dimension.
 
-        One should not call this function directly but .collocate()
-        which offers a performance boost by using multiple processes.
+        One should not call this function directly but
+        :meth:`find_collocations` which offers a performance boost by using
+        multiple processes.
 
         Args:
             sequence_id: The process/worker id. Since this function is designed

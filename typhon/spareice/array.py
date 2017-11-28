@@ -125,6 +125,26 @@ class Array(np.ndarray):
 
         return return_values
 
+    def average(self, window_size):
+        """Calculates the sliding average for this array.
+
+        Args:
+            window_size: The size of the sliding window.
+
+        Returns:
+            Array with the averaged values.
+
+        Examples:
+
+        """
+
+        # This code is taken from https://stackoverflow.com/a/15956341
+        padded = np.pad(
+            self, (0, window_size - self.size % window_size),
+            mode='constant', constant_values=np.NaN
+        )
+        return np.nanmean(padded.reshape(-1, window_size), axis=1)
+
     def bin(self, bins):
         return [
             self[indices]
@@ -399,9 +419,7 @@ class ArrayGroup:
             deep: Collapses also the variables of the subgroups.
 
         Returns:
-            One ArrayGroup object with the collapsed data and if
-            *variation_stats* is set another ArrayGroup with variation
-            statistics of one field.
+            One ArrayGroup object with the collapsed data.
         """
         # Default collapser is the mean function:
         if collapser is None:
@@ -432,7 +450,7 @@ class ArrayGroup:
 
     @classmethod
     def concatenate(cls, objects, dimension=None):
-        """Concatenate multiple GeoData objects.
+        """Concatenate multiple ArrayGroup objects.
 
         Notes:
             The attribute and dimension information of some arrays may get
@@ -686,7 +704,7 @@ class ArrayGroup:
 
     @classmethod
     def merge(cls, objects, groups=None, overwrite_error=True):
-        """Merges multiple GeoData objects to one.
+        """Merges multiple ArrayGroup objects to one.
 
         Notes:
             Merging of sub groups with the same name does not work properly.

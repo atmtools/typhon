@@ -150,6 +150,61 @@ class TestDataset:
 
         assert found_files == files
 
+    def test_retrieve_time_coverage_with_wildcards(self):
+        ds1 = Dataset(
+            join(self.refdir,
+                 "plain_dataset/file-{year}{month}{day}{hour}{minute}{second}_"
+                 "*{end_hour}{end_minute}{end_second}.nc")
+        )
+
+        found_start, found_end = ds1.retrieve_time_coverage(
+            join(self.refdir,
+                 'plain_dataset/file-20170101120000_20170102000000.nc')
+        )
+
+        start = datetime(2017, 1, 1, 12)
+        end = datetime(2017, 1, 2)
+
+        assert found_start == start and found_end == end
+
+    def test_find_files_plain(self):
+        ds1 = Dataset(
+            join(self.refdir,
+                 "plain_dataset/file-{year}{month}{day}{hour}{minute}{second}_"
+                 "{end_year}{end_month}{end_day}{end_hour}{end_minute}"
+                 "{end_second}.nc")
+        )
+
+        found_files = list(ds1.find_files(
+            "2017-01-01 18:00:00", "2017-01-02 08:00:00", sort=True
+        ))
+
+        files = [
+            [join(self.refdir,
+                  'plain_dataset/file-20170101120000_20170102000000.nc'),
+             (datetime(2017, 1, 1, 12, 0),
+              datetime(2017, 1, 2, 0, 0))],
+            [join(self.refdir,
+                  'plain_dataset/file-20170102000000_20170102120000.nc'),
+             (datetime(2017, 1, 2, 0, 0),
+              datetime(2017, 1, 2, 12, 0))]
+        ]
+
+        assert found_files == files
+
+    def test_find_files_single(self):
+        ds1 = Dataset(
+            join(self.refdir, "dataset_of_single_file.nc")
+        )
+
+        found_files = list(ds1.find_files(
+                "2017-01-01 18:00:00", "2017-01-02 08:00:00"))
+
+        file = join(self.refdir, "dataset_of_single_file.nc")
+
+        assert len(found_files) == 1
+        assert found_files[0][0] == file
+
     def test_find_overlapping_files(self):
         # So far this test does not work due to ordering problems.
         pass
