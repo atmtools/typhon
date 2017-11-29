@@ -177,7 +177,7 @@ class Dataset:
             else:
                 # The default for multi file datasets:
                 self.time_coverage = "filename"
-        elif isinstance(self.time_coverage, (tuple, list)):
+        elif isinstance(time_coverage, (tuple, list)):
             if self.files_placeholders:
                 warnings.warn(
                     "The explicit definition of the time coverage only makes "
@@ -448,7 +448,7 @@ class Dataset:
 
     def copy(
             self, start, end, destination,
-            converter=None, delete_originals=False, verbose=False,
+            converter=None, joiner=None, delete_originals=False, verbose=False,
             new_name=None
     ):
         """ Copies all files from this dataset between two dates to another

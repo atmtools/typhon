@@ -88,23 +88,34 @@ class NetCDF4(handlers.FileHandler):
     """File handler that can read / write data from / to a netCDF4 or HDF5
     file.
     """
-    def __init__(
-            self, **kwargs):
+
+    def __init__(self, return_type=None, **kwargs):
         """Initializes a NetCDF4 file handler class.
 
         Args:
-            reader: (optional) Reference to a function that defines how to
-                return the read data. Default is the *ArrayGroup.from_netcdf*
-                class method but possible are others, e.g.
-                *xarray.open_dataset* or *GeoData.from_netcdf*.
+            return_type: (optional) Defines what object should be returned by
+                :meth:`read`. Default is *ArrayGroup* but *xarray* is also
+                possible.
             info_reader: (optional) You cannot use the :meth:`get_info`
                 without giving a function here that returns a FileInfo object.
         """
         # Call the base class initializer
         super().__init__(**kwargs)
 
-        if self.reader is None:
+        if return_type is None:
+            self.return_type = "ArrayGroup"
+        else:
+            self.return_type = return_type
+
+        # ArrayGroup supports reading from multiple files.
+        if self.return_type == "ArrayGroup":
+            self.multifile_reader_support = True
             self.reader = ArrayGroup.from_netcdf
+        elif self.return_type == "xarray":
+            self.multifile_reader_support = False
+            self.reader = xarray.open_dataset
+        else:
+            raise ValueError("Unknown return type '%s'!" % return_type)
 
     def get_info(self, filename, **kwargs):
         """
@@ -128,16 +139,18 @@ class NetCDF4(handlers.FileHandler):
         """Reads and parses NetCDF files and load them to an ArrayGroup.
 
         If you need another return value, change it via the parameter
-        *reader* of the :meth:`__init__` method.
+        *return_type* of the :meth:`__init__` method.
 
         Args:
-            filename: Path and name of the file to read.
+            filename: Path and name of the file to read. If *return_type* is
+                *ArrayGroup*, this can also be a tuple/list of file names.
             fields: (optional) List of field names that should be read. The
                 other fields will be ignored.
 
         Returns:
             An ArrayGroup object.
         """
+
         if "fields" in signature(self.reader).parameters:
             ds = self.reader(filename, fields)
         else:

@@ -539,6 +539,7 @@ class ArrayGroup:
 
         Args:
             filename: Path and file name from where to load a new ArrayGroup.
+                Can also be a tuple/list of file names.
             fields: (optional) List or tuple of variable or
                 group names). Only those fields are going to be read.
 
@@ -546,10 +547,16 @@ class ArrayGroup:
             An ArrayGroup object.
         """
 
-        with netCDF4.Dataset(filename, "r") as root:
-            array_group = cls._get_group_from_netcdf_group(root, fields)
+        if isinstance(filename, (tuple, list)):
+            with netCDF4.MFDataset(filename, "r") as root:
+                array_group = cls._get_group_from_netcdf_group(root, fields)
 
-            return array_group
+                return array_group
+        else:
+            with netCDF4.Dataset(filename, "r") as root:
+                array_group = cls._get_group_from_netcdf_group(root, fields)
+
+                return array_group
 
     @classmethod
     def _get_group_from_netcdf_group(cls, group, fields):
