@@ -579,8 +579,8 @@ class CollocatedDataset(Dataset):
             return 0, 0
 
         print("\tTaking {} {} and {} {} points for collocation search.".format(
-                sum(time_indices1), dataset1.name,
-                sum(time_indices2), dataset2.name,
+                np.sum(time_indices1), dataset1.name,
+                np.sum(time_indices2), dataset2.name,
             )
         )
 
@@ -795,15 +795,15 @@ class CollocatedDataset(Dataset):
 
             # Convert them from datetime objects to timestamps (seconds since
             # 1970-1-1) to make them faster for temporal distance checking.
-            primary_time = primary_data["time"].astype('M8[s]')
-            secondary_time = secondary_data["time"].astype('M8[s]')
+            primary_time = primary_data["time"]
+            secondary_time = secondary_data["time"]
 
             # Check whether the time differences between the spatial
             # collocations are less than the temporal boundary:
             collocation_indices = np.abs(
                 primary_time[primary_collocation_indices]
                 - secondary_time[secondary_collocation_indices]
-            ) < np.timedelta64(max_interval)
+            ) < max_interval
 
             # Just keep all indices which satisfy the temporal condition.
             primary_collocation_indices = \
@@ -897,7 +897,10 @@ class CollocatedDataset(Dataset):
             collocate with each other.
         """
 
-        secondary_tree = scipy.spatial.cKDTree(secondary_points, leafsize=10)
+        timer = time.time()
+        secondary_tree = scipy.spatial.cKDTree(secondary_points, leafsize=100)
+        print("\tNeeded {:.2f}s: for building secondary tree.".format(
+            time.time() - timer))
 
         # Search for all collocations. This returns a list of lists. The index
         # of each element is the index of the primary data and each element
@@ -938,7 +941,7 @@ class CollocatedDataset(Dataset):
             second dataset file, respectively.
         """
 
-        print(self._file1_data)
+        # TODO: Use also the max_interval here.
 
         start1, end1 = \
             self._file1_data.get_range("time")
@@ -966,13 +969,17 @@ class CollocatedDataset(Dataset):
 
         # The "new" start and end times of the secondary data.
         start2, end2 = \
-            self._file2_data.get_range("time")
+            self._file2_data[indices2].get_range("time")
 
         # Select only the primary data that is in the same time range
         # as the secondary data.
         indices1 = \
             (self._file1_data["time"] >= start2) \
             & (self._file1_data["time"] <= end2)
+
+        # Maybe there is no overlapping between those files?
+        if not indices1.any():
+            return None, None
 
         # We save this timestamp to avoid duplicates the next time.
         self._last_timestamp = end2

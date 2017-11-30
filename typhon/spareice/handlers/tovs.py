@@ -20,9 +20,9 @@ class MHSAAPP(handlers.FileHandler):
     """
     # This file handler always wants to return at least time, lat and lon
     # fields. These fields are required for this:
-    standard_fields = (
+    standard_fields = [
         "Data/scnlintime", "Data/scnlinyr", "Data/scnlindy",
-        "Geolocation/Latitude", "Geolocation/Longitude")
+        "Geolocation/Latitude", "Geolocation/Longitude"]
 
     mapping = {
         "Geolocation/Latitude": "lat",
@@ -70,7 +70,14 @@ class MHSAAPP(handlers.FileHandler):
 
         if fields is not None:
             fields_to_extract = fields + self.standard_fields
-            fields_to_extract = list(set(fields_to_extract))
+            fields_to_extract = set(fields_to_extract)
+            try:
+                fields_to_extract.remove("time")
+                fields_to_extract.remove("lat")
+                fields_to_extract.remove("lon")
+            except KeyError:
+                pass
+            fields_to_extract = list(fields_to_extract)
         else:
             fields_to_extract = fields
 
@@ -103,7 +110,7 @@ class MHSAAPP(handlers.FileHandler):
                 dataset[var] = dataset[var].reshape(
                     dataset[var].shape[0] * 90, 5
                 )
-                dataset[var] = ["time_id", "channel"]
+                dataset[var].dims = ["time_id", "channel"]
 
             # Some variables are scaled. If the user wants us to do
             # rescaling, we do it and delete the note in the attributes.
@@ -152,4 +159,4 @@ class MHSAAPP(handlers.FileHandler):
         swath_times = np.repeat(swath_times, 90)
         times = swath_times + pixel_times
 
-        return times.flatten()
+        return times.flatten().astype("O")
