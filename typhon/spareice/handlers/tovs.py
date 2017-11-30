@@ -159,4 +159,4 @@ class MHSAAPP(handlers.FileHandler):
         swath_times = np.repeat(swath_times, 90)
         times = swath_times + pixel_times
 
-        return times.flatten()
+        return times.flatten().astype("O")

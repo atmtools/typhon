@@ -9,7 +9,6 @@ from typhon.spareice.array import Array
 from typhon.spareice.geographical import GeoData
 
 from .. import handlers
-from . import common
 
 __all__ = [
     'C2CICE',
@@ -90,12 +89,9 @@ class C2CICE(handlers.FileHandler):
                         pd.to_datetime(
                             profile_times, unit='s',
                             origin=pd.Timestamp(start_time)
-                        ),
+                        ).to_pydatetime(),
                         dims=["time_id"]
                     )
-
-                    print(data)
-
                 else:
                     # All other data (including latitudes, etc.)
 
