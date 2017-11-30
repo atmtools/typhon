@@ -82,11 +82,11 @@ class Array(np.ndarray):
                  for i, dim in enumerate(self.dims)])
         except IndexError:
             info = np.array_str(self)
-        info += "\nAttributes:\n"
+
         if self.attrs:
+            info += "\nAttributes:\n"
             for attr, value in self.attrs.items():
                 info += "\t{} : {}\n".format(attr, value)
-        else:
             info += "\t--\n"
 
         return info
