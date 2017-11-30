@@ -659,7 +659,7 @@ class Dataset:
 
     def find_files(
             self, start, end,
-            sort=False, verbose=False,
+            sort=True, verbose=False,
             no_files_error=True,
     ):
         """ Finds all files between the given start and end date.
@@ -904,7 +904,7 @@ class Dataset:
 
         yield from (
             (primary_files[i],
-             [secondary_files[oi] for oi in overlapping_files])
+             [secondary_files[oi] for oi in sorted(overlapping_files)])
             for i, overlapping_files in enumerate(results)
         )
 
@@ -1029,17 +1029,24 @@ class Dataset:
         if filename is not None and os.path.exists(filename):
             print("Load time coverages of {} dataset from {}.".format(
                 self.name, filename))
-            with open(filename) as file:
-                time_coverages = json.load(file)
-                # Parse string times into datetime objects:
-                time_coverages = {
-                    file: [
-                        datetime.strptime(times[0], "%Y-%m-%dT%H:%M:%S.%f"),
-                        datetime.strptime(times[1], "%Y-%m-%dT%H:%M:%S.%f")
-                    ]
-                    for file, times in time_coverages.items()
-                }
-                self.time_coverages_cache.update(time_coverages)
+
+            try:
+                with open(filename) as file:
+                    time_coverages = json.load(file)
+                    # Parse string times into datetime objects:
+                    time_coverages = {
+                        file: [
+                           datetime.strptime(times[0], "%Y-%m-%dT%H:%M:%S.%f"),
+                           datetime.strptime(times[1], "%Y-%m-%dT%H:%M:%S.%f")
+                        ]
+                        for file, times in time_coverages.items()
+                    }
+                    self.time_coverages_cache.update(time_coverages)
+            except json.decoder.JSONDecodeError as e:
+                warnings.warn(
+                    "Could not load the time coverages from cache file '%s':\n"
+                    "%s." % (filename, e)
+                )
 
     def map(
             self, start, end,
