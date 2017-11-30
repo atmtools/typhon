@@ -93,7 +93,8 @@ class TestDataset:
         )
 
         found_files = list(ds1.find_files("2017-01-01 18:00:00",
-                                          "2017-01-02 08:00:00"))
+                                          "2017-01-02 08:00:00",
+                                          sort=True))
 
         files = [
             [join(self.refdir, '2017/01/01/120000-180000.nc'),
