@@ -164,13 +164,11 @@ class Dataset:
         self.name = name
         self.handler = handler
 
+        # The files parameters (will be set in the files setter method):
+        self._files = None
+        self.files_placeholders = None
+        self.single_file = None
         self.files = files
-        self.files_placeholders = re.findall("\{(\w+)\}", self.files)
-
-        # Flag whether this is a single file dataset or not:
-        self.single_file = \
-            not self.files_placeholders \
-            and "*" not in self.files
 
         if time_coverage is None:
             if self.single_file:
@@ -610,6 +608,27 @@ class Dataset:
             del date_args["doy"]
 
         return date_args
+
+    @property
+    def files(self):
+        """Gets or sets the path to the dataset's files.
+
+        Returns:
+            A string with the path (can contain placeholders or wildcards.)
+        """
+        return self._files
+
+    @files.setter
+    def files(self, value):
+        if value is None:
+            raise ValueError("The files parameter cannot be None!")
+
+        self.files_placeholders = re.findall("\{(\w+)\}", self.files)
+
+        # Flag whether this is a single file dataset or not:
+        self.single_file = \
+            not self.files_placeholders \
+            and "*" not in self.files
 
     def find_file(self, timestamp):
         """Finds either the file that covers a timestamp or is the closest to
