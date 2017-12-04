@@ -2,6 +2,7 @@ from datetime import datetime
 from os.path import (dirname, join)
 
 from typhon.spareice.datasets import Dataset
+from typhon.spareice.handlers import FileHandler, FileInfo
 
 
 class TestDataset:
@@ -41,6 +42,15 @@ class TestDataset:
         file = self.refdir + "/2017/01/03/180000-000000.nc"
         assert found_file == file
 
+    def test_find_file_single(self):
+        """Test find_file for single file datasets."""
+
+        file = join(self.refdir, "dataset_of_single_file.nc")
+        ds1 = Dataset(file)
+
+        found_file = ds1.find_file("2017-01-01 10:00:00")
+        assert found_file == file
+
     def test_find_files1(self):
         """Test finding files."""
         refpattern = (
@@ -52,7 +62,7 @@ class TestDataset:
         ds = Dataset(dataset_files)
 
         found_files = list(
-            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23), sort=True)
+            ds.find_files("2017-01-01", datetime(2017, 1, 2, 23))
         )
 
         files = [
@@ -93,8 +103,7 @@ class TestDataset:
         )
 
         found_files = list(ds1.find_files("2017-01-01 18:00:00",
-                                          "2017-01-02 08:00:00",
-                                          sort=True))
+                                          "2017-01-02 08:00:00"))
 
         files = [
             [join(self.refdir, '2017/01/01/120000-180000.nc'),
@@ -119,7 +128,7 @@ class TestDataset:
         ds = Dataset(dataset_files)
 
         found_files = list(
-            ds.find_files("2017-01-01", "2017-01-02 23:00:00", sort=True)
+            ds.find_files("2017-01-01", "2017-01-02 23:00:00")
         )
 
         files = [
@@ -151,14 +160,57 @@ class TestDataset:
 
         assert found_files == files
 
+    def test_find_files_sequence(self):
+        """Test find_files with a sequence dataset."""
+
+        from datetime import datetime
+
+        def load_times(filename, **kwargs):
+            """Small helper function for time loading."""
+            info = FileInfo()
+
+            with open(filename) as f:
+                info["times"][0] = datetime.strptime(
+                    f.readline().rstrip(),
+                    "Start: %Y-%m-%d %H:%M:%S"
+                )
+                info["times"][1] = datetime.strptime(
+                    f.readline().rstrip(),
+                    "End: %Y-%m-%d %H:%M:%S"
+                )
+
+            return info
+
+        ds = Dataset(
+            join(self.refdir, "sequence_dataset/{year}/{doy}/sequence*.txt"),
+            handler=FileHandler(
+                info_reader=load_times,
+            ),
+            time_coverage="content"
+        )
+
+        found_files = list(ds.find_files(
+            "2017-01-01 18:00:00", "2017-01-02 08:00:00"
+        ))
+
+        files = [[
+             join(self.refdir, 'sequence_dataset/2017/001/sequence0002.txt'),
+             [datetime(2017, 1, 1, 12, 0),
+              datetime(2017, 1, 2, 0, 0)]], [
+             join(self.refdir, 'sequence_dataset/2017/002/sequence0003.txt'),
+             [datetime(2017, 1, 2, 0, 0),
+              datetime(2017, 1, 2, 12, 0)]]]
+
+        assert found_files == files
+
     def test_retrieve_time_coverage_with_wildcards(self):
-        ds1 = Dataset(
+        ds = Dataset(
             join(self.refdir,
                  "plain_dataset/file-{year}{month}{day}{hour}{minute}{second}_"
                  "*{end_hour}{end_minute}{end_second}.nc")
         )
 
-        found_start, found_end = ds1.retrieve_time_coverage(
+        found_start, found_end = ds.retrieve_time_coverage(
             join(self.refdir,
                  'plain_dataset/file-20170101120000_20170102000000.nc')
         )
@@ -177,7 +229,7 @@ class TestDataset:
         )
 
         found_files = list(ds1.find_files(
-            "2017-01-01 18:00:00", "2017-01-02 08:00:00", sort=True
+            "2017-01-01 18:00:00", "2017-01-02 08:00:00"
         ))
 
         files = [
@@ -210,37 +262,38 @@ class TestDataset:
         # So far this test does not work due to ordering problems.
         pass
 
-        # ds1 = Dataset(
-        #     join(self.refdir,
-        #          "{year}/{month}/{day}/{hour}{minute}{second}-{end_hour}"
-        #          "{end_minute}{end_second}.nc"
-        #          )
-        # )
-        #
-        # ds2 = Dataset(
-        #     join(self.refdir,
-        #          "{year}/{month}/{doy}/{hour}{minute}{second}-{end_hour}"
-        #          "{end_minute}{end_second}.nc"
-        #          )
-        # )
-        #
-        # overlapping_files = list(ds1.find_overlapping_files(
-        #     "2017-01-01 18:00:00", "2017-01-02 08:00:00", ds2))
-        #
-        # for file in overlapping_files:
-        #     print(file)
-        #
-        # files = [
-        #     (join(self.refdir, '2017/01/01/120000-180000.nc'),
-        #      [join(self.refdir, '2017/01/001/120000-180000.nc'),
-        #       join(self.refdir, '2017/01/001/180000-000000.nc'),
-        #       join(self.refdir, '2017/01/002/000000-060000.nc')]),
-        #     (join(self.refdir, '2017/01/01/180000-000000.nc'),
-        #      [join(self.refdir, '2017/01/001/120000-180000.nc'),
-        #       join(self.refdir, '2017/01/001/180000-000000.nc')]),
-        #     (join(self.refdir, '2017/01/01/000000-060000.nc'),
-        #      [join(self.refdir, '2017/01/002/120000-180000.nc'),
-        #       join(self.refdir, '2017/01/002/180000-000000.nc')]),
-        # ]
-        #
-        # assert overlapping_files == files
+        ds1 = Dataset(
+            join(self.refdir,
+                 "{year}/{month}/{day}/{hour}{minute}{second}-{end_hour}"
+                 "{end_minute}{end_second}.nc"
+                 )
+        )
+
+        ds2 = Dataset(
+            join(self.refdir,
+                 "{year}/{month}/{doy}/{hour}{minute}{second}-{end_hour}"
+                 "{end_minute}{end_second}.nc"
+                 )
+        )
+
+        overlapping_files = list(ds1.find_overlapping_files(
+            "2017-01-01 18:00:00", "2017-01-02 08:00:00", ds2))
+
+        files = [
+            (join(self.refdir, '2017/01/01/120000-180000.nc'),
+             [join(self.refdir, '2017/01/001/120000-180000.nc'),
+              join(self.refdir, '2017/01/001/180000-000000.nc')]),
+            (join(self.refdir, '2017/01/01/180000-000000.nc'),
+             [join(self.refdir, '2017/01/001/120000-180000.nc'),
+              join(self.refdir, '2017/01/001/180000-000000.nc'),
+              join(self.refdir, '2017/01/002/000000-060000.nc')]),
+            (join(self.refdir, '2017/01/02/000000-060000.nc'),
+             [join(self.refdir, '2017/01/001/180000-000000.nc'),
+              join(self.refdir, '2017/01/002/000000-060000.nc'),
+              join(self.refdir, '2017/01/002/060000-120000.nc')]),
+            (join(self.refdir, '2017/01/02/060000-120000.nc'),
+             [join(self.refdir, '2017/01/002/000000-060000.nc'),
+              join(self.refdir, '2017/01/002/060000-120000.nc')]),
+        ]
+
+        assert overlapping_files == files

@@ -23,7 +23,6 @@ __all__ = [
     'scatter_density_plot_matrix',
     'HectoPascalFormatter',
     'HectoPascalLogFormatter',
-    'plot_3d',
     'profile_p',
     'profile_p_log',
     'profile_z',
@@ -435,43 +434,6 @@ class HectoPascalLogFormatter(LogFormatter):
         return '{:g}'.format(x / 1e2)
 
 
-def plot_3d(x, y, z, fig=None, ax=None, **kwargs):
-    """ Plot a 3-dimensional plot.
-
-    More documentation is coming soon.
-
-    Args:
-        x:
-        y:
-        z:
-        fig:
-        **kwargs:
-
-    Returns:
-
-    """
-
-    from mpl_toolkits.mplot3d import Axes3D
-    from matplotlib.ticker import LinearLocator, FormatStrFormatter
-
-    # Default keyword arguments to pass to hist2d().
-    kwargs_defaults = {
-        #"cmap": "phase",
-        #"s": 1,
-    }
-    kwargs_defaults.update(kwargs)
-
-    if fig is None:
-        fig = plt.gcf()
-
-    if ax is None:
-        ax = fig.gca(projection='3d')
-
-
-    ax.plot(x, y, z, **kwargs_defaults)
-
-    return ax
-
 def profile_p(p, x, ax=None, **kwargs):
     """Plot atmospheric profile against pressure in linear space.
 
@@ -715,18 +677,32 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
     return patches
 
 
-def worldmap(lat, lon, vars, fig=None, ax=None, projection=None, background_image=True, **kwargs):
-    """Plot a worldmap of two data arrays.
+def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
+             background_image=True, **kwargs):
+    """Plots the track of a variable on a worldmap.
 
-    More documentation is coming soon.
+    Args:
+        lat: Array of latitudes.
+        lon: Array of longitudes.
+        var: (optional) Additional array for the variable to plot. If given,
+            the track changes the color according to a color map.
+        fig (optional): A matplotlib figure object. If not given, the current figure
+            is used.
+        ax: (optional) A matplotlib axis object. If not given, a new axis
+            object will be created in the current figure.
+        projection:
+        background_image:
+        **kwargs:
 
+    Returns:
+        Axis and scatter plot objects.
     """
     import cartopy.crs as ccrs
 
     # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
-        "cmap" : "qualitative1",
-        "s" : 1,
+        "cmap": "qualitative1",
+        "s": 1,
     }
     kwargs_defaults.update(kwargs)
 
@@ -745,8 +721,13 @@ def worldmap(lat, lon, vars, fig=None, ax=None, projection=None, background_imag
     if background_image:
         ax.stock_img()
 
-    scatter_plot = plt.scatter(lon, lat, c=vars, transform=projection, **kwargs_defaults)
-    #plt.colorbar(scatter_plot)
+    if var is None:
+        scatter_plot = plt.scatter(
+            lon, lat, transform=projection, **kwargs_defaults)
+    else:
+        scatter_plot = plt.scatter(
+            lon, lat, c=var, transform=projection, **kwargs_defaults)
+        plt.colorbar(scatter_plot)
 
     return ax, scatter_plot
 

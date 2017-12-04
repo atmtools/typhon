@@ -173,3 +173,5 @@ class FileInfo(dict):
     """
     def __init__(self):
         super(FileInfo, self).__init__()
+
+        self["times"] = [None, None]

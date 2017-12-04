@@ -167,8 +167,13 @@ class Dataset:
         self.files = files
         self.files_placeholders = re.findall("\{(\w+)\}", self.files)
 
+        # Flag whether this is a single file dataset or not:
+        self.single_file = \
+            not self.files_placeholders \
+            and "*" not in self.files
+
         if time_coverage is None:
-            if not self.files_placeholders:
+            if self.single_file:
                 # The default for single file datasets:
                 self.time_coverage = [
                     datetime.min,
@@ -178,7 +183,7 @@ class Dataset:
                 # The default for multi file datasets:
                 self.time_coverage = "filename"
         elif isinstance(time_coverage, (tuple, list)):
-            if self.files_placeholders:
+            if not self.single_file:
                 warnings.warn(
                     "The explicit definition of the time coverage only makes "
                     "sense for single file datasets.", RuntimeWarning)
@@ -348,15 +353,18 @@ class Dataset:
         Returns:
             The return value of *function* called with the arguments *args*.
         """
-        self, file_info, function, function_arguments, return_file_info = args
+        dataset, file_info, func, function_arguments, return_file_info, \
+            verbose = args
         filename, time_coverage = file_info
 
-        return_value = None
+        if verbose:
+            print("Process %s" % filename)
+
         if function_arguments is None:
-            return_value = function(self, filename, time_coverage)
+            return_value = func(dataset, filename, time_coverage)
         else:
-            return_value = function(
-                self, filename, time_coverage, **function_arguments)
+            return_value = func(
+                dataset, filename, time_coverage, **function_arguments)
 
         if return_file_info:
             return filename, time_coverage, return_value
@@ -364,44 +372,44 @@ class Dataset:
             return return_value
 
     @staticmethod
-    def _call_method_of_file_content(args):
+    def _call_function_with_file_content(args):
         """ This is a small wrapper function to call a method on an object
         returned by reading a dataset file via Dataset.read().
 
         Args:
             args: A tuple containing following elements:
-                (Dataset object, (filename, timestamp), read_arguments, method,
-                 method_arguments, overwrite)
+                (Dataset object, (filename, timestamp), func,
+                 function_arguments, read_arguments, output)
 
         Returns:
-            The return value of *function* called with the arguments
+            The return value of *method* called with the arguments
             *method_arguments*.
         """
-        self, file_info, read_arguments, method, method_arguments, \
-            return_file_info, overwrite = args
+        dataset, file_info, func, function_arguments, \
+            reading_arguments, output, return_file_info, verbose = args
         filename, time_coverage = file_info
 
-        if read_arguments is None:
-            data = self.read(filename)
+        if verbose:
+            print("Process %s" % filename)
+
+        if reading_arguments is None:
+            data = dataset.read(filename)
         else:
-            data = self.read(filename, **read_arguments)
+            data = dataset.read(filename, **reading_arguments)
 
-        return_value = None
-
-        if method_arguments is None:
-            return_value = method(data)
+        if function_arguments is None:
+            return_value = func(data)
         else:
-            return_value = method(data, **method_arguments)
+            return_value = func(data, **function_arguments)
 
-        # Overwrite with the (potentially) changed data the old data in the
-        # file:
-        if overwrite:
-            self.handler.write(filename, data)
-
-        if return_file_info:
-            return filename, time_coverage, return_value
+        if output is None:
+            if return_file_info:
+                return filename, time_coverage, return_value
+            else:
+                return return_value
         else:
-            return return_value
+            output[time_coverage[0]:time_coverage[1]] = return_value
+            return filename
 
     @staticmethod
     def _copy_file(
@@ -513,21 +521,29 @@ class Dataset:
         # If the new path contains place holders, fill them for each file.
         # Otherwise it is a path which does not describe each file
         # individually. So far, we cannot handle this.
-        # TODO: What happens if this dataset consists of one file only?
+        # TODO: Adjust this solution for single file datasets.
+        # TODO: Is it helpful for the performance to use multiple processes
+        # TODO: here?
         if "{" in destination:
             # Copy the files
-            self.map(start, end, Dataset._copy_file,
-                     {
-                         "path" : destination,
-                         "converter" : converter,
-                         "delete_originals" : delete_originals
-                     },
-                     verbose=verbose
+            self.map(
+                start, end, Dataset._copy_file,
+                 {
+                     "path" : destination,
+                     "converter" : converter,
+                     "delete_originals" : delete_originals
+                 },
+                 verbose=verbose
             )
         else:
-            raise ValueError(
-                "The new_path argument must describe each file individually by"
-                " using place holders!")
+            if self.single_file:
+                # TODO: Copy single file
+                raise NotImplementedError("Copying single files is not yet "
+                                          "implemented!")
+            else:
+                raise ValueError(
+                    "The new_path argument must describe each file "
+                    "individually by using place holders!")
 
         # Copy this dataset object but change the files parameter.
         new_dataset = Dataset(
@@ -615,8 +631,8 @@ class Dataset:
         """
 
         # Special case: the whole dataset consists of one file only.
-        if not self.files_placeholders:
-            if os.path.isfile(self.files_placeholders):
+        if self.single_file:
+            if os.path.isfile(self.files):
                 # We do not have to check the time coverage since there this is
                 # automatically the closest file to the timestamp.
                 return self.files
@@ -672,10 +688,11 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            sort: If this is set to true, all files will be yielded sorted by
-                their starting time.
-            verbose: If this is set to true, debug messages will be printed.
-            no_files_error: Raises an NoFilesError when no files are found.
+            sort: (optional) If true, all files will be yielded
+                sorted by their starting time. Default is true.
+            verbose (optional): If true, debug messages will be printed.
+            no_files_error (optional): If true, raises an NoFilesError when no
+                files are found.
 
         Yields:
             A tuple of one file name and its time coverage (a tuple of two
@@ -696,12 +713,12 @@ class Dataset:
                 print(file)
         """
 
-        # The user can give string instead of datetime objects:
+        # The user can give strings instead of datetime objects:
         start = self._to_datetime(start)
         end = self._to_datetime(end)
 
         # Special case: the whole dataset consists of one file only.
-        if not self.files_placeholders:
+        if self.single_file:
             if os.path.isfile(self.files):
                 time_coverage = self.retrieve_time_coverage(self.files)
                 if IntervalTree.overlaps(time_coverage, (start, end)):
@@ -723,10 +740,11 @@ class Dataset:
 
         # We need the last appearance of a day placeholder to create the
         # corresponding search paths.
+        # TODO: What about file path identifier which does not contain the
+        # TODO: day parameter? Or where it might be faster to search hourly
+        # TODO: or minutely paths?
         day_index = 0
         for index, part in enumerate(path_parts):
-            # TODO: What about file path identifier which does not contain the
-            # TODO: day parameter?
             if "{day}" in part or "{doy}" in part:
                 day_index = index
                 break
@@ -756,7 +774,7 @@ class Dataset:
             else:
                 yield from found_files
 
-            raise StopIteration
+            return
 
         # The users wants an error to be raised if no files were found. I do
         # not know whether there is a more pythonic way to check whether an
@@ -1099,26 +1117,29 @@ class Dataset:
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
 
-        results = pool.map(
-            Dataset._call_function_with_file_info,
-            [(self, x, func, func_arguments, include_file_info)
-             for x in self.find_files(start, end, verbose=verbose)]
+        args = (
+            (self, x, func, func_arguments, include_file_info, verbose)
+            for x in self.find_files(start, end, sort=False, verbose=verbose)
         )
+
+        results = list(pool.imap(
+            Dataset._call_function_with_file_info,
+            args, chunksize=10,
+        ))
 
         if results:
             if verbose:
                 print("It took %.2f seconds using %d parallel processes to "
                       "process %d files." % (
-                    time.time() - start_time, max_processes, len(results)))
+                        time.time() - start_time, max_processes, len(results)))
         elif verbose:
-            print("Warning: No files found!")
+            warnings.warn("map_content: No files found!", RuntimeWarning)
 
         return results
 
     def map_content(
             self, start, end,
-            func, func_arguments=None,
-            reading_arguments=None, overwrite=False,
+            func, func_arguments=None, reading_arguments=None, output=None,
             max_processes=None, include_file_info=False, verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
@@ -1142,25 +1163,26 @@ class Dataset:
             reading_arguments: Additional keyword arguments that will be passed
                 to the reading function (see Dataset.read() for more
                 information).
-            overwrite: Set this to true if you want to overwrite the old file
-                content with the new one (assuming the used method changed
-                something of the file content). The current file handler needs
-                to support writing data to file. Otherwise you should consider
-                to convert your dataset via Dataset.copy() first.
+            output: Set this to a Dataset object and the return value of
+                *func* will be copied there. In that case
+                *include_file_info* will be ignored.
+            include_file_info: Since the order of the returning results is
+                arbitrary, you can include the name of the processed file
+                and its time coverage in the results.
             max_processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
-            include_file_info: Since the order of the returning
-                results is arbitrary, you can include the name of the
-                processed file and its time coverage in the results.
-            verbose: If this is true, debug information will be printed.
+            verbose: If  true, debug information will be printed.
 
         Returns:
             A list with one item for each processed file. The order is
-            arbitrary. If *include_file_info_in_results* is true, the item is
-            a tuple with the name of the file, its time coverage (a tuple of
-            two datetime objects) and the return value of the applied
-            method. If *include_file_info_in_results* is false, it is simply
-            the return value of the applied function.
+            arbitrary.
+            If *output* is set to a Dataset object, only a list with all
+                processed files is returned.
+            If *include_file_info* is true, the item is a tuple with the
+                name of the file, its time coverage (a tuple of two datetime
+                objects) and the return value of the applied function.
+            If *include_file_info* is false, it is simply the return value
+                of the applied function.
 
         Examples:
 
@@ -1170,8 +1192,8 @@ class Dataset:
             print("Process all files from %s to %s.\nThis may take a while..."
                   % (start, end))
 
-        # Measure the time for profiling.
-        start_time = time.time()
+            # Measure the time for profiling.
+            start_time = time.time()
 
         if max_processes is None:
             max_processes = 4
@@ -1179,12 +1201,16 @@ class Dataset:
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
 
-        results = pool.map(
-            Dataset._call_method_of_file_content,
-            [(self, x, reading_arguments, func, func_arguments,
-              include_file_info, overwrite)
-             for x in self.find_files(start, end, verbose=verbose)]
+        args = (
+            (self, x, func, func_arguments, reading_arguments, output,
+             include_file_info, verbose)
+            for x in self.find_files(start, end, sort=False)
         )
+
+        results = list(pool.imap(
+            Dataset._call_function_with_file_content,
+            args, chunksize=10,
+        ))
 
         if results:
             if verbose:
@@ -1192,7 +1218,7 @@ class Dataset:
                       "process %d files." % (
                         time.time() - start_time, max_processes, len(results)))
         elif verbose:
-            print("Warning: No files found!")
+            warnings.warn("map_content: No files found!", RuntimeWarning)
 
         return results
 
@@ -1237,7 +1263,7 @@ class Dataset:
             data = self.handler.read(file, **reading_arguments)
             return data
 
-    def read_period(self, start, end, **reading_arguments):
+    def read_period(self, start, end, sort=True, **reading_arguments):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -1246,6 +1272,7 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
+            sort: Sort the files by their starting time.
             **reading_arguments: Additional key word arguments for the
                 *read* method of the used file handler class.
 
@@ -1253,7 +1280,8 @@ class Dataset:
             The content of the read file.
         """
         #
-        for filename, _ in self.find_files(start, end, sort=True):
+        for filename, _ in self.find_files(start, end, sort=sort):
+            print("Read", filename)
             yield self.read(filename, **reading_arguments)
 
     def retrieve_time_coverage(self, filename, retrieve_method=None):
@@ -1289,7 +1317,7 @@ class Dataset:
             retrieve_method = self.time_coverage
 
         if retrieve_method == "filename":
-            if not self.files_placeholders:
+            if self.single_file:
                 raise ValueError(
                     "The files parameter does not contain any placeholders! I "
                     "could not retrieve the time coverage from it."

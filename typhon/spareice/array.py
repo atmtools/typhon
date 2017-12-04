@@ -4,6 +4,7 @@ to bundle them in labeled groups and store them to netCDF4 files.
 
 import copy
 from datetime import datetime
+from itertools import chain
 import textwrap
 import warnings
 
@@ -84,10 +85,9 @@ class Array(np.ndarray):
             info = np.array_str(self)
 
         if self.attrs:
-            info += "\nAttributes:\n"
+            info += "\nAttributes:"
             for attr, value in self.attrs.items():
-                info += "\t{} : {}\n".format(attr, value)
-            info += "\t--\n"
+                info += "\n\t{} : {}".format(attr, value)
 
         return info
 
@@ -368,7 +368,7 @@ class ArrayGroup:
         if variables:
             coords = self.coords(deep=True)
             for var in variables:
-                info += "    {}{}:\n{}".format(
+                info += "    {}{}:\n{}\n".format(
                     var, " (coord)" if var in coords else "",
                     textwrap.indent(str(self[var]), ' ' * 6)
                 )
@@ -567,6 +567,14 @@ class ArrayGroup:
         # Limit the reading of the file to some fields:
         if fields is not None:
             for field in fields:
+                # There might be empty fields:
+                if not group[field]:
+                    array_group[field] = Array(
+                        [], attrs=group[field].__dict__,
+                        dims=group[field].dimensions,
+                    )
+                    continue
+
                 if isinstance(group[field], netCDF4._netCDF4.Group):
                     array_group[field] = \
                         cls._get_group_from_netcdf_group(field, None)
@@ -593,6 +601,14 @@ class ArrayGroup:
         # Otherwise, we want to read all variables and groups:
         # Add the variables:
         for var, data in group.variables.items():
+            # There might be empty fields:
+            if not data:
+                array_group[var] = Array(
+                    [], attrs=data.__dict__,
+                    dims=data.dimensions,
+                )
+                continue
+
             attrs = data.__dict__
             dims = data.dimensions
 
@@ -635,6 +651,27 @@ class ArrayGroup:
 
         return array_dict
 
+    def get_coords(self, field):
+        """Gets the coordinates for a field.
+
+        Args:
+            field: Name of the field.
+
+        Returns:
+
+        """
+        return_list = []
+
+        coords = self.coords()
+        for i, coord in enumerate(self[field].dims):
+            if coord in coords:
+                return_list.append(self[coord])
+            else:
+                return_list.append(np.arange(len(self[field].shape[i])))
+
+        return return_list
+
+
     def get_range(self, field, deep=False, axis=None):
         """Get the minimum and maximum of one field.
 
@@ -661,6 +698,10 @@ class ArrayGroup:
             # Prints: (0, 250)
         """
         variables = list(self.vars(deep, with_name=field))
+
+        if not variables:
+            raise KeyError("No variable named '%s' was found!")
+
         start = [np.nanmin(self[var], axis).item(0) for var in variables]
         end = [np.nanmax(self[var], axis).item(0) for var in variables]
         return min(start), max(end)
@@ -745,8 +786,8 @@ class ArrayGroup:
         return merged_data
 
     @staticmethod
-    def parse(key):
-        """Parses *key* into first group and rest.
+    def parse(path, root=True):
+        """Parses *path* into first group and rest.
 
         You can access the groups and fields via different keys:
 
@@ -757,40 +798,102 @@ class ArrayGroup:
         * "/": Returns ("", "")
 
         Args:
-            key:
+            path:
+            root: If true, it splits the path between the root group and the
+                rest. If false, it returns the full group name and the
+                variable name.
 
         Returns:
 
         """
-        if key.startswith("/"):
-            return key[1:], ""
+        if path.startswith("/"):
+            return path[1:], ""
 
-        if "/" not in key:
-            return key, ""
+        if "/" not in path:
+            return path, ""
 
-        var, rest = key.split("/", 1)
-        return var, rest
+        if root:
+            return path.split("/", 1)
+        else:
+            return path.rsplit("/", 1)
 
-    def plot(self, fields, ptype=None, fig=None):
+    def plot(self, fields=None, ptype=None, fig=None, layout=None,
+             **plotting_args):
         """
 
         Args:
-            fields:
-            ptype:
+            fields: List of variables that you want to plot.
+            ptype: Plot type. So far these are possible: *plot* (default),
+                *scatter* or *histogram*.
             fig:
-            **kwargs:
+            layout: (optiona) The positioning of the plots. Must be a tuple
+                of two integers (rows, columns).
+            **plotting_args: Additional plotting keyword arguments for
+                matplotlib routine.
 
         Returns:
 
         """
+        ptypes = {
+            # name : [func, number of variables]
+            "histogram": plt.hist,
+            "plot": plt.plot,
+            "scatter": plt.scatter,
+        }
 
-        axes = plt.subplots(len(fields), sharex='col')
+        if ptype not in ptypes:
+            raise ValueError("Unknown plot type '%s'" % ptype)
 
-        coords = self.coords()
+        if fields is None:
+            fields = list(self.vars())
+
+        if layout is None:
+            if len(fields) % 4 == 0 and len(fields) > 4:
+                rows = int(len(fields) / 4)
+                cols = 4
+            elif len(fields) % 2 == 0:
+                rows = int(len(fields) / 2)
+                cols = 2
+            elif len(fields) % 3 == 0:
+                rows = int(len(fields) / 3)
+                cols = 3
+            else:
+                rows = int(len(fields) / 3) + 1
+                cols = 3
+        else:
+            rows, cols = layout
+
+        if fig is None:
+            fig, axes = plt.subplots(rows, cols)
+        else:
+            axes = fig.subplots(rows, cols)
+
+        axes = list(chain.from_iterable(axes))
+
+        if ptype == "histogram":
+            if "bins" not in plotting_args:
+                plotting_args["bins"] = 50
+
         for i, field in enumerate(fields):
             data = self[field]
-            if data.dims[0] in coords:
-                axes[0].plot(self[data.dims[0]], data)
+            if len(data.dims) != 1:
+                warnings.warn("Cannot plot multi-dimensional data!")
+                continue
+
+            axes[i].set_title(field)
+
+            if ptype == "plot":
+                coord = self.get_coords(field)[0]
+                axes[i].plot(coord, data)
+            elif ptype == "scatter":
+                coord = self.get_coords(field)[0]
+                axes[i].scatter(coord, data)
+            elif ptype == "histogram":
+                axes[i].hist(data[~np.isnan(data)], **plotting_args)
+
+            axes[i].grid()
+
+        fig.tight_layout()
 
         return axes
 
