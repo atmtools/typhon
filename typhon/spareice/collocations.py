@@ -15,7 +15,7 @@ import time
 try:
     import cartopy.crs as ccrs
     import matplotlib.pyplot as plt
-except:
+except ImportError:
     pass
 
 import numpy as np
@@ -81,6 +81,16 @@ class CollocatedDataset(Dataset):
         # Which dataset should be taken when we collocate this dataset with
         # other datasets?
         self.primary_dataset = None
+
+        # The data of secondary files can overlap multiple primary files.
+        self._last_file1 = None
+        self._last_file2 = None
+        self._file1_data = None
+        self._file2_data = None
+
+        # Use this variable to store the point in time to which the were
+        # checked. This avoids checking duplicates.
+        self._last_timestamp = None
 
     def accumulate(self, start, end, concat_func=None, concat_args=None,
                    reading_args=None):
@@ -283,11 +293,10 @@ class CollocatedDataset(Dataset):
         # Overwrite the content of the old file:
         collocated_dataset.write(filename, collapsed_data)
 
-    @classmethod
-    def create_from(
-            cls, primary, secondary, start, end,
+    def collocate(
+            self, primary, secondary, start, end,
             fields, max_interval=None, max_distance=None, optimizer=None,
-            processes=4, *args, **kwargs):
+            processes=4):
         """Finds all collocations between two datasets and store them in files.
 
         This takes all files from the datasets between two dates and find
@@ -343,13 +352,9 @@ class CollocatedDataset(Dataset):
                 depends on your machine where you are working. I recommend to
                 start with 8 processes and to in/decrease this parameter
                 when lacking performance.
-            *args: Positional arguments that will passed to the
-                :class:`typhon.spareice.datasets.Dataset` base class.
-            **kwargs: Additional keyword arguments that will passed to the
-                datasets.Dataset base class.
 
         Returns:
-            A CollocatedDataset object.
+            None
 
         Examples:
 
@@ -401,26 +406,15 @@ class CollocatedDataset(Dataset):
             for file, time_coverage in found_files:
                 print("File:", file)
         """
-        dataset = cls(*args, **kwargs)
-        dataset.primary_dataset = primary.name
+        self.primary_dataset = primary.name
 
         # start and end can be string objects:
-        start = dataset._to_datetime(start)
-        end = dataset._to_datetime(end)
+        start = self._to_datetime(start)
+        end = self._to_datetime(end)
 
         if max_interval is not None \
                 and not isinstance(max_interval, timedelta):
             max_interval = timedelta(seconds=max_interval)
-
-        # The data of secondary files can overlap multiple primary files.
-        dataset._last_file1 = None
-        dataset._last_file2 = None
-        dataset._file1_data = None
-        dataset._file2_data = None
-
-        # Use this variable to store the point in time to which the were
-        # checked. This avoids checking duplicates.
-        dataset._last_timestamp = None
 
         total_primaries_points, total_secondaries_points = 0, 0
 
@@ -442,7 +436,7 @@ class CollocatedDataset(Dataset):
                 print("Secondary:", secondary_file)
 
                 # Find the collocations in those files and save the results:
-                primary_points, secondary_points = dataset._collocate_files(
+                primary_points, secondary_points = self._collocate_files(
                     primary, secondary, primary_file, secondary_file,
                     start, end, fields,
                     max_interval, max_distance, processes
@@ -458,8 +452,6 @@ class CollocatedDataset(Dataset):
                 secondary.name,
                 end - start)
         )
-
-        return dataset
 
     def _collocate_files(
             self, dataset1, dataset2, file1, file2, start_user, end_user,
