@@ -1,8 +1,11 @@
-include ChangeLog
 include DESCRIPTION.rst
+include LICENSE
 include typhon/VERSION
+recursive-include typhon *.act
+recursive-include typhon *.cpt
+recursive-include typhon *.mplstyle
+recursive-include typhon *.nc
+recursive-include typhon *.tex
+recursive-include typhon *.txt
 recursive-include typhon *.xml
 recursive-include typhon *.xml.bin
-recursive-include typhon *.mplstyle
-recursive-include typhon tests/*.py
-recursive-include typhon tests/reference/*
