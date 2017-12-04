@@ -19,15 +19,16 @@ except:
     pass
 
 import numpy as np
-import scipy.spatial
 import scipy.stats
+from sklearn.neighbors import BallTree
 import typhon.geodesy
+from typhon.spareice.array import ArrayGroup
+from typhon.spareice.datasets import Dataset
 from typhon.spareice.geographical import GeoData
 
-from .datasets import Dataset
-
 __all__ = [
-    "CollocatedDataset"
+    "CollocatedDataset",
+    "NotCollapsedError",
 ]
 
 
@@ -120,16 +121,10 @@ class CollocatedDataset(Dataset):
         return super(CollocatedDataset, self).accumulate(
             start, end, concat_func, concat_args, reading_args)
 
-    def collapse(self, start, end, collapse_to,
-                 include_stats=None, processes=None,
-                 verbose=False, **collapsing_args):
+    def collapse(self, start, end, output, reference,
+                 collapser=None, include_stats=None, **mapping_args):
         """Collapses all multiple collocation points (collocations that refer
         to the same point from another dataset) to a single data point.
-
-        Notes:
-            This method overwrites content of this dataset. If you want to keep
-            the original data, you should copy them first (e.g. via the
-            :meth:`copy` method).
 
         During searching for collocations, one might find multiple collocation
         points from one dataset for one single point of the other dataset. For
@@ -142,21 +137,20 @@ class CollocatedDataset(Dataset):
         Args:
             start: Starting date as datetime object.
             end: Ending date as datetime object.
-            collapse_to: Name of dataset which has the largest footprint. All
+            output: Dataset object where the collapsed data should be stored.
+            reference: Name of dataset which has the largest footprint. All
                 other datasets will be collapsed to its data points.
-            include_stats: Set this to a name of a variable and in the return
-                object will be statistical parameters included about the built
-                data bins of the variable before collapsing. The variable
-                should be one-dimensional.
-            processes: This method will be run in multiple processes to give a
-                performance boost. You can specify the number of used processes
-                here.
-            verbose: If true, debug messages will be printed.
-            **collapsing_args: Additional keyword arguments for the
-                GeoData.collapser method (including collapser function, etc.).
+            collapser: Function that should be applied on each bin (
+                numpy.nanmean is the default).
+            include_stats: Set this to a name of a variable (or list of
+                names) and statistical parameters will be stored about the
+                built data bins of the variable before collapsing. The variable
+                must be one-dimensional.
+            **mapping_args: Additional keyword arguments that are allowed
+                for :meth:`Dataset.map_content` method (except *output*).
 
         Returns:
-            A GeoData object with the collapsed data.
+            None
 
         Examples:
 
@@ -188,25 +182,30 @@ class CollocatedDataset(Dataset):
         #                          "of a field name, a threshold and (optional)"
         #                          "a variation function.")
 
+        if not isinstance(output, Dataset):
+            raise ValueError("The argument output must be a Dataset object!")
+        mapping_args["output"] = output
+
         func_args = {
-            "collapse_to": collapse_to,
+            "reference": reference,
             "include_stats": include_stats,
-            **collapsing_args
+            "collapser": collapser,
         }
 
-        self.map(
-            start, end, CollocatedDataset._collapse_file,
-            func_args, verbose=verbose, max_processes=processes
+        self.map_content(
+            start, end, CollocatedDataset.collapse_data,
+            func_args, **mapping_args,
         )
 
     @staticmethod
     def collapse_data(
-            collocated_data, collapse_to, include_stats, **collapsing_args):
+            collocated_data, reference, include_stats, collapser):
+        """TODO: Write documentation."""
 
         # Get the bin indices by the main dataset to which all other
         # shall be collapsed:
-        bins = list(
-            collocated_data[collapse_to]["__collocations"].group().values()
+        reference_bins = list(
+            collocated_data[reference]["__collocations"].group().values()
         )
 
         collapsed_data = GeoData()
@@ -220,6 +219,12 @@ class CollocatedDataset(Dataset):
                 "std": np.nanstd,
             }
 
+            # Create the bins for the varaible from which you want to have
+            # the statistics:
+            group, _ = ArrayGroup.parse(include_stats)
+            bins = collocated_data[group]["__collocations"].bin(
+                reference_bins
+            )
             collapsed_data["__statistics"] = \
                 collocated_data[include_stats].apply_on_bins(
                     bins, statistic_functions
@@ -242,21 +247,22 @@ class CollocatedDataset(Dataset):
             del collocated_data[dataset]["__original_indices"]
             del collocated_data[dataset]["__collocations"]
 
-            if (dataset == collapse_to
+            if (dataset == reference
                 or collocated_data[dataset].attrs.get("COLLAPSED_TO", None)
-                    == collapse_to):
+                    == reference):
                 # This is the main dataset to which all other will be
                 # collapsed. Therefore, we do not need explicitly
                 # collapse here.
                 collapsed_data[dataset] = \
                     collocated_data[dataset][np.unique(collocations)]
             else:
+                bins = collocations.bin(reference_bins)
                 collapsed_data[dataset] = \
                     collocated_data[dataset].collapse(
-                        bins, **collapsing_args
+                        bins, collapser=collapser,
                     )
 
-                collapsed_data[dataset].attrs["COLLAPSED_TO"] = collapse_to
+                collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
 
         # Set the collapsed flag:
         collapsed_data.attrs["COLLAPSED"] = 1
@@ -267,11 +273,11 @@ class CollocatedDataset(Dataset):
     @staticmethod
     def _collapse_file(
             collocated_dataset, filename, _,
-            collapse_to, include_stats, **collapsing_args):
+            reference, include_stats, **collapsing_args):
 
         collocated_data = collocated_dataset.read(filename)
         collapsed_data = CollocatedDataset.collapse_data(
-            collocated_data, collapse_to, include_stats, **collapsing_args
+            collocated_data, reference, include_stats, **collapsing_args
         )
 
         # Overwrite the content of the old file:
@@ -424,12 +430,11 @@ class CollocatedDataset(Dataset):
         # Go through all primary files and find the secondaries to them:
         for primary_file, secondary_files in primary.find_overlapping_files(
                 start, end, secondary, max_interval):
-
             print("Primary:", primary_file)
 
             # Skip this primary file if there are no secondaries found.
             if not secondary_files:
-                print("\tNo files of the secondary dataset were found!")
+                print("\tNo secondaries were found for this primary file!")
                 continue
 
             # Go through all potential collocated secondary files:
@@ -572,7 +577,7 @@ class CollocatedDataset(Dataset):
         # datasets have data and that lies in the time period requested by the
         # user.
         time_indices1, time_indices2 = \
-            self._select_common_time_period(start_user, end_user)
+            self._select_common_time_period(start_user, end_user, max_interval)
 
         if time_indices1 is None:
             # There was no common time window found
@@ -677,7 +682,7 @@ class CollocatedDataset(Dataset):
             primary_data["lon"]
         )
 
-        primary_points = np.asarray(list(zip(x, y, z)))
+        primary_points = np.vstack([x, y, z]).T
 
         # We need to convert the secondary data as well:
         x, y, z = typhon.geodesy.geocentric2cart(
@@ -685,7 +690,7 @@ class CollocatedDataset(Dataset):
             secondary_data["lat"],
             secondary_data["lon"]
         )
-        secondary_points = np.asarray(list(zip(x, y, z)))
+        secondary_points = np.vstack([x, y, z]).T
 
         print("\tAfter {:.2f}s: finished the conversion from longitude"
               "/latitudes to cartesian.".format(
@@ -713,9 +718,7 @@ class CollocatedDataset(Dataset):
 
         # Prepare the k-d tree for the primary dataset already here, to save
         # the building time (in case of using multiple processes).
-        primary_tree = scipy.spatial.cKDTree(primary_points, leafsize=5)
-        print("\tAfter {:.2f}s: finished building primary tree.".format(
-            time.time() - timer))
+
 
         # To avoid defining complicated distance metrics in the k-d tree, we
         # use the tree for checking for spatial collocations only. All found
@@ -730,7 +733,7 @@ class CollocatedDataset(Dataset):
         # results = pool.map(Dataset._call_map_function, data_pool)
 
         sequence_id, result = CollocatedDataset._find_spatial_collocations(
-            0, primary_tree, secondary_points, max_distance
+            0, primary_points, secondary_points, max_distance
         )
         print("\tAfter {:.2f}s: finished finding spatial collocations.".format(
             time.time() - timer))
@@ -873,7 +876,7 @@ class CollocatedDataset(Dataset):
 
     @staticmethod
     def _find_spatial_collocations(
-            sequence_id, primary_tree, secondary_points, max_distance):
+            sequence_id, primary_points, secondary_points, max_distance):
         """ This finds spatial collocations between the primary and secondary
         data points and it does not regard the temporal dimension.
 
@@ -898,8 +901,8 @@ class CollocatedDataset(Dataset):
         """
 
         timer = time.time()
-        secondary_tree = scipy.spatial.cKDTree(secondary_points, leafsize=100)
-        print("\tNeeded {:.2f}s: for building secondary tree.".format(
+        tree = BallTree(secondary_points, leaf_size=15)
+        print("\tNeeded {:.2f}s: for building the tree.".format(
             time.time() - timer))
 
         # Search for all collocations. This returns a list of lists. The index
@@ -907,8 +910,11 @@ class CollocatedDataset(Dataset):
         # is a list of the indices of the collocated secondary data.
         # The parameter max_distance is in kilometers, so we have to convert it
         # to meters.
-        collocation_indices = primary_tree.query_ball_tree(
-            secondary_tree, max_distance * 1000)
+        timer = time.time()
+        collocation_indices = tree.query_radius(
+            primary_points, r=max_distance*1000)
+        print("\tNeeded {:.2f}s for finding spatial collocations".format(
+            time.time() - timer))
 
         return sequence_id, collocation_indices
 
@@ -932,7 +938,7 @@ class CollocatedDataset(Dataset):
         """
         ...
 
-    def _select_common_time_period(self, start_user, end_user):
+    def _select_common_time_period(self, start_user, end_user, max_interval):
         """Selects only the time window where both datasets have data. Sets
         also the last timestamp marker.
 
@@ -941,10 +947,14 @@ class CollocatedDataset(Dataset):
             second dataset file, respectively.
         """
 
-        # TODO: Use also the max_interval here.
+        # TODO: Using max_interval we might have duplicates in the data.
+        # TODO: Filter them out.
 
         start1, end1 = \
             self._file1_data.get_range("time")
+
+        start1 -= max_interval
+        end1 += max_interval
 
         # Find no collocations outside from the time period given by the user.
         if start1 < start_user:
@@ -959,9 +969,9 @@ class CollocatedDataset(Dataset):
         else:
             # May be we checked a part of this time period already?
             # Hence, start there where we stopped last time.
-            indices2 = \
-                (self._file2_data["time"] >= self._last_timestamp) \
-                & (self._file2_data["time"] <= end1)
+            indices2 = (
+                (self._file2_data["time"] >= self._last_timestamp-max_interval)
+                & (self._file2_data["time"] <= end1))
 
         # Maybe there is no overlapping between those files?
         if not indices2.any():
