@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 
-__all__ = ['decompress']
+__all__ = ['compress', 'compress_as', 'decompress']
 
 _known_compressions = {
     '.gz': gzip.GzipFile,
@@ -20,6 +20,113 @@ except ImportError:  # no lzma
     pass
 else:
     _known_compressions['.xz'] = lzma.LZMAFile
+
+
+@contextmanager
+def compress(filename, fmt=None, tmpdir=None):
+    """Compress a file after writing to it.
+
+    Supported compression formats are: gzip, bzip2, zip, and lzma (Python
+    3.3 or newer only).
+
+    This function is tailored for use in a with statement. It uses a context
+    manager to automatically create a temporary file to which the data
+    can be written. After writing to the file, it decompresses and
+    renames it.
+
+    TODO: Preferably, it should be possible to write to the compressed file
+    directly instead of copying it.
+
+    Args:
+        filename: The path and name of the compressed that should be
+            created. The filename's extension decides to which format the
+            file will be compressed (look at *fmt* for a list).
+        fmt: (optional) If want to specify the compression format without
+            the filename's extension, use this argument.
+            * *zip*: Uses the standard zip library.
+            * *bz2*: Uses the bz2 library.
+            * *gz*: Uses the GNU zip library.
+            * *xz*: Uses the lzma format.
+        tmpdir (str): Path to directory for temporary storage of the
+            uncompressed file. The directory must exist. The default is the
+            temporary dir of the system.
+
+    Yields:
+        Generator containing the path to the temporary file.
+
+    Examples:
+        >>> with typhon.files.compress('datafile.txt.gz') as file:
+        >>>     f = netCDF4.Dataset(file, 'w')
+        >>>     #...
+    """
+    if fmt is None:
+        _, fmt = os.path.splitext(filename)
+
+    if not is_compression_format(fmt):
+        yield filename
+        return
+
+    if tmpdir is None:
+        tmpdir = tempfile.gettempdir()
+
+    with tempfile.NamedTemporaryFile(prefix=os.path.join(tmpdir, '')) as tfile:
+        yield tfile.name
+        compress_as(tfile.name, fmt, filename)
+
+
+def compress_as(filename, fmt, target=None, keep=True):
+    """Compress an existing file.
+
+    Supported compression formats are: gzip, bzip2, zip, and lzma (Python
+    3.3 or newer only).
+
+    Args:
+        filename: The path and name of the uncompressed file (without suffix!).
+        fmt: Decides to which format the file will be compressed.
+            * *zip*: Uses the standard zip library.
+            * *bz2*: Uses the bz2 library.
+            * *gz*: Uses the GNU zip library.
+            * *xz*: Uses the lzma format.
+        target: (optional) The default output filename is *filename.fmt*.
+            If you do not like it, you can set another filename here.
+        keep: (optional) If true, keep the original file after
+            compressing. Otherwise it will be deleted. Default is keeping.
+
+    Returns:
+        The filename of the newly created file.
+    """
+    if not is_compression_format(fmt):
+        raise ValueError("Unknown compression format '%s'!" % suffix)
+
+    suffix = "."+fmt
+
+    if target is None:
+        target = filename+fmt
+
+    # Read datafile in 100 MiB chunks for good performance/memory usage
+    chunksize = 100 * 1024 * 1024
+    compfile = _known_compressions[suffix]
+    try:
+        if suffix == ".zip":
+            with compfile(target, 'w') as f_out:
+                f_out.write(filename, compress_type=zipfile.ZIP_DEFLATED)
+        else:
+            with open(filename, 'rb') as f_in:
+                if fmt == "gz":
+                    # Coming from https://stackoverflow.com/a/38020236
+                    with open(target, 'wb') as f_out:
+                        with compfile(filename, 'wb', fileobj=f_out) as f_out:
+                            shutil.copyfileobj(f_in, f_out, length=chunksize)
+                elif fmt == "bz2" or fmt == "xz":
+                    with compfile(target, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out, length=chunksize)
+    except Exception as e:
+        raise e
+    else:
+        if not keep:
+            os.unlink(filename)
+
+    return target
 
 
 @contextmanager
@@ -38,9 +145,10 @@ def decompress(filename, tmpdir=None):
     Args:
         filename (str): Input file.
         tmpdir (str): Path to directory for temporary storage of the
-            uncompressed file. The directory must exist. The default is the temporary dir of the system.
+            uncompressed file. The directory must exist. The default is the
+            temporary dir of the system.
 
-    Returns:
+    Yields:
         Generator containing the path to the input filename.
 
     Example:
@@ -55,7 +163,7 @@ def decompress(filename, tmpdir=None):
     filebase, fileext = os.path.splitext(filename)
     filebase = os.path.basename(filebase)
 
-    if fileext in _known_compressions:
+    if is_compression_format(fileext):
         tmpfile = tempfile.NamedTemporaryFile(prefix=os.path.join(tmpdir, ''),
                                               delete=False)
         # Read datafile in 100 MiB chunks for good performance/memory usage
@@ -77,3 +185,10 @@ def decompress(filename, tmpdir=None):
 
     else:
         yield filename
+
+
+def is_compression_format(fmt):
+    if not fmt.startswith("."):
+        fmt = "."+fmt
+
+    return fmt in _known_compressions
