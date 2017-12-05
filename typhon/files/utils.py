@@ -31,11 +31,12 @@ def compress(filename, fmt=None, tmpdir=None):
 
     This function is tailored for use in a with statement. It uses a context
     manager to automatically create a temporary file to which the data
-    can be written. After writing to the file, it decompresses and
-    renames it.
+    can be written. After writing to the file, it compresses and renames it.
 
     TODO: Preferably, it should be possible to write to the compressed file
     directly instead of copying it.
+    TODO: Contains a bug. The original file won't be preserved, it changes
+    to the name of the temporary file.
 
     Args:
         filename: The path and name of the compressed that should be
@@ -81,7 +82,7 @@ def compress_as(filename, fmt, target=None, keep=True):
     3.3 or newer only).
 
     Args:
-        filename: The path and name of the uncompressed file (without suffix!).
+        filename: The path and name of the uncompressed file.
         fmt: Decides to which format the file will be compressed.
             * *zip*: Uses the standard zip library.
             * *bz2*: Uses the bz2 library.
