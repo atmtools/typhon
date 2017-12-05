@@ -3,7 +3,7 @@
 # typhon - Tools for atmospheric research
 
 ## Requirements
-Typhon requires Python version 3.5 or higher. The recommended way to get Python
+Typhon requires Python version 3.6 or higher. The recommended way to get Python
 is through [Anaconda]. But of course, any other Python distribution is also
 working.
 
