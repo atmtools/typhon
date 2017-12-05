@@ -930,6 +930,13 @@ class CollocatedDataset(Dataset):
         """
         ...
 
+    def get_original_files(self, start, end):
+        for data in self.read_period(start, end):
+            files = []
+            for dataset in data.groups():
+                files.append(data[dataset].attrs["original_file"])
+            yield files
+
     def _select_common_time_period(self, start_user, end_user, max_interval):
         """Selects only the time window where both datasets have data. Sets
         also the last timestamp marker.
