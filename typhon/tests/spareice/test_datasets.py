@@ -125,7 +125,7 @@ class TestDataset:
             "{year}/{month}/{day}/{hour}{minute}{second}*.nc"
         )
         dataset_files = join(self.refdir, refpattern)
-        ds = Dataset(dataset_files)
+        ds = Dataset(dataset_files, continuous=False)
 
         found_files = list(
             ds.find_files("2017-01-01", "2017-01-02 23:00:00")

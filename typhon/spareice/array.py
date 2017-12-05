@@ -12,17 +12,17 @@ import numpy as np
 
 try:
     import matplotlib.pyplot as plt
-except:
+except ImportError:
     pass
 
 try:
     import netCDF4
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 try:
     import xarray as xr
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 __all__ = [

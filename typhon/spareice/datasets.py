@@ -17,6 +17,7 @@ import numbers
 import os.path
 import re
 import shutil
+import tempfile
 import time
 import warnings
 
@@ -38,8 +39,12 @@ class NoFilesError(Exception):
     method.
 
     """
-    def __init__(self, *args):
-        Exception.__init__(self, *args)
+    def __init__(self, name, start, end, *args):
+        message = \
+            "Found no files for %s between %s and %s!\nAre you "\
+            "sure you gave the correct files parameter? Or is "\
+            "there maybe no data for this time period?" % (name, start, end)
+        Exception.__init__(self, message, *args)
 
 
 class NoHandlerError(Exception):
@@ -88,7 +93,7 @@ class Dataset:
 
     def __init__(
             self, files, handler=None, name=None, time_coverage=None,
-            times_cache=None
+            times_cache=None, continuous=True
     ):
         """Initializes a dataset object.
 
@@ -125,11 +130,16 @@ class Dataset:
                 Specify a name to a file here (which need not exist) if you
                 wish to save those time coverages to a file. When restarting
                 your script, this cache is used.
+            continuous: If true, all files of this dataset are considered to be
+                continuous, i.e. they cover a time period and not only a single
+                timestamp. If their start and end time are equal,
+                the minimal time resolution will be added to the end time.
 
         Examples:
 
         .. code-block:: python
 
+            ### Multi file dataset ###
             # Define a dataset consisting of multiple files:
             dataset = Dataset(
                 files="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
@@ -145,6 +155,7 @@ class Dataset:
                 # Should print some files such as "/dir/2017/01/01/120000.nc":
                 print(file)
 
+            ### Single file dataset ###
             # Define a dataset consisting of a single file:
             dataset = Dataset(
                 # Simply use the files parameter without placeholders:
@@ -157,6 +168,36 @@ class Dataset:
                 # define the time coverage here directly:
                 time_coverage=("2007-01-01 13:00:00", "2007-01-14 13:00:00")
             )
+
+            ### Play with the continuous flag ###
+            # Define a dataset with daily files:
+            dataset = Dataset("/dir/{year}/{month}/{day}.nc")
+
+            times = dataset.retrieve_time_coverage(
+                "/dir/2017/11/12.nc"
+            )
+            print("Start:", times[0])
+            print("End:", times[1])
+
+            # This prints actually:
+            # Start: 2017-11-12
+            # End: 2017-11-13
+            # So the file covers a time period of one day although the end
+            # time is not represented as placeholders in the files path.
+            # The dataset interprets the file as continuous and
+            # automatically sets its time coverage to the minimum resolution (
+            # here one day). If you do not like this behaviour,
+            # set Dataset.continuous to False.
+            dataset.continuous = False
+
+            times = dataset.retrieve_time_coverage(
+                "/dir/2017/11/12.nc"
+            )
+            print("Start:", times[0])
+            print("End:", times[1])
+            # Start: 2017-11-12
+            # End: 2017-11-12
+
         """
 
         # Initialize member variables:
@@ -164,13 +205,15 @@ class Dataset:
         self.name = name
         self.handler = handler
 
+        # The files parameters (will be set in the files setter method):
+        self._files = None
+        self.files_placeholders = None
+        self.single_file = None
         self.files = files
-        self.files_placeholders = re.findall("\{(\w+)\}", self.files)
 
-        # Flag whether this is a single file dataset or not:
-        self.single_file = \
-            not self.files_placeholders \
-            and "*" not in self.files
+        # Do the files cover everything (they are continuous) or are rather
+        # single timestamps?
+        self.continuous = continuous
 
         if time_coverage is None:
             if self.single_file:
@@ -611,6 +654,28 @@ class Dataset:
 
         return date_args
 
+    @property
+    def files(self):
+        """Gets or sets the path to the dataset's files.
+
+        Returns:
+            A string with the path (can contain placeholders or wildcards.)
+        """
+        return self._files
+
+    @files.setter
+    def files(self, value):
+        if value is None:
+            raise ValueError("The files parameter cannot be None!")
+        self._files = value
+
+        self.files_placeholders = re.findall("\{(\w+)\}", self.files)
+
+        # Flag whether this is a single file dataset or not:
+        self.single_file = \
+            not self.files_placeholders \
+            and "*" not in self.files
+
     def find_file(self, timestamp):
         """Finds either the file that covers a timestamp or is the closest to
         it.
@@ -724,12 +789,7 @@ class Dataset:
                 if IntervalTree.overlaps(time_coverage, (start, end)):
                     yield self.files, time_coverage
                 elif no_files_error:
-                    raise NoFilesError(
-                        "Found no files for %s between %s and %s!\nAre you "
-                        "sure you gave the correct files parameter? Or is "
-                        "there maybe no data for this time period?" % (
-                            self.name, start, end)
-                    )
+                    raise NoFilesError(self.name, start, end)
                 return
             else:
                 raise ValueError(
@@ -790,11 +850,7 @@ class Dataset:
             else:
                 yield from untouched_files
         except StopIteration:
-            raise NoFilesError(
-                "Found no files for %s between %s and %s!\nAre you sure you "
-                "gave the correct files parameter? Or is there maybe no data"
-                " for this time period?" % (self.name, start, end)
-            )
+            raise NoFilesError(self.name, start, end)
 
     def _get_all_files(self, path, regex):
         """Yields all files in a directory recursively (checks also for sub
@@ -844,6 +900,19 @@ class Dataset:
             print("Daily path:", daily_path)
 
         return daily_path
+
+    @staticmethod
+    def _get_time_resolution(date_args):
+        if "millisecond" in date_args:
+            return timedelta(milliseconds=1)
+        elif "second" in date_args:
+            return timedelta(seconds=1)
+        elif "minute" in date_args:
+            return timedelta(minutes=1)
+        elif "hour" in date_args:
+            return timedelta(hours=1)
+        elif "day" in date_args:
+            return timedelta(days=1)
 
     def _check_file(self, filename, start, end, verbose):
         """Checks whether a file matches the file searching conditions.
@@ -1067,9 +1136,10 @@ class Dataset:
                 )
 
     def map(
-            self, start, end,
-            func, func_arguments=None,
-            max_processes=None, include_file_info=False, verbose=False):
+        self, start, end,
+        func, func_arguments=None, max_processes=None,
+        include_file_info=False, verbose=False, no_files_error=True,
+    ):
         """Applies a function on all files of this dataset between two dates.
 
         This method can use multiple processes to boost the procedure
@@ -1091,6 +1161,8 @@ class Dataset:
                 arbitrary, you can include the name of the processed file
                 and its time coverage in the results.
             verbose: If this is true, debug information will be printed.
+            no_files_error (optional): If true, raises an NoFilesError when no
+                files are found.
 
         Returns:
             A list with one item for each processed file. The order is
@@ -1132,15 +1204,16 @@ class Dataset:
                 print("It took %.2f seconds using %d parallel processes to "
                       "process %d files." % (
                         time.time() - start_time, max_processes, len(results)))
-        elif verbose:
-            warnings.warn("map_content: No files found!", RuntimeWarning)
+        elif no_files_error:
+            raise NoFilesError(self.name, start, end)
 
         return results
 
     def map_content(
             self, start, end,
             func, func_arguments=None, reading_arguments=None, output=None,
-            max_processes=None, include_file_info=False, verbose=False):
+            max_processes=None, include_file_info=False,
+            no_files_error=True, verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
 
@@ -1172,6 +1245,8 @@ class Dataset:
             max_processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
             verbose: If  true, debug information will be printed.
+            no_files_error (optional): If true, raises an NoFilesError when no
+                files are found.
 
         Returns:
             A list with one item for each processed file. The order is
@@ -1217,8 +1292,8 @@ class Dataset:
                 print("It took %.2f seconds using %d parallel processes to "
                       "process %d files." % (
                         time.time() - start_time, max_processes, len(results)))
-        elif verbose:
-            warnings.warn("map_content: No files found!", RuntimeWarning)
+        elif no_files_error:
+            raise NoFilesError(self.name, start, end)
 
         return results
 
@@ -1256,7 +1331,7 @@ class Dataset:
         """
         if self.handler is None:
             raise NoHandlerError(
-                "Could not get info from the file '{}'! No file handler is "
+                "Could not get read the file '{}'! No file handler is "
                 "specified!".format(filename))
 
         with typhon.files.decompress(filename) as file:
@@ -1281,7 +1356,6 @@ class Dataset:
         """
         #
         for filename, _ in self.find_files(start, end, sort=sort):
-            print("Read", filename)
             yield self.read(filename, **reading_arguments)
 
     def retrieve_time_coverage(self, filename, retrieve_method=None):
@@ -1339,12 +1413,18 @@ class Dataset:
 
             # Default: if no end date is given then the starting date is also
             # the end date.
+
             end_date_args = self._create_date_from_placeholders(
                 self.files_placeholders, values, prefix="end_",
                 default=start_date_args)
 
             start_date = datetime(**start_date_args)
             end_date = datetime(**end_date_args)
+
+            # Automatically extend the coverage for the minimal resolution
+            # of the retrieved datetime objects if there is no end date.
+            if self.continuous and start_date == end_date:
+                end_date += self._get_time_resolution(start_date_args)
 
             # Sometimes the filename does not explicitly provide the complete
             # end date. Imagine there is only hour and minute given, then day
@@ -1407,6 +1487,10 @@ class Dataset:
     def write(self, filename, data, **writing_arguments):
         """Writes content to a file by using the Dataset's file handler.
 
+        If the filename extension is a compression format (such as *zip*,
+        etc. look at :func:`typhon.files.is_compression_format` for a list),
+        the file will be compressed.
+
         Notes:
             You need to specify a file handler for this dataset before you
             can use this method.
@@ -1422,10 +1506,15 @@ class Dataset:
         """
         if self.handler is None:
             raise NoHandlerError(
-                "Could not get info from the file '{}'! No file handler is "
+                "Could not write data to the file '{}'! No file handler is "
                 "specified!".format(filename))
 
+        # The user should not be bothered with creating directories.
         os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        # _, extension = os.path.splitext(filename)
+        # with typhon.files.compress(filename, extension) as file:
+
         return self.handler.write(filename, data, **writing_arguments)
 
 
