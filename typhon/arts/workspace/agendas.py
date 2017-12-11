@@ -7,6 +7,7 @@ controlfiles and can be executed on a given `Workspace` object.
 
 import ctypes as c
 import numpy  as np
+import os
 
 from typhon.arts.workspace.api import find_controlfile, arts_api
 from typhon.arts.workspace.output import CoutCapture

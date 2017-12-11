@@ -228,7 +228,7 @@ class WorkspaceVariable:
                                             "version" : 3}
                 return np.asarray(self)
             else:
-                raise Exception("Variable of type " + self.group + " is empty.")
+                return np.zeros(shape)
         else:
             try:
                 return self.to_typhon()

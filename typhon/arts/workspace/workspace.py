@@ -19,8 +19,11 @@ from   inspect  import getsource, getsourcelines
 from contextlib import contextmanager
 from copy       import copy
 from functools  import wraps
+import os
 
-from typhon.arts.workspace.api       import arts_api, VariableValueStruct
+from typhon.arts.workspace.api       import arts_api, VariableValueStruct, \
+                                            data_path_push, data_path_pop, \
+                                            include_path_push, include_path_pop
 from typhon.arts.workspace.methods   import WorkspaceMethod, workspace_methods
 from typhon.arts.workspace.variables import WorkspaceVariable, group_names, group_ids, \
                                             workspace_variables
@@ -315,9 +318,12 @@ class Workspace:
 
         """
         if not name in imports:
-            try:
-                imports[name] = Agenda.parse(name)
-            except:
-                raise Exception("Error parsing controlfile " + name )
+            imports[name] = Agenda.parse(name)
+
+        include_path_push(os.getcwd())
+        data_path_push(os.getcwd())
 
         imports[name].execute(self)
+
+        include_path_pop()
+        data_path_pop()

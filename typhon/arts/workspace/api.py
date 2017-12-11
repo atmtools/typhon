@@ -95,33 +95,47 @@ def find_controlfile(name):
     Returns:
         path(str): The full path of the file.
     """
-    path = None
-    for p in arts_include_path:
+    paths = arts_include_path + [os.getcwd()]
+    path  = None
+
+    for p in paths:
         if os.path.isfile(os.path.join(p, name)):
             path = os.path.join(p, name)
     if (path):
         return path
     else:
         raise Exception("File " + name + " not found. Search path was:\n "
-                        + str(arts_include_path))
+                        + str(paths))
 
-def include_path_add(path):
-    """Add path to include path of the ARTS runtime.
+def include_path_push(path):
+    """
+    Add path to include path of the ARTS runtime.
 
     Args:
         path(str): Path to add to the ARTS include path.
     """
-    arts_api.set_parameters(c.c_char_p(path.encode()),
-                            c.c_char_p(None))
+    arts_api.include_path_push(c.c_char_p(path.encode()))
 
-def data_path_add(path):
-    """ Add path to data path of the ARTS runtime.
+def include_path_pop():
+    """
+    Remove most recently added include path.
+    """
+    arts_api.include_path_pop()
+
+def data_path_push(path):
+    """
+    Add path to data path of the ARTS runtime.
 
     Args:
         path(str): Path to add to the ARTS data path.
     """
-    arts_api.set_parameters(c.c_char_p(None),
-                            c.c_char_p(path.encode()))
+    arts_api.data_path_push(c.c_char_p(path.encode()))
+
+def data_path_pop():
+    """
+    Remove most recently added data path.
+    """
+    arts_api.data_path_pop()
 
 
 ################################################################################
@@ -271,9 +285,19 @@ arts_api.create_workspace.restype  = c.c_void_p
 arts_api.destroy_workspace.argtypes = [c.c_void_p]
 arts_api.destroy_workspace.restype   = None
 
-# Set include ad data path of the arts runtime.
-arts_api.set_parameters.restype  = None
-arts_api.set_parameters.argtypes = [c.c_char_p, c.c_char_p]
+# Include path manipulation.
+arts_api.include_path_push.restype = None
+arts_api.include_path_push.argtypes = [c.c_char_p]
+
+# Data path manipulation.
+arts_api.include_path_pop.restype = None
+arts_api.include_path_pop.argtypes = None
+
+arts_api.data_path_push.restype = None
+arts_api.data_path_push.argtypes = [c.c_char_p]
+
+arts_api.data_path_pop.restype = None
+arts_api.data_path_pop.argtypes = None
 
 # Set include ad data path of the arts runtime.
 arts_api.get_error.restype  = c.c_char_p
@@ -395,11 +419,9 @@ try:
 except:
     arts_data_path = []
 
-arts_include_path.append(os.getcwd())
-
 # Set runtime parameters
 for p in arts_include_path:
-    include_path_add(p)
+    include_path_push(p)
 
 for p in arts_data_path:
-    data_path_add(p)
+    data_path_push(p)
