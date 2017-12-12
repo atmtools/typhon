@@ -23,7 +23,8 @@ try:
         stdout=subprocess.PIPE,
         check=True)
     so = cp.stdout
-    __version__ = so.strip().decode("ascii").lstrip("v")
+    __version__ = so.strip().decode("ascii").lstrip("v").replace(
+        "-", "+dev", 1).replace("-", ".")
 except subprocess.CalledProcessError:
     print("Warning: could not determine version from git, extracting "
         " latest release version from source", file=sys.stderr)
