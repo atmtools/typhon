@@ -528,4 +528,3 @@ class HIRSBestLineFilter(OverlapFilter):
             # will thus be the index of our scanline of choice
             ii[multcnt_i] += self.select_winner(rep)
         return arrsrt[ii]
-

@@ -922,7 +922,7 @@ class HIRSPOD(HIRS):
         25.6 ,  27.69,  29.79,  31.9 ,  34.02,  36.16,  38.32,  40.49,
         42.69,  44.92,  47.18,  49.47,  51.81,  54.2 ,  56.65,  59.18]))
 
-    flag_fields = {"hrs_qualind"}
+    flag_fields = {"hrs_qualind", "hrs_mnfrqual"}
     # docstring in parent
     def seekhead(self, f):
         f.seek(0, io.SEEK_SET)
@@ -1364,6 +1364,8 @@ class HIRSKLM(ATOVS, HIRS):
             (numpy.sign(delta_t[(qidonotuse!=0)[:-1]].astype(numpy.int64)) != 1)]] = True
 
         for fld in ("counts", "bt"):
+            if fld not in lines.dtype.names:
+                continue
             # Where a channel is bad, mask the entire scanline
             # NB: BT has only 19 channels
             #lines[fld].mask |= badchan[:, numpy.newaxis, :lines[fld].shape[2]]
@@ -1389,6 +1391,8 @@ class HIRSKLM(ATOVS, HIRS):
 
         # Some lines are marked as space view or black body view
         for v in ("bt", "radiance"):
+            if v not in lines.dtype.names:
+                continue
             lines[v].mask |= (lines["hrs_scntyp"] != self.typ_Earth)[:, numpy.newaxis, numpy.newaxis]
 
             # Where radiances are negative, mask individual values as masked
@@ -1658,6 +1662,8 @@ class HIRS4(HIRSKLM):
         badchan = (cq & 0x07) != 0
         
         for v in ("counts", "bt", "radiance"):
+            if v not in lines.dtype.names:
+                continue
             lines[v].mask |= badchan[:, numpy.newaxis, :lines[v].shape[2]]
 
         return lines
