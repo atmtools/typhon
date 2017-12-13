@@ -4,6 +4,9 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
+import sys
+import subprocess
+
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
 # To use a consistent encoding
@@ -14,9 +17,21 @@ import builtins
 
 builtins.__TYPHON_SETUP__ = True
 
-# Partse version number from module-level ASCII file. This prevents
-# double-entry bookkeeping).
-__version__ = open(join(dirname(__file__), 'typhon', 'VERSION')).read().strip()
+try:
+    cp = subprocess.run(
+        ["git", "describe", "--tags"],
+        stdout=subprocess.PIPE,
+        check=True)
+    so = cp.stdout
+    __version__ = so.strip().decode("ascii").lstrip("v").replace(
+        "-", "+dev", 1).replace("-", ".")
+except subprocess.CalledProcessError:
+    print("Warning: could not determine version from git, extracting "
+        " latest release version from source", file=sys.stderr)
+
+    # Partse version number from module-level ASCII file. This prevents
+    # double-entry bookkeeping).
+    __version__ = open(join(dirname(__file__), 'typhon', 'VERSION')).read().strip()
 
 here = abspath(dirname(__file__))
 
