@@ -20,7 +20,6 @@ if not __TYPHON_SETUP__:
     from . import oem
     from . import physics
     from . import plots
-    from . import spareice
     from . import spectroscopy
     from . import trees
     from . import utils
