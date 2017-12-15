@@ -92,44 +92,44 @@ class CollocatedDataset(Dataset):
         # checked. This avoids checking duplicates.
         self._last_timestamp = None
 
-    def accumulate(self, start, end, concat_func=None, concat_args=None,
-                   reading_args=None):
-        """Accumulate all data between two dates in one GeoData object.
-
-        Args:
-            start: Start date either as datetime.datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            concat_func: Function that concatenates the read data to
-                another. The first expected argument must be a list of
-                objects to concatenate. Default is GeoData.concatenate.
-            concat_args: A dictionary with additional arguments for
-                *concat_func*.
-            reading_args: A dictionary with additional arguments for reading
-                the data (specified by the used file handler).
-
-        Returns:
-            Concatenated object.
-
-        Examples:
-            .. :code-block:: python
-
-            dataset = CollocatedDataset(
-                files="path/to/files.nc", handler=handlers.common.NetCDF4()
-            )
-            data = dataset.accumulate("2016-1-1", "2016-1-2",
-                read_args={"fields" : ("temperature", )})
-
-            # do something with data["temperature"]
-            ...
-        """
-
-        if concat_func is None:
-            concat_func = GeoData.concatenate
-
-        return super(CollocatedDataset, self).accumulate(
-            start, end, concat_func, concat_args, reading_args)
+    # def accumulate(self, start, end, concat_func=None, concat_args=None,
+    #                reading_args=None):
+    #     """Accumulate all data between two dates in one GeoData object.
+    #
+    #     Args:
+    #         start: Start date either as datetime.datetime object or as string
+    #             ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+    #             Hours, minutes and seconds are optional.
+    #         end: End date. Same format as "start".
+    #         concat_func: Function that concatenates the read data to
+    #             another. The first expected argument must be a list of
+    #             objects to concatenate. Default is GeoData.concatenate.
+    #         concat_args: A dictionary with additional arguments for
+    #             *concat_func*.
+    #         reading_args: A dictionary with additional arguments for reading
+    #             the data (specified by the used file handler).
+    #
+    #     Returns:
+    #         Concatenated object.
+    #
+    #     Examples:
+    #         .. :code-block:: python
+    #
+    #         dataset = CollocatedDataset(
+    #             files="path/to/files.nc", handler=handlers.common.NetCDF4()
+    #         )
+    #         data = dataset.accumulate("2016-1-1", "2016-1-2",
+    #             read_args={"fields" : ("temperature", )})
+    #
+    #         # do something with data["temperature"]
+    #         ...
+    #     """
+    #
+    #     if concat_func is None:
+    #         concat_func = GeoData.concatenate
+    #
+    #     return super(CollocatedDataset, self).accumulate(
+    #         start, end, concat_func, concat_args, reading_args)
 
     def collapse(self, start, end, output, reference,
                  collapser=None, include_stats=None, **mapping_args):
