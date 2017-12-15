@@ -9,6 +9,8 @@ import math
 import warnings
 
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.projections import register_projection
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import LogFormatter, FuncFormatter
@@ -677,6 +679,13 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
     return patches
 
 
+class Worldmap(Axes):
+    name = 'worlmap'
+
+    def __init__(self, *args, **kwargs):
+        super(Worldmap, self).__init__(*args, **kwargs)
+
+
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
              background_image=True, **kwargs):
     """Plots the track of a variable on a worldmap.
@@ -684,14 +693,14 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     Args:
         lat: Array of latitudes.
         lon: Array of longitudes.
-        var: (optional) Additional array for the variable to plot. If given,
+        var: Additional array for the variable to plot. If given,
             the track changes the color according to a color map.
-        fig (optional): A matplotlib figure object. If not given, the current figure
-            is used.
-        ax: (optional) A matplotlib axis object. If not given, a new axis
+        fig: A matplotlib figure object. If not given, the current
+            figure is used.
+        ax: A matplotlib axis object. If not given, a new axis
             object will be created in the current figure.
-        projection:
-        background_image:
+        projection: If no axis is given, specify here the cartopy projection.
+        background_image: If true, a background image will be drawn.
         **kwargs:
 
     Returns:
@@ -722,12 +731,12 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         ax.stock_img()
 
     if var is None:
-        scatter_plot = plt.scatter(
+        scatter_plot = ax.scatter(
             lon, lat, transform=projection, **kwargs_defaults)
     else:
-        scatter_plot = plt.scatter(
+        scatter_plot = ax.scatter(
             lon, lat, c=var, transform=projection, **kwargs_defaults)
-        plt.colorbar(scatter_plot)
+        ax.colorbar(scatter_plot)
 
     return ax, scatter_plot
 
