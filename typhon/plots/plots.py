@@ -10,7 +10,6 @@ import warnings
 
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.projections import register_projection
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import LogFormatter, FuncFormatter
@@ -677,13 +676,6 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
         patches.append(plot_band(center, width, ymin, ymax))
 
     return patches
-
-
-class Worldmap(Axes):
-    name = 'worlmap'
-
-    def __init__(self, *args, **kwargs):
-        super(Worldmap, self).__init__(*args, **kwargs)
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
