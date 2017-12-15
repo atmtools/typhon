@@ -9,6 +9,7 @@ import textwrap
 import warnings
 
 import numpy as np
+import pandas as pd
 
 try:
     import matplotlib.pyplot as plt
@@ -29,6 +30,98 @@ __all__ = [
     'Array',
     'ArrayGroup',
 ]
+
+unit_mapper = {
+    "nanoseconds": "ns",
+    "microseconds": "us",
+    "milliseconds": "ms",
+    "seconds": "s",
+    "hours": "h",
+    "minutes": "m",
+    "days": "d",
+}
+
+
+class InvalidUnitString(Exception):
+    def __init__(self, *args, **kwargs):
+        super(InvalidUnitString, self).__init__(*args, **kwargs)
+
+
+def num2date(times, units, calendar=None):
+    """Convert an array of integers into datetime objects.
+
+    This function optimizes the num2date function of python-netCDF4 if the
+    standard calendar is used.
+
+    Args:
+        times: An array of integers representing timestamps.
+        units: A string with the format "{unit} since {epoch}",
+            e.g. "seconds since 1970-01-01T00:00:00".
+        calendar: (optional) Standard is gregorian. If others are used,
+            netCDF4.num2date will be called.
+
+    Returns:
+        Either an array of numpy.datetime64 objects (if standard gregorian
+        calendar is used), otherwise an array of python datetime objects.
+    """
+    try:
+        unit, epoch = units.split(" since ")
+    except ValueError:
+        raise InvalidUnitString("Could not convert to datetimes!")
+
+    if calendar is None:
+        calendar = "gregorian"
+    else:
+        calendar = calendar.lower()
+
+    if calendar != "gregorian":
+        return netCDF4.num2date(times, units, calendar).astype(
+            "M8[%s]" % unit_mapper[unit])
+
+    # Numpy uses the epoch 1970-01-01 natively.
+    converted_data = times.astype("M8[%s]" % unit_mapper[unit])
+    # Maybe there is another epoch used?
+    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+    return converted_data
+
+
+def date2num(dates, units, calendar=None):
+    """Convert an array of integer into datetime objects.
+
+    This function optimizes the date2num function of python-netCDF4 if the
+    standard calendar is used.
+
+    Args:
+        dates: Either an array of numpy.datetime64 objects (if standard
+            gregorian calendar is used), otherwise an array of python
+            datetime objects.
+        units: A string with the format "{unit} since {epoch}",
+            e.g. "seconds since 1970-01-01T00:00:00".
+        calendar: (optional) Standard is gregorian. If others are used,
+            netCDF4.num2date will be called.
+
+    Returns:
+        An array of integers.
+    """
+    if calendar is None:
+        calendar = "gregorian"
+    else:
+        calendar = calendar.lower()
+
+    if calendar != "gregorian":
+        return netCDF4.date2num(dates, units, calendar)
+
+    try:
+        unit, epoch = units.split(" since ")
+    except ValueError:
+        raise InvalidUnitString("Could not convert to numeric values!")
+
+    converted_data = \
+        dates.astype("M8[%s]" % unit_mapper[unit]).astype("int")
+    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+    return converted_data
 
 
 class Array(np.ndarray):
@@ -64,6 +157,39 @@ class Array(np.ndarray):
         #     [None for _ in range(len(self.shape))]
         # )
 
+    # To make comparisons of datetime64 arrays with string or python
+    # datetime objects possible, we complement the functionality of
+    # comparison operators.
+    def __lt__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__lt__, other,
+        )
+
+    def __le__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__le__, other,
+        )
+
+    def __eq__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__eq__, other,
+        )
+
+    def __ge__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__ge__, other,
+        )
+
+    def __gt__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__gt__, other,
+        )
+
+    def __ne__(self, other):
+        return self._complement_comparisons_of_datetime64(
+            super(Array, self).__ne__, other,
+        )
+
     def __len__(self):
         return self.shape[0]
 
@@ -90,6 +216,26 @@ class Array(np.ndarray):
                 info += "\n\t{} : {}".format(attr, value)
 
         return info
+
+    def _complement_comparisons_of_datetime64(self, method, other):
+        """Complement the comparison of a datetime64 array with a time
+        string or python datetime object.
+
+        Args:
+            method: __gt__ or __lt__, etc.
+            other: Other object with that you want to compare.
+
+        Returns:
+
+        """
+
+        if str(self.dtype).startswith("datetime64"):
+            if isinstance(other, (str, datetime)):
+                return method(np.datetime64(other))
+
+        # Default comparison:
+        return method(other)
+
 
     # def __repr__(self):
     #     return self.__str__()
@@ -183,6 +329,9 @@ class Array(np.ndarray):
         unq_idx = np.split(sort_idx, np.cumsum(unq_count))
         return dict(zip(unq_items, unq_idx))
 
+    def remove_duplicates(self):
+        return pd.unique(self)
+
     def to_string(self):
         return super(Array, self).__str__()
 
@@ -196,14 +345,21 @@ class ArrayGroup:
     Still under development.
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, hidden_prefix=None):
         """Initializes an ArrayGroup object.
 
         Args:
             name: Name of the ArrayGroup as string.
+            hidden_prefix: (optional) Define the prefix of hidden groups or
+                variables. The default is "__".
         """
 
         self.attrs = {}
+
+        if hidden_prefix is None:
+            self.hidden_prefix = "__"
+        else:
+            self.hidden_prefix = hidden_prefix
 
         # All variables (excluding groups) will be saved into this dictionary:
         self._vars = {}
@@ -309,7 +465,14 @@ class ArrayGroup:
                     raise KeyError("'{}' is not a group!".format(var))
         else:
             # Selecting elements via slicing:
-            return self.select(item, deep=True)
+            return self.select(item)
+
+    def __bool__(self):
+        for var, data in self.items(deep=True):
+            if data.size:
+                return True
+
+        return False
 
     def __setitem__(self, key, value):
         var, rest = self.parse(key)
@@ -339,7 +502,7 @@ class ArrayGroup:
         else:
             # Auto creation of groups
             if var not in self._groups:
-                self._groups[var] = type(self)()
+                self._groups[var] = type(self)(name=var)
 
                 # May be someone wants to create a group with a name that
                 # has been the name of a variable earlier?
@@ -512,7 +675,7 @@ class ArrayGroup:
         else:
             obj = copy.deepcopy(self)
 
-        for field in fields:
+        for field in list(fields):
             del obj[field]
 
         return obj
@@ -534,7 +697,7 @@ class ArrayGroup:
         return obj
 
     @classmethod
-    def from_netcdf(cls, filename, fields=None):
+    def from_netcdf(cls, filename, fields=None, convert_times=True,):
         """Creates an ArrayGroup object from a netCDF file.
 
         Args:
@@ -542,24 +705,25 @@ class ArrayGroup:
                 Can also be a tuple/list of file names.
             fields: (optional) List or tuple of variable or
                 group names). Only those fields are going to be read.
+            convert_times: Set this to true if you want to convert time
+                fields into datetime objects.
 
         Returns:
             An ArrayGroup object.
         """
 
         if isinstance(filename, (tuple, list)):
-            with netCDF4.MFDataset(filename, "r") as root:
-                array_group = cls._get_group_from_netcdf_group(root, fields)
-
-                return array_group
+            opener = netCDF4.MFDataset
         else:
-            with netCDF4.Dataset(filename, "r") as root:
-                array_group = cls._get_group_from_netcdf_group(root, fields)
+            opener = netCDF4.Dataset
 
-                return array_group
+        with opener(filename, "r") as root:
+            return cls._get_group_from_netcdf_group(
+                root, fields, convert_times
+            )
 
     @classmethod
-    def _get_group_from_netcdf_group(cls, group, fields):
+    def _get_group_from_netcdf_group(cls, group, fields, convert_times):
         array_group = cls()
 
         array_group.attrs.update(**group.__dict__)
@@ -567,70 +731,57 @@ class ArrayGroup:
         # Limit the reading of the file to some fields:
         if fields is not None:
             for field in fields:
-                # There might be empty fields:
-                if not group[field]:
-                    array_group[field] = Array(
-                        [], attrs=group[field].__dict__,
-                        dims=group[field].dimensions,
-                    )
-                    continue
-
                 if isinstance(group[field], netCDF4._netCDF4.Group):
                     array_group[field] = \
-                        cls._get_group_from_netcdf_group(field, None)
-                    continue
-
-                # Handle time fields differently
-                if ("units" in group[field].__dict__
-                        and "since" in group[field].units):
-                    try:
-                        data = netCDF4.num2date(
-                            group[field][:], group[field].units)
-                    except:
-                        data = group[field][:]
+                        cls._get_group_from_netcdf_group(
+                            field, None, convert_times)
                 else:
-                    data = group[field][:]
-
-                array_group[field] = Array(
-                    data, attrs=group[field].__dict__,
-                    dims=group[field].dimensions,
-                )
-
+                    array_group[field] = \
+                        ArrayGroup._get_variable_from_netcdf_group(
+                            group[field], convert_times
+                        )
             return array_group
 
         # Otherwise, we want to read all variables and groups:
         # Add the variables:
         for var, data in group.variables.items():
-            # There might be empty fields:
-            if not data:
-                array_group[var] = Array(
-                    [], attrs=data.__dict__,
-                    dims=data.dimensions,
-                )
-                continue
-
-            attrs = data.__dict__
-            dims = data.dimensions
-
-            # Handle time fields differently
-            if ("units" in attrs
-                    and "since" in data.units):
-                try:
-                    data = netCDF4.num2date(
-                        data[:], data.units)
-                except:
-                    pass
-
-            array_group[var] = Array(
-                data[:], attrs=attrs, dims=dims,
+            array_group[var] = ArrayGroup._get_variable_from_netcdf_group(
+                data, convert_times
             )
 
         # Add the groups
         for subgroup, subgroup_obj in group.groups.items():
             array_group[subgroup] = \
-                cls._get_group_from_netcdf_group(subgroup_obj, None)
+                cls._get_group_from_netcdf_group(
+                    subgroup_obj, None, convert_times)
 
         return array_group
+
+    @staticmethod
+    def _get_variable_from_netcdf_group(nc_var, convert_times):
+        # There might be empty fields:
+        if not nc_var:
+            return Array(
+                [], attrs=nc_var.__dict__,
+                dims=nc_var.dimensions,
+            )
+
+        # Handle time fields differently
+        if convert_times and "units" in nc_var.__dict__:
+            try:
+                data = num2date(nc_var[:], nc_var.units)
+            except InvalidUnitString:
+                # This means it is no time variable
+                data = nc_var[:]
+            except Exception as e:
+                raise e
+        else:
+            data = nc_var[:]
+
+        return Array(
+            data, attrs=nc_var.__dict__,
+            dims=nc_var.dimensions,
+        )
 
     @classmethod
     def from_xarray(cls, xarray_object):
@@ -670,7 +821,6 @@ class ArrayGroup:
                 return_list.append(np.arange(len(self[field].shape[i])))
 
         return return_list
-
 
     def get_range(self, field, deep=False, axis=None):
         """Get the minimum and maximum of one field.
@@ -750,6 +900,38 @@ class ArrayGroup:
             level -= 1
         return level
 
+    def limit_by(self, field, lower_bound=None, upper_bound=None):
+        """Extract the parts of this Arraygroup where *field* lies between two
+        bounds.
+
+        This works only if all first dimensions of each variable have the same
+        length.
+
+        Args:
+            field: A name of a variable.
+            lower_bound: A number / object as lower bound.
+            upper_bound: A number / object as upper bound.
+
+        Returns:
+            New limited ArrayGroup object.
+
+        Examples:
+
+            .. code-block:: python
+
+            ag = ArrayGroup()
+        """
+        if lower_bound is not None and upper_bound is not None:
+            indices = (self[field] >= lower_bound) \
+                      & (self[field] <= upper_bound)
+        elif lower_bound is None:
+            indices = self[field] <= upper_bound
+        elif upper_bound is None:
+            indices = self[field] >= lower_bound
+        else:
+            raise ValueError("One bound must be set!")
+        return self[indices]
+
     @classmethod
     def merge(cls, objects, groups=None, overwrite_error=True):
         """Merges multiple ArrayGroup objects to one.
@@ -771,6 +953,7 @@ class ArrayGroup:
         inserted = set()
         merged_data = cls()
         for i, obj in enumerate(objects):
+            merged_data.attrs.update(**obj.attrs)
             for var in obj.vars(deep=True):
                 if overwrite_error and var in inserted:
                     raise KeyError("The variable '{}' occurred multiple "
@@ -910,37 +1093,47 @@ class ArrayGroup:
 
         return obj
 
-    def select(self, indices_or_fields, deep=False):
+    def select(self, indices_or_fields, inplace=False):
         """Select an TODO.
 
         Args:
             indices_or_fields:
-            deep:
+            inplace:
 
         Returns:
 
         """
-        selected_data = type(self)()
-        selected_data.attrs.update(**self.attrs)
+        if isinstance(indices_or_fields, str):
+            raise TypeError("For field selection indices_or_fields must be "
+                            "a tuple/list of strings.")
 
-        if (isinstance(indices_or_fields, (tuple, list))
-                and isinstance(indices_or_fields[0], str)):
-            # Selecting by field names:
-            for var in self.vars(deep):
-                if var in indices_or_fields:
-                    selected_data[var] = self[var]
+        if inplace:
+            obj = self
         else:
-            # Selecting by indices or slices:
-            for var in self.vars(deep):
-                try:
-                    selected_data[var] = self[var][indices_or_fields]
-                except IndexError as e:
-                    raise IndexError(
-                        str(e) + "\nCould not select parts of '%s'.\nDid you "
-                        "check whether all arrays in this ArrayGroup object "
-                        "have the same first dimension length?" % var)
+            obj = type(self)()
+            obj.attrs.update(**self.attrs)
 
-        return selected_data
+        # Try selecting by indices or slices:
+        try:
+            for var in self.vars(True):
+                obj[var] = self[var][indices_or_fields]
+        except IndexError as e:
+            fields = list(indices_or_fields)
+            if isinstance(fields[0], str):
+                if inplace:
+                    # We want to keep the original object and simply drop all
+                    # unwanted variables.
+                    unwanted_vars = set(obj.vars(True)) - set(fields)
+                    obj.drop(unwanted_vars, inplace=True)
+                else:
+                    for var in self.vars(True):
+                        if var in indices_or_fields:
+                            obj[var] = self[var]
+            else:
+                raise IndexError(
+                    str(e) + "\nCould not select parts of '%s'.\n" % var)
+
+        return obj
 
     def to_dict(self, deep=True):
         """Exports variables to a dictionary.
@@ -1040,7 +1233,15 @@ class ArrayGroup:
                     data.dims[i] = dim
 
         # Try to catch up time objects:
-        if isinstance(data.item(0), datetime):
+        if str(data.dtype).startswith("datetime64"):
+            nc_var = nc_group.createVariable(
+                var, "f8", data.dims
+            )
+            nc_var.units = \
+                "seconds since 1970-01-01T00:00:00Z"
+            time_data = date2num(data, nc_var.units)
+            nc_var[:] = time_data
+        elif isinstance(data.item(0), datetime):
             nc_var = nc_group.createVariable(
                 var, "f8", data.dims
             )
@@ -1048,19 +1249,7 @@ class ArrayGroup:
             # TODO: be dynamic?
             nc_var.units = \
                 "seconds since 1970-01-01T00:00:00Z"
-            time_data = netCDF4.date2num(
-                data,
-                nc_var.units)
-            nc_var[:] = time_data
-        elif str(data.dtype).startswith("datetime64"):
-            nc_var = nc_group.createVariable(
-                var, "f8", data.dims
-            )
-            nc_var.units = \
-                "seconds since 1970-01-01T00:00:00Z"
-            time_data = netCDF4.date2num(
-                data.astype('M8[s]').astype('O'),
-                nc_var.units)
+            time_data = netCDF4.date2num(data, nc_var.units)
             nc_var[:] = time_data
         else:
             if str(data.dtype) == "bool":
@@ -1107,14 +1296,17 @@ class ArrayGroup:
         for var in self.vars(deep):
             yield self[var]
 
-    def vars(self, deep=False, with_name=None):
+    def vars(self, deep=False, with_name=None, hidden=True):
         """Returns the names of all variables in this GeoData object main
         group.
 
         Args:
             deep: Searching also in subgroups (not only main group).
-            with_name: Only the variables with this base name will be
-                returned (makes only sense when *deep* is true).
+            with_name: (optional) Only the variables with this base name
+                will be returned (makes only sense when *deep* is true).
+            hidden: (optional) If false, all variables which start with the
+                defined hidden prefix will be not returned. If *with_name* is
+                given, this will be ignored.
 
         Yields:
             Full name of one variable (including group name).
@@ -1122,7 +1314,11 @@ class ArrayGroup:
 
         # Only the variables of the main group:
         if with_name is None:
-            yield from self._vars
+            if hidden or self.hidden_prefix is None:
+                yield from self._vars
+            else:
+                yield from filter(
+                    lambda x: not x.startswith(self.hidden_prefix), self._vars)
         elif with_name in self._vars:
             yield with_name
 
@@ -1130,5 +1326,6 @@ class ArrayGroup:
             for group in self._groups:
                 yield from (
                     group + "/" + sub_var
-                    for sub_var in self[group].vars(deep, with_name)
+                    for sub_var in self[group].vars(
+                        deep, with_name, hidden)
                 )
