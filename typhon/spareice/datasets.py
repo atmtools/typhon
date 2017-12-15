@@ -26,6 +26,7 @@ import pandas as pd
 import typhon.files
 import typhon.plots
 from typhon.spareice.array import ArrayGroup
+from typhon.spareice.handlers import NetCDF4
 from typhon.trees import IntervalTree
 
 __all__ = [
@@ -93,7 +94,7 @@ class Dataset:
 
     def __init__(
             self, files, handler=None, name=None, time_coverage=None,
-            times_cache=None, continuous=True
+            times_cache=None, continuous=True, max_processes=None,
     ):
         """Initializes a dataset object.
 
@@ -104,14 +105,14 @@ class Dataset:
                 method for a complete list. If no placeholders are given, the
                 path must point to a file. This dataset is then seen as a
                 single file dataset.
-            name: (optional) The name of the dataset.
-            handler: (optional) An object which can handle the dataset files.
+            name: The name of the dataset.
+            handler: An object which can handle the dataset files.
                 This dataset class does not care which format its files have
                 when this file handler object is given. You can use a file
                 handler class from typhon.handlers or write your own class.
                 For example, if this dataset consists of NetCDF files, you can
-                use typhon.spareice.handlers.common.NetCDF4() here.
-            time_coverage: (optional) Defines how the timestamp of the data
+                use the typhon.spareice.handlers.NetCDF4 here (is default).
+            time_coverage: Defines how the timestamp of the data
                 should be retrieved. Default for multi file datasets is
                 *filename* which retrieves the time coverage from the filename
                 by using placeholders.
@@ -122,7 +123,7 @@ class Dataset:
                 parameter representing the start and end time. Otherwise the
                 year 1 and 9999 will be used a default time coverage.
                 Look at Dataset.retrieve_timestamp() for more details.
-            times_cache: (optional) Finding the correct files for a time period
+            times_cache: Finding the correct files for a time period
                 may take a while, especially when the time retrieving
                 method is set to "content". Therefore, if the file names and
                 their time coverage are cached, multiple calls of find_files
@@ -134,6 +135,10 @@ class Dataset:
                 continuous, i.e. they cover a time period and not only a single
                 timestamp. If their start and end time are equal,
                 the minimal time resolution will be added to the end time.
+            max_processes: Maximal number of parallel processes that will be
+                used for :meth:`~typhon.spareice.datasets.Dataset.map` or
+                :meth:`~typhon.spareice.datasets.Dataset.map_content` like
+                methods per default (default is 4).
 
         Examples:
 
@@ -143,7 +148,6 @@ class Dataset:
             # Define a dataset consisting of multiple files:
             dataset = Dataset(
                 files="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                handler=handlers.common.NetCDF4(),
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
                 # filename, you should set this to "content":
@@ -160,7 +164,6 @@ class Dataset:
             dataset = Dataset(
                 # Simply use the files parameter without placeholders:
                 files="/path/to/file.nc",
-                handler=handlers.common.NetCDF4(),
                 name="TestData2",
                 # The time coverage of the data cannot be retrieved from the
                 # filename (because there are no placeholders). You can use the
@@ -203,6 +206,9 @@ class Dataset:
         # Initialize member variables:
         self._name = None
         self.name = name
+
+        if handler is None:
+            handler = NetCDF4()
         self.handler = handler
 
         # The files parameters (will be set in the files setter method):
@@ -214,6 +220,11 @@ class Dataset:
         # Do the files cover everything (they are continuous) or are rather
         # single timestamps?
         self.continuous = continuous
+
+        if max_processes is None:
+            self.max_processes = 4
+        else:
+            self.max_processes = max_processes
 
         if time_coverage is None:
             if self.single_file:
@@ -334,7 +345,7 @@ class Dataset:
         return info
 
     def accumulate(self, start, end, concat_func=None, concat_args=None,
-                   reading_args=None):
+                   **reading_args):
         """Accumulate all data between two dates in one object.
 
         Args:
@@ -347,7 +358,7 @@ class Dataset:
                 to concatenate. Default is ArrayGroup.concatenate.
             concat_args: A dictionary with additional arguments for
                 *concat_func*.
-            reading_args: A dictionary with additional arguments for reading
+            kwargs: A dictionary with additional arguments for reading
                 the data (specified by the used file handler).
 
         Returns:
@@ -358,9 +369,7 @@ class Dataset:
 
             import xarray
 
-            dataset = Dataset(
-                files="path/to/files.nc", handler=handlers.common.NetCDF4()
-            )
+            dataset = Dataset("path/to/files.nc")
             data = dataset.accumulate(
                 datetime(2016, 1, 1), datetime(2016, 2, 1),
                 xarray.concat, read_args={fields : ("temperature", )})
@@ -377,6 +386,11 @@ class Dataset:
             contents = list(self.read_period(start, end))
         else:
             contents = list(self.read_period(start, end, **reading_args))
+
+        if not contents:
+            return None
+        elif len(contents) == 1:
+            return contents[0]
 
         if concat_args is None:
             return concat_func(contents)
@@ -740,7 +754,7 @@ class Dataset:
 
     def find_files(
             self, start, end,
-            sort=True, verbose=False,
+            sort=True, bundle_size=None, verbose=False,
             no_files_error=True,
     ):
         """ Finds all files between the given start and end date.
@@ -755,6 +769,11 @@ class Dataset:
             end: End date. Same format as "start".
             sort: (optional) If true, all files will be yielded
                 sorted by their starting time. Default is true.
+            bundle_size: (optional) Instead of only yielding one filename
+                at a time, you can get a bundle of files. By setting this to an
+                integer, you can define the size of the bundle. By setting
+                this to a string (e.g. *1h*), you can define the period of one
+                bundle. See below for more details. Default is 1.
             verbose (optional): If true, debug messages will be printed.
             no_files_error (optional): If true, raises an NoFilesError when no
                 files are found.
@@ -762,6 +781,30 @@ class Dataset:
         Yields:
             A tuple of one file name and its time coverage (a tuple of two
             datetime objects).
+
+        The argument *bundle_size* can be used to define bundles in which
+        the files should be returned. Either you can define the size of the
+        bundle directly by giving just an integer (e.g. *10* returns a
+        bundle of ten files) or you can set the period of one bundle (e.g.
+        *1h* returns hourly bundles of files). Allowed time specifier are:
+
+        +-----------+------------------+
+        | Specifier | Description      |
+        +===========+==================+
+        | y         | Year             |
+        +-----------+------------------+
+        | m         | Month            |
+        +-----------+------------------+
+        | d         | Day              |
+        +-----------+------------------+
+        | H         | Hour             |
+        +-----------+------------------+
+        | M         | Minute           |
+        +-----------+------------------+
+        | S         | Seconds          |
+        +-----------+------------------+
+        | f         | Microseconds     |
+        +-----------+------------------+
 
         Examples:
 
@@ -816,11 +859,18 @@ class Dataset:
         if verbose:
             print("Find files between %s and %s" % (start, end))
 
+        dates = list(pd.date_range(start.date() - timedelta(days=1), end))
+
+        # If we search only until midnight, we do not have to check all files
+        # from the whole next day!
+        if len(dates) > 1 and dates[-1] == end:
+            del dates[-1]
+
         # Find all files by iterating over all possible paths and check whether
         # they match the path regex and the time period.
         found_files = (
             [filename, self.retrieve_time_coverage(filename)]
-            for date in pd.date_range(start.date() - timedelta(days=1), end)
+            for date in dates
             for filename in self._get_all_files(
                 self._get_files_path(date, path_parts, day_index, verbose),
                 regex)
@@ -946,7 +996,7 @@ class Dataset:
         return False
 
     def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=None):
+            self, start, end, other_dataset, max_interval=None, verbose=False):
         """Finds all files from this dataset and from another dataset that
         overlap in time between two dates.
 
@@ -968,9 +1018,9 @@ class Dataset:
             end = self._to_datetime(end) + max_interval
 
         primary_files, primary_times = list(
-            zip(*self.find_files(start, end, sort=True)))
+            zip(*self.find_files(start, end, verbose=verbose)))
         secondary_files, secondary_times = list(
-            zip(*other_dataset.find_files(start, end, sort=True)))
+            zip(*other_dataset.find_files(start, end, verbose=verbose)))
 
         # Convert the times (datetime objects) to seconds (integer)
         primary_times = [[int(dt[0].timestamp()), int(dt[1].timestamp())]
@@ -1184,7 +1234,7 @@ class Dataset:
         start_time = time.time()
 
         if max_processes is None:
-            max_processes = 4
+            max_processes = self.max_processes
 
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
@@ -1221,8 +1271,8 @@ class Dataset:
         before the given function will be applied.
 
         This method can use multiple processes to boost the procedure
-        significantly. Depending on which system (e.g. mistral or local) you
-        work, you should try different numbers for max_processes.
+        significantly. Depending on which system you work, you should try
+        different numbers for *max_processes*.
 
         Args:
             start: Start date either as datetime object or as string
@@ -1271,7 +1321,7 @@ class Dataset:
             start_time = time.time()
 
         if max_processes is None:
-            max_processes = 4
+            max_processes = self.max_processes
 
         # Create a pool of processes and process all the files with them.
         pool = Pool(processes=max_processes)
@@ -1356,7 +1406,9 @@ class Dataset:
         """
         #
         for filename, _ in self.find_files(start, end, sort=sort):
-            yield self.read(filename, **reading_arguments)
+            data = self.read(filename, **reading_arguments)
+            if data:
+                yield data
 
     def retrieve_time_coverage(self, filename, retrieve_method=None):
         """ Retrieves the time coverage from a given dataset file.
@@ -1513,9 +1565,8 @@ class Dataset:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         # _, extension = os.path.splitext(filename)
-        # with typhon.files.compress(filename, extension) as file:
-
-        return self.handler.write(filename, data, **writing_arguments)
+        with typhon.files.compress(filename) as file:
+            return self.handler.write(file, data, **writing_arguments)
 
 
 class DatasetManager(dict):
