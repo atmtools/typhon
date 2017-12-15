@@ -11,11 +11,11 @@ from typhon.spareice.geographical import GeoData
 from .. import handlers
 
 __all__ = [
-    'C2CICE',
+    'CloudSat',
 ]
 
 
-class C2CICE(handlers.FileHandler):
+class CloudSat(handlers.FileHandler):
     mapping = {
         "lat": "Latitude",
         "lon": "Longitude"
@@ -38,13 +38,12 @@ class C2CICE(handlers.FileHandler):
 
         See the parent class for further documentation.
         """
-
         if fields is None:
             fields = ["time", "lat", "lon"]
         else:
             fields = list(set(fields + ["time", "lat", "lon"]))
 
-        dataset = GeoData(name="2C-ICE")
+        dataset = GeoData(name="CloudSat")
 
         # The files are in HDF4 format therefore we cannot use the netCDF4
         # module. This code is taken from
@@ -84,14 +83,17 @@ class C2CICE(handlers.FileHandler):
                         seconds=first_profile_time)
 
                     # Put all times together so we obtain one full timestamp
-                    # (date + time) for each data point
+                    # (date + time) for each data point. We reduce the
+                    # resolution of the timestamps to microseconds otherwise
+                    # we get problems when converting to python datetime
+                    # objects.
                     data = Array(
                         pd.to_datetime(
                             profile_times, unit='s',
                             origin=pd.Timestamp(start_time)
-                        ).to_pydatetime(),
+                        ),
                         dims=["time_id"]
-                    )
+                    ).astype("M8[us]")
                 else:
                     # All other data (including latitudes, etc.)
 
