@@ -1675,7 +1675,7 @@ class NetCDFDataset:
               pseudo_fields=None,
               prim=None):
         if self.read_returns == "ndarray":
-            return self._read_ndarray(f, fields, pseudo_fields, prim)
+            return (self._read_ndarray(f, fields, pseudo_fields, prim), {})
         elif self.read_returns == "xarray":
             ds = xarray.open_dataset(f)
             if fields != "all":
