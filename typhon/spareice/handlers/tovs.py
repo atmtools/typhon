@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import time
 import warnings
 
-import h5py
+from netCDF4 import Dataset
 import numpy as np
 from typhon.spareice.array import Array
 from typhon.spareice.geographical import GeoData
@@ -53,20 +53,20 @@ class MHSAAPP(handlers.FileHandler):
         self.apply_scaling = apply_scaling
 
     def get_info(self, filename, **kwargs):
-        with h5py.File(filename, "r") as file:
+        with Dataset(filename, "r") as file:
             start = \
-                datetime(int(file.attrs["startdatayr"][0]), 1, 1) \
-                + timedelta(days=int(file.attrs["startdatady"][0]) - 1) \
+                datetime(int(file.startdatayr[0]), 1, 1) \
+                + timedelta(days=int(file.startdatady[0]) - 1) \
                 + timedelta(
-                    milliseconds=int(file.attrs["startdatatime_ms"][0]))
+                    milliseconds=int(file.startdatatime_ms[0]))
             end = \
-                datetime(int(file.attrs["enddatayr"]), 1, 1) \
-                + timedelta(days=int(file.attrs["enddatady"]) - 1) \
-                + timedelta(milliseconds=int(file.attrs["enddatatime_ms"]))
+                datetime(int(file.enddatayr), 1, 1) \
+                + timedelta(days=int(file.enddatady) - 1) \
+                + timedelta(milliseconds=int(file.enddatatime_ms))
 
             info = handlers.FileInfo()
             info["times"] = [start, end]
-
+            print(info)
             return info
 
     def read(self, filename, fields=None):
