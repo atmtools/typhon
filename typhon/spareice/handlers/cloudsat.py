@@ -4,11 +4,16 @@ import warnings
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
-from pyhdf import HDF, VS, V
 from typhon.spareice.array import Array
 from typhon.spareice.geographical import GeoData
 
 from .. import handlers
+
+try:
+    from pyhdf import HDF, VS, V
+except ImportError:
+    warnings.warn(
+        "Cannot use CloudSat handler without having installed pyhdf!")
 
 __all__ = [
     'CloudSat',
