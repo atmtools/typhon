@@ -80,9 +80,13 @@ def num2date(times, units, calendar=None):
 
     # Numpy uses the epoch 1970-01-01 natively.
     converted_data = times.astype("M8[%s]" % unit_mapper[unit])
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
     # Maybe there is another epoch used?
-    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
-        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
     return converted_data
 
 
@@ -119,8 +123,12 @@ def date2num(dates, units, calendar=None):
 
     converted_data = \
         dates.astype("M8[%s]" % unit_mapper[unit]).astype("int")
-    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
-        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
     return converted_data
 
 
