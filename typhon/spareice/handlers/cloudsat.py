@@ -32,11 +32,12 @@ class CloudSat(handlers.FileHandler):
 
     def get_info(self, filename, **kwargs):
         with Dataset(filename, "r") as file:
-            info = handlers.FileInfo()
             start = datetime.strptime(file.start_time, "%Y%m%d%H%M%S")
             end = datetime.strptime(file.end_time, "%Y%m%d%H%M%S")
-            info["times"] = [start, end]
-            return info
+            return handlers.FileInfo(
+                filename,
+                [start, end],
+            )
 
     def read(self, filename, fields=None):
         """Reads and parses NetCDF files and load them to a xarray.

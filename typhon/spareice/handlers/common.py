@@ -1,5 +1,6 @@
 import csv
 from inspect import signature, ismethod
+import os
 import pickle
 
 import numpy as np
@@ -178,13 +179,27 @@ class FileHandler:
             "should use a different file handler.")
 
 
-class FileInfo(dict):
+class FileInfo(os.PathLike):
     """Contains information about a file (time coverage, etc.)
     """
-    def __init__(self):
+    def __init__(self, path=None, times=None):
         super(FileInfo, self).__init__()
 
-        self["times"] = [None, None]
+        self.path = path
+
+        if times is None:
+            self.times = [None, None]
+        else:
+            self.times = times
+
+    def __eq__(self, other):
+        return self.path == other.path and self.times == other.times
+
+    def __fspath__(self):
+        return self.path
+
+    def __str__(self):
+        return self.path
 
 
 class CSV(FileHandler):
