@@ -812,6 +812,10 @@ class Dataset:
     ):
         """ Find all files of this dataset in a given time period.
 
+        The *start* and *end* parameters build a semi-open interval: only the
+        files that are equal or newer than *start* and older than *end* are
+        going to be found.
+
         Args:
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
@@ -880,6 +884,9 @@ class Dataset:
         regex = self.files.format(**Dataset.placeholder)
         regex = re.compile(regex.replace("*", ".*?"))
 
+        # We want to have a semi-open interval as explained in the doc string.
+        end -= timedelta(microseconds=1)
+
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
         file_finder = (
@@ -928,12 +935,14 @@ class Dataset:
         temporal_placeholders = placeholders.intersection(
             Dataset._temporal_resolution.keys())
 
-        if verbose:
+        if verbose and temporal_placeholders:
             print("Found temporal placeholders: ", temporal_placeholders)
 
         # If the directory does not contain temporal placeholders, we simply
         # return the original directory
         if not temporal_placeholders:
+            if verbose:
+                print("Found no temporal placeholders")
             yield dir_template
             return
 
@@ -953,8 +962,10 @@ class Dataset:
         # If the user sets midnight as end for the time period, we do not want
         # to check the day following midnight. For example, if end is
         # "2017-01-02 00:00:00", no file from the 2nd January 2017 is returned.
-        if temporal_resolution == "1D" and end.date == end:
-            end -= timedelta(microseconds=1)
+        # if temporal_resolution == "1D" and end.date == end:
+        #     if verbose:
+        #         print("Omit files of the last day (since end timestamp is "
+        #               "midnight)!")
 
         # Start one day before the starting date because we may have files
         # overlapping one day.
@@ -1346,7 +1357,9 @@ class Dataset:
         args = (
             (self, x, func, func_arguments, output, include_file_info, verbose)
             for x in self.find_files(
-                start, end, sort=False, verbose=verbose, bundle=bundle)
+                start, end, sort=False, verbose=verbose, bundle=bundle,
+                no_files_error=no_files_error
+            )
         )
 
         results = list(pool.imap(
@@ -1439,7 +1452,9 @@ class Dataset:
             (self, x, func, func_arguments, output, reading_arguments,
              include_file_info, verbose)
             for x in self.find_files(
-                start, end, sort=False, bundle=bundle, verbose=verbose)
+                start, end, sort=False, bundle=bundle, verbose=verbose,
+                no_files_error=no_files_error,
+            )
         )
 
         results = list(pool.imap(
