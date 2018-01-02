@@ -114,6 +114,18 @@ class CollocatedDataset(Dataset):
         return data
 
     def add_more_fields(self, start, end, dataset, original_dataset, fields):
+        """
+
+        Args:
+            start:
+            end:
+            dataset:
+            original_dataset:
+            fields:
+
+        Returns:
+            None
+        """
         self.map_content(
             start, end, self._add_fields_to_data, {
                 "dataset": dataset,
