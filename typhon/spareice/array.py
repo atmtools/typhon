@@ -376,7 +376,7 @@ class ArrayGroup:
         self._groups = {}
 
         if name is None:
-            self.name = "{}, {}:".format(type(self), id(self))
+            self.name = "{} {}".format(id(self), type(self), )
         else:
             self.name = name
 
