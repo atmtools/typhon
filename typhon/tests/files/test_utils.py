@@ -1,4 +1,4 @@
-from tempfile import NamedTemporaryFile
+from tempfile import gettempdir, NamedTemporaryFile
 
 from typhon.files import compress, decompress
 
@@ -15,7 +15,7 @@ class TestCompression:
             return self.data == file.readline()
 
     def test_compress_decompress_zip(self):
-        with NamedTemporaryFile() as file:
+        with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".zip") as compressed_file:
                 self.create_file(compressed_file)
 
@@ -23,7 +23,7 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_gzip(self):
-        with NamedTemporaryFile() as file:
+        with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".gz") as compressed_file:
                 self.create_file(compressed_file)
 
@@ -31,7 +31,7 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_bz2(self):
-        with NamedTemporaryFile() as file:
+        with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".bz2") as compressed_file:
                 self.create_file(compressed_file)
 
@@ -39,7 +39,7 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_lzma(self):
-        with NamedTemporaryFile() as file:
+        with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".xz") as compressed_file:
                 self.create_file(compressed_file)
 
