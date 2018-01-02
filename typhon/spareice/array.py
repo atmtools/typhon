@@ -548,6 +548,9 @@ class ArrayGroup:
 
         return info
 
+    def __repr__(self):
+        return str(self)
+
     def apply(self, func_with_args, deep=False, new_object=False):
         """Apply a function to all variables.
 
