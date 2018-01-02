@@ -1967,6 +1967,14 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
                 "{:.2%}".format(f, 1-iiu.size/MM.size))
             return (MM[ii][iiu], extra)
         elif self.read_returns == "xarray":
+            # in some files, the dtype for x and y is turned into float
+            # by xarray because it has a _FillValue attribute
+            to_correct = [k for (k, v) in M.data_vars.items()
+                if v.encoding["dtype"].kind.startswith("i") and
+                not v.dtype.kind.startswith("i")
+                and k[-1] in "xy"]
+            for k in to_correct:
+                M[k] = M[k].astype(M[k].encoding["dtype"])
             # acquisition_time has attribute "unit" instead of "units";
             # use regular "time" instead
             timefields = [k for k in M.data_vars.keys()
