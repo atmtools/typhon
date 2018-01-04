@@ -1902,7 +1902,8 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
                 raise ValueError(f"Invalid read_returns: {self.read_returns:s}")
 
     def combine(self, M, other_obj, *args, **kwargs):
-        MM = super().combine(M, other_obj, *args, col_field="mon_column", **kwargs)
+        MM = super().combine(M, other_obj, *args, col_field="mon_column",
+                             col_dim_name="scanpos", **kwargs)
         # do something about entire scanlines being returned
         return MM
 
