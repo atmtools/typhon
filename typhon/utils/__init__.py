@@ -396,6 +396,50 @@ def concat_each_time_coordinate(*datasets):
         new[k].attrs.update(**datasets[0][k].attrs)
     return new.assign_coords(**new_coords)
 
+def undo_xarray_floatification(ds, fields=None):
+    """convert floats back to ints in xarray dataset where appropriate
+
+    When xarray opens a NetCDF file with the default decode_cf=True,
+    any integer values that have a _FillValue set are converted to float,
+    such that any _FillValue-set values can be set to nan.  Some datasets
+    may have such _FillValue set even though they are never used.
+    In this case, it may be desirable to convert those values back to
+    the original dtype (which is preserved in the .encoding attribute),
+    for example, when those integers are intended to be used as indices.
+    This function takes an xarray Dataset, checks all the variables which
+    originally have an integer dtype and a fillvalue set, and converts
+    those back to int.  Optionally only a subset of those is converted.
+
+    Use this function only when those fill values are not used.  Behaviour
+    when fill values are actually used is undefined.
+
+    Parameters:
+
+        ds (xarray.Dataset): xarray dataset to be converted.
+
+        fields (Collection or None): Describes what fields shall be
+            converted.  If not given or None (default), convert all fields
+            that were originally ints but converted to float due to having a
+            _FillValue set.  Even when given, only fields meeting those
+            criteria will be converted.
+
+    Returns:
+        The same dataset but with changes as described above.
+    """
+
+    to_correct = {k for (k, v) in ds.data_vars.items()
+        if v.encoding.get("dtype", np.dtype("O")).kind[0] in "ui" and
+        not v.dtype.kind in "ui"}
+
+    if fields is not None:
+        to_correct &= fields
+
+    for k in to_correct:
+        enc = ds[k].encoding
+        ds[k] = ds[k].astype(ds[k].encoding["dtype"])
+        ds[k].encoding.update(enc)
+
+    return ds
 
 def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     """Combine image files to a video using ``ffmpeg``.
@@ -446,3 +490,4 @@ def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     # If the subprocess fails, raise exception including error message.
     if p.returncode != 0:
         raise Exception(p.stderr)
+
