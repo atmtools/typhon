@@ -6,7 +6,10 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 
-__all__ = ['compress', 'compress_as', 'decompress']
+__all__ = [
+    'compress', 'compress_as', 'decompress',
+    'is_compression_format',
+]
 
 _known_compressions = {
     'gz': gzip.GzipFile,
