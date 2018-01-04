@@ -198,8 +198,11 @@ class FileInfo(os.PathLike):
     def __fspath__(self):
         return self.path
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
-        return self.path
+        return "(%s, %s) %s" % (self.times[0], self.times[1], self.path, )
 
 
 class CSV(FileHandler):

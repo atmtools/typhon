@@ -12,8 +12,7 @@ from .. import handlers
 try:
     from pyhdf import HDF, VS, V
 except ImportError:
-    warnings.warn(
-        "Cannot use CloudSat handler without having installed pyhdf!")
+    pass
 
 __all__ = [
     'CloudSat',
