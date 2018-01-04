@@ -17,6 +17,7 @@ import numbers
 import os.path
 import re
 import shutil
+import sys
 import time
 import warnings
 
@@ -25,7 +26,7 @@ import pandas as pd
 import typhon.files
 import typhon.plots
 from typhon.spareice.array import ArrayGroup
-from typhon.spareice.handlers import FileInfo, NetCDF4
+from typhon.spareice.handlers import CSV, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 
 __all__ = [
@@ -69,7 +70,7 @@ class Dataset:
 
     """
     placeholder = {
-        # "placeholder_name" : [regex to find the placeholder]
+        # "placeholder_name": [regex to find the placeholder]
         "year": "(\d{4})",
         "year2": "(\d{2})",
         "month": "(\d{2})",
@@ -94,6 +95,7 @@ class Dataset:
     _temporal_resolution = {
         # placeholder: [pandas frequency, rank]
         "year": ["1A", 0,],
+        "year2": ["1A", 0, ],
         "month": ["1M", 1,],
         "day": ["1D", 2,],
         "doy": ["1D", 2,],
@@ -145,7 +147,10 @@ class Dataset:
             continuous: If true, all files of this dataset are considered to be
                 continuous, i.e. they cover a time period and not only a single
                 timestamp. If their start and end time are equal,
-                the minimal time resolution will be added to the end time.
+                the minimal time resolution will be added to the end time. The
+                minimal time resolution is retrieved from the temporal
+                placeholders in the *files* parameter. This will be ignored if
+                *time_coverage* is not *filename*.
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
@@ -226,15 +231,30 @@ class Dataset:
         self._name = None
         self.name = name
 
-        if handler is None:
-            handler = NetCDF4()
-        self.handler = handler
-
         # The files parameters (will be set in the files setter method):
         self._files = None
         self.files_placeholders = None
         self.single_file = None
         self.files = files
+
+        if handler is not None:
+            self.handler = handler
+        else:
+            # Try to derive the file handler from the files extension:
+            basename = self.files
+            while True:
+                basename, extension = os.path.splitext(basename)
+                if not typhon.files.is_compression_format(
+                        extension.lstrip(".")):
+                    break
+
+            if extension == ".nc" or extension == ".h5":
+                self.handler = NetCDF4()
+            elif extension == ".txt" or extension == ".asc" \
+                    or extension == ".csv":
+                self.handler = CSV()
+            else:
+                self.handler = None
 
         # Do the files cover everything (they are continuous) or are rather
         # single timestamps?
@@ -243,7 +263,10 @@ class Dataset:
         if max_processes is None:
             self.max_processes = 4
         else:
-            self.max_processes = max_processes
+            self.max_processes = int(max_processes)
+            if max_processes < 1:
+                raise ValueError("Need at least one process set by "
+                                 "max_processes!")
 
         self.compress = compress
         self.decompress = decompress
@@ -435,7 +458,7 @@ class Dataset:
             return_file_info, verbose = args
 
         if verbose:
-            print("Process %s" % file_info)
+            print("Process %s ()" % file_info)
 
         if function_arguments is None:
             return_value = func(dataset, file_info)
@@ -479,22 +502,35 @@ class Dataset:
         dataset, file_info, func, function_arguments, output, \
             reading_arguments, return_file_info, verbose = args
 
+        # file_info could be a bundle of files
+        if isinstance(file_info, FileInfo):
+            times = file_info.times
+        else:
+            start_times, end_times = zip(
+                *(file.times for file in file_info)
+            )
+            times = min(start_times), max(end_times)
+
         if verbose:
-            print("Process %s" % file_info)
+            print("Process content from {} to {} ({} files)".format(
+                *times,
+                len(file_info) if isinstance(file_info, Iterable) else 1
+            ))
 
         if reading_arguments is None:
-            if isinstance(file_info, Iterable):
-                data = [dataset.read(file) for file in file_info]
-            else:
+            if isinstance(file_info, FileInfo):
                 data = dataset.read(file_info)
+            else:
+                data = [dataset.read(file) for file in file_info]
+
         else:
-            if isinstance(file_info, Iterable):
+            if isinstance(file_info, FileInfo):
+                data = dataset.read(file_info, **reading_arguments)
+            else:
                 data = [
                     dataset.read(file, **reading_arguments)
                     for file in file_info
                 ]
-            else:
-                data = dataset.read(file_info, **reading_arguments)
 
         if function_arguments is None:
             return_value = func(data)
@@ -506,19 +542,12 @@ class Dataset:
                 return file_info, return_value
             else:
                 return return_value
-        else:
-            # file_info could be a bundle of files
-            if isinstance(file_info, list):
-                start_times, end_times = zip(
-                    *(
-                        file.times
-                        for file in file_info
-                    )
-                )
-                output[min(start_times):max(end_times)] = return_value
-            else:
-                output[slice(file_info.times)] = return_value
-            return file_info
+        elif return_value is not None:
+            if verbose:
+                print("\tSave output ...")
+            output[slice(*times)] = return_value
+
+        return file_info
 
     @staticmethod
     def _copy_file(
@@ -774,28 +803,33 @@ class Dataset:
                     "The files parameter of '%s' does not contain placeholders"
                     " and is not a path to an existing file!" % self.name)
 
+        timestamp = self._to_datetime(timestamp)
+
         # Maybe there is a file with exact this timestamp?
         path = self.generate_filename(
             self.files, timestamp, timestamp
         )
 
-        timestamp = self._to_datetime(timestamp)
-
         if os.path.exists(path):
             return path
 
-        # We need all possible files that are close to the timestamp.
-        # Prepare the regex for the file path
+        # We need all possible files that are close to the timestamp hence we
+        # need the search dir for those files:
+        search_dir = self.generate_filename(
+            os.path.dirname(self.files), timestamp
+        )
+
+        # Prepare the regex:
         regex = self.files.format(**Dataset.placeholder)
         regex = re.compile(regex.replace("*", ".*?"))
-        files = []
-        while not files and path:
-            path = path.rsplit("/", 1)[0]
-            files = list(self._get_all_files(path, regex))
-            times = [self.retrieve_time_coverage(file) for file in files]
+        files = list(self._get_files(
+            search_dir, regex, datetime.min, datetime.max, False
+        ))
 
         if not files:
             return None
+
+        times = [file.times for file in files]
 
         # Either we find a file that covers the certain timestamp:
         for index, time_coverage in enumerate(times):
@@ -958,15 +992,6 @@ class Dataset:
         if verbose:
             print("Temporal resolution of search path:", temporal_resolution)
 
-        # TODO: Document this behaviour in the doc string.
-        # If the user sets midnight as end for the time period, we do not want
-        # to check the day following midnight. For example, if end is
-        # "2017-01-02 00:00:00", no file from the 2nd January 2017 is returned.
-        # if temporal_resolution == "1D" and end.date == end:
-        #     if verbose:
-        #         print("Omit files of the last day (since end timestamp is "
-        #               "midnight)!")
-
         # Start one day before the starting date because we may have files
         # overlapping one day.
         times = pd.date_range(
@@ -992,6 +1017,8 @@ class Dataset:
 
             yield search_dir
 
+        return
+
     def _get_files(self, path, regex, start, end, verbose):
         """Yield files that matches the search conditions.
 
@@ -1007,6 +1034,9 @@ class Dataset:
         Yields:
             A FileInfo object with the file path and time coverage
         """
+
+        if verbose:
+            print("Check all files in %s" % os.path.join(path, "*"))
 
         for filename in glob.iglob(os.path.join(path, "*")):
             if regex.match(filename):
@@ -1068,7 +1098,7 @@ class Dataset:
             files = list(file_iterator)
 
             yield from (
-                files[i:i + bundle_size]
+                files[i:i+bundle_size]
                 for i in range(0, len(files), bundle_size)
             )
         elif isinstance(bundle_size, str):
@@ -1084,6 +1114,7 @@ class Dataset:
                 bundle[1].values.tolist()
                 for bundle in time_series.groupby(
                     pd.TimeGrouper(freq=bundle_size))
+                if bundle[1].any()
             )
         else:
             raise ValueError(
@@ -1356,16 +1387,13 @@ class Dataset:
 
         args = (
             (self, x, func, func_arguments, output, include_file_info, verbose)
-            for x in self.find_files(
-                start, end, sort=False, verbose=verbose, bundle=bundle,
-                no_files_error=no_files_error
-            )
+            for x in self.find_files(start, end, sort=False, bundle=bundle, )
         )
 
-        results = list(pool.imap(
+        results = pool.map(
             Dataset._call_function_with_file_info,
             args, chunksize=10,
-        ))
+        )
 
         if results:
             if verbose:
@@ -1451,16 +1479,13 @@ class Dataset:
         args = (
             (self, x, func, func_arguments, output, reading_arguments,
              include_file_info, verbose)
-            for x in self.find_files(
-                start, end, sort=False, bundle=bundle, verbose=verbose,
-                no_files_error=no_files_error,
-            )
+            for x in self.find_files(start, end, sort=False, bundle=bundle, )
         )
 
-        results = list(pool.imap(
+        results = pool.map(
             Dataset._call_function_with_file_content,
-            args, chunksize=10,
-        ))
+            args, #chunksize=10,
+        )
 
         if results:
             if verbose:
@@ -1607,6 +1632,7 @@ class Dataset:
             # of the retrieved datetime objects if there is no end date.
             if self.continuous and start_date == end_date:
                 end_date += self._get_time_resolution(start_date_args)
+                end_date -= timedelta(microseconds=1)
 
             # Sometimes the filename does not explicitly provide the complete
             # end date. Imagine there is only hour and minute given, then day
