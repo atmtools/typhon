@@ -1897,6 +1897,12 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
             return (MM[numpy.argsort(MM["time"])], extra)
         elif self.read_returns == "xarray":
             M["time"] = ("line", M["ref_time"])
+            M = utils.undo_xarray_floatification(M)
+            # make units understandable by UADA / pint
+            M["ref_radiance"].attrs["units"] = \
+                    M["ref_radiance"].attrs["units"] \
+                                     .replace("m2", "m**2") \
+                                     .replace("^-1", "**(-1)")
             return (M, extra)
         else:
                 raise ValueError(f"Invalid read_returns: {self.read_returns:s}")
@@ -1970,12 +1976,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
         elif self.read_returns == "xarray":
             # in some files, the dtype for x and y is turned into float
             # by xarray because it has a _FillValue attribute
-            to_correct = [k for (k, v) in M.data_vars.items()
-                if v.encoding["dtype"].kind.startswith("i") and
-                not v.dtype.kind.startswith("i")
-                and k[-1] in "xy"]
-            for k in to_correct:
-                M[k] = M[k].astype(M[k].encoding["dtype"])
+            M = utils.undo_xarray_floatification(M)
             # acquisition_time has attribute "unit" instead of "units";
             # use regular "time" instead
             timefields = [k for k in M.data_vars.keys()
