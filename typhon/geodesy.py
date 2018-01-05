@@ -624,16 +624,15 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     """
     # Here be dragons!
 
-    # Broadcast all input variables to the same shape.
+    # Broadcast all input variables to the same shape.  Atleast (1)
     if(ppc is not None and za0 is not None and lat0 is not None and
        aa0 is not None and lon0 is not None):
-        x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0 = np.broadcast_arrays(
+        x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0 = _broadcast(
             x, y, z, dx, dy, dz, ppc, lat0, lon0, za0, aa0)
     elif ppc is not None:
-        x, y, z, dx, dy, dz, ppc = np.broadcast_arrays(
-            x, y, z, dx, dy, dz, ppc)
+        x, y, z, dx, dy, dz, ppc = _broadcast(x, y, z, dx, dy, dz, ppc)
     else:
-        x, y, z, dx, dy, dz = np.broadcast_arrays(x, y, z, dx, dy, dz)
+        x, y, z, dx, dy, dz = _broadcast(x, y, z, dx, dy, dz)
 
     r, lat, lon = cart2geocentric(x, y, z, lat0, lon0, za0, aa0)
 
@@ -701,6 +700,7 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
                    dlat / np.sin(np.deg2rad(za[non])))))
 
         fix = np.logical_or(np.isnan(aa), ~np.isreal(aa))
+
         aa[np.logical_and(fix, dlat >= 0)] = 0
         aa[np.logical_and(fix, dlat < 0)] = 180
 
@@ -754,11 +754,7 @@ def geocentricposlos2cart(r, lat, lon, za, aa):
      Ported from atmlab.  Original author: Bengt Rydberg 2011-10-31
     """
 
-    if(np.isscalar(r) and np.isscalar(lat) and np.isscalar(lon) and
-       np.isscalar(za) and np.isscalar(aa)):
-        r, lat, lon, za, aa = np.broadcast_arrays([r], lat, lon, za, aa)
-    else:
-        r, lat, lon, za, aa = np.broadcast_arrays(r, lat, lon, za, aa)
+    r, lat, lon, za, aa = _broadcast(r, lat, lon, za, aa)
 
     if any(r == 0):
         raise Exception("This function is not handling the case of r = 0.")
@@ -879,11 +875,7 @@ def line_ellipsoid_intersect(x, y, z, dx, dy, dz,
     b = get_ellipsoid_semiminor_axis(ellipsoid) + altitude
 
     # If these are scalars make them arrays
-    if(np.isscalar(x) and np.isscalar(y) and np.isscalar(z) and
-       np.isscalar(dx) and np.isscalar(dy) and np.isscalar(dz)):
-        x, y, z, dx, dy, dz = np.broadcast_arrays([x], y, z, dx, dy, dz)
-    else:
-        x, y, z, dx, dy, dz = np.broadcast_arrays(x, y, z, dx, dy, dz)
+    x, y, z, dx, dy, dz = _broadcast(x, y, z, dx, dy, dz)
 
     # A*d**2 + B*d + C = 0, solve for d
     A = ((dx**2 + dy**2) / a**2 + dz**2 / b**2).flatten()
@@ -943,11 +935,7 @@ def geometric_limb_zenith_angle(ellipsoid, r, lat, lon,
     if(za_acc == 0):
         raise RuntimeError("Zenith accuracy cannot be 0")
 
-    if(np.isscalar(r) and np.isscalar(lat) and np.isscalar(lon) and
-       np.isscalar(aa) and np.isscalar(alt)):
-        r, lat, lon, aa, alt = np.broadcast_arrays([r], lat, lon, aa, alt)
-    else:
-        r, lat, lon, aa, alt = np.broadcast_arrays(r, lat, lon, aa, alt)
+    r, lat, lon, aa, alt = _broadcast(r, lat, lon, aa, alt)
 
     # Remember shape because we'll flatten these arrays for easy looping
     sh = r.shape
@@ -969,12 +957,12 @@ def geometric_limb_zenith_angle(ellipsoid, r, lat, lon,
             zenith_angles = np.linspace(za_min, za_max, num=31)
 
             # Get the Cartesian views for the probing zenith accuracies
-            x, y, z, dx, dy, dz = geocentricposlos2cart(r, lat, lon,
-                                                        zenith_angles, aa)
+            x, y, z, dx, dy, dz = geocentricposlos2cart(r[i], lat[i], lon[i],
+                                                        zenith_angles, aa[i])
 
             # Get intersections with the ellipsoid at the tangent altitude
             d = line_ellipsoid_intersect(x, y, z, dx, dy, dz,
-                                         ellipsoid, alt)
+                                         ellipsoid, alt[i])
 
             # If we have somehow designed a scenario that is impossible or bad
             if np.isnan(d).all():
@@ -1098,3 +1086,12 @@ def sphere_plane_intersection(pos, r, theta=np.linspace(-180., 180.)):
             points[i, ii, :] = pos[ii, :] + rc * (cosd(theta[i]) * v1 +
                                                   sind(theta[i]) * v2)
     return points
+
+
+def _broadcast(*args):
+    """ Similar to broadcast_arrays in numpy but with minimum output size (1,)
+    """
+    shape = np.broadcast(*args).shape
+    if not shape:
+        shape = (1,)
+    return [np.broadcast_to(array, shape) for array in args]
