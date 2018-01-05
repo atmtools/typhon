@@ -64,10 +64,10 @@ class MHSAAPP(handlers.FileHandler):
                 + timedelta(days=int(file.enddatady) - 1) \
                 + timedelta(milliseconds=int(file.enddatatime_ms))
 
-            info = handlers.FileInfo()
-            info["times"] = [start, end]
-            print(info)
-            return info
+            return handlers.FileInfo(
+                filename,
+                [start, end],
+            )
 
     def read(self, filename, fields=None):
         """Reads and parses NetCDF files and load them to a GeoData object.

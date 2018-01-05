@@ -80,9 +80,13 @@ def num2date(times, units, calendar=None):
 
     # Numpy uses the epoch 1970-01-01 natively.
     converted_data = times.astype("M8[%s]" % unit_mapper[unit])
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
     # Maybe there is another epoch used?
-    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
-        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
     return converted_data
 
 
@@ -119,8 +123,12 @@ def date2num(dates, units, calendar=None):
 
     converted_data = \
         dates.astype("M8[%s]" % unit_mapper[unit]).astype("int")
-    if np.datetime64(epoch) != np.datetime64("1970-01-01"):
-        converted_data -= np.datetime64("1970-01-01") - np.datetime64(epoch)
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
     return converted_data
 
 
@@ -193,29 +201,29 @@ class Array(np.ndarray):
     def __len__(self):
         return self.shape[0]
 
-    def __str__(self):
-        # TODO: Sometimes this crashes because the shape attribute has no items
-        try:
-            if self.shape[0] < 5:
-                items = np.array_str(self[:self.shape[0]])
-            else:
-                items = ", ".join([
-                    str(self[0]), str(self[1]), ".. ",
-                    str(self[-2]), str(self[-1])])
-            info = "[{}, dtype={}]".format(items, self.dtype)
-            info += "\nDimensions: "
-            info += ", ".join(
-                ["%s (%d)" % (dim, self.shape[i])
-                 for i, dim in enumerate(self.dims)])
-        except IndexError:
-            info = np.array_str(self)
-
-        if self.attrs:
-            info += "\nAttributes:"
-            for attr, value in self.attrs.items():
-                info += "\n\t{} : {}".format(attr, value)
-
-        return info
+    # def __str__(self):
+    #     # TODO: Sometimes this crashes because the shape attribute has no items
+    #     try:
+    #         if self.shape[0] < 5:
+    #             items = np.array_str(self[:self.shape[0]])
+    #         else:
+    #             items = ", ".join([
+    #                 str(self[0]), str(self[1]), ".. ",
+    #                 str(self[-2]), str(self[-1])])
+    #         info = "[{}, dtype={}]".format(items, self.dtype)
+    #         info += "\nDimensions: "
+    #         info += ", ".join(
+    #             ["%s (%d)" % (dim, self.shape[i])
+    #              for i, dim in enumerate(self.dims)])
+    #     except IndexError:
+    #         info = np.array_str(self)
+    #
+    #     if self.attrs:
+    #         info += "\nAttributes:"
+    #         for attr, value in self.attrs.items():
+    #             info += "\n\t{} : {}".format(attr, value)
+    #
+    #     return info
 
     def _complement_comparisons_of_datetime64(self, method, other):
         """Complement the comparison of a datetime64 array with a time
@@ -284,12 +292,24 @@ class Array(np.ndarray):
 
         """
 
+        # numpy.datetime64 objects cannot be averaged directly
+        if self.dtype.type == np.datetime64:
+            data = self.astype("M8[ns]").astype("int")
+        else:
+            data = self
+
         # This code is taken from https://stackoverflow.com/a/15956341
         padded = np.pad(
-            self, (0, window_size - self.size % window_size),
+            data, (0, window_size - self.size % window_size),
             mode='constant', constant_values=np.NaN
         )
-        return np.nanmean(padded.reshape(-1, window_size), axis=1)
+
+        if self.dtype.type == np.datetime64:
+            return np.nanmean(
+                padded.reshape(-1, window_size), axis=1
+            ).astype("M8[ns]")
+        else:
+            return np.nanmean(padded.reshape(-1, window_size), axis=1)
 
     def bin(self, bins):
         return [
@@ -368,7 +388,7 @@ class ArrayGroup:
         self._groups = {}
 
         if name is None:
-            self.name = "{}, {}:".format(type(self), id(self))
+            self.name = "{} {}".format(id(self), type(self), )
         else:
             self.name = name
 
@@ -531,14 +551,17 @@ class ArrayGroup:
         if variables:
             coords = self.coords(deep=True)
             for var in variables:
-                info += "    {}{}:\n{}\n".format(
-                    var, " (coord)" if var in coords else "",
+                info += "    {} {} {}:\n{}\n".format(
+                    var, self[var].shape, "(coord)" if var in coords else "",
                     textwrap.indent(str(self[var]), ' ' * 6)
                 )
         else:
             info += "  --\n"
 
         return info
+
+    def __repr__(self):
+        return str(self)
 
     def apply(self, func_with_args, deep=False, new_object=False):
         """Apply a function to all variables.
@@ -776,7 +799,9 @@ class ArrayGroup:
             except Exception as e:
                 raise e
         else:
-            data = nc_var[:]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                data = nc_var[:]
 
         return Array(
             data, attrs=nc_var.__dict__,
@@ -1134,6 +1159,11 @@ class ArrayGroup:
                     str(e) + "\nCould not select parts of '%s'.\n" % var)
 
         return obj
+
+    def sort_by(self, field):
+        indices = np.argsort(self[field])
+
+        return self[indices]
 
     def to_dict(self, deep=True):
         """Exports variables to a dictionary.
