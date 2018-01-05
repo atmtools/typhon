@@ -17,7 +17,6 @@ import numbers
 import os.path
 import re
 import shutil
-import sys
 import time
 import warnings
 
@@ -154,7 +153,7 @@ class Dataset:
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
-                methods per default (default is 4).
+                methods per default (default is the number of CPUs).
             compress: If true and the *files* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
@@ -260,14 +259,7 @@ class Dataset:
         # single timestamps?
         self.continuous = continuous
 
-        if max_processes is None:
-            self.max_processes = 4
-        else:
-            self.max_processes = int(max_processes)
-            if max_processes < 1:
-                raise ValueError("Need at least one process set by "
-                                 "max_processes!")
-
+        self.max_processes = max_processes
         self.compress = compress
         self.decompress = decompress
 
@@ -1327,8 +1319,8 @@ class Dataset:
     def map(
         self, start, end,
         func, func_arguments=None, output=None, max_processes=None,
-        bundle=None, include_file_info=False, verbose=False,
-        no_files_error=True,
+        bundle=None, return_file_info=False, process_initializer=None,
+        process_initargs=None, verbose=False,
     ):
         """Applies a function on all files of this dataset between two dates.
 
@@ -1354,18 +1346,22 @@ class Dataset:
                 you can map it onto a bundle of files. Look at the
                 documentation of the *bundle* argument in
                 :meth:`~typhon.spareice.Dataset.find_files` for more details.
-            include_file_info: Since the order of the returning results is
+            return_file_info: Since the order of the returning results is
                 arbitrary, you can include the name of the processed file
                 and its time coverage in the results.
+            process_initializer: Must be a reference to a function that is
+                called once when starting a new process. Can be used to preload
+                variables into one process workspace. See also
+                https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
+                for more information.
+            process_initargs: A tuple with arguments for *process_initializer*.
             verbose: If this is true, debug information will be printed.
-            no_files_error: If true, raises an NoFilesError when no
-                files are found.
 
         Returns:
             A list with one item for each processed file. The order is
-            arbitrary. If *include_file_info* is true, the item is a tuple
+            arbitrary. If *return_file_info* is true, the item is a tuple
             of a FileInfo object and the return value of the applied function.
-            If *include_file_info* is false, the item is simply the return
+            If *return_file_info* is false, the item is simply the return
             value of the applied function.
 
         Examples:
@@ -1383,33 +1379,34 @@ class Dataset:
             max_processes = self.max_processes
 
         # Create a pool of processes and process all the files with them.
-        pool = Pool(processes=max_processes)
+        pool = Pool(
+            max_processes, initializer=process_initializer,
+            initargs=process_initargs,
+        )
 
         args = (
-            (self, x, func, func_arguments, output, include_file_info, verbose)
+            (self, x, func, func_arguments, output, return_file_info, verbose)
             for x in self.find_files(start, end, sort=False, bundle=bundle, )
         )
 
         results = pool.map(
             Dataset._call_function_with_file_info,
-            args, chunksize=10,
+            args, #chunksize=10,
         )
 
-        if results:
-            if verbose:
+        if verbose:
                 print("It took %.2f seconds using %d parallel processes to "
                       "process %d files." % (
                         time.time() - start_time, max_processes, len(results)))
-        elif no_files_error:
-            raise NoFilesError(self.name, start, end)
 
         return results
 
     def map_content(
             self, start, end,
             func, func_arguments=None, output=None, reading_arguments=None,
-            max_processes=None, bundle=None, include_file_info=False,
-            no_files_error=True, verbose=False):
+            max_processes=None, bundle=None, return_file_info=False,
+            process_initializer=None, process_initargs=None,
+            verbose=False):
         """Applies a method on the content of each file of this dataset between
         two dates.
 
@@ -1434,28 +1431,32 @@ class Dataset:
                 information).
             output: Set this to a Dataset object and the return value of
                 *func* will be copied there. In that case
-                *include_file_info* will be ignored.
-            include_file_info: Since the order of the returning results is
-                arbitrary, you can include the name of the processed file
-                and its time coverage in the results.
+                *return_file_info* will be ignored.
             max_processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
+            return_file_info: Since the order of the returning results is
+                arbitrary, you can include the name of the processed file
+                and its time coverage in the results.
+            process_initializer: Must be a reference to a function that is
+                called once when starting a new process. Can be used to preload
+                variables into one process workspace. See also
+                https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
+                for more information.
+            process_initargs: A tuple with arguments for *process_initializer*.
             bundle: Instead of only mapping a function onto one file at a time,
                 you can map it onto a bundle of files. Look at the
                 documentation of the *bundle* argument in
                 :meth:`~typhon.spareice.Dataset.find_files` for more details.
             verbose: If  true, debug information will be printed.
-            no_files_error: If true, raises an NoFilesError when no
-                files are found.
 
         Returns:
             A list with one item for each processed file. The order is
             arbitrary.
             If *output* is set to a Dataset object, only a list with all
                 processed files is returned.
-            If *include_file_info* is true, the item is a tuple of a FileInfo
+            If *return_file_info* is true, the item is a tuple of a FileInfo
                 object and the return value of the applied function.
-            If *include_file_info* is false, it is simply the return value
+            If *return_file_info* is false, it is simply the return value
                 of the applied function.
 
         Examples:
@@ -1473,12 +1474,15 @@ class Dataset:
             max_processes = self.max_processes
 
         # Create a pool of processes and process all the files with them.
-        pool = Pool(processes=max_processes)
+        pool = Pool(
+            max_processes, initializer=process_initializer,
+            initargs=process_initargs,
+        )
 
         # Prepare argument list for mapping function
         args = (
             (self, x, func, func_arguments, output, reading_arguments,
-             include_file_info, verbose)
+             return_file_info, verbose)
             for x in self.find_files(start, end, sort=False, bundle=bundle, )
         )
 
@@ -1487,13 +1491,10 @@ class Dataset:
             args, #chunksize=10,
         )
 
-        if results:
-            if verbose:
-                print("It took %.2f seconds using %d parallel processes to "
-                      "process %d files." % (
-                        time.time() - start_time, max_processes, len(results)))
-        elif no_files_error:
-            raise NoFilesError(self.name, start, end)
+        if verbose:
+            print("It took %.2f seconds using %d parallel processes to "
+                  "process %d files." % (
+                    time.time() - start_time, max_processes, len(results)))
 
         return results
 
