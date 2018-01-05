@@ -5,6 +5,8 @@ Trees are powerful structures to sort a huge amount of data and to speed up
 performing query requests on them significantly.
 """
 
+from collections import Iterable
+
 import numpy as np
 
 __all__ = [
@@ -47,6 +49,9 @@ class IntervalTree:
             intervals: A numpy array containing the intervals (list of two
                 numbers).
         """
+        # Check the intervals whether they are valid:
+
+
         self.left = np.min(intervals)
         self.right = np.max(intervals)
 
@@ -56,6 +61,12 @@ class IntervalTree:
         indices = np.arange(intervals.shape[0]).reshape(intervals.shape[0], 1)
         indexed_intervals = np.hstack([intervals, indices])
         self.root = self._build_tree(np.sort(indexed_intervals, axis=0))
+
+    def __contains__(self, item):
+        if isinstance(item, (tuple, list)):
+            return bool(self._query(item, self.root, check_extreme=True))
+        else:
+            return bool(self._query_point(item, self.root, check_extreme=True))
 
     def _build_tree(self, intervals):
         if not intervals.any():
@@ -78,7 +89,7 @@ class IntervalTree:
         return intervals[int(intervals.shape[0]/2), 0]
 
     @staticmethod
-    def overlaps(interval1, interval2):
+    def interval_overlaps(interval1, interval2):
         """Checks whether two interval overlap each other.
 
         Args:
@@ -95,7 +106,7 @@ class IntervalTree:
             (interval2[0] <= interval1[0] and interval2[1] >= interval1[1])
 
     @staticmethod
-    def contains(interval, point):
+    def interval_contains(interval, point):
         """Checks whether a point lies in a interval.
 
         Args:
@@ -112,8 +123,8 @@ class IntervalTree:
         """Find all overlaps between this tree and a list of intervals.
 
         Args:
-            intervals: A list of intervals. Each interval is a tuple/list of two
-                elements: its lower and higher boundary.
+            intervals: A list of intervals. Each interval is a tuple/list of
+                two elements: its lower and higher boundary.
 
         Returns:
             List of lists which contain the overlapping intervals of this tree
@@ -126,13 +137,13 @@ class IntervalTree:
         # Check this special case: the bounds of the query interval lie outside
         # of the bounds of this tree:
         if (check_extreme
-                and IntervalTree.contains(query_interval, self.left)
-                and IntervalTree.contains(query_interval, self.right)):
+                and IntervalTree.interval_contains(query_interval, self.left)
+                and IntervalTree.interval_contains(query_interval, self.right)):
             return [] # TODO: Return all intervals
 
         # Let's start with the centered intervals
         intervals = [int(interval[2]) for interval in node.center
-                     if IntervalTree.overlaps(interval, query_interval)]
+                     if IntervalTree.interval_overlaps(interval, query_interval)]
 
         if query_interval[0] <= node.center_point and node.left is not None:
             intervals.extend(self._query(query_interval, node.left))
@@ -149,8 +160,8 @@ class IntervalTree:
             points: A list of points.
 
         Returns:
-            List of lists which contain the enclosing intervals of this tree for
-            each element in `points`.
+            List of lists which contain the enclosing intervals of this tree
+            for each element in `points`.
         """
         return [self._query_point(point, self.root, check_extreme=True)
                 for point in points]
@@ -159,13 +170,13 @@ class IntervalTree:
         # Check this special case: the query point lies outside of the bounds of
         # this tree:
         if check_extreme \
-                and not IntervalTree.contains((self.left, self.right), point):
+                and not IntervalTree.interval_contains((self.left, self.right), point):
             return []
 
         # Let's start with the centered intervals
         intervals = [int(interval[2])
                      for interval in node.center
-                     if IntervalTree.contains(interval, point)]
+                     if IntervalTree.interval_contains(interval, point)]
 
         if point < node.center_point and node.left is not None:
             intervals.extend(self._query_point(point, node))

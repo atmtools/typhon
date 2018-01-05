@@ -370,8 +370,8 @@ class ArrayGroup:
 
         Args:
             name: Name of the ArrayGroup as string.
-            hidden_prefix: (optional) Define the prefix of hidden groups or
-                variables. The default is "__".
+            hidden_prefix: Define the prefix of hidden groups or variables.
+                The default is "__".
         """
 
         self.attrs = {}

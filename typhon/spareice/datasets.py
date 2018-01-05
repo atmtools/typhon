@@ -105,7 +105,7 @@ class Dataset:
 
     def __init__(
             self, files, handler=None, name=None, time_coverage=None,
-            times_cache=None, continuous=True, max_processes=None,
+            times_cache=None, continuous=True, exclude=None, max_processes=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -150,6 +150,8 @@ class Dataset:
                 minimal time resolution is retrieved from the temporal
                 placeholders in the *files* parameter. This will be ignored if
                 *time_coverage* is not *filename*.
+            exclude: A list of time periods (tuples of two timestamps) that
+                will be excluded when searching for files of this dataset.
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
@@ -258,6 +260,10 @@ class Dataset:
         # Do the files cover everything (they are continuous) or are rather
         # single timestamps?
         self.continuous = continuous
+
+        # A list of time periods that will be excluded when searching files:
+        self._exclude = None
+        self.exclude = exclude
 
         self.max_processes = max_processes
         self.compress = compress
@@ -742,6 +748,30 @@ class Dataset:
         return date_args
 
     @property
+    def exclude(self):
+        """Gets or sets time periods that will be excluded when searching for
+        files.
+
+        Returns:
+            A IntervalTree object.
+        """
+        return self._exclude
+
+    @exclude.setter
+    def exclude(self, value):
+        if value is None:
+            self._exclude = None
+        else:
+            # if np.diff(value) < timedelta():
+            #     raise ValueError(
+            #         "Invalid time periods found! The left boundary of the "
+            #         "period must be lower than the right one.")
+            if isinstance(value, np.ndarray):
+                self._exclude = IntervalTree(value)
+            else:
+                self._exclude = IntervalTree(np.array(value))
+
+    @property
     def files(self):
         """Gets or sets the path to the dataset's files.
 
@@ -766,6 +796,8 @@ class Dataset:
     def find_file(self, timestamp):
         """Finds either the file that covers a timestamp or is the closest to
         it.
+
+        This method ignores the value of *Dataset.exclude*.
 
         TODO: Make clear what this method returns.
 
@@ -825,7 +857,7 @@ class Dataset:
 
         # Either we find a file that covers the certain timestamp:
         for index, time_coverage in enumerate(times):
-            if IntervalTree.contains(time_coverage, timestamp):
+            if IntervalTree.interval_contains(time_coverage, timestamp):
                 return files[index]
 
         # Or we find the closest file.
@@ -841,6 +873,9 @@ class Dataset:
         The *start* and *end* parameters build a semi-open interval: only the
         files that are equal or newer than *start* and older than *end* are
         going to be found.
+
+        While searching this method checks whether the file lies in the time
+        periods given by *Dataset.exclude*.
 
         Args:
             start: Start date either as datetime object or as string
@@ -896,7 +931,7 @@ class Dataset:
         if self.single_file:
             if os.path.isfile(self.files):
                 time_coverage = self.retrieve_time_coverage(self.files)
-                if IntervalTree.overlaps(time_coverage, (start, end)):
+                if IntervalTree.interval_overlaps(time_coverage, (start, end)):
                     yield FileInfo(self.files, time_coverage)
                 elif no_files_error:
                     raise NoFilesError(self.name, start, end)
@@ -1039,7 +1074,8 @@ class Dataset:
 
                 # Test whether the file is overlapping the interval between
                 # start and end date.
-                if IntervalTree.overlaps(times, (start, end)):
+                if IntervalTree.interval_overlaps(times, (start, end))\
+                        and not self.is_excluded(times):
                     if verbose:
                         print("\tPassed time check")
                     yield FileInfo(filename, times)
@@ -1287,6 +1323,20 @@ class Dataset:
 
         with typhon.files.decompress(filename) as file:
             return self.handler.get_info(file)
+
+    def is_excluded(self, period):
+        """Checks whether a time interval is excluded from this Dataset.
+
+        Args:
+            period: A tuple of two datetime objects.
+
+        Returns:
+            True or False
+        """
+        if self.exclude is None:
+            return False
+
+        return period in self.exclude
 
     def load_time_coverages(self, filename):
         """ Loads the time coverages cache from a file.
