@@ -205,3 +205,19 @@ class TestGeodesy:
             [1, 1.1], [1, 1], [1, 1.1], [1, 1], [1, 1], [1, 1])
 
         assert np.allclose(results, reference)
+
+    def test_cartposlos2geocentric_scalar(self):
+        """Test conversion of cartesian POS/LOS for scalar input."""
+        # The output is casted into ndarrays even if all input arguments are
+        # floats.
+        reference = (
+            np.array([1.73205081]),
+            np.array([35.26438968]),
+            np.array([45.]),
+            np.array([0.]),
+            np.array([0.])
+            )
+
+        results = geodesy.cartposlos2geocentric(1, 1, 1, 1, 1, 1)
+
+        assert np.allclose(results, reference)
