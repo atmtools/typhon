@@ -415,7 +415,8 @@ def undo_xarray_floatification(ds, fields=None):
 
     Parameters:
 
-        ds (xarray.Dataset): xarray dataset to be converted.
+        ds (xarray.Dataset): xarray dataset to be converted.  Will be
+        copied.
 
         fields (Collection or None): Describes what fields shall be
             converted.  If not given or None (default), convert all fields
@@ -429,17 +430,17 @@ def undo_xarray_floatification(ds, fields=None):
 
     to_correct = {k for (k, v) in ds.data_vars.items()
         if v.encoding.get("dtype", np.dtype("O")).kind[0] in "ui" and
-        not v.dtype.kind in "ui"}
+        not v.dtype.kind in "uiMm"} # don't convert datetime/deltas
 
     if fields is not None:
         to_correct &= fields
 
+    ds2 = ds.copy()
     for k in to_correct:
-        enc = ds[k].encoding
-        ds[k] = ds[k].astype(ds[k].encoding["dtype"])
-        ds[k].encoding.update(enc)
+        ds2[k] = ds[k].astype(ds[k].encoding["dtype"])
+        ds2[k].encoding.update(ds[k].encoding)
 
-    return ds
+    return ds2
 
 def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     """Combine image files to a video using ``ffmpeg``.
