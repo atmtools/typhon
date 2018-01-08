@@ -847,9 +847,10 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         other_data[other_prim].dims))
             my_dim = my_data[my_prim].dims[0]
             other_dim = other_data[other_prim].dims[0]
-            my_data = my_data.loc[
-                {my_data[my_prim].dims[0]:
-                 numpy.argsort(my_data[my_prim])}]
+            if not (my_data[my_prim][1:] >= my_data[my_prim][:-1]).all():
+                raise ValueError("Primary/reference instrument data must "
+                    "be sorted in time to find matching data in other set. "
+                    f"Field {my_prim:s} in {self.name:s} is not sorted in time.")
 
         # through interpolation, find times in `other` closest to times in
         # myself; hopefully that means the difference is zero
