@@ -1883,6 +1883,7 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
     start_date = datetime.datetime(2013, 1, 1)
     end_date = datetime.datetime(2014, 1, 1)
     colloc_dim = "line"
+    concat_coor = "line"
     
     def _read(self, f, fields="all"):
         (M, extra) = super()._read(f, fields)
@@ -1903,6 +1904,8 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
                     M["ref_radiance"].attrs["units"] \
                                      .replace("m2", "m**2") \
                                      .replace("^-1", "**(-1)")
+            # make sure data are sorted in time
+            M = M.loc[{"line": numpy.argsort(M["time"])}]
             return (M, extra)
         else:
                 raise ValueError(f"Invalid read_returns: {self.read_returns:s}")
