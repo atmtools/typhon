@@ -69,9 +69,14 @@ def compress(filename, fmt=None,):
         yield filename
         return
 
-    with tempfile.NamedTemporaryFile(prefix=tempfile.gettempdir()) as tfile:
+    # Do not use NamedTemporaryFile as with statement due to this:
+    # https://stackoverflow.com/q/15169101/9144990
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    try:
         yield tfile.name
         compress_as(tfile.name, fmt, filename, True)
+    finally:
+        os.remove(tfile.name)
 
 
 def compress_as(filename, fmt, target=None, keep=True):
