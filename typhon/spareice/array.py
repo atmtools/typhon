@@ -875,7 +875,7 @@ class ArrayGroup:
         variables = list(self.vars(deep, with_name=field))
 
         if not variables:
-            raise KeyError("No variable named '%s' was found!")
+            raise KeyError("No variable named '%s' was found!" % field)
 
         start = [np.nanmin(self[var], axis).item(0) for var in variables]
         end = [np.nanmax(self[var], axis).item(0) for var in variables]

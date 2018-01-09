@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 from inspect import signature, ismethod
 import os
 import pickle
@@ -12,6 +13,7 @@ __all__ = [
     'CSV',
     'FileHandler',
     'FileInfo',
+    'Plot',
     'NetCDF4',
     # 'Numpy',
     # 'Pickle',
@@ -182,7 +184,7 @@ class FileHandler:
 class FileInfo(os.PathLike):
     """Contains information about a file (time coverage, etc.)
     """
-    def __init__(self, path=None, times=None):
+    def __init__(self, path=None, times=None, attr=None):
         super(FileInfo, self).__init__()
 
         self.path = path
@@ -191,6 +193,11 @@ class FileInfo(os.PathLike):
             self.times = [None, None]
         else:
             self.times = times
+
+        if attr is None:
+            self.attr = {}
+        else:
+            self.attr = attr
 
     def __eq__(self, other):
         return self.path == other.path and self.times == other.times
@@ -202,7 +209,58 @@ class FileInfo(os.PathLike):
         return str(self)
 
     def __str__(self):
-        return "(%s, %s) %s" % (self.times[0], self.times[1], self.path, )
+        if self.attr:
+            attr_string = "\n  Attributes:\n"
+            for k, v in self.attr.items():
+                attr_string += "    %s: %s\n" % (k, v)
+
+        return "{}\n  Start: {}\n  End: {}{}".format(
+            self.path, *self.times,
+            attr_string if self.attr else "",
+        )
+
+    @classmethod
+    def from_json_dict(cls, json_dict):
+        times = []
+        for i in range(2):
+            if json_dict["times"][i] is None:
+                times.append([None])
+            else:
+                times.append(
+                    datetime.strptime(
+                        json_dict["times"][i], "%Y-%m-%dT%H:%M:%S.%f"),
+                )
+
+        return cls(json_dict["path"], times, json_dict["attr"])
+
+    def update(self, other_info, ignore_none_time=True):
+        """Update this object with another FileInfo object.
+
+        Args:
+            other_info: A FileInfo object.
+            ignore_none_time: If the start time or end time of *other_info* is
+                set to None, it does not overwrite the corresponding time of
+                this object.
+
+        Returns:
+            None
+        """
+        self.attr.update(**other_info.attr)
+
+        if other_info.times[0] is not None or not ignore_none_time:
+            self.times[0] = other_info.times[0]
+        if other_info.times[1] is not None or not ignore_none_time:
+            self.times[1] = other_info.times[1]
+
+    def to_json_dict(self):
+        return {
+            "path": self.path,
+            "times": [
+                self.times[0].strftime("%Y-%m-%dT%H:%M:%S.%f"),
+                self.times[1].strftime("%Y-%m-%dT%H:%M:%S.%f")
+            ],
+            "attr": self.attr,
+        }
 
 
 class CSV(FileHandler):
@@ -363,6 +421,48 @@ class NetCDF4(FileHandler):
             data.to_netcdf(filename)
         else:
             data.to_netcdf(filename, **kwargs)
+
+
+class Plot(FileHandler):
+    """File handler that can save matplotlib.figure objects to a file.
+
+    This is a specialised file handler object that can just store
+    matplotlib.figure objects. It cannot read from a file nor get the time
+    coverage from one. This is designed for having a simple plot dataset as
+    output.
+    """
+
+    def __init__(self, fig_args=None, **kwargs):
+        """Initializes a Plot file handler class.
+
+        Args:
+            fig_args: A dictionary of additional keyword arguments for the
+                fig.savefig method.
+        """
+        # Call the base class initializer
+        super().__init__(**kwargs)
+
+        if fig_args is None:
+            self.fig_args = {}
+        else:
+            self.fig_args = fig_args
+
+    def write(self, filename, figure, fig_args=None):
+        """ Saves a matplotlib.figure object to a file.
+
+        Args:
+            filename: Path and name of the file.
+            figure: A matplotlib.figure object.
+            fig_args: A dictionary of additional keyword arguments for the
+                fig.savefig method. This updates the *fig_args* given during
+                initialisation.
+        """
+
+        params = self.fig_args.copy()
+        if fig_args is not None:
+            params.update(**fig_args)
+
+        return figure.savefig(filename, **params)
 
 
 # class Numpy(handlers.FileHandler):

@@ -4,6 +4,7 @@
 """
 
 import collections
+from datetime import datetime
 import itertools
 import math
 import warnings
@@ -24,6 +25,7 @@ __all__ = [
     'scatter_density_plot_matrix',
     'HectoPascalFormatter',
     'HectoPascalLogFormatter',
+    'diff_histogram',
     'profile_p',
     'profile_p_log',
     'profile_z',
@@ -592,6 +594,70 @@ def profile_z(z, x, ax=None, **kwargs):
     ax.yaxis.set_minor_formatter(km_formatter)
 
     return ret
+
+
+def diff_histogram(array1, array2, ax=None,
+                    plot_args=None, **hist_args):
+    """Bin two arrays and plot their differences as histogram.
+
+    Args:
+        array1: One-dimensional numpy.array.
+        array2: One-dimensional numpy.array.
+        ax: Axes to plot in.
+        plot_args: Keyowrd arguments of matplotllib.pyplot.step as dictionary.
+        **hist_args: Additional keyword arguments for numpy.histogram.
+
+    Returns:
+        A tuple of the plot object, the bin edges and the differences.
+    """
+
+    if ax is None:
+        ax = plt.gca()
+
+    # numpy.histogram cannot work with numpy.datetime64 objects, therefore we
+    # have to convert them before:
+    bins_are_timestamps = False
+    if array1.dtype.type == np.datetime64 or array1.dtype.type == datetime:
+        array1 = array1.astype("M8[ns]").astype("float")
+        bins_are_timestamps = True
+    if array2.dtype.type == np.datetime64 or array2.dtype.type == datetime:
+        array2 = array2.astype("M8[ns]").astype("float")
+        bins_are_timestamps = True
+
+    if "range" in hist_args:
+        range_array = np.array(hist_args["range"])
+
+        # If a range for the histogram is set, we have to convert if it is a
+        # datetime data type:
+        if range_array.dtype.type == np.datetime64 \
+                or isinstance(range_array.item(0), datetime):
+            range_array = range_array.astype("M8[ns]").astype("float")
+            hist_args["range"] = range_array.tolist()
+    elif "bins" not in hist_args and "range" not in hist_args:
+        # Both data arrays must be binned with the same bins. If the user did
+        # not care, we do.
+        start = min(array1.min(), array2.min())
+        end = max(array1.max(), array2.max())
+        hist_args["range"] = [start, end]
+
+    y1, bins1 = np.histogram(array1, **hist_args)
+    y2, bins2 = np.histogram(array2, **hist_args)
+
+    # The two bins should be the same
+    if not np.allclose(bins1, bins2):
+        raise ValueError("Arrays could not be grouped into the same bins!")
+
+    if bins_are_timestamps:
+        bins1 = bins1.astype("M8[ns]")
+
+    diff = y1 - y2
+
+    if plot_args is None:
+        plot_args = {}
+
+    bar_plot = ax.step(bins1[:-1], diff, **plot_args)
+
+    return bar_plot, bins1, diff
 
 
 def channels(met_mm_backend, ylim=None, ax=None, **kwargs):

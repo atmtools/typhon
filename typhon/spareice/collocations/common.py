@@ -715,7 +715,7 @@ class CollocatedDataset(Dataset):
             datasets=[dataset1, dataset2],
             original_indices=[original_indices1, original_indices2],
             collocations=[collocations1, collocations2],
-            original_files=[file1, file2],
+            original_files=[file1.path, file2.path],
             max_interval=max_interval, max_distance=max_distance
         )
 
@@ -845,19 +845,14 @@ class CollocatedDataset(Dataset):
                 )
                 collocated_data[datasets[i].name] = data
 
-        collocations_start, collocations_end = \
-            collocated_data.get_range("time", deep=True)
+        time_coverage = collocated_data.get_range("time", deep=True)
         collocated_data.attrs["start_time"] = \
-            collocations_start.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            time_coverage[0].strftime("%Y-%m-%dT%H:%M:%S.%f")
         collocated_data.attrs["end_time"] = \
-            collocations_end.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            time_coverage[1].strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         # Prepare the name for the output file:
-        filename = self.generate_filename(
-            self.files,
-            collocations_start,
-            collocations_end
-        )
+        filename = self.generate_filename(time_coverage)
 
         # Write the data to the file.
         print("\tWrite collocations to '{0}'".format(filename))
