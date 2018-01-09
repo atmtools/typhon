@@ -34,6 +34,14 @@ __all__ = [
 ]
 
 
+class InhomogeneousFilesError(Exception):
+    """Should be raised if the files of a dataset do not have the same internal
+    structure but it is required.
+    """
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+
+
 class NoFilesError(Exception):
     """Should be raised if no files were found by the :meth:`find_files`
     method.
@@ -55,12 +63,27 @@ class NoHandlerError(Exception):
         Exception.__init__(self, *args)
 
 
-class InhomogeneousFilesError(Exception):
-    """Should be raised if the files of a dataset do not have the same internal
-    structure but it is required.
+class UnknownPlaceholderError(Exception):
+    """Should be raised if a placeholder was found that was not defined before.
     """
-    def __init__(self, *args):
-        Exception.__init__(self, *args)
+    def __init__(self, name, placeholder_name, *args):
+        message = \
+            "The dataset '%s' does not know the placeholder %s!\nYou have " \
+            "to define it first." % (name, placeholder_name)
+        Exception.__init__(self, message, *args)
+
+
+class PlaceholderRegexError(Exception):
+    """Should be raised if the regex of a placeholder is broken.
+    """
+    def __init__(self, name, placeholder_name=None, ):
+        if placeholder_name is None:
+            placeholder_name = "one"
+
+        message = \
+            "The regex of %s placeholder is broken from the '%s' dataset." % (
+                placeholder_name, name)
+        Exception.__init__(self, message)
 
 
 class Dataset:
@@ -68,7 +91,9 @@ class Dataset:
     (dataset).
 
     """
-    placeholder = {
+
+    # Required placeholders that can be overridden by the user but not deleted:
+    _placeholder = {
         # "placeholder_name": [regex to find the placeholder]
         "year": "(\d{4})",
         "year2": "(\d{2})",
@@ -88,8 +113,12 @@ class Dataset:
         "end_minute": "(\d{2})",
         "end_second": "(\d{2})",
         "end_millisecond": "(\d{3})",
-        "name": "",
     }
+
+    # Placeholders that can be changed by the user:
+    placeholder = {}
+
+    placeholder_filling = {}
 
     _temporal_resolution = {
         # placeholder: [pandas frequency, rank]
@@ -104,19 +133,20 @@ class Dataset:
     }
 
     def __init__(
-            self, files, handler=None, name=None, time_coverage=None,
-            times_cache=None, continuous=True, exclude=None, max_processes=None,
-            compress=True, decompress=True,
+            self, files, handler=None, name=None, info_via=None,
+            time_coverage=None, info_cache=None, continuous=True,
+            exclude=None, max_processes=None, compress=True, decompress=True,
     ):
         """Initializes a dataset object.
 
         Args:
             files: A string with the complete path to the dataset files. The
                 string can contain placeholder such as {year}, {month},
-                etc. See the documentation for the :meth:`generate_filename`
-                method for a complete list. If no placeholders are given, the
-                path must point to a file. This dataset is then seen as a
-                single file dataset.
+                etc. See below for a complete list. If no placeholders are
+                given, the path must point to a file. This dataset is then
+                seen as a single file dataset. You can also define your own
+                placeholders by adding their name and their matching regular
+                expression to *Dataset.placeholder*.
             name: The name of the dataset.
             handler: An object which can handle the dataset files.
                 This dataset class does not care which format its files have
@@ -124,25 +154,28 @@ class Dataset:
                 handler class from typhon.handlers or write your own class.
                 For example, if this dataset consists of NetCDF files, you can
                 use the typhon.spareice.handlers.NetCDF4 here (is default).
-            time_coverage: Defines how the timestamp of the data
-                should be retrieved. Default for multi file datasets is
-                *filename* which retrieves the time coverage from the filename
-                by using placeholders.
-                Another option is *content* which uses the :meth:`get_info`
-                method (a file handler has to be specified). The third option
-                should be used if this dataset consists of a single file: then
+            info_via: Defines how further information about the file will
+                be retrieved (e.g. time coverage). Possible options are
+                *filename*, *handler* or *both*. Default is *filename*. That
+                means that the placeholders in the file's path will be parsed
+                to obtain information. If this is *handler*, the
+                :meth:`~typhon.spareice.handlers.FileInfo.get_info` method is
+                used. If this is *both*, both options will be executed but the
+                information from the file handler overwrites conflicting
+                information from the filename.
+            info_cache: Retrieving further information (such as time coverage)
+                about a file may take a while, especially when *get_info* is
+                set to "content". Therefore, if the file information is cached,
+                 multiple calls of :meth:`find_files` (for time periods that
+                are close) are significantly faster. Specify a name to a file
+                here (which need not exist) if you wish to save the information
+                 data to a file. When restarting your script, this cache is
+                used.
+            time_coverage: If this dataset consists of a single file, then
                 you can specify a tuple of two datetime objects via this
                 parameter representing the start and end time. Otherwise the
-                year 1 and 9999 will be used a default time coverage.
+                year 1 and 9999 will be used as a default time coverage.
                 Look at Dataset.retrieve_timestamp() for more details.
-            times_cache: Finding the correct files for a time period
-                may take a while, especially when the time retrieving
-                method is set to "content". Therefore, if the file names and
-                their time coverage are cached, multiple calls of find_files
-                (for time coverages that are close) are significantly faster.
-                Specify a name to a file here (which need not exist) if you
-                wish to save those time coverages to a file. When restarting
-                your script, this cache is used.
             continuous: If true, all files of this dataset are considered to be
                 continuous, i.e. they cover a time period and not only a single
                 timestamp. If their start and end time are equal,
@@ -165,6 +198,37 @@ class Dataset:
                 will be decompressed before reading them. Default value is
                 true.
 
+        Allowed placeholders in the template are:
+
+        +-------------+------------------------------------------+------------+
+        | Placeholder | Description                              | Example    |
+        +=============+==========================================+============+
+        | year        | Four digits indicating the year.         | 1999       |
+        +-------------+------------------------------------------+------------+
+        | year2       | Two digits indicating the year. [1]_     | 58 (=2058) |
+        +-------------+------------------------------------------+------------+
+        | month       | Two digits indicating the month.         | 09         |
+        +-------------+------------------------------------------+------------+
+        | day         | Two digits indicating the day.           | 08         |
+        +-------------+------------------------------------------+------------+
+        | doy         | Three digits indicating the day of       | 002        |
+        |             | the year.                                |            |
+        +-------------+------------------------------------------+------------+
+        | hour        | Two digits indicating the hour.          | 22         |
+        +-------------+------------------------------------------+------------+
+        | minute      | Two digits indicating the minute.        | 58         |
+        +-------------+------------------------------------------+------------+
+        | second      | Two digits indicating the second.        | 58         |
+        +-------------+------------------------------------------+------------+
+        | millisecond | Three digits indicating the millisecond. | 999        |
+        +-------------+------------------------------------------+------------+
+        .. [1] Numbers lower than 65 are interpreted as 20XX while numbers
+            equal or greater are interpreted as 19XX (e.g. 65 = 1965,
+            99 = 1999)
+
+        All those place holders are also allowed to have the prefix *end*
+        (e.g. *end_year*). They represent the end of the time coverage.
+
         Examples:
 
         .. code-block:: python
@@ -176,7 +240,7 @@ class Dataset:
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
                 # filename, you should set this to "content":
-                time_coverage="filename"
+                info_via="filename"
             )
 
             # Find some files of the dataset:
@@ -238,16 +302,12 @@ class Dataset:
         self.single_file = None
         self.files = files
 
-        if handler is not None:
-            self.handler = handler
-        else:
-            # Try to derive the file handler from the files extension:
-            basename = self.files
-            while True:
-                basename, extension = os.path.splitext(basename)
-                if not typhon.files.is_compression_format(
-                        extension.lstrip(".")):
-                    break
+        if handler is None:
+            # Try to derive the file handler from the files extension but
+            # before we might remove potential compression suffixes:
+            basename, extension = os.path.splitext(self.files)
+            if typhon.files.is_compression_format(extension.lstrip(".")):
+                _, extension = os.path.splitext(basename)
 
             if extension == ".nc" or extension == ".h5":
                 self.handler = NetCDF4()
@@ -256,6 +316,19 @@ class Dataset:
                 self.handler = CSV()
             else:
                 self.handler = None
+        else:
+            self.handler = handler
+
+        # Defines which method will be used by .get_info():
+        if info_via is None:
+            self.info_via = "filename"
+        else:
+            if self.handler is None:
+                raise NoHandlerError(
+                    "Cannot set 'info_via' to '%s'! No file handler is "
+                    "specified!".format(info_via))
+            else:
+                self.info_via = info_via
 
         # Do the files cover everything (they are continuous) or are rather
         # single timestamps?
@@ -269,39 +342,33 @@ class Dataset:
         self.compress = compress
         self.decompress = decompress
 
-        if time_coverage is None:
-            if self.single_file:
+        if self.single_file:
+            if time_coverage is None:
                 # The default for single file datasets:
                 self.time_coverage = [
                     datetime.min,
                     datetime.max
                 ]
             else:
-                # The default for multi file datasets:
-                self.time_coverage = "filename"
-        elif isinstance(time_coverage, (tuple, list)):
-            if not self.single_file:
-                warnings.warn(
-                    "The explicit definition of the time coverage only makes "
-                    "sense for single file datasets.", RuntimeWarning)
-
-            self.time_coverage = [
-                self._to_datetime(time_coverage[0]),
-                self._to_datetime(time_coverage[1]),
-            ]
-        else:
-            self.time_coverage = time_coverage
+                self.time_coverage = [
+                    self._to_datetime(time_coverage[0]),
+                    self._to_datetime(time_coverage[1]),
+                ]
+        elif time_coverage is not None:
+            warnings.warn(
+                "The dataset '%s' is not a single file dataset; the parameter "
+                "time_coverage will be ignored." % self.name, RuntimeWarning)
 
         # Multiple calls of .find_files() can be very slow when using a time
         # coverage retrieving method "content". Hence, we use a cache to
         # store the names and time coverages of already touched files in this
         # dictionary.
-        self.times_cache_filename = times_cache
-        self.time_coverages_cache = defaultdict(list)
-        if self.times_cache_filename is not None:
+        self.info_cache_filename = info_cache
+        self.info_cache = defaultdict(list)
+        if self.info_cache_filename is not None:
             try:
                 # Load the time coverages from a file:
-                self.load_time_coverages(self.times_cache_filename)
+                self.load_info_cache(self.info_cache_filename)
             except Exception as e:
                 raise e
             else:
@@ -312,8 +379,8 @@ class Dataset:
                 # coverages? We would overwrite the cache with nonsense.
                 # Therefore, we need this code in this else block.
                 atexit.register(
-                    Dataset.save_time_coverages,
-                    self, self.times_cache_filename)
+                    Dataset.save_info_cache,
+                    self, self.info_cache_filename)
 
     """def __iter__(self):
         return self
@@ -375,15 +442,18 @@ class Dataset:
         else:
             start = end = key
 
-        filename = self.generate_filename(self.files, start, end)
+        filename = self.generate_filename((start, end))
         self.write(filename, value)
 
     def __repr__(self):
         return self.name
 
     def __str__(self):
+        dtype = "Single-File" if self.single_file else "Multi-File"
+
         info = "Name:\t" + self.name
-        info += "\nFiles:\t" + self.files
+        info += "\nType:\t" + dtype
+        info += "\nFiles path:\t" + self.files
         return info
 
     def accumulate(self, start, end, concat_func=None, concat_args=None,
@@ -592,7 +662,7 @@ class Dataset:
 
     def copy(
             self, start, end, destination,
-            converter=None, joiner=None, delete_originals=False, verbose=False,
+            converter=None, delete_originals=False, verbose=False,
             new_name=None
     ):
         """ Copies all files from this dataset between two dates to another
@@ -664,12 +734,12 @@ class Dataset:
             # Copy the files
             self.map(
                 start, end, Dataset._copy_file,
-                 {
+                {
                      "path" : destination,
                      "converter" : converter,
                      "delete_originals" : delete_originals
-                 },
-                 verbose=verbose
+                },
+                verbose=verbose
             )
         else:
             if self.single_file:
@@ -696,14 +766,13 @@ class Dataset:
         return new_dataset
 
     @staticmethod
-    def _create_date_from_placeholders(placeholders, values, prefix=None,
+    def _create_date_from_placeholders(filled_placeholders, prefix=None,
                                        exclude=None, default=None):
         """Creates a dictionary with date and time keys from placeholders and
         their values.
 
         Args:
-            placeholders:
-            values:
+            filled_placeholders:
             prefix:
             exclude:
             default:
@@ -719,8 +788,7 @@ class Dataset:
         if default is not None:
             date_args.update(**default)
 
-        for index, placeholder in enumerate(placeholders):
-            value = int(values[index])
+        for placeholder, value in filled_placeholders.items():
             if placeholder == prefix + "year2":
                 # TODO: What should be the threshold that decides whether the
                 # TODO: year is 19xx or 20xx?
@@ -738,7 +806,7 @@ class Dataset:
                     # Cut off the prefix
                     date_args[placeholder[len(prefix):]] = value
 
-        if prefix + "doy" in placeholders:
+        if prefix + "doy" in filled_placeholders:
             date = datetime(date_args["year"], 1, 1) \
                    + timedelta(date_args["doy"] - 1)
             date_args["month"] = date.month
@@ -746,6 +814,7 @@ class Dataset:
             del date_args["doy"]
 
         return date_args
+
 
     @property
     def exclude(self):
@@ -788,10 +857,26 @@ class Dataset:
 
         self.files_placeholders = re.findall("\{(\w+)\}", self.files)
 
+        # TODO: Currently, we cannot work with files which directory name
+        # TODO: contain regular expressions
+        placeholders_in_dir = \
+            re.findall("\{(\w+)\}", os.path.dirname(self.files))
+
+        if set(placeholders_in_dir).intersection(self.placeholder):
+            raise ValueError("Currently, user-defined placeholders in the "
+                             "directory name are not supported!")
+
         # Flag whether this is a single file dataset or not:
-        self.single_file = \
-            not self.files_placeholders \
-            and "*" not in self.files
+        no_temporal_placeholders = \
+            not set(
+                self._placeholder).intersection(set(self.files_placeholders)
+            )
+        self.single_file = no_temporal_placeholders and "*" not in self.files
+
+        if self.single_file and self.files_placeholders:
+            raise ValueError(
+                "Placeholders in the files path are not allowed for "
+                "single file datasets!")
 
     def find_file(self, timestamp):
         """Finds either the file that covers a timestamp or is the closest to
@@ -830,21 +915,19 @@ class Dataset:
         timestamp = self._to_datetime(timestamp)
 
         # Maybe there is a file with exact this timestamp?
-        path = self.generate_filename(
-            self.files, timestamp, timestamp
-        )
+        path = self.generate_filename(timestamp)
 
-        if os.path.exists(path):
-            return path
+        if os.path.isfile(path):
+            return self.get_info(path)
 
         # We need all possible files that are close to the timestamp hence we
         # need the search dir for those files:
         search_dir = self.generate_filename(
-            os.path.dirname(self.files), timestamp
+            timestamp, template=os.path.dirname(self.files)
         )
 
         # Prepare the regex:
-        regex = self.files.format(**Dataset.placeholder)
+        regex = self.files.format(**self._placeholder)
         regex = re.compile(regex.replace("*", ".*?"))
         files = list(self._get_files(
             search_dir, regex, datetime.min, datetime.max, False
@@ -927,12 +1010,16 @@ class Dataset:
         if verbose:
             print("Find files between %s and %s!" % (start, end))
 
+        # We want to have a semi-open interval as explained in the doc string.
+        end -= timedelta(microseconds=1)
+
         # Special case: the whole dataset consists of one file only.
         if self.single_file:
             if os.path.isfile(self.files):
-                time_coverage = self.retrieve_time_coverage(self.files)
-                if IntervalTree.interval_overlaps(time_coverage, (start, end)):
-                    yield FileInfo(self.files, time_coverage)
+                file_info = self.get_info(self.files)
+                if IntervalTree.interval_overlaps(
+                        file_info.times, (start, end)):
+                    yield file_info
                 elif no_files_error:
                     raise NoFilesError(self.name, start, end)
                 return
@@ -941,12 +1028,16 @@ class Dataset:
                     "The files parameter of '%s' neither contains placeholders"
                     " nor is a path to an existing file!" % self.name)
 
-        # Prepare the regex for the file path
-        regex = self.files.format(**Dataset.placeholder)
-        regex = re.compile(regex.replace("*", ".*?"))
+        placeholder = self._placeholder.copy()
+        placeholder.update(self.placeholder)
 
-        # We want to have a semi-open interval as explained in the doc string.
-        end -= timedelta(microseconds=1)
+        try:
+            # Prepare the regex for the file path
+            regex = self.files.format(**placeholder)
+        except KeyError as err:
+            raise UnknownPlaceholderError(self.name, str(err))
+
+        regex = re.compile(regex.replace("*", ".*?"))
 
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
@@ -958,7 +1049,8 @@ class Dataset:
 
         # Even if no files were found, the user does not want to know.
         if not no_files_error:
-            yield from self._prepare_return_value(file_finder, sort, bundle)
+            yield from self._prepare_find_files_return(
+                file_finder, sort, bundle)
             return
 
         # The users wants an error to be raised if no files were found. Since
@@ -971,9 +1063,219 @@ class Dataset:
             next(check_files)
 
             # We have found some files and can return them
-            yield from self._prepare_return_value(return_files, sort, bundle)
+            yield from self._prepare_find_files_return(
+                return_files, sort, bundle)
         except StopIteration:
             raise NoFilesError(self.name, start, end)
+
+    def find_overlapping_files(
+            self, start, end, other_dataset, max_interval=None, verbose=False):
+        """Find files between two datasets that overlap in time.
+
+        Args:
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            other_dataset: A Dataset object which holds the other files.
+            max_interval: Maximal time interval in seconds between
+                two overlapping files. Must be an integer or float.
+            verbose: If true, debugging messages will be printed.
+
+        Yields:
+            A tuple with the names of two files which correspond to each other.
+        """
+        if max_interval is not None:
+            max_interval = self._to_timedelta(max_interval)
+            start = self._to_datetime(start) - max_interval
+            end = self._to_datetime(end) + max_interval
+
+        files1 = list(
+            self.find_files(start, end, verbose=verbose)
+        )
+        files2 = list(
+            other_dataset.find_files(start, end, verbose=verbose)
+        )
+
+        # Convert the times (datetime objects) to seconds (integer)
+        times1 = [
+            [int(file.times[0].timestamp()), int(file.times[1].timestamp())]
+            for file in files1
+        ]
+        times2 = np.asarray([
+            [file.times[0].timestamp(), file.times[1].timestamp()]
+            for file in files2
+        ]).astype('int')
+
+        if max_interval is not None:
+            # Expand the intervals of the secondary dataset to close-in-time
+            # intervals.
+            times2[:, 0] -= int(max_interval.total_seconds())
+            times2[:, 1] += int(max_interval.total_seconds())
+
+        tree = IntervalTree(times2)
+
+        # Search for all overlapping intervals:
+        results = tree.query(times1)
+
+        yield from (
+            (files1[i],
+             [files2[oi] for oi in sorted(overlapping_files)])
+            for i, overlapping_files in enumerate(results)
+        )
+
+    def generate_filename(
+            self, time_period, template=None, fill=None):
+        """ Generate the full path and name of a file for a time period.
+
+        Use :meth:`parse_filename` if you want retrieve information from the
+        filename.
+
+        Args:
+            time_period: Either a tuple of two datetime objects representing
+                start and end time or simply one datetime object (for timestamp
+                 files).
+            template: A string with format placeholders such as {year} or
+                {day}. If not given, the template in *Dataset.files* is used.
+            fill: A dictionary with fillings for user-defined placeholder.
+
+        Returns:
+            A string containing the full path and name of the file.
+
+        Example:
+
+        .. code-block:: python
+
+            Dataset.generate_filename(
+                datetime(2016, 1, 1),
+                "{year2}/{month}/{day}.dat",
+            )
+            # Returns "16/01/01.dat"
+
+            Dataset.generate_filename(
+                ("2016-01-01", "2016-12-31"),
+                "{year}{month}{day}-{end_year}{end_month}{end_day}.dat",
+            )
+            # Returns "20160101-20161231.dat"
+
+        """
+
+        if isinstance(time_period, (tuple, list)):
+            start_time = Dataset._to_datetime(time_period[0])
+            end_time = Dataset._to_datetime(time_period[1])
+        else:
+            start_time = Dataset._to_datetime(time_period)
+            end_time = start_time
+
+        if template is None:
+            template = self.files
+
+        if fill is None:
+            fill = {}
+
+        # Fill all placeholders variables with values
+        return template.format(
+            year=start_time.year, year2=str(start_time.year)[-2:],
+            month="{:02d}".format(start_time.month),
+            day="{:02d}".format(start_time.day),
+            doy="{:03d}".format(
+                (start_time - datetime(start_time.year, 1, 1)).days
+                + 1),
+            hour="{:02d}".format(start_time.hour),
+            minute="{:02d}".format(start_time.minute),
+            second="{:02d}".format(start_time.second),
+            millisecond="{:03d}".format(int(start_time.microsecond / 1000)),
+            end_year=end_time.year, end_year2=str(end_time.year)[-2:],
+            end_month="{:02d}".format(end_time.month),
+            end_day="{:02d}".format(end_time.day),
+            end_doy="{:03d}".format(
+                (end_time - datetime(end_time.year, 1, 1)).days
+                + 1),
+            end_hour="{:02d}".format(end_time.hour),
+            end_minute="{:02d}".format(end_time.minute),
+            end_second="{:02d}".format(end_time.second),
+            end_millisecond="{:03d}".format(int(end_time.microsecond / 1000)),
+            **fill,
+        )
+
+    def _get_files(self, path, regex, start, end, verbose):
+        """Yield files that matches the search conditions.
+
+        Args:
+            path: Path to the directory that contains the files that should be
+                checked.
+            regex: A regular expression that should match the filename.
+            start: Datetime that defines the start of a time interval.
+            end: Datetime that defines the end of a time interval. The time
+                coverage of the file should overlap with this interval.
+            verbose: If True, it prints debug messages.
+
+        Yields:
+            A FileInfo object with the file path and time coverage
+        """
+
+        if verbose:
+            print("Check all files in %s" % os.path.join(path, "*"))
+
+        for filename in glob.iglob(os.path.join(path, "*")):
+            if regex.match(filename):
+                file_info = self.get_info(filename)
+
+                # Test whether the file is overlapping the interval between
+                # start and end date.
+                if IntervalTree.interval_overlaps(
+                        file_info.times, (start, end))\
+                        and not self.is_excluded(file_info.times):
+                    yield file_info
+
+    def get_info(self, filename, retrieve_via=None):
+        """Get information about a file.
+
+        How the information will be retrieved is defined by
+
+        Args:
+            filename: Path and name of the file.
+            retrieve_via: Defines how further information about the file will
+                be retrieved (e.g. time coverage). Possible options are
+                *filename*, *handler* or *both*. Default is the value of the
+                *info_via* parameter during initialization of this Dataset
+                 object. If this is *filename*, the placeholders in the file's
+                path will be parsed to obtain information. If this is
+                *handler*, the
+                :meth:`~typhon.spareice.handlers.FileInfo.get_info` method is
+                used. If this is *both*, both options will be executed but the
+                information from the file handler overwrites conflicting
+                information from the filename.
+
+        Returns:
+            A :meth`~typhon.spareice.handler.FileInfo` object.
+        """
+        if filename in self.info_cache:
+            return self.info_cache[filename]
+
+        info = FileInfo(filename)
+        if self.single_file:
+            info.times = self.time_coverage
+
+        if retrieve_via is None:
+            retrieve_via = self.info_via
+
+        if retrieve_via in ("filename", "both"):
+            info.update(self.parse_filename(filename))
+
+        if retrieve_via in ("handler", "both"):
+            with typhon.files.decompress(filename) as uncompressed_file:
+                info.update(self.handler.get_info(uncompressed_file))
+
+        if None in info.times:
+            raise ValueError(
+                "Could not retrieve the full time coverage information from "
+                "the file '%s' from the %s dataset!"
+                % (filename, self.name)
+            )
+
+        self.info_cache[filename] = info
+        return info
 
     def _get_search_dirs(self, start, end, verbose):
         """Yields the search directory for a time period.
@@ -1032,7 +1334,7 @@ class Dataset:
             ))
 
         for dir_time in times:
-            search_dir = self.generate_filename(dir_template, dir_time)
+            search_dir = self.generate_filename(dir_time, dir_template)
 
             if verbose:
                 print("Search directory:", search_dir)
@@ -1045,42 +1347,6 @@ class Dataset:
             yield search_dir
 
         return
-
-    def _get_files(self, path, regex, start, end, verbose):
-        """Yield files that matches the search conditions.
-
-        Args:
-            path: Path to the directory that contains the files that should be
-                checked.
-            regex: A regular expression that should match the filename.
-            start: Datetime that defines the start of a time interval.
-            end: Datetime that defines the end of a time interval. The time
-                coverage of the file should overlap with this interval.
-            verbose: If True, it prints debug messages.
-
-        Yields:
-            A FileInfo object with the file path and time coverage
-        """
-
-        if verbose:
-            print("Check all files in %s" % os.path.join(path, "*"))
-
-        for filename in glob.iglob(os.path.join(path, "*")):
-            if regex.match(filename):
-                if verbose:
-                    print(filename)
-
-                times = self.retrieve_time_coverage(filename)
-
-                # Test whether the file is overlapping the interval between
-                # start and end date.
-                if IntervalTree.interval_overlaps(times, (start, end))\
-                        and not self.is_excluded(times):
-                    if verbose:
-                        print("\tPassed time check")
-                    yield FileInfo(filename, times)
-                elif verbose:
-                    print("\tFailed time check")
 
     @staticmethod
     def _get_time_resolution(date_args):
@@ -1097,233 +1363,6 @@ class Dataset:
         else:
             return None
 
-    @staticmethod
-    def _prepare_return_value(file_iterator, sort, bundle_size):
-        """Prepares the return value of the find_files method.
-
-        Args:
-            file_iterator: Generator function that yields the found files.
-            sort: If true, all found files will be sorted according to their
-                starting times.
-            bundle_size: See the documentation of the *bundle* argument in
-                :meth`find_files` method.
-
-        Yields:
-            Either one FileInfo object or - if bundle_size is set - a list of
-            FileInfo objects.
-        """
-        # We want to have sorted files if we want to bundle them.
-        if sort or isinstance(bundle_size, int):
-            file_iterator = sorted(file_iterator, key=lambda x: x.times[0])
-
-        if bundle_size is None:
-            yield from file_iterator
-            return
-
-        # The argument bundle was defined. Either it sets the bundle size
-        # directly via a number or indirectly by setting time periods.
-        if isinstance(bundle_size, int):
-            files = list(file_iterator)
-
-            yield from (
-                files[i:i+bundle_size]
-                for i in range(0, len(files), bundle_size)
-            )
-        elif isinstance(bundle_size, str):
-            files = list(file_iterator)
-
-            # We want to split the files into hourly (or daily, etc.) bundles.
-            # pandas provides a practical grouping function.
-            time_series = pd.Series(
-                files,
-                [file.times[0] for file in files]
-            )
-            yield from (
-                bundle[1].values.tolist()
-                for bundle in time_series.groupby(
-                    pd.TimeGrouper(freq=bundle_size))
-                if bundle[1].any()
-            )
-        else:
-            raise ValueError(
-                "The parameter bundle must be a integer or string!")
-
-    def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=None, verbose=False):
-        """Find files between two datasets that overlap in time.
-
-        Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            other_dataset: A Dataset object which holds the other files.
-            max_interval: Maximal time interval in seconds between
-                two overlapping files. Must be an integer or float.
-            verbose: If true, debugging messages will be printed.
-
-        Yields:
-            A tuple with the names of two files which correspond to each other.
-        """
-        if max_interval is not None:
-            max_interval = self._to_timedelta(max_interval)
-            start = self._to_datetime(start) - max_interval
-            end = self._to_datetime(end) + max_interval
-
-        files1 = list(
-            self.find_files(start, end, verbose=verbose)
-        )
-        files2 = list(
-            other_dataset.find_files(start, end, verbose=verbose)
-        )
-
-        # Convert the times (datetime objects) to seconds (integer)
-        times1 = [
-            [int(file.times[0].timestamp()), int(file.times[1].timestamp())]
-            for file in files1
-        ]
-        times2 = np.asarray([
-            [file.times[0].timestamp(), file.times[1].timestamp()]
-            for file in files2
-        ]).astype('int')
-
-        if max_interval is not None:
-            # Expand the intervals of the secondary dataset to close-in-time
-            # intervals.
-            times2[:, 0] -= int(max_interval.total_seconds())
-            times2[:, 1] += int(max_interval.total_seconds())
-
-        tree = IntervalTree(times2)
-
-        # Search for all overlapping intervals:
-        results = tree.query(times1)
-
-        yield from (
-            (files1[i],
-             [files2[oi] for oi in sorted(overlapping_files)])
-            for i, overlapping_files in enumerate(results)
-        )
-
-    def generate_filename(self, template, start_time, end_time=None):
-        """ Generates the file name for a specific date by using the template
-        argument.
-
-        Allowed placeholders in the template are:
-
-        +-------------+------------------------------------------+------------+
-        | Placeholder | Description                              | Example    |
-        +=============+==========================================+============+
-        | year        | Four digits indicating the year.         | 1999       |
-        +-------------+------------------------------------------+------------+
-        | year2       | Two digits indicating the year. [1]_     | 58 (=2058) |
-        +-------------+------------------------------------------+------------+
-        | month       | Two digits indicating the month.         | 09         |
-        +-------------+------------------------------------------+------------+
-        | day         | Two digits indicating the day.           | 08         |
-        +-------------+------------------------------------------+------------+
-        | doy         | Three digits indicating the day of       | 002        |
-        |             | the year.                                |            |
-        +-------------+------------------------------------------+------------+
-        | hour        | Two digits indicating the hour.          | 22         |
-        +-------------+------------------------------------------+------------+
-        | minute      | Two digits indicating the minute.        | 58         |
-        +-------------+------------------------------------------+------------+
-        | second      | Two digits indicating the second.        | 58         |
-        +-------------+------------------------------------------+------------+
-        | millisecond | Three digits indicating the millisecond. | 999        |
-        +-------------+------------------------------------------+------------+
-        .. [1] Numbers lower than 65 are interpreted as 20XX while numbers
-            equal or greater are interpreted as 19XX (e.g. 65 = 1965,
-            99 = 1999)
-
-        All those place holders are also allowed to have the prefix *end*
-        (e.g. *end_year*). They represent the end of the time coverage.
-
-        Args:
-            template: A string with format placeholders such as {year} or
-                {day}.
-            start_time: A datetime object with the needed date and time.
-            end_time: A datetime object. All placeholders with the
-                prefix *end* will be filled with this datetime. If this is not
-                given, it will be set to *start_time*.
-
-        Returns:
-            A string containing the full path and name of the file.
-
-        Example:
-
-        .. code-block:: python
-
-            Dataset.generate_filename(
-                "{year2}/{month}/{day}.dat",
-                datetime(2016, 1, 1)
-            )
-            # Returns "16/01/01.dat"
-
-            Dataset.generate_filename(
-                "{year}{month}{day}-{end_year}{end_month}{end_day}.dat",
-                datetime(2016, 1, 1),
-                datetime(2016, 12, 31),
-            )
-            # Returns "20160101-20161231.dat"
-
-        """
-
-        start_time = Dataset._to_datetime(start_time)
-
-        if end_time is None:
-            end_time = start_time
-        else:
-            end_time = Dataset._to_datetime(end_time)
-
-        # Fill all placeholders variables with values
-        template = template.format(
-            year=start_time.year, year2=str(start_time.year)[-2:],
-            month="{:02d}".format(start_time.month),
-            day="{:02d}".format(start_time.day),
-            doy="{:03d}".format(
-                (start_time - datetime(start_time.year, 1, 1)).days
-                + 1),
-            hour="{:02d}".format(start_time.hour),
-            minute="{:02d}".format(start_time.minute),
-            second="{:02d}".format(start_time.second),
-            millisecond="{:03d}".format(int(start_time.microsecond / 1000)),
-            end_year=end_time.year, end_year2=str(end_time.year)[-2:],
-            end_month="{:02d}".format(end_time.month),
-            end_day="{:02d}".format(end_time.day),
-            end_doy="{:03d}".format(
-                (end_time - datetime(end_time.year, 1, 1)).days
-                + 1),
-            end_hour="{:02d}".format(end_time.hour),
-            end_minute="{:02d}".format(end_time.minute),
-            end_second="{:02d}".format(end_time.second),
-            end_millisecond="{:03d}".format(int(end_time.microsecond / 1000)),
-            name=self.name,
-        )
-
-        return template
-
-    def get_info(self, filename):
-        """Gets info about a file by using the dataset's file handler.
-
-        Notes:
-            You need to specify a file handler for this dataset before you
-            can use this method.
-
-        Args:
-            filename: Path and name of the file.
-
-        Returns:
-            Dictionary with information about the file.
-        """
-        if self.handler is None:
-            raise NoHandlerError(
-                "Could not get info from the file '{}'! No file handler is "
-                "specified!".format(filename))
-
-        with typhon.files.decompress(filename) as file:
-            return self.handler.get_info(file)
-
     def is_excluded(self, period):
         """Checks whether a time interval is excluded from this Dataset.
 
@@ -1338,32 +1377,29 @@ class Dataset:
 
         return period in self.exclude
 
-    def load_time_coverages(self, filename):
-        """ Loads the time coverages cache from a file.
+    def load_info_cache(self, filename):
+        """ Loads the information cache from a file.
 
         Returns:
             None
         """
         if filename is not None and os.path.exists(filename):
-            print("Load time coverages of {} dataset from {}.".format(
+            print("Load file information of {} dataset from {}.".format(
                 self.name, filename))
 
             try:
                 with open(filename) as file:
-                    time_coverages = json.load(file)
-                    # Parse string times into datetime objects:
-                    time_coverages = {
-                        file: [
-                           datetime.strptime(times[0], "%Y-%m-%dT%H:%M:%S.%f"),
-                           datetime.strptime(times[1], "%Y-%m-%dT%H:%M:%S.%f")
-                        ]
-                        for file, times in time_coverages.items()
+                    json_info_cache = json.load(file)
+                    # Create FileInfo objects from json dictionaries:
+                    info_cache = {
+                        json_dict["path"]: FileInfo.from_json_dict(json_dict)
+                        for json_dict in json_info_cache
                     }
-                    self.time_coverages_cache.update(time_coverages)
-            except json.decoder.JSONDecodeError as e:
+                    self.info_cache.update(info_cache)
+            except Exception as e:
                 warnings.warn(
-                    "Could not load the time coverages from cache file '%s':\n"
-                    "%s." % (filename, e)
+                    "Could not load the file information from cache file "
+                    "'%s':\n%s." % (filename, e)
                 )
 
     def map(
@@ -1563,7 +1599,112 @@ class Dataset:
             value = str(id(self))
 
         self._name = value
-        self.placeholder["name"] = value
+
+    def parse_filename(self, filename, no_time=False):
+        """Parse the filename with temporal and additional regular expressions.
+
+        This method uses the standard temporal placeholders which might be
+        overwritten by the user-defined placeholders in *Dataset.placeholder*.
+
+        Args:
+            filename: Path and name of the file.
+            no_time: If true, only the user-defined placeholders will be
+                parsed.
+
+        Returns:
+            A FileInfo object with the attributes *times* (containing the time
+            coverage of the file) and the attribute *attr* which is a
+            dictionary of pairs of placeholder and its parsed value.
+        """
+
+        placeholder = self._placeholder.copy()
+        placeholder.update(**self.placeholder)
+
+        regex = self.files.format(**placeholder)
+        regex = re.compile(regex.replace("*", ".*?"))
+        try:
+            values = regex.findall(filename)
+            values = values[0]
+        except IndexError:
+            raise ValueError(
+                "Could not parse the filename; it does not match the given "
+                "template from the parameter 'files'.")
+
+        try:
+            # The temporal placeholder must be converted to integers:
+            filled_placeholder = {
+                placeholder: int(values[index])
+                if placeholder in self._placeholder else values[index]
+                for index, placeholder in enumerate(self.files_placeholders)
+            }
+        except IndexError:
+            raise PlaceholderRegexError(self.name, None)
+
+        # Retrieve only the time coverage if the user wants us to do it:
+        if no_time:
+            times = None
+        else:
+            times = self._retrieve_time_coverage_from_placeholders(
+                    filled_placeholder)
+
+        return FileInfo(
+            filename,
+            times,
+            # Filter out all placeholder that are not coming from the user
+            {k: v for k, v in filled_placeholder.items()
+             if k not in self._placeholder}
+        )
+
+    @staticmethod
+    def _prepare_find_files_return(file_iterator, sort, bundle_size):
+        """Prepares the return value of the find_files method.
+
+        Args:
+            file_iterator: Generator function that yields the found files.
+            sort: If true, all found files will be sorted according to their
+                starting times.
+            bundle_size: See the documentation of the *bundle* argument in
+                :meth`find_files` method.
+
+        Yields:
+            Either one FileInfo object or - if bundle_size is set - a list of
+            FileInfo objects.
+        """
+        # We want to have sorted files if we want to bundle them.
+        if sort or isinstance(bundle_size, int):
+            file_iterator = sorted(file_iterator, key=lambda x: x.times[0])
+
+        if bundle_size is None:
+            yield from file_iterator
+            return
+
+        # The argument bundle was defined. Either it sets the bundle size
+        # directly via a number or indirectly by setting time periods.
+        if isinstance(bundle_size, int):
+            files = list(file_iterator)
+
+            yield from (
+                files[i:i + bundle_size]
+                for i in range(0, len(files), bundle_size)
+            )
+        elif isinstance(bundle_size, str):
+            files = list(file_iterator)
+
+            # We want to split the files into hourly (or daily, etc.) bundles.
+            # pandas provides a practical grouping function.
+            time_series = pd.Series(
+                files,
+                [file.times[0] for file in files]
+            )
+            yield from (
+                bundle[1].values.tolist()
+                for bundle in time_series.groupby(
+                    pd.Grouper(freq=bundle_size))
+                if bundle[1].any()
+            )
+        else:
+            raise ValueError(
+                "The parameter bundle must be a integer or string!")
 
     def read(self, filename, **reading_arguments):
         """Opens and reads a file.
@@ -1610,116 +1751,68 @@ class Dataset:
         Yields:
             The content of the read file.
         """
-        #
         for file in self.find_files(start, end, sort=sort):
             data = self.read(file, **reading_arguments)
             if data:
                 yield data
 
-    def retrieve_time_coverage(self, filename, retrieve_method=None):
-        """ Retrieves the time coverage from a given dataset file.
+    def _retrieve_time_coverage_from_placeholders(self, filled_placeholder,):
+        """Retrieve the time coverage from a dictionary of placeholders.
 
         Args:
-            filename: Name of the file as string.
-            retrieve_method: Defines how the time coverage should be
-                retrieved. If you set this to *filename* (default) then the
-                time coverage is retrieved from the filename by using the
-                placeholders. This is fast but could lead to errors due to
-                ambiguity. This only works if placeholders have been used in
-                the *files* parameter of the Dataset object. Look at the
-                documentation of the :meth:`generate_filename` method to get an
-                overview about the allowed placeholders. If this parameter is
-                *content* then the :meth:`get_info` method is used to determine
-                the time coverage. This normally means that the file is opened
-                and its content is checked. This could be more time consuming
-                but also more reliable.
+            filled_placeholder: A dictionary with placeholder.
 
         Returns:
-            A tuple of two datetime objects, indicating the time coverage.
+            A tuple of two datetime objects.
         """
+        start_date_args = self._create_date_from_placeholders(
+            filled_placeholder, exclude="end_")
 
-        # We use a cache for time coverages, this makes everything faster:
-        if filename in self.time_coverages_cache:
-            return self.time_coverages_cache[filename]
+        # Default: if no end date is given then the starting date is also
+        # the end date.
+        end_date_args = self._create_date_from_placeholders(
+            filled_placeholder, prefix="end_",
+            default=start_date_args)
 
-        if retrieve_method is None:
-            if self.time_coverage != "filename" \
-                    and self.time_coverage != "content":
-                return self.time_coverage
-            retrieve_method = self.time_coverage
-
-        if retrieve_method == "filename":
-            if self.single_file:
-                raise ValueError(
-                    "The files parameter does not contain any placeholders! I "
-                    "could not retrieve the time coverage from it."
-                )
-
-            regex = self.files.format(**Dataset.placeholder)
-            regex = re.compile(regex.replace("*", ".*?"))
-            try:
-                values = regex.findall(filename)
-                values = values[0]
-            except IndexError:
-                raise ValueError(
-                    "The filename does not match the given template from the "
-                    "parameter 'files'. I could not retrieve the time "
-                    "coverage.")
-
-            start_date_args = self._create_date_from_placeholders(
-                self.files_placeholders, values, exclude="end_")
-
-            # Default: if no end date is given then the starting date is also
-            # the end date.
-
-            end_date_args = self._create_date_from_placeholders(
-                self.files_placeholders, values, prefix="end_",
-                default=start_date_args)
-
+        try:
             start_date = datetime(**start_date_args)
             end_date = datetime(**end_date_args)
+        except TypeError:
+            return None
 
-            # Automatically extend the coverage for the minimal resolution
-            # of the retrieved datetime objects if there is no end date.
-            if self.continuous and start_date == end_date:
-                end_date += self._get_time_resolution(start_date_args)
-                end_date -= timedelta(microseconds=1)
+        # Automatically extend the coverage for the minimal resolution
+        # of the retrieved datetime objects if there is no end date.
+        if self.continuous and start_date == end_date:
+            end_date += self._get_time_resolution(start_date_args)
+            end_date -= timedelta(microseconds=1)
 
-            # Sometimes the filename does not explicitly provide the complete
-            # end date. Imagine there is only hour and minute given, then day
-            # change would not be noticed. Therefore, make sure that the end
-            # date is always bigger (later) than the start date.
-            if end_date < start_date:
-                end_date += timedelta(days=1)
+        # Sometimes the filename does not explicitly provide the complete
+        # end date. Imagine there is only hour and minute given, then day
+        # change would not be noticed. Therefore, make sure that the end
+        # date is always bigger (later) than the start date.
+        # TODO: Maybe this is just one hour not a day later?
+        if end_date < start_date:
+            end_date += timedelta(days=1)
 
-            time_coverage = (start_date, end_date)
-        elif retrieve_method == "content":
-            time_coverage = self.get_info(filename).times
+        return start_date, end_date
 
-        # Cache the time coverage of this file:
-        self.time_coverages_cache[filename] = time_coverage
-
-        return time_coverage
-
-    def save_time_coverages(self, filename):
-        """ Saves time coverages cache to a file.
+    def save_info_cache(self, filename):
+        """ Saves information cache to a file.
 
         Returns:
             None
         """
         if filename is not None:
-            print("Save time coverages of {} dataset to {}.".format(
+            print("Save information cache of {} dataset to {}.".format(
                 self.name, filename))
             with open(filename, 'w') as file:
                 # We cannot save datetime objects with json directly. We have
                 # to convert them to strings first:
-                time_coverages = {
-                    file: (
-                        times[0].strftime("%Y-%m-%dT%H:%M:%S.%f"),
-                        times[1].strftime("%Y-%m-%dT%H:%M:%S.%f"))
-                    for file, times in self.time_coverages_cache.items()
-                }
-                json.dump(time_coverages, file)
+                info_cache = [
+                    info.to_json_dict()
+                    for info in self.info_cache.values()
+                ]
+                json.dump(info_cache, file)
 
     @staticmethod
     def _to_datetime(obj):
@@ -1735,7 +1828,7 @@ class Dataset:
     @staticmethod
     def _to_timedelta(obj):
         if isinstance(obj, numbers.Number):
-            return timedelta(seconds=obj)
+            return timedelta(seconds=int(obj))
         elif isinstance(obj, timedelta):
             return obj
         else:
@@ -1796,12 +1889,12 @@ class DatasetManager(dict):
             datasets = DatasetManager()
 
             datasets += Dataset(
-                name="dumbo.thermocam",
-                files="path/to/files",
-                handler=cloud.handler.dumbo.ThermoCamFile())
+                name="images",
+                files="path/to/files.png",
+            )
 
-            ## do something with it
-            for name, dataset in datasets.items():
+            # do something with it
+            for name, dataset in datasets["images"].items():
                 dataset.find_files(...)
 
         """
