@@ -15,8 +15,6 @@ class TestCompression:
             return self.data == file.readline()
 
     def test_compress_decompress_zip(self):
-        # So far, they do not work due to permission errors
-        return
         with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".zip") as compressed_file:
                 self.create_file(compressed_file)
@@ -25,8 +23,6 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_gzip(self):
-        # So far, they do not work due to permission errors
-        return
         with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".gz") as compressed_file:
                 self.create_file(compressed_file)
@@ -35,8 +31,6 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_bz2(self):
-        # So far, they do not work due to permission errors
-        return
         with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".bz2") as compressed_file:
                 self.create_file(compressed_file)
@@ -45,8 +39,6 @@ class TestCompression:
                 assert self.check_file(uncompressed_file)
 
     def test_compress_decompress_lzma(self):
-        # So far, they do not work due to permission errors
-        return
         with NamedTemporaryFile(dir=gettempdir()) as file:
             with compress(file.name+".xz") as compressed_file:
                 self.create_file(compressed_file)
