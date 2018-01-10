@@ -1,5 +1,5 @@
-How to use typhon.spareice.datasets.Dataset?
-============================================
+How to use typhon.spareice.Dataset?
+###################################
 
 .. contents:: :local:
 
@@ -7,7 +7,7 @@ How to use typhon.spareice.datasets.Dataset?
    :linenothreshold: 5
 
 What is the idea?
------------------
+=================
 
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). Each file covers a certain time period and
@@ -29,14 +29,14 @@ time period? You could start by writing nested *for* loops and using
 python's *glob* function. Normally, such solutions requires time to
 implement, are error-prone and are not portable to other datasets with
 different structures. Hence, save your time/energy/nerves and simply use
-the :class:`typhon.spareice.datasets.Dataset` class.
+the :class:`~typhon.spareice.datasets.Dataset` class.
 
 Quick Start
------------
+===========
 
 We stick to our example from above and want to find all files from our
-*Instrument A* dataset (what a creative name!) between two dates. To do this,
-we need to initialize a Dataset object and tell it where to find our files:
+*Instrument A* dataset between two dates. To do this, we need to initialize a
+Dataset object and tell it where to find our files:
 
 .. code-block:: python
 
@@ -62,18 +62,16 @@ January 2016 (the whole day, i.e. from 0-24h).
 
 .. code-block:: python
 
-   # Find all files between 01/01/2016 and 02/01/2016:
-   date1 = datetime(2016, 1, 1)
-   date2 = datetime(2016, 1, 2)
-   for filename, time in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(filename, time[0],
-      time[1]))
+    # Find all files between 01/01/2016 and 02/01/2016:
+    for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+        print(file)
 
 .. code-block:: none
    :caption: Output:
 
    File: Data/InstrumentA/2016/01/01/data_00-00-00.nc
-       Start: 2016-01-01 00:00:00, End: 2016-01-01 00:00:00
+       Start: 2016-01-01 00:00:00
+      End: 2016-01-01 00:00:00
    File: Data/InstrumentA/2016/01/01/data_06-00-00.nc
        Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
    File: Data/InstrumentA/2016/01/01/data_12-00-00.nc
@@ -81,13 +79,13 @@ January 2016 (the whole day, i.e. from 0-24h).
    File: Data/InstrumentA/2016/01/01/data_18-00-00.nc
        Start: 2016-01-01 18:00:00, End: 2016-01-01 18:00:00
 
-The :meth:`typhon.spareice.datasets.Dataset.find_files` method find all
+The :meth:`~typhon.spareice.datasets.Dataset.find_files` method find all
 files between two dates and returns their names and time coverages (start
 and end times). If we want to sort them by their starting times, we can set
 its *sort* parameter to true.
 
 Read and Create Files
----------------------
+=====================
 
 The Dataset class has more interesting functionality that we are going to
 investigate in more detail later. But before doing this, we have to understand
@@ -100,7 +98,7 @@ can read a file in a certain format or write data to it. For example, if we
 want to read the files from our Instrument A and print out their content, we
 need a file handler that can handle those files. The files are stored in the
 NetCDF4 format. Lucky for us, there is a file handler class that can handle
-such files (:class:`typhon.spareice.handlers.commom.NetCDF4`, for a complete
+such files (:class:`~typhon.spareice.handlers.commom.NetCDF4`, for a complete
 list of official handler classes in typhon have a look at TODO). The only
 thing that we need to do now, is giving this file handler object to the
 dataset object during initialization:
@@ -119,7 +117,7 @@ dataset object during initialization:
    )
 
 The dataset object knows how to open our files now. We can try it by using the
-:meth:`typhon.spareice.datasets.Dataset.read` method:
+:meth:`~typhon.spareice.datasets.Dataset.read` method:
 
 .. code-block:: python
 
@@ -147,10 +145,10 @@ The dataset object knows how to open our files now. We can try it by using the
    ...
 
 How does this work? All file handler objects (i.e.
-:class:`typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
+:class:`~typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
 implemented. When we call
-:meth:`typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
-the :meth:`typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
+:meth:`~typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
+the :meth:`~typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
 its output to us. The same works with creating files, when the file handler
 object has implemented a *write* method.
 
@@ -183,35 +181,35 @@ We could use both methods to change the content of each file:
 
 **TODO: Finish tutorial**
 
-Get the time coverage by filename or content
---------------------------------------------
+Get information about the file
+==============================
 
 
 .. _sec-placeholders:
 
 Placeholders
-------------
+============
+
+Further recipes
+===============
 
 
-Iterating over files in a period
---------------------------------
-
-
-Via .find_files(...)
-++++++++++++++++++++
-
-
-Via .read_period(...)
-+++++++++++++++++++++
+Find all files in a period
+--------------------------
 
 
 
-Via .map(...) or .map_content(...)
-++++++++++++++++++++++++++++++++++
+
+Read all files in a period
+--------------------------
 
 
-Via magic indexing
-++++++++++++++++++
+Use multiple processes
+----------------------
+
+
+Use magic indexing
+------------------
 
 
 Find overlapping files between two datasets
