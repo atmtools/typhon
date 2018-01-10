@@ -70,6 +70,20 @@ class TestDataset:
         )
         self.datasets["sequence-placeholder"].placeholder["id"] = "(\d{4})"
 
+        self.datasets += Dataset(
+            join(self.refdir,
+                 # NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz
+                 "regex_dataset/NSS.HIR{XS}.{satcode}.D{year2}{doy}.S{hour}{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
+            ),
+            name="regex-HIRS",
+        )
+        self.datasets["regex-HIRS"].placeholder = {
+            "XS": "([XS])",
+            "satcode": "(.{2})",
+            "B": "(\d{7})",
+            "station": "(.{2})"
+        }
+
         return self.datasets
 
     def test_contains(self):
@@ -83,9 +97,9 @@ class TestDataset:
             # [Timestamp(s), Should it be covered by the datasets?]
             ["2016-01-01", False],
             ["2017-01-01", True],
-            ["2017-01-02", True],
+            ["2017-01-01 06:00:00", True],
             [datetime.datetime(2017, 1, 1), True],
-            [datetime.datetime(2017, 1, 2, 12), True],
+            [datetime.datetime(2017, 1, 1, 12,), True],
         ]
 
         for name, dataset in datasets.items():
@@ -346,6 +360,27 @@ class TestDataset:
                           datetime.datetime(2017, 1, 2, 0, 0)], {'id': 2}),
             ],
         ]
+        assert found_files == check
+
+    def test_regex(self):
+        datasets = self.init_datasets()
+
+        check = [
+            FileInfo(join(self.refdir,
+                          'regex_dataset/NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz'),  # noqa
+                     [datetime.datetime(1999, 5, 7, 6, 32),
+                      datetime.datetime(1999, 5, 7, 8, 20)],
+                     {'XS': 'X', 'satcode': 'NJ', 'B': '2241718',
+                      'station': 'WI'}),
+        ]
+
+        found_file = datasets["regex-HIRS"].find_file("1999-05-08")
+
+        assert found_file == check[0]
+
+        found_files = \
+            list(datasets["regex-HIRS"].find_files("1999-05-07", "1999-05-09"))
+
         assert found_files == check
 
     def _repr_files(self, files, comma=False):
