@@ -73,12 +73,11 @@ class TestDataset:
         self.datasets += Dataset(
             join(self.refdir,
                  # NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz
-                 "regex_dataset/NSS.HIR{XS}.{satcode}.D{year2}{doy}.S{hour}{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
+                 "regex_dataset/NSS.HIR[XS].{satcode}.D{year2}{doy}.S{hour}{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
             ),
             name="regex-HIRS",
         )
         self.datasets["regex-HIRS"].placeholder = {
-            "XS": "([XS])",
             "satcode": "(.{2})",
             "B": "(\d{7})",
             "station": "(.{2})"
@@ -370,7 +369,7 @@ class TestDataset:
                           'regex_dataset/NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz'),  # noqa
                      [datetime.datetime(1999, 5, 7, 6, 32),
                       datetime.datetime(1999, 5, 7, 8, 20)],
-                     {'XS': 'X', 'satcode': 'NJ', 'B': '2241718',
+                     {'satcode': 'NJ', 'B': '2241718',
                       'station': 'WI'}),
         ]
 

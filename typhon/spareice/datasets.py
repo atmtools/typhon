@@ -136,7 +136,7 @@ class Dataset:
     def __init__(
             self, files, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholders=None, continuous=True, max_processes=None,
+            placeholder=None, continuous=True, max_processes=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -144,18 +144,24 @@ class Dataset:
         Args:
             files: A string with the complete path to the dataset files. The
                 string can contain placeholder such as {year}, {month},
-                etc. See below for a complete list. If no placeholders are
-                given, the path must point to a file. This dataset is then
-                seen as a single file dataset. You can also define your own
-                placeholders by adding their name and their matching regular
-                expression to *Dataset.placeholder*.
+                etc. See below for a complete list. The direct use of
+                restricted regular expressions is also possible. Please note
+                that instead of dots '.' the asterisk '\*' is interpreted as
+                wildcard. If no placeholders are given, the path must point to
+                a file. This dataset is then seen as a single file dataset.
+                You can also define your own placeholders by using the
+                parameter *placeholder*.
             name: The name of the dataset.
             handler: An object which can handle the dataset files.
                 This dataset class does not care which format its files have
                 when this file handler object is given. You can use a file
-                handler class from typhon.handlers or write your own class.
-                For example, if this dataset consists of NetCDF files, you can
-                use the typhon.spareice.handlers.NetCDF4 here (is default).
+                handler class from typhon.handlers, use
+                :class:`~typhon.spareice.handlers.FileHandler` or write your
+                own class. If no file handler is given, an adequate one is
+                automatically selected for the most common filename suffixes.
+                Please note that if no file handler is specified (and none
+                could set automatically), this dataset's functionality is
+                restricted.
             info_via: Defines how further information about the file will
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is *filename*. That
@@ -180,8 +186,9 @@ class Dataset:
                 Look at Dataset.retrieve_timestamp() for more details.
             exclude: A list of time periods (tuples of two timestamps) that
                 will be excluded when searching for files of this dataset.
-            placeholders: A dictionary with pairs of placeholder name matching
-                regular expression.
+            placeholder: A dictionary with pairs of placeholder name matching
+                regular expression. These are user-defined placeholders, the
+                standard temporal placeholders do not have to be defined.
             continuous: If true, all files of this dataset are considered to be
                 continuous, i.e. they cover a time period and not only a single
                 timestamp. If their start and end time are equal,
@@ -342,8 +349,8 @@ class Dataset:
         self._exclude = None
         self.exclude = exclude
 
-        if placeholders is not None:
-            self.placeholder = placeholders
+        if placeholder is not None:
+            self.placeholder = placeholder
 
         self.max_processes = max_processes
         self.compress = compress
@@ -1614,11 +1621,7 @@ class Dataset:
             dictionary of pairs of placeholder and its parsed value.
         """
 
-        placeholder = self._placeholder.copy()
-        placeholder.update(**self.placeholder)
-
-        regex = self.files.format(**placeholder)
-        regex = re.compile(regex.replace("*", ".*?"))
+        regex = self._prepare_regex()
         try:
             values = regex.findall(filename)
             values = values[0]
@@ -1710,13 +1713,19 @@ class Dataset:
         placeholder = self._placeholder.copy()
         placeholder.update(self.placeholder)
 
+        path = self.files
+
+        # Mask all dots and convert the asterisk to a regular expression:
+        path = path.replace(".", "\.")
+        path = path.replace("*", ".*?")
+
         try:
             # Prepare the regex for the file path
-            regex = self.files.format(**placeholder)
+            regex = path.format(**placeholder)
         except KeyError as err:
             raise UnknownPlaceholderError(self.name, str(err))
 
-        return re.compile(regex.replace("*", ".*?"))
+        return re.compile(regex)
 
     def read(self, filename, **reading_arguments):
         """Opens and reads a file.
