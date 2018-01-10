@@ -174,16 +174,15 @@ class Dataset:
             info_cache: Retrieving further information (such as time coverage)
                 about a file may take a while, especially when *get_info* is
                 set to "content". Therefore, if the file information is cached,
-                 multiple calls of :meth:`find_files` (for time periods that
+                multiple calls of :meth:`find_files` (for time periods that
                 are close) are significantly faster. Specify a name to a file
                 here (which need not exist) if you wish to save the information
-                 data to a file. When restarting your script, this cache is
+                data to a file. When restarting your script, this cache is
                 used.
             time_coverage: If this dataset consists of a single file, then
                 you can specify a tuple of two datetime objects via this
                 parameter representing the start and end time. Otherwise the
                 year 1 and 9999 will be used as a default time coverage.
-                Look at Dataset.retrieve_timestamp() for more details.
             exclude: A list of time periods (tuples of two timestamps) that
                 will be excluded when searching for files of this dataset.
             placeholder: A dictionary with pairs of placeholder name matching
@@ -195,7 +194,7 @@ class Dataset:
                 the minimal time resolution will be added to the end time. The
                 minimal time resolution is retrieved from the temporal
                 placeholders in the *files* parameter. This will be ignored if
-                *time_coverage* is not *filename*.
+                *info_via* is *handler*.
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
@@ -250,7 +249,8 @@ class Dataset:
                 files="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
-                # filename, you should set this to "content":
+                # filename, you should set this to "handler" and giving a file
+                # handler to this object:
                 info_via="filename"
             )
 
@@ -276,11 +276,11 @@ class Dataset:
             # Define a dataset with daily files:
             dataset = Dataset("/dir/{year}/{month}/{day}.nc")
 
-            times = dataset.retrieve_time_coverage(
+            file = dataset.get_info(
                 "/dir/2017/11/12.nc"
             )
-            print("Start:", times[0])
-            print("End:", times[1])
+            print("Start:", file.times[0])
+            print("End:", file.times[1])
 
             # This prints actually:
             # Start: 2017-11-12
@@ -293,11 +293,11 @@ class Dataset:
             # set Dataset.continuous to False.
             dataset.continuous = False
 
-            times = dataset.retrieve_time_coverage(
+            file = dataset.get_info(
                 "/dir/2017/11/12.nc"
             )
-            print("Start:", times[0])
-            print("End:", times[1])
+            print("Start:", file.times[0])
+            print("End:", file.times[1])
             # Start: 2017-11-12
             # End: 2017-11-12
 
@@ -562,9 +562,15 @@ class Dataset:
                         for file in file_info
                     )
                 )
-                output[min(start_times):max(end_times)] = return_value
+                new_filename = output.generate_filename(
+                    (min(start_times), max(end_times)),
+                )
             else:
-                output[slice(file_info.times)] = return_value
+                new_filename = output.generate_filename(
+                    file_info.times, fill=file_info.attr
+                )
+
+            output.write(new_filename, return_value)
             return file_info
 
     @staticmethod
@@ -625,9 +631,10 @@ class Dataset:
             else:
                 return return_value
         elif return_value is not None:
-            if verbose:
-                print("\tSave output ...")
-            output[slice(*times)] = return_value
+            new_filename = output.generate_filename(
+                times, fill=file_info.attr
+            )
+            output.write(new_filename, return_value)
 
         return file_info
 

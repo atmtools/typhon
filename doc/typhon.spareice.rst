@@ -33,18 +33,6 @@ spareice.datasets
    Dataset
    DatasetManager
 
-spareice.geographical
-=====================
-
-.. automodule:: typhon.spareice.geographical
-
-.. currentmodule:: typhon.spareice.geographical
-
-.. autosummary::
-   :toctree: generated
-
-   GeoData
-
 spareice.handlers
 =================
 
@@ -55,9 +43,6 @@ spareice.handlers
 .. autosummary::
    :toctree: generated
 
-spareice.handlers.cloudsat
-==========================
-
 .. automodule:: typhon.spareice.handlers.cloudsat
 
 .. currentmodule:: typhon.spareice.handlers.cloudsat
@@ -65,10 +50,7 @@ spareice.handlers.cloudsat
 .. autosummary::
    :toctree: generated
 
-   C2CICE
-
-spareice.handlers.common
-========================
+   CloudSat
 
 .. automodule:: typhon.spareice.handlers.common
 
@@ -77,10 +59,11 @@ spareice.handlers.common
 .. autosummary::
    :toctree: generated
 
+   CSV
+   FileHandler
+   FileInfo
    NetCDF4
-
-spareice.handlers.tovs
-======================
+   Plot
 
 .. automodule:: typhon.spareice.handlers.tovs
 
