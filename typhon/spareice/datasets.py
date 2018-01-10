@@ -834,8 +834,10 @@ class Dataset:
             date_args["day"] = date.day
             del date_args["doy"]
 
-        return date_args
-
+        if not date_args:
+            return None
+        else:
+            return datetime(**date_args)
 
     @property
     def exclude(self):
@@ -1277,6 +1279,12 @@ class Dataset:
         if retrieve_via in ("handler", "both"):
             with typhon.files.decompress(filename) as uncompressed_file:
                 info.update(self.handler.get_info(uncompressed_file))
+
+        # Sometimes the files have only a starting time. But if the user has
+        # defined a timedelta for the coverage, the ending time can be
+        # calculated from them.
+        if info.times[1] is None and isinstance(self.time_coverage, timedelta):
+            info.times[1] += info.times[0] + self.time_coverage
 
         if None in info.times:
             raise ValueError(
@@ -1796,30 +1804,27 @@ class Dataset:
         if not filled_placeholder:
             return None
 
-        start_date_args = self._create_date_from_placeholders(
+        start_date = self._create_date_from_placeholders(
             filled_placeholder, exclude="end_")
 
         # Default: if no end date is given then the starting date is also
         # the end date.
-        end_date_args = self._create_date_from_placeholders(
-            filled_placeholder, prefix="end_",
-            default=start_date_args)
+        end_date = self._create_date_from_placeholders(
+            filled_placeholder, prefix="end_",)
 
-        start_date = datetime(**start_date_args)
-        end_date = datetime(**end_date_args)
-
-        # Automatically extend the coverage for the minimal resolution
-        # of the retrieved datetime objects if there is no end date.
-        if self.continuous and start_date == end_date:
-            end_date += self._get_time_resolution(start_date_args)
-            end_date -= timedelta(microseconds=1)
+        # Dataset.continuous is deprecated at the moment
+        # # Automatically extend the coverage for the minimal resolution
+        # # of the retrieved datetime objects if there is no end date.
+        # if self.continuous and start_date == end_date:
+        #     end_date += self._get_time_resolution(start_date_args)
+        #     end_date -= timedelta(microseconds=1)
 
         # Sometimes the filename does not explicitly provide the complete
         # end date. Imagine there is only hour and minute given, then day
         # change would not be noticed. Therefore, make sure that the end
         # date is always bigger (later) than the start date.
         # TODO: Maybe this is just one hour not a day later?
-        if end_date < start_date:
+        if end_date is not None and end_date < start_date:
             end_date += timedelta(days=1)
 
         return start_date, end_date
