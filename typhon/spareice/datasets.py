@@ -118,6 +118,7 @@ class Dataset:
     # Placeholders that can be changed by the user:
     placeholder = {}
 
+    # TODO: Should this be a default filling for the placeholders?
     placeholder_filling = {}
 
     _temporal_resolution = {
@@ -134,8 +135,9 @@ class Dataset:
 
     def __init__(
             self, files, handler=None, name=None, info_via=None,
-            time_coverage=None, info_cache=None, continuous=True,
-            exclude=None, max_processes=None, compress=True, decompress=True,
+            time_coverage=None, info_cache=None, exclude=None,
+            placeholders=None, continuous=True, max_processes=None,
+            compress=True, decompress=True,
     ):
         """Initializes a dataset object.
 
@@ -176,6 +178,10 @@ class Dataset:
                 parameter representing the start and end time. Otherwise the
                 year 1 and 9999 will be used as a default time coverage.
                 Look at Dataset.retrieve_timestamp() for more details.
+            exclude: A list of time periods (tuples of two timestamps) that
+                will be excluded when searching for files of this dataset.
+            placeholders: A dictionary with pairs of placeholder name matching
+                regular expression.
             continuous: If true, all files of this dataset are considered to be
                 continuous, i.e. they cover a time period and not only a single
                 timestamp. If their start and end time are equal,
@@ -183,8 +189,6 @@ class Dataset:
                 minimal time resolution is retrieved from the temporal
                 placeholders in the *files* parameter. This will be ignored if
                 *time_coverage* is not *filename*.
-            exclude: A list of time periods (tuples of two timestamps) that
-                will be excluded when searching for files of this dataset.
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
@@ -337,6 +341,9 @@ class Dataset:
         # A list of time periods that will be excluded when searching files:
         self._exclude = None
         self.exclude = exclude
+
+        if placeholders is not None:
+            self.placeholder = placeholders
 
         self.max_processes = max_processes
         self.compress = compress
@@ -847,7 +854,10 @@ class Dataset:
         Returns:
             A string with the path (can contain placeholders or wildcards.)
         """
-        return self._files
+        if os.path.isabs(self._files):
+            return self._files
+        else:
+            return os.path.join(os.getcwd(), self._files)
 
     @files.setter
     def files(self, value):
@@ -884,20 +894,13 @@ class Dataset:
 
         This method ignores the value of *Dataset.exclude*.
 
-        TODO: Make clear what this method returns.
-
-        Notes:
-            It is guaranteed that this method returns a filename. That does not
-            mean that the file is close to the timestamp. It is simply the
-            closest.
-
         Args:
             timestamp: date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
 
         Returns:
-            The found file name as a string. If no file was found, a
+            The FileInfo object of the found file. If no file was found, a
             NoFilesError is raised.
         """
 
@@ -914,11 +917,16 @@ class Dataset:
 
         timestamp = self._to_datetime(timestamp)
 
-        # Maybe there is a file with exact this timestamp?
-        path = self.generate_filename(timestamp)
+        # We might need some fillings for user-defined placeholders therefore
+        # we need the error catching:
+        try:
+            # Maybe there is a file with exact this timestamp?
+            path = self.generate_filename(timestamp)
 
-        if os.path.isfile(path):
-            return self.get_info(path)
+            if os.path.isfile(path):
+                return self.get_info(path)
+        except KeyError:
+            pass
 
         # We need all possible files that are close to the timestamp hence we
         # need the search dir for those files:
@@ -926,9 +934,8 @@ class Dataset:
             timestamp, template=os.path.dirname(self.files)
         )
 
-        # Prepare the regex:
-        regex = self.files.format(**self._placeholder)
-        regex = re.compile(regex.replace("*", ".*?"))
+        regex = self._prepare_regex()
+
         files = list(self._get_files(
             search_dir, regex, datetime.min, datetime.max, False
         ))
@@ -1028,16 +1035,7 @@ class Dataset:
                     "The files parameter of '%s' neither contains placeholders"
                     " nor is a path to an existing file!" % self.name)
 
-        placeholder = self._placeholder.copy()
-        placeholder.update(self.placeholder)
-
-        try:
-            # Prepare the regex for the file path
-            regex = self.files.format(**placeholder)
-        except KeyError as err:
-            raise UnknownPlaceholderError(self.name, str(err))
-
-        regex = re.compile(regex.replace("*", ".*?"))
+        regex = self._prepare_regex()
 
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
@@ -1213,7 +1211,6 @@ class Dataset:
         Yields:
             A FileInfo object with the file path and time coverage
         """
-
         if verbose:
             print("Check all files in %s" % os.path.join(path, "*"))
 
@@ -1644,8 +1641,11 @@ class Dataset:
         if no_time:
             times = None
         else:
+            # Filter out all non temporal placeholders
             times = self._retrieve_time_coverage_from_placeholders(
-                    filled_placeholder)
+                {k: v for k, v in filled_placeholder.items()
+                 if k in self._placeholder}
+            )
 
         return FileInfo(
             filename,
@@ -1706,6 +1706,18 @@ class Dataset:
             raise ValueError(
                 "The parameter bundle must be a integer or string!")
 
+    def _prepare_regex(self):
+        placeholder = self._placeholder.copy()
+        placeholder.update(self.placeholder)
+
+        try:
+            # Prepare the regex for the file path
+            regex = self.files.format(**placeholder)
+        except KeyError as err:
+            raise UnknownPlaceholderError(self.name, str(err))
+
+        return re.compile(regex.replace("*", ".*?"))
+
     def read(self, filename, **reading_arguments):
         """Opens and reads a file.
 
@@ -1765,6 +1777,9 @@ class Dataset:
         Returns:
             A tuple of two datetime objects.
         """
+        if not filled_placeholder:
+            return None
+
         start_date_args = self._create_date_from_placeholders(
             filled_placeholder, exclude="end_")
 
@@ -1774,11 +1789,8 @@ class Dataset:
             filled_placeholder, prefix="end_",
             default=start_date_args)
 
-        try:
-            start_date = datetime(**start_date_args)
-            end_date = datetime(**end_date_args)
-        except TypeError:
-            return None
+        start_date = datetime(**start_date_args)
+        end_date = datetime(**end_date_args)
 
         # Automatically extend the coverage for the minimal resolution
         # of the retrieved datetime objects if there is no end date.
