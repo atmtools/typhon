@@ -173,7 +173,7 @@ class Dataset:
                 information from the filename.
             info_cache: Retrieving further information (such as time coverage)
                 about a file may take a while, especially when *get_info* is
-                set to "content". Therefore, if the file information is cached,
+                set to *handler*. Therefore, if the file information is cached,
                 multiple calls of :meth:`find_files` (for time periods that
                 are close) are significantly faster. Specify a name to a file
                 here (which need not exist) if you wish to save the information
