@@ -7,7 +7,7 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import defaultdict, Iterable
+from collections import Iterable
 from datetime import datetime, timedelta
 import glob
 from itertools import tee
@@ -136,7 +136,7 @@ class Dataset:
     def __init__(
             self, files, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholder=None, continuous=True, max_processes=None,
+            placeholder=None, max_processes=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -179,22 +179,23 @@ class Dataset:
                 here (which need not exist) if you wish to save the information
                 data to a file. When restarting your script, this cache is
                 used.
-            time_coverage: If this dataset consists of a single file, then
-                you can specify a tuple of two datetime objects via this
-                parameter representing the start and end time. Otherwise the
-                year 1 and 9999 will be used as a default time coverage.
+            time_coverage: If this dataset consists of multiple files, this
+                parameter is the relative time coverage (i.e. a timedelta, e.g.
+                "1 hour") of each file. If the ending time of a file cannot be
+                retrieved by its file handler or filename, it is then its
+                starting time + *time_coverage*. Can be a timedelta object or
+                a string with time information (e.g. "2 seconds"). Otherwise
+                the missing ending time of each file will be set to its
+                starting time. If this
+                dataset consists of a single file, then this is its absolute
+                time coverage. Set this to a tuple of timestamps (datetime
+                objects or strings). Otherwise the period between year 1 and
+                9999 will be used as a default time coverage.
             exclude: A list of time periods (tuples of two timestamps) that
                 will be excluded when searching for files of this dataset.
             placeholder: A dictionary with pairs of placeholder name matching
                 regular expression. These are user-defined placeholders, the
                 standard temporal placeholders do not have to be defined.
-            continuous: If true, all files of this dataset are considered to be
-                continuous, i.e. they cover a time period and not only a single
-                timestamp. If their start and end time are equal,
-                the minimal time resolution will be added to the end time. The
-                minimal time resolution is retrieved from the temporal
-                placeholders in the *files* parameter. This will be ignored if
-                *info_via* is *handler*.
             max_processes: Maximal number of parallel processes that will be
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
@@ -272,26 +273,17 @@ class Dataset:
                 time_coverage=("2007-01-01 13:00:00", "2007-01-14 13:00:00")
             )
 
-            ### Play with the continuous flag ###
+            ### Play with the time_coverage parameter ###
             # Define a dataset with daily files:
             dataset = Dataset("/dir/{year}/{month}/{day}.nc")
 
             file = dataset.get_info(
                 "/dir/2017/11/12.nc"
             )
-            print("Start:", file.times[0])
-            print("End:", file.times[1])
-
-            # This prints actually:
-            # Start: 2017-11-12
-            # End: 2017-11-13
-            # So the file covers a time period of one day although the end
-            # time is not represented as placeholders in the files path.
-            # The dataset interprets the file as continuous and
-            # automatically sets its time coverage to the minimum resolution (
-            # here one day). If you do not like this behaviour,
-            # set Dataset.continuous to False.
-            dataset.continuous = False
+            print(file)
+            # /dir/2017/11/12.nc
+            #   Start: 2017-11-12
+            #   End: 2017-11-12
 
             file = dataset.get_info(
                 "/dir/2017/11/12.nc"
@@ -341,10 +333,6 @@ class Dataset:
             else:
                 self.info_via = info_via
 
-        # Do the files cover everything (they are continuous) or are rather
-        # single timestamps?
-        self.continuous = continuous
-
         # A list of time periods that will be excluded when searching files:
         self._exclude = None
         self.exclude = exclude
@@ -356,29 +344,15 @@ class Dataset:
         self.compress = compress
         self.decompress = decompress
 
-        if self.single_file:
-            if time_coverage is None:
-                # The default for single file datasets:
-                self.time_coverage = [
-                    datetime.min,
-                    datetime.max
-                ]
-            else:
-                self.time_coverage = [
-                    self._to_datetime(time_coverage[0]),
-                    self._to_datetime(time_coverage[1]),
-                ]
-        elif time_coverage is not None:
-            warnings.warn(
-                "The dataset '%s' is not a single file dataset; the parameter "
-                "time_coverage will be ignored." % self.name, RuntimeWarning)
+        self._time_coverage = None
+        self.time_coverage = time_coverage
 
         # Multiple calls of .find_files() can be very slow when using a time
         # coverage retrieving method "content". Hence, we use a cache to
         # store the names and time coverages of already touched files in this
         # dictionary.
         self.info_cache_filename = info_cache
-        self.info_cache = defaultdict(list)
+        self.info_cache = {}
         if self.info_cache_filename is not None:
             try:
                 # Load the time coverages from a file:
@@ -1280,18 +1254,21 @@ class Dataset:
             with typhon.files.decompress(filename) as uncompressed_file:
                 info.update(self.handler.get_info(uncompressed_file))
 
-        # Sometimes the files have only a starting time. But if the user has
-        # defined a timedelta for the coverage, the ending time can be
-        # calculated from them.
-        if info.times[1] is None and isinstance(self.time_coverage, timedelta):
-            info.times[1] += info.times[0] + self.time_coverage
-
-        if None in info.times:
+        if info.times[0] is None:
             raise ValueError(
-                "Could not retrieve the full time coverage information from "
+                "Could not retrieve the starting time information from "
                 "the file '%s' from the %s dataset!"
                 % (filename, self.name)
             )
+
+        # Sometimes the files have only a starting time. But if the user has
+        # defined a timedelta for the coverage, the ending time can be
+        # calculated from them.
+        if info.times[1] is None:
+            if isinstance(self.time_coverage, timedelta):
+                info.times[1] = info.times[0] + self.time_coverage
+            else:
+                info.times[1] = info.times[0]
 
         self.info_cache[filename] = info
         return info
@@ -1847,27 +1824,63 @@ class Dataset:
                 ]
                 json.dump(info_cache, file)
 
+    @property
+    def time_coverage(self):
+        """
+
+        Returns:
+            The time coverage of the whole dataset (if it is a single file) as
+            tuple of datetime objects or (if it is a multi file dataset) the
+            fixed time duration of each file as timedelta.
+
+        """
+        return self._time_coverage
+
+    @time_coverage.setter
+    def time_coverage(self, value):
+        """
+
+        Returns:
+
+        """
+        if self.single_file:
+            if value is None:
+                # The default for single file datasets:
+                self._time_coverage = [
+                    datetime.min,
+                    datetime.max
+                ]
+            else:
+                self._time_coverage = [
+                    self._to_datetime(value[0]),
+                    self._to_datetime(value[1]),
+                ]
+        elif value is not None:
+            self._time_coverage = self._to_timedelta(value)
+        else:
+            self._time_coverage = None
+
+        # Reset the info cache because some time coverages may change in the
+        # future.
+        self.info_cache = {}
+
+        return self._time_coverage
+
     @staticmethod
     def _to_datetime(obj):
-        if isinstance(obj, str):
-            return pd.Timestamp(obj).to_pydatetime()
-        elif isinstance(obj, datetime):
+        if isinstance(obj, datetime):
             return obj
         else:
-            raise KeyError("Cannot convert object of type '%s' to datetime "
-                           "object! Allowed are only datetime or string "
-                           "objects!" % type(obj))
+            return pd.to_datetime(obj).to_pydatetime()
 
     @staticmethod
     def _to_timedelta(obj):
-        if isinstance(obj, numbers.Number):
-            return timedelta(seconds=int(obj))
-        elif isinstance(obj, timedelta):
+        if isinstance(obj, timedelta):
             return obj
+        elif isinstance(obj, numbers.Number):
+            return timedelta(seconds=int(obj))
         else:
-            raise KeyError("Cannot convert object of type '%s' to timedelta"
-                           "object! Allowed are only timedelta or number "
-                           "objects!" % type(obj))
+            return pd.to_timedelta(obj).to_pytimedelta()
 
     def write(self, filename, data, **writing_arguments):
         """Writes content to a file by using the Dataset's file handler.
