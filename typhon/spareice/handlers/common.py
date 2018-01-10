@@ -24,8 +24,8 @@ __all__ = [
 class FileHandler:
     """Base file handler class.
 
-    File handler classes that can be used with the Dataset classes. You can
-    either initialize specific *reader* ,*info loader* or *writer* functions or
+    This can be used alone or with the Dataset classes. You can
+    either initialize specific *reader* ,*info_reader* or *writer* functions or
     you can inherit from this class and override its methods. If you need a
     very specialised and reusable file handler class, you should
     consider following the second approach.
