@@ -31,6 +31,7 @@ from .internals import (ARTSCAT5,
                         LineMixing,
                         PartitionFunctions,
                         )
+from .xsec import (XsecRecord)
 
 __all__ = []
 
@@ -60,4 +61,5 @@ classes = {
     'PressureBroadening': PressureBroadening,
     'LineMixing': LineMixing,
     'PartitionFunctions': PartitionFunctions,
+    'XsecData': XsecRecord,
 }
