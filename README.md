@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/atmtools/typhon.svg?branch=master)](https://travis-ci.org/atmtools/typhon)
+![repo size](https://reposs.herokuapp.com/?path=atmtools/typhon)
+[![Anaconda-Server Badge](https://anaconda.org/rttools/typhon/badges/installer/conda.svg)](https://anaconda.org/rttools/typhon)
 
 # typhon - Tools for atmospheric research
 
