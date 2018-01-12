@@ -7,7 +7,7 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import Iterable
+from collections import Iterable, OrderedDict
 from datetime import datetime, timedelta
 import glob
 from itertools import tee
@@ -92,8 +92,9 @@ class Dataset:
 
     """
 
-    # Required placeholders that can be overridden by the user but not deleted:
-    _placeholder = {
+    # Required temporal placeholders that can be overridden by the user but
+    # not deleted:
+    _time_placeholder = {
         # "placeholder_name": [regex to find the placeholder]
         "year": "(\d{4})",
         "year2": "(\d{2})",
@@ -115,26 +116,30 @@ class Dataset:
         "end_millisecond": "(\d{3})",
     }
 
+    _temporal_resolution = OrderedDict({
+        # time placeholder: [pandas frequency, resolution rank]
+        "year": ["1A", 0],
+        "month": ["1M", 1],
+        "day": ["1D", 2],
+        "hour": ["1H", 3],
+        "minute": ["1T", 4],
+        "second": ["1S", 5],
+        "millisecond": ["1L", 6],
+    })
+
+    # If one has a year with two-digit representation, all years equal or
+    # higher than this threshold are based onto 1900, all years below are based
+    # onto 2000.
+    year2_threshold = 65
+
     # Placeholders that can be changed by the user:
     placeholder = {}
 
     # TODO: Should this be a default filling for the placeholders?
     placeholder_filling = {}
 
-    _temporal_resolution = {
-        # placeholder: [pandas frequency, rank]
-        "year": ["1A", 0,],
-        "year2": ["1A", 0, ],
-        "month": ["1M", 1,],
-        "day": ["1D", 2,],
-        "doy": ["1D", 2,],
-        "hour": ["1H", 3],
-        "minute": ["1T", 4],
-        "second": ["1S", 5],
-    }
-
     def __init__(
-            self, files, handler=None, name=None, info_via=None,
+            self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_processes=None,
             compress=True, decompress=True,
@@ -142,7 +147,7 @@ class Dataset:
         """Initializes a dataset object.
 
         Args:
-            files: A string with the complete path to the dataset files. The
+            path: A string with the complete path to the dataset files. The
                 string can contain placeholder such as {year}, {month},
                 etc. See below for a complete list. The direct use of
                 restricted regular expressions is also possible. Please note
@@ -200,11 +205,11 @@ class Dataset:
                 used for :meth:`~typhon.spareice.datasets.Dataset.map` or
                 :meth:`~typhon.spareice.datasets.Dataset.map_content` like
                 methods per default (default is the number of CPUs).
-            compress: If true and the *files* path ends with a compression
+            compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
                 Default value is true.
-            decompress: If true and the *files* path ends with a compression
+            decompress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), dataset files
                 will be decompressed before reading them. Default value is
                 true.
@@ -247,7 +252,7 @@ class Dataset:
             ### Multi file dataset ###
             # Define a dataset consisting of multiple files:
             dataset = Dataset(
-                files="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
                 # filename, you should set this to "handler" and giving a file
@@ -263,8 +268,8 @@ class Dataset:
             ### Single file dataset ###
             # Define a dataset consisting of a single file:
             dataset = Dataset(
-                # Simply use the files parameter without placeholders:
-                files="/path/to/file.nc",
+                # Simply use the path without placeholders:
+                path="/path/to/file.nc",
                 name="TestData2",
                 # The time coverage of the data cannot be retrieved from the
                 # filename (because there are no placeholders). You can use the
@@ -299,16 +304,26 @@ class Dataset:
         self._name = None
         self.name = name
 
-        # The files parameters (will be set in the files setter method):
-        self._files = None
-        self.files_placeholders = None
+        # Flag wether this is a single file dataset (will be derived in the
+        # path setter method automatically):
         self.single_file = None
-        self.files = files
+
+        # The path parameters (will be set and documented in the path setter
+        # method):
+        self._path = None
+        self._path_placeholders = None
+        self._path_temporal_resolution = None
+        self._path_start_time_placeholders = None
+        self._path_end_time_placeholders = None
+        self._path_end_time_overshooting_compensator = None
+        self._dir_placeholders = None
+        self._dir_temporal_resolution = None
+        self.path = path
 
         if handler is None:
             # Try to derive the file handler from the files extension but
             # before we might remove potential compression suffixes:
-            basename, extension = os.path.splitext(self.files)
+            basename, extension = os.path.splitext(self.path)
             if typhon.files.is_compression_format(extension.lstrip(".")):
                 _, extension = os.path.splitext(basename)
 
@@ -376,7 +391,7 @@ class Dataset:
     def __next__(self):
         # We split the path of the input files after the first appearance of 
         # {day} or {doy}.
-        path_parts = re.split(r'({\w+})', self.files)
+        path_parts = re.split(r'({\w+})', self.path)
 
         for dir in self._find_subdirs(path_parts[0])
             print(path_parts)
@@ -409,7 +424,8 @@ class Dataset:
             start = self._to_datetime(item)
             end = start + timedelta(microseconds=1)
             try:
-                next(self.find_files(start, end, no_files_error=False,))
+                next(self.find_files(start, end,
+                                     no_files_error=False, sort=False, verbose=True))
                 return True
             except StopIteration:
                 return False
@@ -441,7 +457,7 @@ class Dataset:
 
         info = "Name:\t" + self.name
         info += "\nType:\t" + dtype
-        info += "\nFiles path:\t" + self.files
+        info += "\nFiles path:\t" + self.path
         return info
 
     def accumulate(self, start, end, concat_func=None, concat_args=None,
@@ -458,7 +474,7 @@ class Dataset:
                 to concatenate. Default is ArrayGroup.concatenate.
             concat_args: A dictionary with additional arguments for
                 *concat_func*.
-            kwargs: A dictionary with additional arguments for reading
+            reading_args: A dictionary with additional arguments for reading
                 the data (specified by the used file handler).
 
         Returns:
@@ -746,7 +762,7 @@ class Dataset:
                     "The new_path argument must describe each file "
                     "individually by using place holders!")
 
-        # Copy this dataset object but change the files parameter.
+        # Copy this dataset object but change the path.
         new_dataset = Dataset(
             destination,
             new_name if new_name is not None else self.name + "_copy",
@@ -759,59 +775,6 @@ class Dataset:
             new_dataset.handler = converter
 
         return new_dataset
-
-    @staticmethod
-    def _create_date_from_placeholders(filled_placeholders, prefix=None,
-                                       exclude=None, default=None):
-        """Creates a dictionary with date and time keys from placeholders and
-        their values.
-
-        Args:
-            filled_placeholders:
-            prefix:
-            exclude:
-            default:
-
-        Returns:
-            A dictionary with "year", "month", etc.
-        """
-        date_args = {}
-
-        if prefix is None:
-            prefix = ""
-
-        if default is not None:
-            date_args.update(**default)
-
-        for placeholder, value in filled_placeholders.items():
-            if placeholder == prefix + "year2":
-                # TODO: What should be the threshold that decides whether the
-                # TODO: year is 19xx or 20xx?
-                if value < 65:
-                    date_args["year"] = 2000 + value
-                else:
-                    date_args["year"] = 1900 + value
-            elif placeholder == prefix + "millisecond":
-                date_args[prefix + "microsecond"] = value * 1000
-            elif (exclude is None or not placeholder.startswith(exclude)) \
-                    and placeholder.startswith(prefix):
-                if prefix is None:
-                    date_args[placeholder] = value
-                else:
-                    # Cut off the prefix
-                    date_args[placeholder[len(prefix):]] = value
-
-        if prefix + "doy" in filled_placeholders:
-            date = datetime(date_args["year"], 1, 1) \
-                   + timedelta(date_args["doy"] - 1)
-            date_args["month"] = date.month
-            date_args["day"] = date.day
-            del date_args["doy"]
-
-        if not date_args:
-            return None
-        else:
-            return datetime(**date_args)
 
     @property
     def exclude(self):
@@ -837,47 +800,6 @@ class Dataset:
             else:
                 self._exclude = IntervalTree(np.array(value))
 
-    @property
-    def files(self):
-        """Gets or sets the path to the dataset's files.
-
-        Returns:
-            A string with the path (can contain placeholders or wildcards.)
-        """
-        if os.path.isabs(self._files):
-            return self._files
-        else:
-            return os.path.join(os.getcwd(), self._files)
-
-    @files.setter
-    def files(self, value):
-        if value is None:
-            raise ValueError("The files parameter cannot be None!")
-        self._files = value
-
-        self.files_placeholders = re.findall("\{(\w+)\}", self.files)
-
-        # TODO: Currently, we cannot work with files which directory name
-        # TODO: contain regular expressions
-        placeholders_in_dir = \
-            re.findall("\{(\w+)\}", os.path.dirname(self.files))
-
-        if set(placeholders_in_dir).intersection(self.placeholder):
-            raise ValueError("Currently, user-defined placeholders in the "
-                             "directory name are not supported!")
-
-        # Flag whether this is a single file dataset or not:
-        no_temporal_placeholders = \
-            not set(
-                self._placeholder).intersection(set(self.files_placeholders)
-            )
-        self.single_file = no_temporal_placeholders and "*" not in self.files
-
-        if self.single_file and self.files_placeholders:
-            raise ValueError(
-                "Placeholders in the files path are not allowed for "
-                "single file datasets!")
-
     def find_file(self, timestamp):
         """Finds either the file that covers a timestamp or is the closest to
         it.
@@ -896,13 +818,13 @@ class Dataset:
 
         # Special case: the whole dataset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.files):
+            if os.path.isfile(self.path):
                 # We do not have to check the time coverage since there this is
                 # automatically the closest file to the timestamp.
-                return self.files
+                return self.path
             else:
                 raise ValueError(
-                    "The files parameter of '%s' does not contain placeholders"
+                    "The path parameter of '%s' does not contain placeholders"
                     " and is not a path to an existing file!" % self.name)
 
         timestamp = self._to_datetime(timestamp)
@@ -921,7 +843,7 @@ class Dataset:
         # We need all possible files that are close to the timestamp hence we
         # need the search dir for those files:
         search_dir = self.generate_filename(
-            timestamp, template=os.path.dirname(self.files)
+            timestamp, template=os.path.dirname(self.path)
         )
 
         regex = self._prepare_regex()
@@ -1012,8 +934,8 @@ class Dataset:
 
         # Special case: the whole dataset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.files):
-                file_info = self.get_info(self.files)
+            if os.path.isfile(self.path):
+                file_info = self.get_info(self.path)
                 if IntervalTree.interval_overlaps(
                         file_info.times, (start, end)):
                     yield file_info
@@ -1022,7 +944,7 @@ class Dataset:
                 return
             else:
                 raise ValueError(
-                    "The files parameter of '%s' neither contains placeholders"
+                    "The path of '%s' neither contains placeholders"
                     " nor is a path to an existing file!" % self.name)
 
         regex = self._prepare_regex()
@@ -1156,7 +1078,7 @@ class Dataset:
             end_time = start_time
 
         if template is None:
-            template = self.files
+            template = self.path
 
         if fill is None:
             fill = {}
@@ -1274,7 +1196,7 @@ class Dataset:
         return info
 
     def _get_search_dirs(self, start, end, verbose):
-        """Yields the search directory for a time period.
+        """Yields all searching directories for a time period.
 
         Args:
             start: Datetime that defines the start of a time interval.
@@ -1286,58 +1208,35 @@ class Dataset:
             A path as a string.
         """
 
-        dir_template = os.path.dirname(self.files)
-
-        # We need the minimum resolution of the temporal placeholders in the
-        # directory name to create adequate search paths.
-        placeholders = set(re.findall("\{(\w+)\}", dir_template))
-        temporal_placeholders = placeholders.intersection(
-            Dataset._temporal_resolution.keys())
-
-        if verbose and temporal_placeholders:
-            print("Found temporal placeholders: ", temporal_placeholders)
+        dir_template = os.path.dirname(self.path)
 
         # If the directory does not contain temporal placeholders, we simply
         # return the original directory
-        if not temporal_placeholders:
+        if self._dir_temporal_resolution is None:
             if verbose:
-                print("Found no temporal placeholders")
+                print("Directory has no temporal placeholders")
             yield dir_template
             return
 
-        # From all temporal placeholders, we want to find the one with the
-        # lowest resolution (month > day > hour, etc.).
-        # Note: The higher the resolution of the placeholder is the lower its
-        # sorting rank is.
-        temporal_resolution = max(
-            [Dataset._temporal_resolution[tp] for tp in temporal_placeholders],
-            key=lambda x: x[1]
-        )[0]
-
-        if verbose:
-            print("Temporal resolution of search path:", temporal_resolution)
+        print("in get_search dirs:", end)
 
         # Start one day before the starting date because we may have files
         # overlapping one day.
+        print(self._dir_temporal_resolution)
         times = pd.date_range(
             start.date() - timedelta(days=1), end,
-            freq=temporal_resolution,
+            freq=self._dir_temporal_resolution,
         )
 
         if verbose:
-            print("Searching between %s and %s in approximately %d dirs" % (
-                times[0], times[-1], len(times)
-            ))
+            print("Searching in approximately %d dirs" % len(times))
 
         for dir_time in times:
             search_dir = self.generate_filename(dir_time, dir_template)
 
-            if verbose:
-                print("Search directory:", search_dir)
-
             if not os.path.isdir(search_dir):
                 if verbose:
-                    print("\tSkipped -> is no directory!")
+                    print("\tSkipped: %s" % search_dir)
                 continue
 
             yield search_dir
@@ -1345,19 +1244,75 @@ class Dataset:
         return
 
     @staticmethod
-    def _get_time_resolution(date_args):
-        if "millisecond" in date_args:
-            return timedelta(milliseconds=1)
-        elif "second" in date_args:
-            return timedelta(seconds=1)
-        elif "minute" in date_args:
-            return timedelta(minutes=1)
-        elif "hour" in date_args:
-            return timedelta(hours=1)
-        elif "day" in date_args:
-            return timedelta(days=1)
-        else:
+    def _get_superior_time_resolution(placeholders,):
+        """Get the superior time resolution of all placeholders.
+
+        Examples:
+            The superior time resolution of seconds are minutes, of hours are
+            days, etc.
+
+        Args:
+            placeholders: A list or dictionary with placeholders.
+
+        Returns:
+            A pandas compatible frequency stringo or None if the superior time
+            resolution is higher than a year.
+        """
+        # All placeholders from which we know the resolution:
+        placeholders = set(placeholders).intersection(
+            Dataset._temporal_resolution
+        )
+
+        if not placeholders:
             return None
+
+        # From all temporal placeholders, we want to find the one with the
+        # lowest resolution (month > day > hour, etc.).
+        # Note: The higher the resolution of the placeholder is the lower its
+        # sorting rank is.
+        lowest_resolution_index = min(
+            (Dataset._temporal_resolution[tp] for tp in placeholders),
+            key=lambda x: x[1],
+        )[1]
+
+        if lowest_resolution_index == 0:
+            return None
+
+        resolutions = list(Dataset._temporal_resolution.values())
+        superior_resolution = resolutions[lowest_resolution_index-1][0]
+
+        return pd.Timedelta(superior_resolution).to_pytimedelta()
+
+    @staticmethod
+    def _get_time_resolution(placeholders, ):
+        """Get the lowest time resolution of all placeholders
+
+        Args:
+            placeholders: A list or dictionary with placeholders.
+
+        Returns:
+            A pandas compatible frequency string.
+        """
+        placeholders = set(placeholders)
+        if "doy" in placeholders:
+            placeholders.remove("doy")
+            placeholders.add("day")
+        if "year2" in placeholders:
+            placeholders.remove("year2")
+            placeholders.add("year")
+
+        # All placeholders from which we know the resolution:
+        placeholders = set(placeholders).intersection(
+            Dataset._temporal_resolution
+        )
+
+        if not placeholders:
+            return None
+
+        return max(
+            (Dataset._temporal_resolution[tp] for tp in placeholders),
+            key=lambda x: x[1],
+        )[0]
 
     def is_excluded(self, period):
         """Checks whether a time interval is excluded from this Dataset.
@@ -1626,8 +1581,8 @@ class Dataset:
             # The temporal placeholder must be converted to integers:
             filled_placeholder = {
                 placeholder: int(values[index])
-                if placeholder in self._placeholder else values[index]
-                for index, placeholder in enumerate(self.files_placeholders)
+                if placeholder in self._time_placeholder else values[index]
+                for index, placeholder in enumerate(self._path_placeholders)
             }
         except IndexError:
             raise PlaceholderRegexError(self.name, None)
@@ -1637,18 +1592,79 @@ class Dataset:
             times = None
         else:
             # Filter out all non temporal placeholders
-            times = self._retrieve_time_coverage_from_placeholders(
-                {k: v for k, v in filled_placeholder.items()
-                 if k in self._placeholder}
+            times = self._retrieve_time_coverage(
+                filled_placeholder
             )
 
         return FileInfo(
-            filename,
-            times,
+            filename, times,
             # Filter out all placeholder that are not coming from the user
             {k: v for k, v in filled_placeholder.items()
-             if k not in self._placeholder}
+             if k in self.placeholder}
         )
+
+    @property
+    def path(self):
+        """Gets or sets the path to the dataset's files.
+
+        Returns:
+            A string with the path (can contain placeholders or wildcards.)
+        """
+        if os.path.isabs(self._path):
+            return self._path
+        else:
+            return os.path.join(os.getcwd(), self._path)
+
+    @path.setter
+    def path(self, value):
+        if value is None:
+            raise ValueError("The path parameter cannot be None!")
+
+        self._path = value
+
+        # Get the placeholders from directory (the path excluding the filename)
+        self._dir_placeholders = re.findall(
+            "\{(\w+)\}", os.path.dirname(self.path))
+        self._dir_temporal_resolution = \
+            self._get_time_resolution(self._dir_placeholders, )
+
+        # TODO: Currently, we cannot work with files which directory name
+        # TODO: contain regular expressions
+        if set(self._dir_placeholders).intersection(self.placeholder):
+            raise ValueError("Currently, user-defined placeholders in the "
+                             "directory name are not supported!")
+
+        # Retrieve the used placeholder names from the path and directory:
+        self._path_placeholders = re.findall("\{(\w+)\}", self.path)
+
+        # Get all temporal placeholders from the path (for starting and ending
+        # time):
+        self._path_start_time_placeholders = {
+            p for p in self._path_placeholders
+            if not p.startswith("end") and p in self._time_placeholder
+        }
+        self._path_end_time_placeholders = {
+            p.lstrip("end_") for p in self._path_placeholders
+            if p.startswith("end") and p in self._time_placeholder
+        }
+
+        # If the end time retrieved from the path is younger than the start
+        # time, the end time will be incremented by this value:
+        self._path_end_time_overshooting_compensator = \
+            self._get_superior_time_resolution(
+                self._path_end_time_placeholders)
+
+
+        # Flag whether this is a single file dataset or not:
+        no_temporal_placeholders = \
+            not set(self._time_placeholder).intersection(
+                self._path_placeholders)
+        self.single_file = no_temporal_placeholders and "*" not in self.path
+
+        if self.single_file and self._path_placeholders:
+            raise ValueError(
+                "Placeholders in the files path are not allowed for "
+                "single file datasets!")
 
     @staticmethod
     def _prepare_find_files_return(file_iterator, sort, bundle_size):
@@ -1702,10 +1718,10 @@ class Dataset:
                 "The parameter bundle must be a integer or string!")
 
     def _prepare_regex(self):
-        placeholder = self._placeholder.copy()
+        placeholder = self._time_placeholder.copy()
         placeholder.update(self.placeholder)
 
-        path = self.files
+        path = self.path
 
         # Mask all dots and convert the asterisk to a regular expression:
         path = path.replace(".", "\.")
@@ -1769,11 +1785,12 @@ class Dataset:
             if data:
                 yield data
 
-    def _retrieve_time_coverage_from_placeholders(self, filled_placeholder,):
+    def _retrieve_time_coverage(self, filled_placeholder,):
         """Retrieve the time coverage from a dictionary of placeholders.
 
         Args:
-            filled_placeholder: A dictionary with placeholder.
+            filled_placeholder: A dictionary with placeholders and their
+                fillings.
 
         Returns:
             A tuple of two datetime objects.
@@ -1781,30 +1798,88 @@ class Dataset:
         if not filled_placeholder:
             return None
 
-        start_date = self._create_date_from_placeholders(
-            filled_placeholder, exclude="end_")
+        start_placeholders = {
+            p: v for p, v in filled_placeholder.items()
+            if p in self._path_start_time_placeholders
+        }
+        start_date = self._retrieve_timestamp(
+            start_placeholders
+        )
 
-        # Default: if no end date is given then the starting date is also
-        # the end date.
-        end_date = self._create_date_from_placeholders(
-            filled_placeholder, prefix="end_",)
-
-        # Dataset.continuous is deprecated at the moment
-        # # Automatically extend the coverage for the minimal resolution
-        # # of the retrieved datetime objects if there is no end date.
-        # if self.continuous and start_date == end_date:
-        #     end_date += self._get_time_resolution(start_date_args)
-        #     end_date -= timedelta(microseconds=1)
+        end_placeholders = {
+            p.lstrip("end_"): v for p, v in filled_placeholder.items()
+            if p.startswith("end_")
+            and p.lstrip("end_") in self._path_end_time_placeholders
+        }
+        end_date = self._retrieve_timestamp(
+            end_placeholders,
+            base=start_date,
+        )
 
         # Sometimes the filename does not explicitly provide the complete
         # end date. Imagine there is only hour and minute given, then day
         # change would not be noticed. Therefore, make sure that the end
         # date is always bigger (later) than the start date.
-        # TODO: Maybe this is just one hour not a day later?
         if end_date is not None and end_date < start_date:
-            end_date += timedelta(days=1)
+            end_date += self._path_end_time_overshooting_compensator
 
         return start_date, end_date
+
+    def _retrieve_timestamp(
+            self, filled_placeholder, end=False, base=None):
+        """Creates a datetime object from filled placeholders.
+
+        Args:
+            filled_placeholder:  A dictionary with placeholders and their
+                fillings.
+            base: The placeholder might be incomplete, then this is the base
+                date that will be updated.
+
+        Returns:
+            A dictionary with "year", "month", etc.
+        """
+
+        if not filled_placeholder:
+            return None
+
+        date_args = {}
+
+        for placeholder, value in filled_placeholder.items():
+            if placeholder == "year2":
+                # TODO: What should be the threshold that decides whether the
+                # TODO: year is 19xx or 20xx?
+                if value < self.year2_threshold:
+                    date_args["year"] = 2000 + value
+                else:
+                    date_args["year"] = 1900 + value
+            elif placeholder == "millisecond":
+                date_args["microsecond"] = value * 1000
+            else:
+                date_args[placeholder] = value
+
+        if "doy" in filled_placeholder:
+            try:
+                base = datetime(date_args["year"], 1, 1) \
+                       + timedelta(date_args["doy"] - 1)
+            except TypeError:
+                raise ValueError(
+                    "Not enough placeholders for creating {} date!".format(
+                        "end" if end else "start"
+                    )
+                )
+            del date_args["doy"]
+
+        if base is None:
+            try:
+                return datetime(**date_args)
+            except TypeError:
+                raise ValueError(
+                    "Not enough placeholders for creating {} date!".format(
+                        "end" if end else "start"
+                    )
+                )
+        else:
+            return base.replace(**date_args)
 
     def save_info_cache(self, filename):
         """ Saves information cache to a file.
