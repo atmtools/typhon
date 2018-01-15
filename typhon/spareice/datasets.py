@@ -24,13 +24,17 @@ import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from typhon.spareice.array import ArrayGroup
 from typhon.spareice.handlers import CSV, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 
 __all__ = [
     "Dataset",
     "DatasetManager",
+    "InhomogeneousFilesError",
+    "NoFilesError",
+    "NoHandlerError",
+    "UnknownPlaceholderError",
+    "PlaceholderRegexError",
 ]
 
 
@@ -64,12 +68,17 @@ class NoHandlerError(Exception):
 
 
 class UnknownPlaceholderError(Exception):
-    """Should be raised if a placeholder was found that was not defined before.
+    """Should be raised if a placeholder was found that was not defined before
+    or cannot be filled.
     """
-    def __init__(self, name, placeholder_name, *args):
-        message = \
-            "The dataset '%s' does not know the placeholder %s!\nYou have " \
-            "to define it first." % (name, placeholder_name)
+    def __init__(self, name, placeholder_name=None, *args):
+        if placeholder_name is None:
+            message = \
+                "The path of '%s' contains a unknown placeholder!" % (name,)
+        else:
+            message = \
+                "The dataset '%s' does not know the placeholder %s!" % (
+                    name, placeholder_name)
         Exception.__init__(self, message, *args)
 
 
@@ -460,59 +469,6 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
-    def accumulate(self, start, end, concat_func=None, concat_args=None,
-                   **reading_args):
-        """Accumulate all data between two dates in one object.
-
-        Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            concat_func: Function that concatenates the read data to
-                another. The first accepted argument must be a list of objects
-                to concatenate. Default is ArrayGroup.concatenate.
-            concat_args: A dictionary with additional arguments for
-                *concat_func*.
-            reading_args: A dictionary with additional arguments for reading
-                the data (specified by the used file handler).
-
-        Returns:
-            Concatenated object.
-
-        Examples:
-            .. :code-block:: python
-
-            import xarray
-
-            dataset = Dataset("path/to/files.nc")
-            data = dataset.accumulate(
-                datetime(2016, 1, 1), datetime(2016, 2, 1),
-                xarray.concat, read_args={fields : ("temperature", )})
-
-            # do something with data["temperature"]
-            data["temperature"].plot()
-            ...
-        """
-
-        if concat_func is None:
-            concat_func = ArrayGroup.concatenate
-
-        if reading_args is None:
-            contents = list(self.read_period(start, end))
-        else:
-            contents = list(self.read_period(start, end, **reading_args))
-
-        if not contents:
-            return None
-        elif len(contents) == 1:
-            return contents[0]
-
-        if concat_args is None:
-            return concat_func(contents)
-        else:
-            return concat_func(contents, **concat_args)
-
     @staticmethod
     def _call_function_with_file_info(args):
         """ This is a small wrapper function to call the function that is
@@ -596,24 +552,20 @@ class Dataset:
             ))
 
         if reading_arguments is None:
-            if isinstance(file_info, FileInfo):
-                data = dataset.read(file_info)
-            else:
-                data = [dataset.read(file) for file in file_info]
+            reading_arguments = {}
 
+        if isinstance(file_info, FileInfo):
+            data = dataset.read(file_info, **reading_arguments)
         else:
-            if isinstance(file_info, FileInfo):
-                data = dataset.read(file_info, **reading_arguments)
-            else:
-                data = [
-                    dataset.read(file, **reading_arguments)
-                    for file in file_info
-                ]
+            data = [
+                dataset.read(file, **reading_arguments)
+                for file in file_info
+            ]
 
         if function_arguments is None:
-            return_value = func(data)
-        else:
-            return_value = func(data, **function_arguments)
+            function_arguments = {}
+
+        return_value = func(data, **function_arguments)
 
         if output is None:
             if return_file_info:
@@ -621,8 +573,13 @@ class Dataset:
             else:
                 return return_value
         elif return_value is not None:
+            if isinstance(file_info, FileInfo):
+                placeholder_filling = file_info.attr
+            else:
+                placeholder_filling = file_info[0].attr
+
             new_filename = output.generate_filename(
-                times, fill=file_info.attr
+                times, fill=placeholder_filling
             )
             output.write(new_filename, return_value)
 
@@ -791,10 +748,6 @@ class Dataset:
         if value is None:
             self._exclude = None
         else:
-            # if np.diff(value) < timedelta():
-            #     raise ValueError(
-            #         "Invalid time periods found! The left boundary of the "
-            #         "period must be lower than the right one.")
             if isinstance(value, np.ndarray):
                 self._exclude = IntervalTree(value)
             else:
@@ -1083,30 +1036,35 @@ class Dataset:
         if fill is None:
             fill = {}
 
-        # Fill all placeholders variables with values
-        return template.format(
-            year=start_time.year, year2=str(start_time.year)[-2:],
-            month="{:02d}".format(start_time.month),
-            day="{:02d}".format(start_time.day),
-            doy="{:03d}".format(
-                (start_time - datetime(start_time.year, 1, 1)).days
-                + 1),
-            hour="{:02d}".format(start_time.hour),
-            minute="{:02d}".format(start_time.minute),
-            second="{:02d}".format(start_time.second),
-            millisecond="{:03d}".format(int(start_time.microsecond / 1000)),
-            end_year=end_time.year, end_year2=str(end_time.year)[-2:],
-            end_month="{:02d}".format(end_time.month),
-            end_day="{:02d}".format(end_time.day),
-            end_doy="{:03d}".format(
-                (end_time - datetime(end_time.year, 1, 1)).days
-                + 1),
-            end_hour="{:02d}".format(end_time.hour),
-            end_minute="{:02d}".format(end_time.minute),
-            end_second="{:02d}".format(end_time.second),
-            end_millisecond="{:03d}".format(int(end_time.microsecond / 1000)),
-            **fill,
-        )
+        try:
+            # Fill all placeholders variables with values
+            return template.format(
+                year=start_time.year, year2=str(start_time.year)[-2:],
+                month="{:02d}".format(start_time.month),
+                day="{:02d}".format(start_time.day),
+                doy="{:03d}".format(
+                    (start_time - datetime(start_time.year, 1, 1)).days
+                    + 1),
+                hour="{:02d}".format(start_time.hour),
+                minute="{:02d}".format(start_time.minute),
+                second="{:02d}".format(start_time.second),
+                millisecond="{:03d}".format(
+                    int(start_time.microsecond / 1000)),
+                end_year=end_time.year, end_year2=str(end_time.year)[-2:],
+                end_month="{:02d}".format(end_time.month),
+                end_day="{:02d}".format(end_time.day),
+                end_doy="{:03d}".format(
+                    (end_time - datetime(end_time.year, 1, 1)).days
+                    + 1),
+                end_hour="{:02d}".format(end_time.hour),
+                end_minute="{:02d}".format(end_time.minute),
+                end_second="{:02d}".format(end_time.second),
+                end_millisecond="{:03d}".format(
+                    int(end_time.microsecond/1000)),
+                **fill,
+            )
+        except KeyError:
+            raise UnknownPlaceholderError(self.name)
 
     def _get_files(self, path, regex, start, end, verbose):
         """Yield files that matches the search conditions.
@@ -1218,11 +1176,8 @@ class Dataset:
             yield dir_template
             return
 
-        print("in get_search dirs:", end)
-
         # Start one day before the starting date because we may have files
         # overlapping one day.
-        print(self._dir_temporal_resolution)
         times = pd.date_range(
             start.date() - timedelta(days=1), end,
             freq=self._dir_temporal_resolution,
@@ -1782,7 +1737,7 @@ class Dataset:
         """
         for file in self.find_files(start, end, sort=sort):
             data = self.read(file, **reading_arguments)
-            if data:
+            if data is not None:
                 yield data
 
     def _retrieve_time_coverage(self, filled_placeholder,):
