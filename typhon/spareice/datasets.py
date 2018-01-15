@@ -753,7 +753,7 @@ class Dataset:
             else:
                 self._exclude = IntervalTree(np.array(value))
 
-    def find_file(self, timestamp):
+    def find_file(self, timestamp, fill=None):
         """Finds either the file that covers a timestamp or is the closest to
         it.
 
@@ -763,6 +763,7 @@ class Dataset:
             timestamp: date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
+            fill: A dictionary with fillings for user-defined placeholder.
 
         Returns:
             The FileInfo object of the found file. If no file was found, a
@@ -782,21 +783,24 @@ class Dataset:
 
         timestamp = self._to_datetime(timestamp)
 
-        # We might need some fillings for user-defined placeholders therefore
+        if fill is None:
+            fill = {}
+
+        # We might need some more fillings than given by the user therefore
         # we need the error catching:
         try:
             # Maybe there is a file with exact this timestamp?
-            path = self.generate_filename(timestamp)
+            path = self.generate_filename(timestamp, fill=fill)
 
             if os.path.isfile(path):
                 return self.get_info(path)
-        except KeyError:
+        except UnknownPlaceholderError:
             pass
 
         # We need all possible files that are close to the timestamp hence we
         # need the search dir for those files:
         search_dir = self.generate_filename(
-            timestamp, template=os.path.dirname(self.path)
+            timestamp, template=os.path.dirname(self.path), fill=fill
         )
 
         regex = self._prepare_regex()
@@ -820,7 +824,7 @@ class Dataset:
         return files[np.argmin(intervals)]
 
     def find_files(
-            self, start, end, sort=True, bundle=None,
+            self, start, end, sort=True, bundle=None, fill=None,
             no_files_error=True, verbose=False,
     ):
         """ Find all files of this dataset in a given time period.
