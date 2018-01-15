@@ -5,9 +5,10 @@ import os
 import pickle
 
 import numpy as np
+import pandas as pd
 import typhon.arts.xml
 from typhon.spareice.array import ArrayGroup
-import xarray
+import xarray as xr
 
 __all__ = [
     'CSV',
@@ -268,65 +269,86 @@ class CSV(FileHandler):
     comma separated values (or by any other delimiter).
     """
     def __init__(
-            self, delimiter=None, header=None,
-            skip_column=None, skip_header=None,
-            **kwargs):
+            self, info_reader=None, return_type=None,
+            read_csv=None, write_csv=None):
         """Initializes a CSV file handler class.
 
         Args:
-            info_reader: (optional) You cannot use the :meth:`get_info`
-                without giving a function here that returns a FileInfo object.
+            info_reader: A function that return a :class:`FileInfo object of a
+                given file.
+            return_type: Defines what object should be returned by
+                :meth:`read`. Default is *ArrayGroup* but *xarray* is also
+                possible.
+            **read_csv: Additional keyword arguments for the pandas function
+                `pandas.read_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
+            **write_csv: Additional keyword arguments for
+                `pandas.Dataframe.to_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
         """
         # Call the base class initializer
-        super().__init__(**kwargs)
+        super().__init__(info_reader=info_reader)
 
-        self.delimiter = delimiter
-        self.header = header
-        self.skip_column = skip_column
-        self.skip_header = skip_header
+        if return_type is None:
+            self.return_type = "ArrayGroup"
+        else:
+            self.return_type = return_type
 
-    def read(self, filename, fields=None):
-        """Reads a CSV file and returns an ArrayGroup object.
+        if read_csv is None:
+            self.read_csv = {}
+        else:
+            self.read_csv = read_csv
+
+        if write_csv is None:
+            self.write_csv = {}
+        else:
+            self.write_csv = write_csv
+
+    def read(self, filename, fields=None, **read_csv):
+        """Read a CSV file and return an ArrayGroup object with its content.
 
         Args:
-            filename:
-            fields:
+            filename: Path and name of the file.
+            fields: Field that you want to extract from the file. If not given,
+                all fields are going to be extracted.
+            **read_csv: Additional keyword arguments for the pandas function
+                `pandas.read_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
             An ArrayGroup object.
         """
-        with open(filename, "r") as file:
-            column_names = None
 
-            if self.skip_header is not None:
-                # Skip the header by ourselves because we may need the names
-                # of the columns.
-                line_number = 0
-                while line_number < self.skip_header:
-                    line = next(file)
-                    line_number += 1
-                    if line_number == self.header:
-                        column_names = line.rstrip('\n').split(self.delimiter)
+        kwargs = self.read_csv.copy()
+        kwargs.update(read_csv)
 
-            raw_data = np.genfromtxt(
-                (line.encode('utf-8') for line in file),
-                delimiter=self.delimiter,
-                dtype=None,
-            )
+        if self.return_type == "ArrayGroup":
+            return ArrayGroup.from_csv(filename, fields, **kwargs)
+        else:
+            dataframe = pd.read_csv(filename, **kwargs)
+            return xr.Dataset.from_dataframe(dataframe)
 
-            column_data = list(zip(*raw_data))
+    def write(self, filename, data, **write_csv):
+        """Write an ArrayGroup object to a CSV file.
 
-            table = ArrayGroup()
-            if column_names is None:
-                column_names = [
-                    "col_" + str(c)
-                    for c in range(len(column_data))]
+        Args:
+            filename: Path and name of the file.
+            data: An ArrayGroup object that should be saved.
+            **write_csv: Additional keyword arguments for
+                `pandas.Dataframe.to_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
 
-            for column, name in enumerate(column_names):
-                #name = str(name, 'utf-8')
-                table[name] = column_data[column]
+        Returns:
+            An ArrayGroup object.
+        """
 
-            return table
+        kwargs = self.write_csv.copy()
+        kwargs.update(write_csv)
+
+        if isinstance(data, xr.Dataset):
+            data = data.to_dataframe()
+
+        return data.to_csv(filename, **kwargs)
 
 
 class NetCDF4(FileHandler):
@@ -338,7 +360,7 @@ class NetCDF4(FileHandler):
         """Initializes a NetCDF4 file handler class.
 
         Args:
-            return_type: (optional) Defines what object should be returned by
+            return_type: Defines what object should be returned by
                 :meth:`read`. Default is *ArrayGroup* but *xarray* is also
                 possible.
             info_reader: (optional) You cannot use the :meth:`get_info`
@@ -351,16 +373,6 @@ class NetCDF4(FileHandler):
             self.return_type = "ArrayGroup"
         else:
             self.return_type = return_type
-
-        # ArrayGroup supports reading from multiple files.
-        if self.return_type == "ArrayGroup":
-            self.multifile_reader_support = True
-            self.reader = ArrayGroup.from_netcdf
-        elif self.return_type == "xarray":
-            self.multifile_reader_support = False
-            self.reader = xarray.open_dataset
-        else:
-            raise ValueError("Unknown return type '%s'!" % return_type)
 
     def get_info(self, filename, **kwargs):
         """
@@ -398,12 +410,20 @@ class NetCDF4(FileHandler):
             An ArrayGroup object.
         """
 
-        if "fields" in signature(self.reader).parameters:
-            ds = self.reader(filename, fields)
+        # ArrayGroup supports reading from multiple files.
+        if self.return_type == "ArrayGroup":
+            ds = ArrayGroup.from_netcdf(filename, fields)
+            if not ds:
+                return None
+        elif self.return_type == "xarray":
+            ds = xr.open_dataset(filename, mask_and_scale=False)
+            if not ds.variables:
+                return None
         else:
-            ds = self.reader(filename)
-            if fields is not None:
-                ds = ds[fields]
+            raise ValueError("Unknown return type '%s'!" % self.return_type)
+
+        if fields is not None:
+            ds = ds[fields]
 
         if mapping is not None:
             ds.rename(mapping, inplace=True)

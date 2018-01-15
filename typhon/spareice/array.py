@@ -2,6 +2,7 @@
 to bundle them in labeled groups and store them to netCDF4 files.
 """
 
+from collections import OrderedDict
 import copy
 from datetime import datetime
 from itertools import chain
@@ -362,7 +363,8 @@ class Array(np.ndarray):
 class ArrayGroup:
     """A specialised dictionary for arrays.
 
-    Still under development.
+    Still under development and potentially deprecated in future releases in
+    order to fully support xarray.
     """
 
     def __init__(self, name=None, hidden_prefix=None):
@@ -702,6 +704,34 @@ class ArrayGroup:
             del obj[field]
 
         return obj
+
+    @classmethod
+    def from_csv(cls, filename, fields=None, **csv_args):
+        """Load an ArrayGroup object from a CSV file.
+
+        Args:
+            filename: Path and name of the file.
+            fields: Fields to extract.
+            **csv_args: Additional keyword arguments for the pandas function
+                `pandas.read_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
+
+        Returns:
+            An ArrayGroup object.
+        """
+        dataframe = pd.read_csv(filename, **csv_args)
+        data_dict = dataframe.to_dict(orient="list")
+
+        if fields is not None:
+            data_dict = {
+                field: value
+                for field, value in data_dict.items()
+                if field in fields
+            }
+
+        array_group = cls.from_dict(data_dict)
+
+        return array_group
 
     @classmethod
     def from_dict(cls, dictionary):
@@ -1164,6 +1194,21 @@ class ArrayGroup:
         indices = np.argsort(self[field])
 
         return self[indices]
+
+    def to_csv(self, filename, **csv_args):
+        """Store an ArrayGroup object to a CSV file.
+
+        Args:
+            filename: Path and name of the file.
+            **csv_args: Additional keyword arguments for the pandas function
+                `pandas.read_csv`. See for more details:
+                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
+
+        Returns:
+            An ArrayGroup object.
+        """
+        dataframe = pd.DataFrame.from_dict(self.to_dict())
+        return dataframe.to_csv(filename, **csv_args)
 
     def to_dict(self, deep=True):
         """Exports variables to a dictionary.
