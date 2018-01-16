@@ -12,7 +12,7 @@ What is the idea?
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). Each file covers a certain time period and
 is located in folders which names contain information about the time period.
-See figure :ref:`fig-example-directory` for an example.
+See figure :numref:`fig-example-directory` for an example.
 
 .. _fig-example-directory:
 
@@ -71,13 +71,16 @@ January 2016 (the whole day, i.e. from 0-24h).
 
    File: Data/InstrumentA/2016/01/01/data_00-00-00.nc
        Start: 2016-01-01 00:00:00
-      End: 2016-01-01 00:00:00
+       End: 2016-01-01 00:00:00
    File: Data/InstrumentA/2016/01/01/data_06-00-00.nc
-       Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
+       Start: 2016-01-01 06:00:00
+       End: 2016-01-01 06:00:00
    File: Data/InstrumentA/2016/01/01/data_12-00-00.nc
-       Start: 2016-01-01 12:00:00, End: 2016-01-01 12:00:00
+       Start: 2016-01-01 12:00:00
+       End: 2016-01-01 12:00:00
    File: Data/InstrumentA/2016/01/01/data_18-00-00.nc
-       Start: 2016-01-01 18:00:00, End: 2016-01-01 18:00:00
+       Start: 2016-01-01 18:00:00
+       End: 2016-01-01 18:00:00
 
 The :meth:`~typhon.spareice.datasets.Dataset.find_files` method find all
 files between two dates and returns their names and time coverages (start
@@ -95,13 +98,13 @@ file format, the Dataset object needs help from you in order to
 handle those files. You must tell the Dataset how to read and write its
 files by giving a *file handler* to it. A file handler is an object that
 can read a file in a certain format or write data to it. For example, if we
-want to read the files from our Instrument A and print out their content, we
+want to read the files from our *Instrument A* and print out their content, we
 need a file handler that can handle those files. The files are stored in the
 NetCDF4 format. Lucky for us, there is a file handler class that can handle
 such files (:class:`~typhon.spareice.handlers.commom.NetCDF4`, for a complete
-list of official handler classes in typhon have a look at TODO). The only
-thing that we need to do now, is giving this file handler object to the
-dataset object during initialization:
+list of official handler classes in typhon have a look at
+:ref:`typhon-handlers`). The only thing that we need to do now, is giving this
+file handler object to the dataset object during initialization:
 
 .. code-block:: python
 
@@ -122,10 +125,8 @@ The dataset object knows how to open our files now. We can try it by using the
 .. code-block:: python
 
    # Open all files between 01/01/2016 and 02/01/2016:
-   date1 = datetime(2016, 1, 1)
-   date2 = datetime(2016, 1, 2)
-   for file, times in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(file, times[0], times[1]))
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+      print(file)
       data = instrument_A.read(file)
       print(data)
 
@@ -152,6 +153,9 @@ the :meth:`~typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
 its output to us. The same works with creating files, when the file handler
 object has implemented a *write* method.
 
+These are the special methods that are used by
+:class:`~typhon.spareice.datasets.Dataset`:
+
 +---------------------+-----------------------+-------------------------------+
 | Dataset method      | FileHandler method    | Description                   |
 +=====================+=======================+===============================+
@@ -167,15 +171,15 @@ We could use both methods to change the content of each file:
 
 .. code-block:: python
 
-   for filename, times in instrument_A.find_files(date1, date2, sort=True):
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
        # Open file:
-       data = instrument_A.read(filename)
+       data = instrument_A.read(file)
 
        # Change content:
        data["x"] /= 2
 
        # Overwrite the old file:
-       instrument_A.write(filename, data)
+       instrument_A.write(file, data)
 
 
 
@@ -185,7 +189,7 @@ Get information about the file
 ==============================
 
 
-.. _sec-placeholders:
+.. _typhon-dataset-placeholders:
 
 Placeholders
 ============

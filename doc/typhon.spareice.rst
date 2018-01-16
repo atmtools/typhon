@@ -8,6 +8,19 @@ spareice
 .. autosummary::
    :toctree: generated
 
+spareice.array
+=====================
+
+.. automodule:: typhon.spareice.array
+
+.. currentmodule:: typhon.spareice.array
+
+.. autosummary::
+   :toctree: generated
+
+   Array
+   ArrayGroup
+
 spareice.collocations
 =====================
 
@@ -32,6 +45,8 @@ spareice.datasets
 
    Dataset
    DatasetManager
+
+.. _typhon-handlers:
 
 spareice.handlers
 =================
