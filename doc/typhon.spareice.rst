@@ -58,15 +58,6 @@ spareice.handlers
 .. autosummary::
    :toctree: generated
 
-.. automodule:: typhon.spareice.handlers.cloudsat
-
-.. currentmodule:: typhon.spareice.handlers.cloudsat
-
-.. autosummary::
-   :toctree: generated
-
-   CloudSat
-
 .. automodule:: typhon.spareice.handlers.common
 
 .. currentmodule:: typhon.spareice.handlers.common
@@ -79,6 +70,15 @@ spareice.handlers
    FileInfo
    NetCDF4
    Plot
+
+.. automodule:: typhon.spareice.handlers.cloudsat
+
+.. currentmodule:: typhon.spareice.handlers.cloudsat
+
+.. autosummary::
+   :toctree: generated
+
+   CloudSat
 
 .. automodule:: typhon.spareice.handlers.tovs
 
