@@ -60,8 +60,11 @@ class FileHandler:
         self.writer = writer
 
     def get_info(self, filename, **kwargs):
-        """Returns a :class:`FileInfo` object with parameters about the
+        """Return a :class:`FileInfo` object with parameters about the
         file content.
+
+        Notes:
+            This is the base class method that does nothing per default.
 
         It must contain the key "times" with a tuple of two datetime
         objects as value, indicating the start and end time of this file.
@@ -113,8 +116,11 @@ class FileHandler:
                     "strings or tuples!".format(type(field)))
 
     def read(self, filename, **kwargs):
-        """This method open a file by its name, read its content and return
+        """This method opens a file by its name, reads its content and returns
         a object containing this content.
+
+        Notes:
+            This is the base class method that does nothing per default.
 
         Args:
             filename: Path and name of the file from which to read.
@@ -139,7 +145,7 @@ class FileHandler:
 
     @staticmethod
     def select(data, dimensions):
-        """ Returns only the selected dimensions of the data.
+        """ Return only the selected dimensions of the data.
 
         So far, this function does not do much. But I want it to be here as a
         central, static method to make it easier if we want to change the
@@ -159,7 +165,10 @@ class FileHandler:
         return data
 
     def write(self, filename, data, **kwargs):
-        """Stores a data object to a file.
+        """Store a data object to a file.
+
+        Notes:
+            This is the base class method that does nothing per default.
 
         Args:
             filename: Path and name of the file to which to store the data.

@@ -8,6 +8,19 @@ spareice
 .. autosummary::
    :toctree: generated
 
+spareice.array
+=====================
+
+.. automodule:: typhon.spareice.array
+
+.. currentmodule:: typhon.spareice.array
+
+.. autosummary::
+   :toctree: generated
+
+   Array
+   ArrayGroup
+
 spareice.collocations
 =====================
 
@@ -33,6 +46,8 @@ spareice.datasets
    Dataset
    DatasetManager
 
+.. _typhon-handlers:
+
 spareice.handlers
 =================
 
@@ -42,15 +57,6 @@ spareice.handlers
 
 .. autosummary::
    :toctree: generated
-
-.. automodule:: typhon.spareice.handlers.cloudsat
-
-.. currentmodule:: typhon.spareice.handlers.cloudsat
-
-.. autosummary::
-   :toctree: generated
-
-   CloudSat
 
 .. automodule:: typhon.spareice.handlers.common
 
@@ -64,6 +70,15 @@ spareice.handlers
    FileInfo
    NetCDF4
    Plot
+
+.. automodule:: typhon.spareice.handlers.cloudsat
+
+.. currentmodule:: typhon.spareice.handlers.cloudsat
+
+.. autosummary::
+   :toctree: generated
+
+   CloudSat
 
 .. automodule:: typhon.spareice.handlers.tovs
 

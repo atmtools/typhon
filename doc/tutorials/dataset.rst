@@ -1,5 +1,5 @@
-How to use typhon.spareice.datasets.Dataset?
-============================================
+How to use typhon.spareice.Dataset?
+###################################
 
 .. contents:: :local:
 
@@ -7,7 +7,7 @@ How to use typhon.spareice.datasets.Dataset?
    :linenothreshold: 5
 
 What is the idea?
------------------
+=================
 
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). Each file covers a certain time period and
@@ -19,7 +19,8 @@ See figure :ref:`fig-example-directory` for an example.
 .. figure:: _figures/dataset_directory.png
    :alt: screen shot of dataset directory structure
 
-   An example: All files of *Instrument A* are located in subdirectories which
+   Example of dataset
+   All files of *Instrument A* are located in subdirectories which
    contain temporal information in their names (year, month, day, etc.).
 
 Typical tasks to analyze this dataset would include iterating over those
@@ -29,14 +30,14 @@ time period? You could start by writing nested *for* loops and using
 python's *glob* function. Normally, such solutions requires time to
 implement, are error-prone and are not portable to other datasets with
 different structures. Hence, save your time/energy/nerves and simply use
-the :class:`typhon.spareice.datasets.Dataset` class.
+the :class:`~typhon.spareice.datasets.Dataset` class.
 
 Quick Start
------------
+===========
 
 We stick to our example from above and want to find all files from our
-*Instrument A* dataset (what a creative name!) between two dates. To do this,
-we need to initialize a Dataset object and tell it where to find our files:
+*Instrument A* dataset between two dates. To do this, we need to initialize a
+Dataset object and tell it where to find our files:
 
 .. code-block:: python
 
@@ -55,39 +56,40 @@ pattern pointing to each file instead of giving explicit paths. The words
 surrounded by braces (e.g. "{year}") are called placeholders. They define
 what information can be retrieved from the filename. If you want to know
 more about those placeholders, have look at the section
-:ref:`sec-placeholders`.
+:ref:`typhon-dataset-placeholders`.
 
 We want to print the names and time coverages of all files from the 1st of
 January 2016 (the whole day, i.e. from 0-24h).
 
 .. code-block:: python
 
-   # Find all files between 01/01/2016 and 02/01/2016:
-   date1 = datetime(2016, 1, 1)
-   date2 = datetime(2016, 1, 2)
-   for filename, time in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(filename, time[0],
-      time[1]))
+    # Find all files between 01/01/2016 and 02/01/2016:
+    for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+        print(file)
 
 .. code-block:: none
    :caption: Output:
 
    File: Data/InstrumentA/2016/01/01/data_00-00-00.nc
-       Start: 2016-01-01 00:00:00, End: 2016-01-01 00:00:00
+       Start: 2016-01-01 00:00:00
+       End: 2016-01-01 00:00:00
    File: Data/InstrumentA/2016/01/01/data_06-00-00.nc
-       Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
+       Start: 2016-01-01 06:00:00
+       End: 2016-01-01 06:00:00
    File: Data/InstrumentA/2016/01/01/data_12-00-00.nc
-       Start: 2016-01-01 12:00:00, End: 2016-01-01 12:00:00
+       Start: 2016-01-01 12:00:00
+       End: 2016-01-01 12:00:00
    File: Data/InstrumentA/2016/01/01/data_18-00-00.nc
-       Start: 2016-01-01 18:00:00, End: 2016-01-01 18:00:00
+       Start: 2016-01-01 18:00:00
+       End: 2016-01-01 18:00:00
 
-The :meth:`typhon.spareice.datasets.Dataset.find_files` method find all
+The :meth:`~typhon.spareice.datasets.Dataset.find_files` method find all
 files between two dates and returns their names and time coverages (start
 and end times). If we want to sort them by their starting times, we can set
 its *sort* parameter to true.
 
 Read and Create Files
----------------------
+=====================
 
 The Dataset class has more interesting functionality that we are going to
 investigate in more detail later. But before doing this, we have to understand
@@ -97,13 +99,13 @@ file format, the Dataset object needs help from you in order to
 handle those files. You must tell the Dataset how to read and write its
 files by giving a *file handler* to it. A file handler is an object that
 can read a file in a certain format or write data to it. For example, if we
-want to read the files from our Instrument A and print out their content, we
+want to read the files from our *Instrument A* and print out their content, we
 need a file handler that can handle those files. The files are stored in the
 NetCDF4 format. Lucky for us, there is a file handler class that can handle
-such files (:class:`typhon.spareice.handlers.commom.NetCDF4`, for a complete
-list of official handler classes in typhon have a look at TODO). The only
-thing that we need to do now, is giving this file handler object to the
-dataset object during initialization:
+such files (:class:`~typhon.spareice.handlers.commom.NetCDF4`, for a complete
+list of official handler classes in typhon have a look at
+:ref:`typhon-handlers`). The only thing that we need to do now, is giving this
+file handler object to the dataset object during initialization:
 
 .. code-block:: python
 
@@ -119,15 +121,13 @@ dataset object during initialization:
    )
 
 The dataset object knows how to open our files now. We can try it by using the
-:meth:`typhon.spareice.datasets.Dataset.read` method:
+:meth:`~typhon.spareice.datasets.Dataset.read` method:
 
 .. code-block:: python
 
    # Open all files between 01/01/2016 and 02/01/2016:
-   date1 = datetime(2016, 1, 1)
-   date2 = datetime(2016, 1, 2)
-   for file, times in instrument_A.find_files(date1, date2, sort=True):
-      print("File: {}\n\tStart: {}, End: {}".format(file, times[0], times[1]))
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+      print(file)
       data = instrument_A.read(file)
       print(data)
 
@@ -147,12 +147,15 @@ The dataset object knows how to open our files now. We can try it by using the
    ...
 
 How does this work? All file handler objects (i.e.
-:class:`typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
+:class:`~typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
 implemented. When we call
-:meth:`typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
-the :meth:`typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
+:meth:`~typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
+the :meth:`~typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
 its output to us. The same works with creating files, when the file handler
 object has implemented a *write* method.
+
+These are the special methods that are used by
+:class:`~typhon.spareice.datasets.Dataset`:
 
 +---------------------+-----------------------+-------------------------------+
 | Dataset method      | FileHandler method    | Description                   |
@@ -169,49 +172,115 @@ We could use both methods to change the content of each file:
 
 .. code-block:: python
 
-   for filename, times in instrument_A.find_files(date1, date2, sort=True):
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
        # Open file:
-       data = instrument_A.read(filename)
+       data = instrument_A.read(file)
 
        # Change content:
        data["x"] /= 2
 
        # Overwrite the old file:
-       instrument_A.write(filename, data)
+       instrument_A.write(file, data)
 
 
 
 **TODO: Finish tutorial**
 
-Get the time coverage by filename or content
---------------------------------------------
+Get information about the file
+==============================
+
+The Dataset needs temporal information about each file to find them via
+:meth:`~typhon.spareice.datasets.Dataset.find_files`. There are three options
+to provide this information.
+
+1. Using placeholders in the filename: Set the `info_via` parameter to
+   *filename* or *both*.
+2. Using the `get_info` method of the file handler: Set the `info_via` parameter
+   to *handler* or *both*.
+3. Using the parameter *time_coverage* of the Dataset
 
 
-.. _sec-placeholders:
+.. _typhon-dataset-placeholders:
 
 Placeholders
-------------
+============
+
+Allowed placeholders in the *path* argument are:
+
++-------------+------------------------------------------+------------+
+| Placeholder | Description                              | Example    |
++=============+==========================================+============+
+| year        | Four digits indicating the year.         | 1999       |
++-------------+------------------------------------------+------------+
+| year2       | Two digits indicating the year. [1]_     | 58 (=2058) |
++-------------+------------------------------------------+------------+
+| month       | Two digits indicating the month.         | 09         |
++-------------+------------------------------------------+------------+
+| day         | Two digits indicating the day.           | 08         |
++-------------+------------------------------------------+------------+
+| doy         | Three digits indicating the day of       | 002        |
+|             | the year.                                |            |
++-------------+------------------------------------------+------------+
+| hour        | Two digits indicating the hour.          | 22         |
++-------------+------------------------------------------+------------+
+| minute      | Two digits indicating the minute.        | 58         |
++-------------+------------------------------------------+------------+
+| second      | Two digits indicating the second.        | 58         |
++-------------+------------------------------------------+------------+
+| millisecond | Three digits indicating the millisecond. | 999        |
++-------------+------------------------------------------+------------+
+.. [1] Numbers lower than 65 are interpreted as 20XX while numbers
+   equal or greater are interpreted as 19XX (e.g. 65 = 1965,
+   99 = 1999)
+
+All those place holders are also allowed to have the prefix *end* (e.g.
+*end_year*). They will be used to retrieve the end of the time coverage from
+the filename.
+
+See this code for a simple example:
+
+.. code-block:: python
+
+   # If we have a Dataset with files:
+   dataset = Dataset(
+      "{year}/{doy}/{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc",
+   )
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+      print(file)
 
 
-Iterating over files in a period
---------------------------------
+.. code-block:: none
+   :caption: Output:
+
+   2016/001/000000-120000.nc
+      Start: 2016-01-01 00:00:00
+      End: 2016-01-01 12:00:00
+
+   2016/001/120000-000000.nc
+      Start: 2016-01-01 12:00:00
+      End: 2016-01-02 00:00:00
 
 
-Via .find_files(...)
-++++++++++++++++++++
+Further recipes
+===============
 
 
-Via .read_period(...)
-+++++++++++++++++++++
+Find all files in a period
+--------------------------
 
 
 
-Via .map(...) or .map_content(...)
-++++++++++++++++++++++++++++++++++
+
+Read all files in a period
+--------------------------
 
 
-Via magic indexing
-++++++++++++++++++
+Use multiple processes
+----------------------
+
+
+Use magic indexing
+------------------
 
 
 Find overlapping files between two datasets

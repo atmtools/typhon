@@ -20,6 +20,8 @@ __all__ = [
 
 
 class CloudSat(handlers.FileHandler):
+    """File handler for CloudSat data in HDF4 files.
+    """
     mapping = {
         "lat": "Latitude",
         "lon": "Longitude"
@@ -30,6 +32,17 @@ class CloudSat(handlers.FileHandler):
         super().__init__(**kwargs)
 
     def get_info(self, filename, **kwargs):
+        """Return a :class:`FileInfo` object with parameters about the
+        file content.
+
+        Args:
+            filename: Path and name of the file of which to retrieve the info
+                about.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A FileInfo object.
+        """
         with Dataset(filename, "r") as file:
             start = datetime.strptime(file.start_time, "%Y%m%d%H%M%S")
             end = datetime.strptime(file.end_time, "%Y%m%d%H%M%S")
@@ -39,7 +52,7 @@ class CloudSat(handlers.FileHandler):
             )
 
     def read(self, filename, fields=None):
-        """Reads and parses NetCDF files and load them to a xarray.
+        """Reads and parses HDF4 files and load them to an ArrayGroup.
 
         See the parent class for further documentation.
         """
