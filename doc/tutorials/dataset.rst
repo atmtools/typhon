@@ -12,14 +12,15 @@ What is the idea?
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). Each file covers a certain time period and
 is located in folders which names contain information about the time period.
-See figure :numref:`fig-example-directory` for an example.
+See figure :ref:`fig-example-directory` for an example.
 
 .. _fig-example-directory:
 
 .. figure:: _figures/dataset_directory.png
    :alt: screen shot of dataset directory structure
 
-   An example: All files of *Instrument A* are located in subdirectories which
+   Example of dataset
+   All files of *Instrument A* are located in subdirectories which
    contain temporal information in their names (year, month, day, etc.).
 
 Typical tasks to analyze this dataset would include iterating over those
@@ -55,7 +56,7 @@ pattern pointing to each file instead of giving explicit paths. The words
 surrounded by braces (e.g. "{year}") are called placeholders. They define
 what information can be retrieved from the filename. If you want to know
 more about those placeholders, have look at the section
-:ref:`sec-placeholders`.
+:ref:`typhon-dataset-placeholders`.
 
 We want to print the names and time coverages of all files from the 1st of
 January 2016 (the whole day, i.e. from 0-24h).
@@ -188,11 +189,77 @@ We could use both methods to change the content of each file:
 Get information about the file
 ==============================
 
+The Dataset needs temporal information about each file to find them via
+:meth:`~typhon.spareice.datasets.Dataset.find_files`. There are three options
+to provide this information.
+
+1. Using placeholders in the filename: Set the `info_via` parameter to
+   *filename* or *both*.
+2. Using the `get_info` method of the file handler: Set the `info_via` parameter
+   to *handler* or *both*.
+3. Using the parameter *time_coverage* of the Dataset
+
 
 .. _typhon-dataset-placeholders:
 
 Placeholders
 ============
+
+Allowed placeholders in the *path* argument are:
+
++-------------+------------------------------------------+------------+
+| Placeholder | Description                              | Example    |
++=============+==========================================+============+
+| year        | Four digits indicating the year.         | 1999       |
++-------------+------------------------------------------+------------+
+| year2       | Two digits indicating the year. [1]_     | 58 (=2058) |
++-------------+------------------------------------------+------------+
+| month       | Two digits indicating the month.         | 09         |
++-------------+------------------------------------------+------------+
+| day         | Two digits indicating the day.           | 08         |
++-------------+------------------------------------------+------------+
+| doy         | Three digits indicating the day of       | 002        |
+|             | the year.                                |            |
++-------------+------------------------------------------+------------+
+| hour        | Two digits indicating the hour.          | 22         |
++-------------+------------------------------------------+------------+
+| minute      | Two digits indicating the minute.        | 58         |
++-------------+------------------------------------------+------------+
+| second      | Two digits indicating the second.        | 58         |
++-------------+------------------------------------------+------------+
+| millisecond | Three digits indicating the millisecond. | 999        |
++-------------+------------------------------------------+------------+
+.. [1] Numbers lower than 65 are interpreted as 20XX while numbers
+   equal or greater are interpreted as 19XX (e.g. 65 = 1965,
+   99 = 1999)
+
+All those place holders are also allowed to have the prefix *end* (e.g.
+*end_year*). They will be used to retrieve the end of the time coverage from
+the filename.
+
+See this code for a simple example:
+
+.. code-block:: python
+
+   # If we have a Dataset with files:
+   dataset = Dataset(
+      "{year}/{doy}/{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc",
+   )
+   for file in instrument_A.find_files("2016-01-01", "2016-01-02"):
+      print(file)
+
+
+.. code-block:: none
+   :caption: Output:
+
+   2016/001/000000-120000.nc
+      Start: 2016-01-01 00:00:00
+      End: 2016-01-01 12:00:00
+
+   2016/001/120000-000000.nc
+      Start: 2016-01-01 12:00:00
+      End: 2016-01-02 00:00:00
+
 
 Further recipes
 ===============

@@ -223,7 +223,7 @@ class Dataset:
                 will be decompressed before reading them. Default value is
                 true.
 
-        Allowed placeholders in the template are:
+        Allowed placeholders in the *path* argument are:
 
         +-------------+------------------------------------------+------------+
         | Placeholder | Description                              | Example    |
