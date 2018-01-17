@@ -434,7 +434,7 @@ class Dataset:
             end = start + timedelta(microseconds=1)
             try:
                 next(self.find_files(start, end,
-                                     no_files_error=False, sort=False, verbose=True))
+                                     no_files_error=False, sort=False,))
                 return True
             except StopIteration:
                 return False
@@ -459,7 +459,7 @@ class Dataset:
         self.write(filename, value)
 
     def __repr__(self):
-        return self.name
+        return str(self)
 
     def __str__(self):
         dtype = "Single-File" if self.single_file else "Multi-File"

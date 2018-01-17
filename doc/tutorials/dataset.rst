@@ -1,5 +1,7 @@
-How to use typhon.spareice.Dataset?
-###################################
+Using typhon.spareice.Dataset For Data Processing
+#################################################
+
+**TODO:** Add a small testing dataset for the user.
 
 .. contents:: :local:
 
@@ -20,6 +22,7 @@ See figure :ref:`fig-example-directory` for an example.
    :alt: screen shot of dataset directory structure
 
    Example of dataset
+
    All files of *Instrument A* are located in subdirectories which
    contain temporal information in their names (year, month, day, etc.).
 
@@ -46,16 +49,16 @@ Dataset object and tell it where to find our files:
 
    # Define a dataset object with the files.
    instrument_A = Dataset(
-      "Data/InstrumentA/{year}/{month}/{day}/data_{hour}-{minute}-{second}.nc"
+      path="Data/InstrumentA/{year}/{month}/{day}/data_{hour}-{minute}-{second}.nc"
    )
 
-What happens in this piece of code? We import the Dataset class from the typhon
+Nothing interesting happens so far. We import the Dataset class from the typhon
 module and define the Dataset object, give it a name and tell it where
-to find its files. We do the latter by giving the generalized path
+to find its files. We do it by setting *path* to a generalized path
 pattern pointing to each file instead of giving explicit paths. The words
 surrounded by braces (e.g. "{year}") are called placeholders. They define
 what information can be retrieved from the filename. If you want to know
-more about those placeholders, have look at the section
+more about those placeholders, have a look at the section
 :ref:`typhon-dataset-placeholders`.
 
 We want to print the names and time coverages of all files from the 1st of
@@ -83,35 +86,29 @@ January 2016 (the whole day, i.e. from 0-24h).
        Start: 2016-01-01 18:00:00
        End: 2016-01-01 18:00:00
 
-The :meth:`~typhon.spareice.datasets.Dataset.find_files` method find all
-files between two dates and returns their names and time coverages (start
-and end times). If we want to sort them by their starting times, we can set
-its *sort* parameter to true.
+The :meth:`~typhon.spareice.datasets.Dataset.find_files` method finds all
+files between two dates and returns their names and time coverages as
+:class:`~typhon.spareice.handlers.FileInfo` objects.
 
 Read and Create Files
 =====================
 
-The Dataset class has more interesting functionality that we are going to
-investigate in more detail later. But before doing this, we have to understand
-how we can open and read files from one dataset. Since there are a lot of
-different types of datasets out there and each one of them might have its own
-file format, the Dataset object needs help from you in order to
-handle those files. You must tell the Dataset how to read and write its
-files by giving a *file handler* to it. A file handler is an object that
-can read a file in a certain format or write data to it. For example, if we
-want to read the files from our *Instrument A* and print out their content, we
-need a file handler that can handle those files. The files are stored in the
-NetCDF4 format. Lucky for us, there is a file handler class that can handle
-such files (:class:`~typhon.spareice.handlers.commom.NetCDF4`, for a complete
-list of official handler classes in typhon have a look at
-:ref:`typhon-handlers`). The only thing that we need to do now, is giving this
-file handler object to the dataset object during initialization:
+It is nice to iterate over all files from one dataset, but we would like to
+read them as well. How to do this? The Dataset object does not know this by
+itself but trusts a *file handler* that you may give to it. A file handler is
+an object that can read a file in a certain format or write data to it. For
+example, if we want to read the files from our *Instrument A* and print out
+their content, we need a file handler that can handle netCDF files. Lucky for
+us, there is a file handler that can handle such files (it is called
+:class:`~typhon.spareice.handlers.commom.NetCDF4`). The only thing that we need
+to do now, is giving this file handler object to the Dataset during
+initialization:
 
 .. code-block:: python
 
    # Import the Dataset class from the typhon module.
    from typhon.spareice.datasets import Dataset
-   from typhon.spareice.handlers.common import NetCDF4
+   from typhon.spareice.handlers import NetCDF4
 
    # Define a dataset object with the files.
    instrument_A = Dataset(
@@ -146,29 +143,18 @@ The dataset object knows how to open our files now. We can try it by using the
        Start: 2016-01-01 06:00:00, End: 2016-01-01 06:00:00
    ...
 
-How does this work? All file handler objects (i.e.
-:class:`~typhon.spareice.handlers.commom.NetCDF4` as well) have a *read* method
-implemented. When we call
-:meth:`~typhon.spareice.datasets.Dataset.read`, the dataset object simply calls
-the :meth:`~typhon.spareice.handlers.commom.NetCDF4.read` method and redirects
-its output to us. The same works with creating files, when the file handler
-object has implemented a *write* method.
+There are more file handlers for other file formats. For example,
+:class:`~typhon.spareice.handlers.CloudSat` that can read CloudSat files
+from HDF4 format. Have a look at :ref:`typhon-handlers` for a complete list of
+official handler classes in typhon. If you need a special format that is not
+covered by our file handlers, you can customize
+:class:`~typhon.spareice.handlers.commom.FileHandler` with some arguments or
+you can even write your own file handler (see also :doc:`handlers`).
 
-These are the special methods that are used by
-:class:`~typhon.spareice.datasets.Dataset`:
-
-+---------------------+-----------------------+-------------------------------+
-| Dataset method      | FileHandler method    | Description                   |
-+=====================+=======================+===============================+
-| Dataset.read()      | FileHandler.read()    | Opens and reads a file.       |
-+---------------------+-----------------------+-------------------------------+
-| Dataset.write()     | FileHandler.write()   | Writes data to a file.        |
-+---------------------+-----------------------+-------------------------------+
-| Dataset.get_info()  | FileHandler.get_info()| Gets information (e.g. time \ |
-|                     |                       | coverage) of a file.          |
-+---------------------+-----------------------+-------------------------------+
-
-We could use both methods to change the content of each file:
+With file handlers, we can read from a file and write data to it (as long as
+the file handler supports this feature). See in this example, how we open each
+file from *Instrument A* between *2016-01-01* and *2016-01-02*, read their
+content and overwrite them with new content.
 
 .. code-block:: python
 
@@ -183,15 +169,12 @@ We could use both methods to change the content of each file:
        instrument_A.write(file, data)
 
 
-
-**TODO: Finish tutorial**
-
 Get information about the file
 ==============================
 
 The Dataset needs temporal information about each file to find them via
 :meth:`~typhon.spareice.datasets.Dataset.find_files`. There are three options
-to provide this information.
+to provide this information:
 
 1. Using placeholders in the filename: Set the `info_via` parameter to
    *filename* or *both*.
@@ -204,6 +187,9 @@ to provide this information.
 
 Placeholders
 ============
+
+Standard placeholders
+---------------------
 
 Allowed placeholders in the *path* argument are:
 
@@ -229,6 +215,7 @@ Allowed placeholders in the *path* argument are:
 +-------------+------------------------------------------+------------+
 | millisecond | Three digits indicating the millisecond. | 999        |
 +-------------+------------------------------------------+------------+
+
 .. [1] Numbers lower than 65 are interpreted as 20XX while numbers
    equal or greater are interpreted as 19XX (e.g. 65 = 1965,
    99 = 1999)
@@ -261,6 +248,16 @@ See this code for a simple example:
       End: 2016-01-02 00:00:00
 
 
+User-defined placeholders
+-------------------------
+
+
+Customize the file handler
+==========================
+
+
+
+
 Further recipes
 ===============
 
@@ -285,3 +282,8 @@ Use magic indexing
 
 Find overlapping files between two datasets
 -------------------------------------------
+
+
+Exclude time periods
+--------------------
+
