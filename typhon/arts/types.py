@@ -61,5 +61,5 @@ classes = {
     'PressureBroadening': PressureBroadening,
     'LineMixing': LineMixing,
     'PartitionFunctions': PartitionFunctions,
-    'XsecData': XsecRecord,
+    'XsecRecord': XsecRecord,
 }
