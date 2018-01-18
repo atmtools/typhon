@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from typhon.spareice.handlers import CSV, FileInfo, NetCDF4
+from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 
 __all__ = [
@@ -67,9 +67,22 @@ class NoHandlerError(Exception):
         Exception.__init__(self, *args)
 
 
+class UnfilledPlaceholderError(Exception):
+    """Should be raised if a placeholder was found that cannot be filled.
+    """
+    def __init__(self, name, placeholder_name=None, *args):
+        if placeholder_name is None:
+            message = \
+                "The path of '%s' contains a unfilled placeholder!" % (name,)
+        else:
+            message = \
+                "The dataset '%s' could not fill the placeholder %s!" % (
+                    name, placeholder_name)
+        Exception.__init__(self, message, *args)
+
+
 class UnknownPlaceholderError(Exception):
-    """Should be raised if a placeholder was found that was not defined before
-    or cannot be filled.
+    """Should be raised if a placeholder was found that was not defined before.
     """
     def __init__(self, name, placeholder_name=None, *args):
         if placeholder_name is None:
@@ -146,6 +159,15 @@ class Dataset:
 
     # TODO: Should this be a default filling for the placeholders?
     placeholder_filling = {}
+
+    # Default handler
+    default_handler = {
+        "nc": NetCDF4(),
+        "h5": NetCDF4(),
+        "txt": CSV(),
+        "csv": CSV(),
+        "asc": CSV(),
+    }
 
     def __init__(
             self, path, handler=None, name=None, info_via=None,
@@ -325,6 +347,8 @@ class Dataset:
         self._path_start_time_placeholders = None
         self._path_end_time_placeholders = None
         self._path_end_time_overshooting_compensator = None
+        self._path_extension = None
+        self._dir = None
         self._dir_placeholders = None
         self._dir_temporal_resolution = None
         self.path = path
@@ -336,13 +360,9 @@ class Dataset:
             if typhon.files.is_compression_format(extension.lstrip(".")):
                 _, extension = os.path.splitext(basename)
 
-            if extension == ".nc" or extension == ".h5":
-                self.handler = NetCDF4()
-            elif extension == ".txt" or extension == ".asc" \
-                    or extension == ".csv":
-                self.handler = CSV()
-            else:
-                self.handler = None
+            extension = extension.lstrip(".")
+
+            self.handler = self.default_handler.get(extension, None)
         else:
             self.handler = handler
 
@@ -1037,8 +1057,9 @@ class Dataset:
         if template is None:
             template = self.path
 
-        if fill is None:
-            fill = {}
+        default_fill = self.placeholder.copy()
+        if fill is not None:
+            default_fill.update(fill)
 
         try:
             # Fill all placeholders variables with values
@@ -1065,7 +1086,7 @@ class Dataset:
                 end_second="{:02d}".format(end_time.second),
                 end_millisecond="{:03d}".format(
                     int(end_time.microsecond/1000)),
-                **fill,
+                **default_fill,
             )
         except KeyError:
             raise UnknownPlaceholderError(self.name)
@@ -1170,15 +1191,22 @@ class Dataset:
             A path as a string.
         """
 
-        dir_template = os.path.dirname(self.path)
-
         # If the directory does not contain temporal placeholders, we simply
         # return the original directory
-        if self._dir_temporal_resolution is None:
+        if not self._dir_placeholders:
             if verbose:
                 print("Directory has no temporal placeholders")
-            yield dir_template
+            yield self._dir
             return
+
+        # Goal: Search for all directories that match the path regex and is
+        # between start and end date.
+        # Strategy: Go through each folder in the hierarchy and find the ones
+        # that match the regex so far. Filter out folders that does not overlap
+        # with the given time interval.
+
+        path_parts = self._dir.split(os.path.sep)
+        print(path_parts)
 
         # Start one day before the starting date because we may have files
         # overlapping one day.
@@ -1582,8 +1610,8 @@ class Dataset:
         self._path = value
 
         # Get the placeholders from directory (the path excluding the filename)
-        self._dir_placeholders = re.findall(
-            "\{(\w+)\}", os.path.dirname(self.path))
+        self._dir = os.path.dirname(self.path)
+        self._dir_placeholders = re.findall("\{(\w+)\}", self._dir)
         self._dir_temporal_resolution = \
             self._get_time_resolution(self._dir_placeholders, )
 
@@ -1613,7 +1641,6 @@ class Dataset:
             self._get_superior_time_resolution(
                 self._path_end_time_placeholders)
 
-
         # Flag whether this is a single file dataset or not:
         no_temporal_placeholders = \
             not set(self._time_placeholder).intersection(
@@ -1624,6 +1651,8 @@ class Dataset:
             raise ValueError(
                 "Placeholders in the files path are not allowed for "
                 "single file datasets!")
+
+        self._path_extension = os.path.splitext(self.path)[0].lstrip(".")
 
     @staticmethod
     def _prepare_find_files_return(file_iterator, sort, bundle_size):
@@ -1677,9 +1706,7 @@ class Dataset:
                 "The parameter bundle must be a integer or string!")
 
     def _prepare_regex(self):
-        placeholder = self._time_placeholder.copy()
-        placeholder.update(self.placeholder)
-
+        placeholder = {**self._time_placeholder, **self.placeholder}
         path = self.path
 
         # Mask all dots and convert the asterisk to a regular expression:
@@ -1694,7 +1721,8 @@ class Dataset:
 
         return re.compile(regex)
 
-    def read(self, filename, **reading_arguments):
+    @expects_file_info
+    def read(self, file_info, **reading_arguments):
         """Opens and reads a file.
 
         Notes:
@@ -1702,7 +1730,8 @@ class Dataset:
             can use this method.
 
         Args:
-            filename: A string, path-alike object or an iterable of
+            file_info: A string, path-alike object or a :class:`FileInfo`
+                object.
             **reading_arguments: Additional key word arguments for the
                 *read* method of the used file handler class.
 
@@ -1712,16 +1741,17 @@ class Dataset:
         if self.handler is None:
             raise NoHandlerError(
                 "Could not get read the file '{}'! No file handler is "
-                "specified!".format(filename))
+                "specified!".format(file_info))
 
-        if isinstance(filename, FileInfo):
-            filename = filename.path
-
-        if self.decompress:
-            with typhon.files.decompress(filename) as file:
-                return self.handler.read(file, **reading_arguments)
+        if self._path_extension not in self.handler.handle_compression_formats\
+                and self.decompress:
+            with typhon.files.decompress(file_info.path) as decompressed_path:
+                decompressed_file = file_info.copy()
+                decompressed_file.path = decompressed_path
+                return self.handler.read(
+                    decompressed_file, **reading_arguments)
         else:
-            return self.handler.read(filename, **reading_arguments)
+            return self.handler.read(file_info, **reading_arguments)
 
     def read_period(self, start, end, sort=True, **reading_arguments):
         """Reads all files between two dates and returns their content sorted
@@ -1916,7 +1946,8 @@ class Dataset:
         else:
             return pd.to_timedelta(obj).to_pytimedelta()
 
-    def write(self, filename, data, **writing_arguments):
+    @expects_file_info
+    def write(self, file_info, data, **writing_arguments):
         """Writes content to a file by using the Dataset's file handler.
 
         If the filename extension is a compression format (such as *zip*,
@@ -1928,7 +1959,8 @@ class Dataset:
             can use this method.
 
         Args:
-            filename: Path and name of the file where to put the data.
+            file_info: A string, path-alike object or a :class:`FileInfo`
+                object.
             data: An object that can be stored by the used file handler class.
             **writing_arguments: Additional key word arguments for the
             *write* method of the used file handler class.
@@ -1939,20 +1971,20 @@ class Dataset:
         if self.handler is None:
             raise NoHandlerError(
                 "Could not write data to the file '{}'! No file handler is "
-                "specified!".format(filename))
-
-        if isinstance(filename, FileInfo):
-            filename = filename.path
+                "specified!".format(file_info))
 
         # The users should not be bothered with creating directories by
         # themselves.
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        os.makedirs(os.path.dirname(file_info), exist_ok=True)
 
         if self.compress:
-            with typhon.files.compress(filename) as file:
-                return self.handler.write(file, data, **writing_arguments)
+            with typhon.files.compress(file_info.path) as compressed_path:
+                compressed_file = file_info.copy()
+                compressed_file.path = compressed_path
+                return self.handler.write(
+                    compressed_file, data, **writing_arguments)
         else:
-            return self.handler.write(filename, data, **writing_arguments)
+            return self.handler.write(file_info, data, **writing_arguments)
 
 
 class DatasetManager(dict):
