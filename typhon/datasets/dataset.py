@@ -847,9 +847,20 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
                         other_data[other_prim].dims))
             my_dim = my_data[my_prim].dims[0]
             other_dim = other_data[other_prim].dims[0]
-            my_data = my_data.loc[
-                {my_data[my_prim].dims[0]:
-                 numpy.argsort(my_data[my_prim])}]
+            if not (my_data[my_prim][1:] >= my_data[my_prim][:-1]).all():
+                warnings.warn("Primary/reference instrument data should "
+                    "be sorted in time to find matching data in other set. "
+                    f"Field {my_prim:s} in {self.name:s} is not sorted in "
+                    "time.  Note that this problem may be unavoidable if "
+                    "we are tasked to search for additional information "
+                    "for both pairs of collocations, and times are sorted "
+                    "according to one but not the other.  Therefore, I "
+                    "will force the sorting for now, but I'm not entirely "
+                    "sure this cannot lead to problems later.  You have "
+                    "been warned.", UserWarning)
+                my_data = my_data.loc[
+                    {my_data[my_prim].dims[0]:
+                    numpy.argsort(my_data[my_prim])}]
 
         # through interpolation, find times in `other` closest to times in
         # myself; hopefully that means the difference is zero

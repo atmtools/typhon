@@ -394,6 +394,7 @@ def concat_each_time_coordinate(*datasets):
     new.attrs.update(**datasets[0].attrs)
     for k in new.variables.keys():
         new[k].attrs.update(**datasets[0][k].attrs)
+        new[k].encoding.update(**datasets[0][k].encoding)
     return new.assign_coords(**new_coords)
 
 def undo_xarray_floatification(ds, fields=None):

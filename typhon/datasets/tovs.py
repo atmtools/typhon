@@ -1798,7 +1798,7 @@ class TOVSCollocatedDataset:
     Should be mixed in before Dataset
     """
 
-    colloc_dim = "matchup_count"
+    colloc_dim = "UNDEFINED"
 
     def combine(self, M, other_obj, *args, col_field,
             col_field_slice=slice(None), trans, col_dim_name=None, **kwargs):
@@ -1864,7 +1864,7 @@ class TOVSCollocatedDataset:
                 ).assign_coords(
                     **{d: (self.colloc_dim, MM.coords[d].values)
                        for d in utils.get_time_dimensions(MM)},
-                    matchup_count=M["matchup_count"].values)
+                    **{self.colloc_dim: M[self.colloc_dim].values})
             return MM
         else:
             raise ValueError("read_returns must be xarray or ndarray")
@@ -1882,20 +1882,37 @@ class HIASI(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDatas
           r"(?P<hour_end>\d{2})(?P<minute_end>\d{2})(?P<second_end>\d{2})\.nc")
     start_date = datetime.datetime(2013, 1, 1)
     end_date = datetime.datetime(2014, 1, 1)
+    colloc_dim = "line"
+    concat_coor = "line"
     
     def _read(self, f, fields="all"):
         (M, extra) = super()._read(f, fields)
-        # functionality in numpy.lib.recfunctions.append_fields is too
-        # slow!
-        MM = numpy.zeros(shape=M.shape,
-                         dtype=M.dtype.descr + [("time", "M8[s]")])
-        MM["time"] = M["mon_time"].astype("M8[s]")
-        for f in M.dtype.names:
-            MM[f][...] = M[f][...]
-        return (MM[numpy.argsort(MM["time"])], extra)
+        if self.read_returns == "ndarray":
+            # functionality in numpy.lib.recfunctions.append_fields is too
+            # slow!
+            MM = numpy.zeros(shape=M.shape,
+                             dtype=M.dtype.descr + [("time", "M8[s]")])
+            MM["time"] = M["mon_time"].astype("M8[s]")
+            for f in M.dtype.names:
+                MM[f][...] = M[f][...]
+            return (MM[numpy.argsort(MM["time"])], extra)
+        elif self.read_returns == "xarray":
+            M["time"] = ("line", M["ref_time"])
+            M = utils.undo_xarray_floatification(M)
+            # make units understandable by UADA / pint
+            M["ref_radiance"].attrs["units"] = \
+                    M["ref_radiance"].attrs["units"] \
+                                     .replace("m2", "m**2") \
+                                     .replace("^-1", "**(-1)")
+            # make sure data are sorted in time
+            M = M.loc[{"line": numpy.argsort(M["time"])}]
+            return (M, extra)
+        else:
+                raise ValueError(f"Invalid read_returns: {self.read_returns:s}")
 
     def combine(self, M, other_obj, *args, **kwargs):
-        MM = super().combine(M, other_obj, *args, col_field="mon_column", **kwargs)
+        MM = super().combine(M, other_obj, *args, col_field="mon_column",
+                             col_dim_name="scanpos", **kwargs)
         # do something about entire scanlines being returned
         return MM
 
@@ -1912,6 +1929,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
     start_date = HIRS2.start_date
     end_date = HIRS4.end_date
 
+    colloc_dim = "matchup_count"
     concat_coor = "matchup_count"
 
     def _read(self, f, fields="all"):
@@ -1959,6 +1977,9 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
                 "{:.2%}".format(f, 1-iiu.size/MM.size))
             return (MM[ii][iiu], extra)
         elif self.read_returns == "xarray":
+            # in some files, the dtype for x and y is turned into float
+            # by xarray because it has a _FillValue attribute
+            M = utils.undo_xarray_floatification(M)
             # acquisition_time has attribute "unit" instead of "units";
             # use regular "time" instead
             timefields = [k for k in M.data_vars.keys()
@@ -1988,15 +2009,15 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
 
             # NB: tm1+tm2 is invalid so calculate average like this
             newtime = tm1 + (tm2-tm1)/2
-            M["time"] = (("matchup_count",), newtime)
+            M["time"] = ((self.colloc_dim,), newtime)
 
             # BUG!  (time1, time2) is not unique!  Time is per SCANLINE,
             # so unique would be (time1, x1, time2, x2)!
             ii = numpy.argsort(M[timefields[0]][:, 3, 3])
             Ms = M.loc[
-                {"matchup_count": ii,
+                {self.colloc_dim: ii,
                  **{k: 3 for k in M.dims.keys()
-                    if k != "matchup_count"}}][timefields]
+                    if k != self.colloc_dim}}][timefields]
             Msn = numpy.c_[Ms[timefields[0]].values, Ms[timefields[1]].values]
 
             # see http://stackoverflow.com/a/16973510/974555
@@ -2007,12 +2028,12 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
                 numpy.dtype((numpy.void, Msn.dtype.itemsize * 2)))
 
             (_, iiu) = numpy.unique(Msnu, return_index=True)
-            if iiu.size < M.dims["matchup_count"]:
+            if iiu.size < M.dims[self.colloc_dim]:
                 logging.warning("There were duplicates in {!s}!  Removing "
-                    "{:.2%}".format(f, 1-iiu.size/M.dims["matchup_count"]))
+                    "{:.2%}".format(f, 1-iiu.size/M.dims[self.colloc_dim]))
 
-            M = M[{"matchup_count": iiu}]
-            M = M[{"matchup_count": numpy.argsort(M["time"])}]
+            M = M[{self.colloc_dim: iiu}]
+            M = M[{self.colloc_dim: numpy.argsort(M["time"])}]
 
             return (M, extra)
             
