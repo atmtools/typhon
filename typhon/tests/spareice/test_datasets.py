@@ -20,7 +20,8 @@ class TestDataset:
         self.datasets += Dataset(
             join(
                 self.refdir,
-                "{year}/{month}/{day}/{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc",  # noqa
+                "{year}/{month}/{day}/{hour}{minute}{second}-{end_hour}"
+                "{end_minute}{end_second}.nc",  # noqa
             ),
             name="standard",
         )
@@ -67,21 +68,22 @@ class TestDataset:
             ),
             name="sequence-placeholder",
             info_via="both",
+            placeholder={"id": "\d{4}"}
         )
-        self.datasets["sequence-placeholder"].placeholder["id"] = "(\d{4})"
 
         self.datasets += Dataset(
             join(self.refdir,
                  # NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz
-                 "regex_dataset/NSS.HIR[XS].{satcode}.D{year2}{doy}.S{hour}{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
+                 "regex_dataset/NSS.HIR[XS].{satcode}.D{year2}{doy}.S{hour}"
+                 "{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
             ),
             name="regex-HIRS",
         )
-        self.datasets["regex-HIRS"].placeholder = {
-            "satcode": "(.{2})",
-            "B": "(\d{7})",
-            "station": "(.{2})"
-        }
+        self.datasets["regex-HIRS"].set_placeholders(
+            satcode=".{2}",
+            B="\d{7}",
+            station=".{2}",
+        )
 
         return self.datasets
 

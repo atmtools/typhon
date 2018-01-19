@@ -623,11 +623,10 @@ class ArrayGroup:
             # function will crash with such an object. Hence, we convert the
             # datetime objects to floats temporarily.
             if isinstance(data.item(0), datetime):
-                numerical_data = Array([d.timestamp() for d in data])
+                numerical_data = data.astype("M8[ns]").astype("int")
                 binned_data = numerical_data.bin(bins)
                 collapsed_data[var] = \
-                    [datetime.fromtimestamp(collapser(bin, 0))
-                     for bin in binned_data]
+                    [collapser(bin, 0).astype("M8[ns]") for bin in binned_data]
             else:
                 binned_data = data.bin(bins)
                 collapsed_data[var] = \

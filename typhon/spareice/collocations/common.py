@@ -491,6 +491,12 @@ class CollocatedDataset(Dataset):
 
         total_primaries_points, total_secondaries_points = 0, 0
 
+        print("Find collocations between {} and {} from {} to {}".format(
+            primary.name, secondary.name, start, end,
+        ))
+
+        print("Retrieve time coverages from files, this may take a while...")
+
         # Go through all primary files and find the secondaries to them:
         for primary_file, secondary_files in primary.find_overlapping_files(
                 start, end, secondary):
@@ -509,7 +515,7 @@ class CollocatedDataset(Dataset):
                 primary_points, secondary_points = self._collocate_files(
                     primary, secondary, primary_file, secondary_file,
                     start, end, fields, finder,
-                    max_interval, max_distance, processes
+                    max_interval, max_distance,
                 )
 
                 total_primaries_points += primary_points
@@ -525,7 +531,7 @@ class CollocatedDataset(Dataset):
 
     def _collocate_files(
             self, dataset1, dataset2, file1, file2, start_user, end_user,
-            fields, finder, max_interval, max_distance, processes
+            fields, finder, max_interval, max_distance,
     ):
         """Find the collocations between two files and store them in a file of
         this dataset.
@@ -537,14 +543,11 @@ class CollocatedDataset(Dataset):
             file2:
             max_interval:
             max_distance:
-            processes:
 
         Returns:
             The number of the found collocations of the first and second
             dataset.
         """
-
-        timer = time.time()
 
         # All additional fields given by the user and the standard fields that
         # we need for finding collocations.
@@ -554,6 +557,7 @@ class CollocatedDataset(Dataset):
         # TODO: This is duplicated code for each dataset. Fix this.
         # We do want to open the same file twice. Hence, have a look whether we
         # have the needed file still in our cache:
+        timer = time.time()
         if self._last_file1 is None or self._last_file1 != file1:
             if isinstance(dataset1, CollocatedDataset):
                 # The data comes from a collocated dataset, i.e. we pick its
