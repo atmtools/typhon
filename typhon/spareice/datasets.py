@@ -8,12 +8,12 @@ Created by John Mrziglod, June 2017
 
 import atexit
 from collections import Iterable, OrderedDict
+import copy
 from datetime import datetime, timedelta
 import glob
 from itertools import tee
 import json
 from multiprocessing import Pool
-import numbers
 import os.path
 import re
 import shutil
@@ -26,6 +26,7 @@ import typhon.files
 import typhon.plots
 from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
+from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 
 __all__ = [
     "Dataset",
@@ -166,9 +167,9 @@ class Dataset:
         "asc": CSV(),
     }
 
-    # Special characters that show whether a path contains a regex or a
+    # Special characters that show whether a path contains a regex /
     # placeholder:
-    _special_chars = ["{", "*", "[", "\\"]
+    _special_chars = ["{", "*", "[", "\\", "<", "(", "?", "!", "|"]
 
     def __init__(
             self, path, handler=None, name=None, info_via=None,
@@ -455,10 +456,10 @@ class Dataset:
                 raise ValueError("Can only test single timestamps or time "
                                  "periods consisting of two timestamps")
 
-            start = self._to_datetime(item[0])
-            end = self._to_datetime(item[1])
+            start = to_datetime(item[0])
+            end = to_datetime(item[1])
         else:
-            start = self._to_datetime(item)
+            start = to_datetime(item)
             end = start + timedelta(microseconds=1)
 
         print(start, end)
@@ -471,22 +472,37 @@ class Dataset:
             return False
 
     def __getitem__(self, item):
-        if isinstance(item, slice):
-            return list(self.read_period(item.start, item.stop))
-        elif isinstance(item, (datetime, str)):
-            filename = self.find_file(item)
+        if isinstance(item, (tuple, list)):
+            time_args = item[0]
+            filters = item[1]
+        else:
+            time_args = item
+            filters = None
+
+        if isinstance(time_args, slice):
+            return list(self.read_period(
+                time_args.start, time_args.stop, filters=filters))
+        elif isinstance(time_args, (datetime, str)):
+            filename = self.find_file(time_args, filters=filters)
             if filename is not None:
                 return self.read(filename)
             return None
 
     def __setitem__(self, key, value):
-        if isinstance(key, slice):
-            start = key.start
-            end = key.stop
+        if isinstance(key, (tuple, list)):
+            time_args = key[0]
+            fill = key[1]
         else:
-            start = end = key
+            time_args = key
+            fill = None
 
-        filename = self.generate_filename((start, end))
+        if isinstance(time_args, slice):
+            start = time_args.start
+            end = time_args.stop
+        else:
+            start = end = time_args
+
+        filename = self.generate_filename((start, end), fill=fill)
         self.write(filename, value)
 
     def __repr__(self):
@@ -617,75 +633,76 @@ class Dataset:
         return file_info
 
     @staticmethod
-    def _copy_file(
-            dataset, filename, time_coverage,
-            path, converter, delete_originals):
-        """This is a small wrapper function for copying files. Do not use it
-        directly but :meth:`Dataset.copy` instead.
+    def _copy_single_file(
+            dataset, file_info, destination, convert, delete_original):
+        """This is a small wrapper function for copying files. It is better to
+        use :meth:`Dataset.copy` directly.
 
         Args:
             dataset:
-            filename:
-            time_coverage:
-            path:
-            converter:
-            delete_originals:
+            file_info: FileInfo object of the file that should be to copied.
+            destination:
+            convert:
+            delete_original:
 
         Returns:
             None
         """
-        # Generate the new file name
-        new_filename = dataset.generate_filename(
-            path, *time_coverage)
 
-        # Create the new directory if necessary.
-        os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+        # Generate the new file name
+        new_filename = destination.generate_filename(
+            file_info.times, fill=file_info.attr)
 
         # Shall we simply copy or even convert the files?
-        if converter is None:
-            if delete_originals:
-                print("\tDelete:", filename)
-                shutil.move(filename, new_filename)
-            else:
-                shutil.copy(filename, new_filename)
-        else:
+        if convert:
             # Read the file with the current file handler
-            data = dataset.read(filename)
+            data = dataset.read(file_info.path)
+
+            # Maybe the user has given us a converting function?
+            if callable(convert):
+                data = convert(data)
 
             # Store the data of the file with the new file handler
-            converter.write(new_filename, data)
+            destination.write(new_filename, data)
 
-            if delete_originals:
-                print("\tDelete:", filename)
-                os.remove(filename)
+            if delete_original:
+                print("\tDelete:", file_info.path)
+                os.remove(file_info.path)
+        else:
+            # Create the new directory if necessary.
+            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+
+            if delete_original:
+                print("\tDelete:", file_info.path)
+                shutil.move(file_info.path, new_filename)
+            else:
+                shutil.copy(file_info.path, new_filename)
 
     def copy(
-            self, start, end, destination,
-            converter=None, delete_originals=False, verbose=False,
-            new_name=None
+            self, start, end, to, convert=None, delete_originals=False,
+            verbose=False,
     ):
-        """ Copies all files from this dataset between two dates to another
-        location.
-
-        When passing a file handler via the argument converter, it also
-        converts all matched files to a new format defined by the passed
-        file handler.
+        """ Copies files from this dataset to another location.
 
         Args:
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            destination: The new path of the files. Must contain place holders
-                (such as {year}, {month}, etc.).
-            converter: If you want to convert the files during copying to a
-                different format, you can pass a file handler object with
-                writing-to-file support here.
+            to: Either a Dataset object or the new path of the files containing
+                placeholders (such as {year}, {month}, etc.).
+            convert: If true, the files will be read by the old dataset's file
+                handler and written to their new location by using the new file
+                handler from *to*. Both file handlers must be compatible, i.e.
+                the object that the old file handler's read method returns must
+                handable for the new file handler's write method. You
+                can also set this to a function that converts the return value
+                of the read method into something else before it will be passed
+                to the write method. Default is false, i.e. the file will be
+                simply copied without converting.
             delete_originals: If true, then all copied original files will be
                 deleted. Be careful, this cannot get undone!
             verbose: If true, it prints debug messages during copying.
-            new_name: The name of the new dataset. If it is not given,
-                the new name is the the old name followed by "_copy".
 
         Returns:
             New Dataset object with the new files.
@@ -694,75 +711,74 @@ class Dataset:
 
         .. code-block:: python
 
-            # Copy all the files between the 15th and 23rd September 2016:
-            date1 = datetime(2017, 9, 15)
-            date2 = datetime(2017, 9, 23)
+            ## Copy all files between two dates to another location
+
             old_dataset = Dataset(
-                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
-                handler=FileHandlerJPG()
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
             )
-            new_dataset = old_dataset.copy(
-                date1, date2,
-                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
+
+            # New dataset with other path
+            new_dataset = Dataset(
+                "new/path/{year}/{doy}/{hour}{minute}{second}.nc",
+            )
+
+            old_dataset.copy(
+                "2017-09-15", "2017-09-23", new_dataset,
             )
 
         .. code-block:: python
 
-            # When you want to convert the files during copying:
+            ## Copy all files between two dates to another location and convert
+            ## them to a different format
+
+            from typhon.spareice.handlers import CSV, NetCDF4
+
             old_dataset = Dataset(
-                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.jpg",
-                handler=FileHandlerJPG()
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                handler=NetCDF4()
             )
-            # Note that this only works if the converter file handler
-            # (FileHandlerPNG in this example) supports
-            # writing to a file.
+            new_dataset = Dataset(
+                "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
+                handler=CSV()
+            )
+
+            # Note that this only works if both file handlers are compatible
             new_dataset = old_dataset.copy(
-                date1, date2,
-                "new/path/{year}/{month}/{day}/{hour}{minute}{second}.png",
-                converter=FileHandlerPNG(),
+                "2017-09-15", "2017-09-23", new_dataset, convert=True
             )
         """
 
-        # If the new path contains place holders, fill them for each file.
-        # Otherwise it is a path which does not describe each file
-        # individually. So far, we cannot handle this.
-        # TODO: Adjust this solution for single file datasets.
-        # TODO: Is it helpful for the performance to use multiple processes
-        # TODO: here?
-        if "{" in destination:
+        if not isinstance(to, Dataset):
+            destination = copy.copy(self)
+            destination.path = to
+        else:
+            destination = to
+
+        if convert is None:
+            convert = False
+
+        if self.single_file:
+            # TODO: Copy single file
+            Dataset._copy_single_file(
+                self, self.path, destination, convert, delete_originals)
+        else:
+            if destination.single_file:
+                raise ValueError(
+                    "Cannot copy files from multi-file to single-file "
+                    "dataset!")
+
             # Copy the files
             self.map(
-                start, end, Dataset._copy_file,
+                start, end, Dataset._copy_single_file,
                 {
-                     "path" : destination,
-                     "converter" : converter,
-                     "delete_originals" : delete_originals
+                     "destination": destination,
+                     "convert": convert,
+                     "delete_original": delete_originals
                 },
                 verbose=verbose
             )
-        else:
-            if self.single_file:
-                # TODO: Copy single file
-                raise NotImplementedError("Copying single files is not yet "
-                                          "implemented!")
-            else:
-                raise ValueError(
-                    "The new_path argument must describe each file "
-                    "individually by using place holders!")
 
-        # Copy this dataset object but change the path.
-        new_dataset = Dataset(
-            destination,
-            new_name if new_name is not None else self.name + "_copy",
-            self.handler, self.time_coverage
-        )
-
-        if converter is not None:
-            # The files are in a different format now. Hence, we need the new
-            # file handler:
-            new_dataset.handler = converter
-
-        return new_dataset
+        return destination
 
     @property
     def exclude(self):
@@ -794,12 +810,8 @@ class Dataset:
             timestamp: date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
-            filters: Filters limit user-defined placeholder to certain values.
-                Must be a dictionary where the keys are the names of
-                user-defined placeholders and the values either strings or
-                lists of strings with allowed placeholder values. If the key
-                name starts with a *!* (exclamation mark), the value represent
-                a negative list (values that are not allowed).
+            filters: The same filter argument that is allowed for
+                :meth:`find_files`.
 
         Returns:
             The FileInfo object of the found file. If no file was found, a
@@ -817,7 +829,7 @@ class Dataset:
                     "The path parameter of '%s' does not contain placeholders"
                     " and is not a path to an existing file!" % self.name)
 
-        timestamp = self._to_datetime(timestamp)
+        timestamp = to_datetime(timestamp)
 
         # We might need some more fillings than given by the user therefore
         # we need the error catching:
@@ -888,9 +900,10 @@ class Dataset:
             filters: Filters limit user-defined placeholder to certain values.
                 Must be a dictionary where the keys are the names of
                 user-defined placeholders and the values either strings or
-                lists of strings with allowed placeholder values. If the key
-                name starts with a *!* (exclamation mark), the value represent
-                a negative list (values that are not allowed).
+                lists of strings with allowed placeholder values (can be
+                represented by regular expressions). If the key name starts
+                with a *!* (exclamation mark), the value represent a negative
+                list (values that are not allowed).
             no_files_error: If true, raises an NoFilesError when no
                 files are found.
             verbose: If true, debug messages will be printed.
@@ -918,8 +931,8 @@ class Dataset:
         """
 
         # The user can give strings instead of datetime objects:
-        start = self._to_datetime(start)
-        end = self._to_datetime(end)
+        start = to_datetime(start)
+        end = to_datetime(end)
 
         if verbose:
             print("Find files between %s and %s!" % (start, end))
@@ -951,10 +964,19 @@ class Dataset:
                 {f: v for f, v in filters.items() if not f.startswith("!")}
             )
             regex = self._fill_placeholders_with_regexes(
+                self._path,
                 extra_placeholder=placeholders_filter)
 
+            def convert(value):
+                if value is None:
+                    return None
+                elif isinstance(value, (tuple, list)):
+                    return re.compile(f"{'|'.join(value)}")
+                else:
+                    return re.compile(f"{value}")
+
             filters = {
-                f.lstrip("!"): [v] if isinstance(v, str) else v
+                f.lstrip("!"): convert(v)
                 for f, v in filters.items()
                 if f.startswith("!")
             }
@@ -1001,8 +1023,6 @@ class Dataset:
             A tuple of path as string and parsed placeholders as dictionary.
         """
 
-        print(self._base_dir, self._sub_dir, start, end)
-
         # If the directory does not contain regex or placeholders, we simply
         # return the base directory
         if not self._sub_dir:
@@ -1017,16 +1037,24 @@ class Dataset:
             (self._base_dir, {}),
         ]
 
-        for regex in map(self._fill_placeholders_with_regexes,
-                         self._sub_dir_chunks):
+        for subdir_chunk in self._sub_dir_chunks:
+            # The sub directory covers a certain time coverage, we make
+            # sure that it is included into the search range.
+            start_check = set_time_resolution(
+                start, self._get_time_resolution(subdir_chunk)[0]
+            )
+            end_check = set_time_resolution(
+                end, self._get_time_resolution(subdir_chunk)[0]
+            )
+
+            regex = self._fill_placeholders_with_regexes(subdir_chunk)
+
             search_dirs = [
                 (new_dir, attr)
                 for search_dir in search_dirs
                 for new_dir, attr in self._get_matching_dirs(search_dir, regex)
-                if self._check_placeholders(attr, start, end)
+                if self._check_placeholders(attr, start_check, end_check)
             ]
-
-        print(search_dirs)
 
         return search_dirs
 
@@ -1048,15 +1076,8 @@ class Dataset:
         year = attr_start.get("year", None)
         if year is not None:
             try:
-                subdirectory_start = datetime(**attr_start)
-                subdirectory_end = datetime(**attr_end)
-
-                # The sub directory covers a certain time coverage, we make
-                # sure that it is included into the search range.
-                subdir_time_coverage = self._get_time_resolution(attr_end)
-
-                return subdirectory_start >= start \
-                    and subdirectory_end <= end+subdir_time_coverage
+                return datetime(**attr_start) >= start \
+                    and datetime(**attr_end) <= end
             except:
                 return year >= start.year and attr_end["year"] <= end.year
 
@@ -1089,17 +1110,27 @@ class Dataset:
                     yield file_info
 
     @staticmethod
-    def check_filters(filters, attr):
-        for placeholder, forbidden in filters:
-            value = attr.get(placeholder, None)
+    def _check_filters(filters, placeholders):
+        """Check whether placeholders are filled with something forbidden
+
+        Args:
+            filters: A dictionary with placeholder name and content that should
+                be filtered out.
+            placeholders: A dictionary with placeholders and their fillings.
+
+        Returns:
+            False if the placeholders are filled with something that is
+            forbidden due to the filters. True otherwise.
+        """
+        for placeholder, forbidden in filters.items():
+            value = placeholders.get(placeholder, None)
             if value is None:
                 continue
 
-            if value in forbidden:
+            if forbidden.match(value):
                 return False
 
         return True
-
 
     @staticmethod
     def _prepare_find_files_return(file_iterator, sort, bundle_size):
@@ -1153,7 +1184,8 @@ class Dataset:
                 "The parameter bundle must be a integer or string!")
 
     def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=None, verbose=False):
+            self, start, end, other_dataset, max_interval=None,
+            filters=None, other_filters=None):
         """Find files between two datasets that overlap in time.
 
         Args:
@@ -1164,21 +1196,24 @@ class Dataset:
             other_dataset: A Dataset object which holds the other files.
             max_interval: Maximal time interval in seconds between
                 two overlapping files. Must be an integer or float.
-            verbose: If true, debugging messages will be printed.
+            filters: The same filter argument that is allowed for
+                :meth:`find_files`.
+            other_filters: The same filter argument that is allowed for
+                :meth:`find_files`.
 
         Yields:
             A tuple with the names of two files which correspond to each other.
         """
         if max_interval is not None:
-            max_interval = self._to_timedelta(max_interval)
-            start = self._to_datetime(start) - max_interval
-            end = self._to_datetime(end) + max_interval
+            max_interval = to_timedelta(max_interval)
+            start = to_datetime(start) - max_interval
+            end = to_datetime(end) + max_interval
 
         files1 = list(
-            self.find_files(start, end, verbose=verbose)
+            self.find_files(start, end, filters=filters)
         )
         files2 = list(
-            other_dataset.find_files(start, end, verbose=verbose)
+            other_dataset.find_files(start, end, filters=other_filters)
         )
 
         # Convert the times (datetime objects) to seconds (integer)
@@ -1227,13 +1262,13 @@ class Dataset:
 
         .. code-block:: python
 
-            Dataset.generate_filename(
+            dataset.generate_filename(
                 datetime(2016, 1, 1),
                 "{year2}/{month}/{day}.dat",
             )
             # Returns "16/01/01.dat"
 
-            Dataset.generate_filename(
+            dataset.generate_filename(
                 ("2016-01-01", "2016-12-31"),
                 "{year}{month}{day}-{end_year}{end_month}{end_day}.dat",
             )
@@ -1242,22 +1277,29 @@ class Dataset:
         """
 
         if isinstance(time_period, (tuple, list)):
-            start_time = Dataset._to_datetime(time_period[0])
-            end_time = Dataset._to_datetime(time_period[1])
+            start_time = to_datetime(time_period[0])
+            end_time = to_datetime(time_period[1])
         else:
-            start_time = Dataset._to_datetime(time_period)
+            start_time = to_datetime(time_period)
             end_time = start_time
 
         if template is None:
             template = self.path
 
+        # Remove the automatic regex completion from the user placeholders and
+        # use them as default fillings
+        default_fill = {
+            p: v.lstrip(f"(?P<{p}>").rstrip(")")
+            for p, v in self._user_placeholder.items()
+        }
         if fill is None:
-            fill = {}
-        fill = {**self._user_placeholder, **fill}
+            fill = default_fill
+        else:
+            fill = {**default_fill, **fill}
 
         try:
             # Fill all placeholders variables with values
-            return template.format(
+            filename = template.format(
                 year=start_time.year, year2=str(start_time.year)[-2:],
                 month="{:02d}".format(start_time.month),
                 day="{:02d}".format(start_time.day),
@@ -1282,6 +1324,13 @@ class Dataset:
                     int(end_time.microsecond/1000)),
                 **fill,
             )
+
+            # Some placeholders might be unfilled:
+            if any((c in self._special_chars) for c in filename):
+                raise UnfilledPlaceholderError(self.name, filename)
+
+            return filename
+
         except KeyError:
             raise UnknownPlaceholderError(self.name)
 
@@ -1728,14 +1777,15 @@ class Dataset:
             # The sub directory time resolution is needed for find_file:
             self._sub_dir_time_resolution = self._get_time_resolution(
                 self._sub_dir
-            )
+            )[1]
 
         # Retrieve the used placeholder names from the path and directory:
         self._path_placeholders = set(re.findall("\{(\w+)\}", self.path))
 
-        # Set additional user-defined placeholders to default values
+        # Set additional user-defined placeholders to default values (
+        # non-greedy wildcards).
         self.set_placeholders(**{
-            p: None
+            p: ".+?"
             for p in self._path_placeholders.difference(self._time_placeholder)
         })
 
@@ -1815,7 +1865,8 @@ class Dataset:
                 the lowest.
 
         Returns:
-            A timedelta object.
+            The placeholder name with the lowest / highest resolution and
+            the representing timedelta object.
         """
         if isinstance(path_or_dict, str):
             placeholders = set(re.findall("\{(\w+)\}", path_or_dict))
@@ -1834,24 +1885,24 @@ class Dataset:
         )
 
         if not placeholders:
-            # There are no placeholders in the path, therefore we the maximal
-            # time resolution
-            return None
+            # There are no placeholders in the path, therefore we return the
+            # highest time resolution automatically
+            return "year", Dataset._temporal_resolution["year"]
 
         # E.g. if we want to find the temporal placeholder with the lowest
         # resolution, we have to search for the maximum of their values because
         # they are represented as timedelta objects, i.e. month > day > hour,
         # etc.
         if highest:
-            return min(
-                (Dataset._temporal_resolution[tp] for tp in placeholders),
+            placeholder = min(
+                placeholders, key=lambda k: Dataset._temporal_resolution[k]
             )
         else:
-            return max(
-                (Dataset._temporal_resolution[tp] for tp in placeholders),
+            placeholder = max(
+                placeholders, key=lambda k: Dataset._temporal_resolution[k]
             )
 
-    def _set_time_resolution(self):
+        return placeholder, Dataset._temporal_resolution[placeholder]
 
     def _fill_placeholders_with_regexes(self, path, extra_placeholder=None):
         """Fill all placeholders in a path with its RegExes and compile it.
@@ -1944,8 +1995,8 @@ class Dataset:
         """
         if self.handler is None:
             raise NoHandlerError(
-                "Could not get read the file '{}'! No file handler is "
-                "specified!".format(file_info))
+                "Could not read the file '{}'! No file handler is "
+                "specified!".format(file_info.path))
 
         if self._path_extension not in self.handler.handle_compression_formats\
                 and self.decompress:
@@ -1957,7 +2008,8 @@ class Dataset:
         else:
             return self.handler.read(file_info, **reading_arguments)
 
-    def read_period(self, start, end, sort=True, **reading_arguments):
+    def read_period(self, start, end, sort=True, filters=None,
+                    **reading_arguments):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -1967,13 +2019,15 @@ class Dataset:
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             sort: Sort the files by their starting time.
+            filters: The same filter argument that is allowed for
+                :meth:`find_files`.
             **reading_arguments: Additional key word arguments for the
                 *read* method of the used file handler class.
 
         Yields:
             The content of the read file.
         """
-        for file in self.find_files(start, end, sort=sort):
+        for file in self.find_files(start, end, sort=sort, filters=filters):
             data = self.read(file, **reading_arguments)
             if data is not None:
                 yield data
@@ -2033,23 +2087,21 @@ class Dataset:
 
     @property
     def time_coverage(self):
-        """
+        """Get and set the time coverage of the files of this dataset
+
+        Setting the time coverage after initialisation resets the info cache of
+        the dataset object.
 
         Returns:
             The time coverage of the whole dataset (if it is a single file) as
             tuple of datetime objects or (if it is a multi file dataset) the
-            fixed time duration of each file as timedelta.
+            fixed time duration of each file as timedelta object.
 
         """
         return self._time_coverage
 
     @time_coverage.setter
     def time_coverage(self, value):
-        """
-
-        Returns:
-
-        """
         if self.single_file:
             if value is None:
                 # The default for single file datasets:
@@ -2059,35 +2111,19 @@ class Dataset:
                 ]
             else:
                 self._time_coverage = [
-                    self._to_datetime(value[0]),
-                    self._to_datetime(value[1]),
+                    to_datetime(value[0]),
+                    to_datetime(value[1]),
                 ]
         elif value is not None:
-            self._time_coverage = self._to_timedelta(value)
+            self._time_coverage = to_timedelta(value)
         else:
             self._time_coverage = None
 
-        # Reset the info cache because some time coverages may change in the
-        # future.
+        # Reset the info cache because some file information may have changed
+        # now
         self.info_cache = {}
 
         return self._time_coverage
-
-    @staticmethod
-    def _to_datetime(obj):
-        if isinstance(obj, datetime):
-            return obj
-        else:
-            return pd.to_datetime(obj).to_pydatetime()
-
-    @staticmethod
-    def _to_timedelta(obj):
-        if isinstance(obj, timedelta):
-            return obj
-        elif isinstance(obj, numbers.Number):
-            return timedelta(seconds=int(obj))
-        else:
-            return pd.to_timedelta(obj).to_pytimedelta()
 
     @expects_file_info
     def write(self, file_info, data, **writing_arguments):
@@ -2114,7 +2150,7 @@ class Dataset:
         if self.handler is None:
             raise NoHandlerError(
                 "Could not write data to the file '{}'! No file handler is "
-                "specified!".format(file_info))
+                "specified!".format(file_info.path))
 
         # The users should not be bothered with creating directories by
         # themselves.
