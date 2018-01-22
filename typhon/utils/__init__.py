@@ -19,20 +19,9 @@ import numpy as np
 from . import cache
 from . import metaclass
 from . import sphinxext
+from time import *
 
-
-__all__ = [
-    "cache",
-    "metaclass",
-    "sphinxext",
-    "deprecated",
-    "extract_block_diag",
-    "Timer",
-    "path_append",
-    "path_prepend",
-    "path_remove",
-    "image2mpeg",
-]
+__all__ = [s for s in dir() if not s.startswith('_')]
 
 
 def deprecated(func=None, message=None):
