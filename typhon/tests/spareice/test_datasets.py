@@ -37,19 +37,18 @@ class TestDataset:
             time_coverage=["2017-01-01", "2017-01-03"],
         )
 
-        def sequence_get_info(filename, **kwargs):
+        def sequence_get_info(file_info, **kwargs):
             """Small helper function for sequence dataset."""
-            info = FileInfo(filename)
-            with open(filename) as f:
-                info.times[0] = datetime.datetime.strptime(
+            with open(file_info) as f:
+                file_info.times[0] = datetime.datetime.strptime(
                     f.readline().rstrip(),
                     "Start: %Y-%m-%d %H:%M:%S"
                 )
-                info.times[1] = datetime.datetime.strptime(
+                file_info.times[1] = datetime.datetime.strptime(
                     f.readline().rstrip(),
                     "End: %Y-%m-%d %H:%M:%S"
                 )
-            return info
+            return file_info
 
         self.datasets += Dataset(
             join(self.refdir, "sequence_dataset/{year}/{doy}/sequence*.txt",),
@@ -74,12 +73,13 @@ class TestDataset:
         self.datasets += Dataset(
             join(self.refdir,
                  # NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz
-                 "regex_dataset/NSS.HIR[XS].{satcode}.D{year2}{doy}.S{hour}"
+                 "regex_dataset/NSS.HIR{XS}.{satcode}.D{year2}{doy}.S{hour}"
                  "{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
             ),
             name="regex-HIRS",
         )
         self.datasets["regex-HIRS"].set_placeholders(
+            XS="[XS]",
             satcode=".{2}",
             B="\d{7}",
             station=".{2}",
@@ -127,6 +127,16 @@ class TestDataset:
                 "2016-12-31", "2017-01-01", no_files_error=False
             ))
         assert not empty
+
+        # Find the closest file to 2017-01-01
+        found_file = datasets["standard"].find_file("2017-01-01 03:00")
+
+        check = FileInfo(
+            join(self.refdir, '2017/01/01/000000-060000.nc'),
+            [datetime.datetime(2017, 1, 1, 0, 0),
+             datetime.datetime(2017, 1, 1, 6, 0)], {})
+
+        assert found_file == check
 
         # Should find four files:
         found_files = list(
@@ -375,6 +385,7 @@ class TestDataset:
                       'station': 'WI'}),
         ]
 
+        print(datasets["regex-HIRS"])
         found_file = datasets["regex-HIRS"].find_file("1999-05-08")
 
         assert found_file == check[0]

@@ -157,8 +157,6 @@ class Dataset:
     # onto 2000.
     year2_threshold = 65
 
-
-
     # Default handler
     default_handler = {
         "nc": NetCDF4(),
@@ -338,18 +336,21 @@ class Dataset:
         self._name = None
         self.name = name
 
-        # Flag wether this is a single file dataset (will be derived in the
+        # Flag whether this is a single file dataset (will be derived in the
         # path setter method automatically):
         self.single_file = None
+
+        # Complete the standard time placeholders. This must be done before
+        # setting the path to the dataset's files.
+        self._time_placeholder = self._complete_placeholders_regex(
+            self._time_placeholder
+        )
 
         # The path parameters (will be set and documented in the path setter
         # method):
         self._path = None
         self._path_placeholders = None
-        self._path_temporal_resolution = None
-        self._path_start_time_placeholders = None
-        self._path_end_time_placeholders = None
-        self._path_end_time_overshooting_compensator = None
+        self._end_time_superior = None
         self._path_extension = None
         self._path_regex = None
         self._base_dir = None
@@ -357,6 +358,10 @@ class Dataset:
         self._sub_dir_chunks = []
         self._sub_dir_time_resolution = None
         self.path = path
+
+        # Add user-defined placeholders:
+        if placeholder is not None:
+            self.set_placeholders(**placeholder)
 
         if handler is None:
             # Try to derive the file handler from the files extension but
@@ -385,15 +390,6 @@ class Dataset:
         # A list of time periods that will be excluded when searching files:
         self._exclude = None
         self.exclude = exclude
-
-        # Complete the standard time placeholders:
-        self._time_placeholder = self._complete_placeholders_regex(
-            self._time_placeholder
-        )
-
-        # Add user-defined placeholders:
-        if placeholder is not None:
-            self.set_placeholders(**placeholder)
 
         self.max_processes = max_processes
         self.compress = compress
@@ -455,20 +451,24 @@ class Dataset:
             True if timestamp is covered.
         """
         if isinstance(item, (tuple, list)):
-            for elem in item:
-                if elem not in self:
-                    return False
+            if len(item) != 2:
+                raise ValueError("Can only test single timestamps or time "
+                                 "periods consisting of two timestamps")
 
-            return True
+            start = self._to_datetime(item[0])
+            end = self._to_datetime(item[1])
         else:
             start = self._to_datetime(item)
             end = start + timedelta(microseconds=1)
-            try:
-                next(self.find_files(start, end,
-                                     no_files_error=False, sort=False,))
-                return True
-            except StopIteration:
-                return False
+
+        print(start, end)
+
+        try:
+            next(self.find_files(start, end,
+                                 no_files_error=False, sort=False,))
+            return True
+        except StopIteration:
+            return False
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -839,8 +839,6 @@ class Dataset:
             start = timestamp - self._sub_dir_time_resolution
             end = timestamp + self._sub_dir_time_resolution
 
-        print(start, end)
-
         files = list(self.find_files(start, end, sort=False, filters=filters))
 
         if not files:
@@ -944,6 +942,7 @@ class Dataset:
                     "The path of '%s' neither contains placeholders"
                     " nor is a path to an existing file!" % self.name)
 
+        # Filter handling:
         if filters is None:
             regex = self._path_regex
             filters = {}
@@ -951,7 +950,8 @@ class Dataset:
             placeholders_filter = self._complete_placeholders_regex(
                 {f: v for f, v in filters.items() if not f.startswith("!")}
             )
-            regex = self._to_regex(extra_placeholder=placeholders_filter)
+            regex = self._fill_placeholders_with_regexes(
+                extra_placeholder=placeholders_filter)
 
             filters = {
                 f.lstrip("!"): [v] if isinstance(v, str) else v
@@ -1001,10 +1001,12 @@ class Dataset:
             A tuple of path as string and parsed placeholders as dictionary.
         """
 
+        print(self._base_dir, self._sub_dir, start, end)
+
         # If the directory does not contain regex or placeholders, we simply
         # return the base directory
         if not self._sub_dir:
-            return [self._base_dir, ]
+            return [(self._base_dir, {})]
 
         # Goal: Search for all directories that match the path regex and is
         # between start and end date.
@@ -1015,13 +1017,16 @@ class Dataset:
             (self._base_dir, {}),
         ]
 
-        for regex in map(self._to_regex, self._sub_dir_chunks):
+        for regex in map(self._fill_placeholders_with_regexes,
+                         self._sub_dir_chunks):
             search_dirs = [
                 (new_dir, attr)
                 for search_dir in search_dirs
                 for new_dir, attr in self._get_matching_dirs(search_dir, regex)
                 if self._check_placeholders(attr, start, end)
             ]
+
+        print(search_dirs)
 
         return search_dirs
 
@@ -1043,8 +1048,15 @@ class Dataset:
         year = attr_start.get("year", None)
         if year is not None:
             try:
-                return datetime(**attr_start) >= start \
-                       and datetime(**attr_end) <= end
+                subdirectory_start = datetime(**attr_start)
+                subdirectory_end = datetime(**attr_end)
+
+                # The sub directory covers a certain time coverage, we make
+                # sure that it is included into the search range.
+                subdir_time_coverage = self._get_time_resolution(attr_end)
+
+                return subdirectory_start >= start \
+                    and subdirectory_end <= end+subdir_time_coverage
             except:
                 return year >= start.year and attr_end["year"] <= end.year
 
@@ -1296,6 +1308,9 @@ class Dataset:
         Returns:
             A :meth`~typhon.spareice.handlers.FileInfo` object.
         """
+        # We want to save time in this routine, therefore we first check
+        # whether we cached this file already.
+
         if file_info.path in self.info_cache:
             return self.info_cache[file_info.path]
 
@@ -1319,10 +1334,10 @@ class Dataset:
 
         if retrieve_via in ("handler", "both"):
             with typhon.files.decompress(info.path) as decompressed_path:
-                print(decompressed_path)
                 decompressed_file = info.copy()
                 decompressed_file.path = decompressed_path
-                info.update(self.handler.get_info(decompressed_file))
+                handler_info = self.handler.get_info(decompressed_file)
+                info.update(handler_info)
 
         if info.times[0] is None:
             raise ValueError(
@@ -1650,15 +1665,17 @@ class Dataset:
         Returns:
             A dictionary with filled placeholders.
         """
+
         if template is None:
             regex = self._path_regex
         else:
             if isinstance(template, str):
-                regex = self._to_regex(template)
+                regex = self._fill_placeholders_with_regexes(template)
             else:
                 regex = template
 
         results = regex.match(filename)
+
         if not results:
             raise ValueError(
                 "Could not parse the filename; it does not match the given "
@@ -1722,22 +1739,16 @@ class Dataset:
             for p in self._path_placeholders.difference(self._time_placeholder)
         })
 
-        # Get all temporal placeholders from the path (for starting and ending
-        # time):
-        self._path_start_time_placeholders = {
-            p for p in self._path_placeholders
-            if not p.startswith("end") and p in self._time_placeholder
-        }
-        self._path_end_time_placeholders = {
+        # Get all temporal placeholders from the path (for ending time):
+        end_time_placeholders = {
             p.lstrip("end_") for p in self._path_placeholders
             if p.startswith("end") and p in self._time_placeholder
         }
 
         # If the end time retrieved from the path is younger than the start
         # time, the end time will be incremented by this value:
-        self._path_end_time_overshooting_compensator = \
-            self._get_superior_time_resolution(
-                self._path_end_time_placeholders)
+        self._end_time_superior = \
+            self._get_superior_time_resolution(end_time_placeholders)
 
         # Flag whether this is a single file dataset or not:
         no_temporal_placeholders = \
@@ -1764,7 +1775,7 @@ class Dataset:
             placeholders: A list or dictionary with placeholders.
 
         Returns:
-            A pandas compatible frequency stringo or None if the superior time
+            A pandas compatible frequency string or None if the superior time
             resolution is higher than a year.
         """
         # All placeholders from which we know the resolution:
@@ -1775,40 +1786,47 @@ class Dataset:
         if not placeholders:
             return None
 
-        # From all temporal placeholders, we want to find the one with the
-        # lowest resolution (month > day > hour, etc.).
-        lowest_resolution = min(
+        highest_resolution = max(
             (Dataset._temporal_resolution[tp] for tp in placeholders),
         )
 
-        lowest_resolution_index = list(
-            Dataset._temporal_resolution.values()).index(lowest_resolution)
+        highest_resolution_index = list(
+            Dataset._temporal_resolution.values()).index(highest_resolution)
 
-        if lowest_resolution_index == 0:
+        if highest_resolution_index == 0:
             return None
 
         resolutions = list(Dataset._temporal_resolution.values())
-        superior_resolution = resolutions[lowest_resolution_index - 1]
+        superior_resolution = resolutions[highest_resolution_index - 1]
 
         return pd.Timedelta(superior_resolution).to_pytimedelta()
 
     @staticmethod
-    def _get_time_resolution(path, ):
-        """Get the lowest time resolution of all placeholders
+    def _get_time_resolution(path_or_dict, highest=True):
+        """Get the lowest/highest time resolution of all placeholders
+
+        Seconds have a higher time resolution than minutes, etc. If our path
+        contains seconds, minutes and hours, this will return a timedelta
+        object representing 1 second if *highest* is True otherwise 1 hour.
 
         Args:
-            path: A path with placeholders.
+            path_or_dict: A path or dictionary with placeholders.
+            highest: If true, search for the highest time resolution instead of
+                the lowest.
 
         Returns:
             A timedelta object.
         """
-        placeholders = set(re.findall("\{(\w+)\}", path))
-        if "doy" in placeholders:
-            placeholders.remove("doy")
-            placeholders.add("day")
-        if "year2" in placeholders:
-            placeholders.remove("year2")
-            placeholders.add("year")
+        if isinstance(path_or_dict, str):
+            placeholders = set(re.findall("\{(\w+)\}", path_or_dict))
+            if "doy" in placeholders:
+                placeholders.remove("doy")
+                placeholders.add("day")
+            if "year2" in placeholders:
+                placeholders.remove("year2")
+                placeholders.add("year")
+        else:
+            placeholders = set(path_or_dict.keys())
 
         # All placeholders from which we know the resolution:
         placeholders = set(placeholders).intersection(
@@ -1820,13 +1838,34 @@ class Dataset:
             # time resolution
             return None
 
-        return max(
-            (Dataset._temporal_resolution[tp] for tp in placeholders),
-        )
+        # E.g. if we want to find the temporal placeholder with the lowest
+        # resolution, we have to search for the maximum of their values because
+        # they are represented as timedelta objects, i.e. month > day > hour,
+        # etc.
+        if highest:
+            return min(
+                (Dataset._temporal_resolution[tp] for tp in placeholders),
+            )
+        else:
+            return max(
+                (Dataset._temporal_resolution[tp] for tp in placeholders),
+            )
 
-    def _to_regex(self, path, extra_placeholder=None):
+    def _set_time_resolution(self):
+
+    def _fill_placeholders_with_regexes(self, path, extra_placeholder=None):
+        """Fill all placeholders in a path with its RegExes and compile it.
+
+        Args:
+            path:
+            extra_placeholder:
+
+        Returns:
+
+        """
         if extra_placeholder is None:
             extra_placeholder = {}
+
         placeholder = {
             **self._time_placeholder,
             **self._user_placeholder,
@@ -1837,8 +1876,8 @@ class Dataset:
         path = path.replace(".", "\.").replace("*", ".*?")
 
         try:
-            # Prepare the regex for the template
-            regex = path.format(**placeholder)
+            # Prepare the regex for the template, convert it to an exact match:
+            regex = "^" + path.format(**placeholder) + "$"
         except KeyError as err:
             raise UnknownPlaceholderError(self.name, err.args[0])
 
@@ -1846,6 +1885,15 @@ class Dataset:
 
     @staticmethod
     def _complete_placeholders_regex(placeholder):
+        """Complete placeholders' regexes to capture groups.
+
+        Args:
+            placeholder: A dictionary of placeholders and their matching
+            regular expressions
+
+        Returns:
+
+        """
         def convert(name, value):
             if value is None:
                 return None
@@ -1860,7 +1908,7 @@ class Dataset:
         }
 
     def set_placeholders(self, **placeholders):
-        """Set placeholder for this Dataset.
+        """Set placeholders for this Dataset.
 
         Args:
             **placeholders: Placeholders as keyword arguments.
@@ -1873,7 +1921,9 @@ class Dataset:
             self._complete_placeholders_regex(placeholders)
         )
 
-        self._path_regex = self._to_regex(self.path)
+        # Update the path regex (uses automatically the user-defined
+        # placeholders):
+        self._path_regex = self._fill_placeholders_with_regexes(self.path)
 
     @expects_file_info
     def read(self, file_info, **reading_arguments):
@@ -1957,7 +2007,7 @@ class Dataset:
             # change would not be noticed. Therefore, make sure that the end
             # date is always bigger (later) than the start date.
             if end_date < start_date:
-                end_date += self._path_end_time_overshooting_compensator
+                end_date += self._end_time_superior
         else:
             end_date = None
 
