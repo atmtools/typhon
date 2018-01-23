@@ -1929,7 +1929,7 @@ class Dataset:
         # Python's standard regex module (re) cannot handle multiple groups
         # with the same name. Hence, we need to cover duplicated placeholders
         # so that only the first of them does group capturing.
-        path_placeholders = re.findall("\{(\w+)\}", self.path)
+        path_placeholders = re.findall("\{(\w+)\}", path)
         duplicated_placeholders = {
             p: self._remove_group_capturing(p, placeholder[p])
             for p in path_placeholders if path_placeholders.count(p) > 1
