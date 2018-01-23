@@ -88,26 +88,26 @@ def to_datetime(obj):
 def to_timedelta(obj, numbers_as=None):
     """Convert an object to a python datetime object.
 
-        Args:
-            obj: Can be a string with time information, a numpy.timedelta64 or
-                a pandas.Timedelta object.
-            numbers_as: A string that indicates how numbers should be
-                interpreted. Allowed values are *weeks*, *days*, *hours*,
-                *minutes*, *seconds*, *milliseconds* and *microseconds.
+    Args:
+        obj: Can be a string with time information, a number, a
+            numpy.timedelta64 or a pandas.Timedelta object.
+        numbers_as: A string that indicates how numbers should be
+            interpreted. Allowed values are *weeks*, *days*, *hours*,
+            *minutes*, *seconds*, *milliseconds* and *microseconds.
 
-        Returns:
-            A python datetime object.
+    Returns:
+        A python datetime object.
 
-        Examples:
+    Examples:
 
-        .. code-block:: python
+    .. code-block:: python
 
-            # A timedelta object with 200 seconds
-            t = to_timedelta("200 seconds")
+        # A timedelta object with 200 seconds
+        t = to_timedelta("200 seconds")
 
-            # A timedelta object with 24 days
-            t = to_timedelta(24, numbers_as="days")
-        """
+        # A timedelta object with 24 days
+        t = to_timedelta(24, numbers_as="days")
+    """
 
     if numbers_as is None:
         numbers_as = "seconds"
