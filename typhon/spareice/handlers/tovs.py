@@ -1,21 +1,18 @@
 from datetime import datetime, timedelta
-import time
-import warnings
 
 from netCDF4 import Dataset
 import numpy as np
-from typhon.spareice.array import Array
 from typhon.spareice.geographical import GeoData
 import xarray as xr
 
-from .. import handlers
+from .common import FileHandler, FileInfo, expects_file_info
 
 __all__ = [
     'MHSAAPP',
     ]
 
 
-class MHSAAPP(handlers.FileHandler):
+class MHSAAPP(FileHandler):
     """File handler for MHS level 1C HDF files (convert with the AAPP tool.)
     """
     # This file handler always wants to return at least time, lat and lon
@@ -52,24 +49,23 @@ class MHSAAPP(handlers.FileHandler):
         self.user_mapping = mapping
         self.apply_scaling = apply_scaling
 
-    def get_info(self, filename, **kwargs):
-        with Dataset(filename, "r") as file:
-            start = \
+    @expects_file_info
+    def get_info(self, file_info, **kwargs):
+        with Dataset(file_info.path, "r") as file:
+            file_info.times[0] = \
                 datetime(int(file.startdatayr[0]), 1, 1) \
                 + timedelta(days=int(file.startdatady[0]) - 1) \
                 + timedelta(
                     milliseconds=int(file.startdatatime_ms[0]))
-            end = \
+            file_info.times[1] = \
                 datetime(int(file.enddatayr), 1, 1) \
                 + timedelta(days=int(file.enddatady) - 1) \
                 + timedelta(milliseconds=int(file.enddatatime_ms))
 
-            return handlers.FileInfo(
-                filename,
-                [start, end],
-            )
+            return file_info
 
-    def read(self, filename, fields=None):
+    @expects_file_info
+    def read(self, file_info, fields=None):
         """Reads and parses NetCDF files and load them to a GeoData object.
 
         TODO: Extend documentation.
@@ -91,7 +87,7 @@ class MHSAAPP(handlers.FileHandler):
                     pass
             fields_to_extract = list(fields_to_extract)
 
-        dataset = GeoData.from_netcdf(filename, fields_to_extract)
+        dataset = GeoData.from_netcdf(file_info.path, fields_to_extract)
         dataset.name = "MHS"
 
         # We do the internal mapping first so we do not deal with difficult
