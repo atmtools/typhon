@@ -1289,7 +1289,7 @@ class Dataset:
         # Remove the automatic regex completion from the user placeholders and
         # use them as default fillings
         default_fill = {
-            p: v.lstrip(f"(?P<{p}>").rstrip(")")
+            p: self._remove_group_capturing(p, v)
             for p, v in self._user_placeholder.items()
         }
         if fill is None:
@@ -1926,6 +1926,26 @@ class Dataset:
         # Mask all dots and convert the asterisk to regular expression syntax:
         path = path.replace(".", "\.").replace("*", ".*?")
 
+        # Python's standard regex module (re) cannot handle multiple groups
+        # with the same name. Hence, we need to cover duplicated placeholders
+        # so that only the first of them does group capturing.
+        path_placeholders = re.findall("\{(\w+)\}", self.path)
+        duplicated_placeholders = {
+            p: self._remove_group_capturing(p, placeholder[p])
+            for p in path_placeholders if path_placeholders.count(p) > 1
+        }
+
+        if duplicated_placeholders:
+            for p, v in duplicated_placeholders.items():
+                split_index = path.index("{"+p+"}") + len(p) + 2
+
+                # The value of the placeholder might contain a { or } as regex.
+                # We have to escape them because we use the formatting function
+                # later.
+                v = v.replace("{", "{{").replace("}", "}}")
+
+                changed_part = path[split_index:].replace("{" + p + "}", v)
+                path = path[:split_index] + changed_part
         try:
             # Prepare the regex for the template, convert it to an exact match:
             regex = "^" + path.format(**placeholder) + "$"
@@ -1945,18 +1965,33 @@ class Dataset:
         Returns:
 
         """
-        def convert(name, value):
-            if value is None:
-                return None
-            elif isinstance(value, (tuple, list)):
-                return f"(?P<{name}>{'|'.join(value)})"
-            else:
-                return f"(?P<{name}>{value})"
 
         return {
-            name: convert(name, value)
+            name: Dataset._add_group_capturing(name, value)
             for name, value in placeholder.items()
         }
+
+    @staticmethod
+    def _add_group_capturing(placeholder, value):
+        """Complete placeholder's regex to capture groups.
+
+        Args:
+            placeholder: A dictionary of placeholders and their matching
+            regular expressions
+
+        Returns:
+
+        """
+        if value is None:
+            return None
+        elif isinstance(value, (tuple, list)):
+            return f"(?P<{placeholder}>{'|'.join(value)})"
+        else:
+            return f"(?P<{placeholder}>{value})"
+
+    @staticmethod
+    def _remove_group_capturing(placeholder, value):
+        return value.lstrip(f"(?P<{placeholder}>").rstrip(")")
 
     def set_placeholders(self, **placeholders):
         """Set placeholders for this Dataset.
