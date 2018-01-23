@@ -838,7 +838,7 @@ class Dataset:
             path = self.generate_filename(timestamp,)
             if os.path.isfile(path):
                 return self.get_info(path)
-        except UnknownPlaceholderError:
+        except (UnknownPlaceholderError, UnfilledPlaceholderError):
             pass
 
         # We need to find all files that are around the given timestamp. Hence,
