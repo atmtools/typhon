@@ -594,9 +594,10 @@ class CollocationsFinder:
         if i == 0:
             expected_time = "unknown"
         else:
-            expected_time = \
-                timedelta(
-                    seconds=int((time.time()-timer) / i * len(file_pairs)))
+            elapsed_time = time.time()-timer
+            expected_time = timedelta(
+                seconds=int(elapsed_time/i * len(file_pairs) - elapsed_time)
+            )
 
         self._debug("-" * 79)
         self._debug(
