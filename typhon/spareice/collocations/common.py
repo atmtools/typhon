@@ -404,7 +404,7 @@ class CollocationsFinder:
         if self.verbose:
             print(msg)
 
-    def scan_datasets(self, datasets, output, fields=None,):
+    def match_datasets(self, datasets, output, fields=None,):
         """Finds all collocations between two datasets and store them in files.
 
         This takes all files from the datasets between two dates and find
@@ -473,7 +473,7 @@ class CollocationsFinder:
 
             if index == 1:
                 # The first two datasets will be collocated...
-                self._scan_two_datasets(
+                self._match_two_datasets(
                     datasets[0], datasets[1],
                     output, fields[0], fields[1],
                 )
@@ -486,11 +486,11 @@ class CollocationsFinder:
                     #include_stats="2C-ICE/IO_RO_ice_water_path",
                 )
 
-                self._scan_two_datasets(
+                self._match_two_datasets(
                     output, dataset, output, fields[index], fields[index+1]
                 )
 
-    def _scan_two_datasets(
+    def _match_two_datasets(
             self, primary_ds, secondary_ds, output_ds,
             primary_fields, secondary_fields):
         """
@@ -524,9 +524,8 @@ class CollocationsFinder:
         )
 
         total_primaries_points, total_secondaries_points = 0, 0
-        last_primary, last_primary_end_time, primary_cache = None, None, None
-        last_secondary, last_secondary_end_time, secondary_cache = \
-            None, None, None
+        last_primary, last_primary_end_time = None, None
+        last_secondary, last_secondary_end_time = None, None
         for primary, secondary in file_pairs:
             # To avoid multiple reading of the same file, we cache their
             # content.
@@ -554,7 +553,7 @@ class CollocationsFinder:
             # TODO: same dataset)
 
             # Find the collocations in those data arrays:
-            collocations = self.scan_arrays(primary_data, secondary_data)
+            collocations = self.match_arrays(primary_data, secondary_data)
 
             if not collocations.any():
                 self._debug("Found no collocations!")
@@ -736,7 +735,7 @@ class CollocationsFinder:
 
         return number_of_collocations
 
-    def scan_arrays(self, data1, data2,):
+    def match_arrays(self, data1, data2,):
         """Find the collocations between two data arrays
 
         A data array must be dictionary-like providing the fields *time*,
