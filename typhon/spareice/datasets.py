@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import glob
 from itertools import tee
 import json
+import logging
 from multiprocessing import Pool
 import os.path
 import re
@@ -174,7 +175,7 @@ class Dataset:
     def __init__(
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholder=None, max_processes=None,
+            placeholder=None, processes=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -234,10 +235,9 @@ class Dataset:
             placeholder: A dictionary with pairs of placeholder name matching
                 regular expression. These are user-defined placeholders, the
                 standard temporal placeholders do not have to be defined.
-            max_processes: Maximal number of parallel processes that will be
-                used for :meth:`~typhon.spareice.datasets.Dataset.map` or
-                :meth:`~typhon.spareice.datasets.Dataset.map_content` like
-                methods per default (default is the number of CPUs).
+            processes: Maximal number of parallel processes that will be
+                used for :meth:`~typhon.spareice.datasets.Dataset.map`-like
+                methods (default is 4).
             compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
@@ -392,7 +392,11 @@ class Dataset:
         self._exclude = None
         self.exclude = exclude
 
-        self.max_processes = max_processes
+        if processes is None:
+            self.processes = 4
+        else:
+            self.processes = processes
+
         self.compress = compress
         self.decompress = decompress
 
@@ -462,8 +466,6 @@ class Dataset:
             start = to_datetime(item)
             end = start + timedelta(microseconds=1)
 
-        print(start, end)
-
         try:
             next(self.find_files(start, end,
                                  no_files_error=False, sort=False,))
@@ -517,124 +519,8 @@ class Dataset:
         return info
 
     @staticmethod
-    def _call_function_with_file_info(args):
-        """ This is a small wrapper function to call the function that is
-        called on dataset files via .map().
-
-        Args:
-            args: A tuple containing following elements:
-                (Dataset object, file_info, function,
-                function_arguments)
-
-        Returns:
-            The return value of *function* called with the arguments *args*.
-        """
-        dataset, file_info, func, function_arguments, output, \
-            return_file_info, verbose = args
-
-        if verbose:
-            print("Process %s ()" % file_info)
-
-        if function_arguments is None:
-            return_value = func(dataset, file_info)
-        else:
-            return_value = func(
-                dataset, file_info, **function_arguments)
-
-        if output is None:
-            if return_file_info:
-                return file_info, return_value
-            else:
-                return return_value
-        else:
-            # file_info could be a bundle of files
-            if isinstance(file_info, list):
-                start_times, end_times = zip(
-                    *(
-                        file.times
-                        for file in file_info
-                    )
-                )
-                new_filename = output.generate_filename(
-                    (min(start_times), max(end_times)),
-                )
-            else:
-                new_filename = output.generate_filename(
-                    file_info.times, fill=file_info.attr
-                )
-
-            output.write(new_filename, return_value)
-            return file_info
-
-    @staticmethod
-    def _call_function_with_file_content(args):
-        """ This is a small wrapper function to call a function on an object
-        returned by reading a dataset file via Dataset.read().
-
-        Args:
-            args: A tuple containing following elements:
-                (Dataset object, file_info, func,
-                 function_arguments, read_arguments, output)
-
-        Returns:
-            The return value of *method* called with the arguments
-            *method_arguments*.
-        """
-        dataset, file_info, func, function_arguments, output, \
-            reading_arguments, return_file_info, verbose = args
-
-        # file_info could be a bundle of files
-        if isinstance(file_info, FileInfo):
-            times = file_info.times
-        else:
-            start_times, end_times = zip(
-                *(file.times for file in file_info)
-            )
-            times = min(start_times), max(end_times)
-
-        if verbose:
-            print("Process content from {} to {} ({} files)".format(
-                *times,
-                len(file_info) if isinstance(file_info, Iterable) else 1
-            ))
-
-        if reading_arguments is None:
-            reading_arguments = {}
-
-        if isinstance(file_info, FileInfo):
-            data = dataset.read(file_info, **reading_arguments)
-        else:
-            data = [
-                dataset.read(file, **reading_arguments)
-                for file in file_info
-            ]
-
-        if function_arguments is None:
-            function_arguments = {}
-
-        return_value = func(data, **function_arguments)
-
-        if output is None:
-            if return_file_info:
-                return file_info, return_value
-            else:
-                return return_value
-        elif return_value is not None:
-            if isinstance(file_info, FileInfo):
-                placeholder_filling = file_info.attr
-            else:
-                placeholder_filling = file_info[0].attr
-
-            new_filename = output.generate_filename(
-                times, fill=placeholder_filling
-            )
-            output.write(new_filename, return_value)
-
-        return file_info
-
-    @staticmethod
     def _copy_single_file(
-            dataset, file_info, destination, convert, delete_original):
+            file_info, dataset, destination, convert, delete_original):
         """This is a small wrapper function for copying files. It is better to
         use :meth:`Dataset.copy` directly.
 
@@ -666,23 +552,20 @@ class Dataset:
             destination.write(new_filename, data)
 
             if delete_original:
-                print("\tDelete:", file_info.path)
                 os.remove(file_info.path)
         else:
             # Create the new directory if necessary.
             os.makedirs(os.path.dirname(new_filename), exist_ok=True)
 
             if delete_original:
-                print("\tDelete:", file_info.path)
                 shutil.move(file_info.path, new_filename)
             else:
                 shutil.copy(file_info.path, new_filename)
 
     def copy(
             self, start, end, to, convert=None, delete_originals=False,
-            verbose=False,
     ):
-        """ Copies files from this dataset to another location.
+        """Copy files from this dataset to another location.
 
         Args:
             start: Start date either as datetime object or as string
@@ -702,7 +585,6 @@ class Dataset:
                 simply copied without converting.
             delete_originals: If true, then all copied original files will be
                 deleted. Be careful, this cannot get undone!
-            verbose: If true, it prints debug messages during copying.
 
         Returns:
             New Dataset object with the new files.
@@ -748,6 +630,7 @@ class Dataset:
             )
         """
 
+        # Convert the path to a Dataset object:
         if not isinstance(to, Dataset):
             destination = copy.copy(self)
             destination.path = to
@@ -758,25 +641,23 @@ class Dataset:
             convert = False
 
         if self.single_file:
-            # TODO: Copy single file
             Dataset._copy_single_file(
-                self, self.path, destination, convert, delete_originals)
+                self.path, self, destination, convert, delete_originals)
         else:
             if destination.single_file:
                 raise ValueError(
                     "Cannot copy files from multi-file to single-file "
                     "dataset!")
 
+            copy_args = {
+                "dataset": self,
+                "destination": destination,
+                "convert": convert,
+                "delete_original": delete_originals
+            }
+
             # Copy the files
-            self.map(
-                start, end, Dataset._copy_single_file,
-                {
-                     "destination": destination,
-                     "convert": convert,
-                     "delete_original": delete_originals
-                },
-                verbose=verbose
-            )
+            self.map(start, end, Dataset._copy_single_file, copy_args)
 
         return destination
 
@@ -981,11 +862,20 @@ class Dataset:
                 if f.startswith("!")
             }
 
+        # Files may exceed the time coverage of their directories. For example,
+        # a file located in the directory of 2018-01-13 contains data from
+        # 2018-01-13 18:00:00 to 2018-01-14 02:00:00. In order to find them, we
+        # must include the previous sub directory into the search range:
+        if self._sub_dir_time_resolution is None:
+            dir_start = start
+        else:
+            dir_start = start - self._sub_dir_time_resolution
+
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
         file_finder = (
             file_info
-            for path, _ in self._get_search_dirs(start, end,)
+            for path, _ in self._get_search_dirs(dir_start, end,)
             for file_info in self._get_matching_files(path, regex, start, end,)
             if not filters or self._check_filters(filters, file_info.attr)
         )
@@ -1183,17 +1073,17 @@ class Dataset:
             raise ValueError(
                 "The parameter bundle must be a integer or string!")
 
-    def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=None,
+    def overlaps_with(
+            self, other_dataset, start, end, max_interval=None,
             filters=None, other_filters=None):
         """Find files between two datasets that overlap in time.
 
         Args:
+            other_dataset: A Dataset object which holds the other files.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            other_dataset: A Dataset object which holds the other files.
             max_interval: Maximal time interval in seconds between
                 two overlapping files. Must be an integer or float.
             filters: The same filter argument that is allowed for
@@ -1289,7 +1179,7 @@ class Dataset:
         # Remove the automatic regex completion from the user placeholders and
         # use them as default fillings
         default_fill = {
-            p: v.lstrip(f"(?P<{p}>").rstrip(")")
+            p: self._remove_group_capturing(p, v)
             for p, v in self._user_placeholder.items()
         }
         if fill is None:
@@ -1427,9 +1317,6 @@ class Dataset:
             None
         """
         if filename is not None and os.path.exists(filename):
-            print("Load file information of {} dataset from {}.".format(
-                self.name, filename))
-
             try:
                 with open(filename) as file:
                     json_info_cache = json.load(file)
@@ -1446,186 +1333,145 @@ class Dataset:
                 )
 
     def map(
-        self, start, end,
-        func, func_arguments=None, output=None, max_processes=None,
-        bundle=None, return_file_info=False, process_initializer=None,
-        process_initargs=None, verbose=False,
+        self, start, end, func, func_args=None,
+        on_content=False, read_args=None, output=None, bundle=None,
+        processes=None, process_initializer=None, process_initargs=None,
     ):
-        """Applies a function on all files of this dataset between two dates.
+        """Apply a function on all files of this dataset between two dates.
 
         This method can use multiple processes to boost the procedure
         significantly. Depending on which system you work, you should try
-        different numbers for *max_processes*.
+        different numbers for *processes*.
 
         Args:
-            start: Start date either as datetime object or as string
+            start: Start timestamp either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            func: A reference to a function. The function should accept
-                at least three arguments: the dataset object, the filename and
-                the time coverage of the file (tuple of two datetime objects).
-            func_arguments: Additional keyword arguments for the function.
-            output: Set this to a Dataset object and the return value of
-                *func* will be copied there. In that case
-                *include_file_info* will be ignored.
-            max_processes: Max. number of parallel processes to use. When
-                lacking performance, you should change this number.
-            bundle: Instead of only mapping a function onto one file at a time,
-                you can map it onto a bundle of files. Look at the
-                documentation of the *bundle* argument in
-                :meth:`~typhon.spareice.Dataset.find_files` for more details.
-            return_file_info: Since the order of the returning results is
-                arbitrary, you can include the name of the processed file
-                and its time coverage in the results.
-            process_initializer: Must be a reference to a function that is
-                called once when starting a new process. Can be used to preload
-                variables into one process workspace. See also
-                https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
-                for more information.
-            process_initargs: A tuple with arguments for *process_initializer*.
-            verbose: If this is true, debug information will be printed.
-
-        Returns:
-            A list with one item for each processed file. The order is
-            arbitrary. If *return_file_info* is true, the item is a tuple
-            of a FileInfo object and the return value of the applied function.
-            If *return_file_info* is false, the item is simply the return
-            value of the applied function.
-
-        Examples:
-
-        """
-
-        if verbose:
-            print("Process all files from %s to %s.\nThis may take a while..."
-                  % (start, end))
-
-        # Measure the time for profiling.
-        start_time = time.time()
-
-        if max_processes is None:
-            max_processes = self.max_processes
-
-        # Create a pool of processes and process all the files with them.
-        pool = Pool(
-            max_processes, initializer=process_initializer,
-            initargs=process_initargs,
-        )
-
-        args = (
-            (self, x, func, func_arguments, output, return_file_info, verbose)
-            for x in self.find_files(start, end, sort=False, bundle=bundle, )
-        )
-
-        results = pool.map(
-            Dataset._call_function_with_file_info,
-            args, #chunksize=10,
-        )
-
-        if verbose:
-                print("It took %.2f seconds using %d parallel processes to "
-                      "process %d files." % (
-                        time.time() - start_time, max_processes, len(results)))
-
-        return results
-
-    def map_content(
-            self, start, end,
-            func, func_arguments=None, output=None, reading_arguments=None,
-            max_processes=None, bundle=None, return_file_info=False,
-            process_initializer=None, process_initargs=None,
-            verbose=False):
-        """Applies a method on the content of each file of this dataset between
-        two dates.
-
-        This method is similar to Dataset.map() but each file will be read
-        before the given function will be applied.
-
-        This method can use multiple processes to boost the procedure
-        significantly. Depending on which system you work, you should try
-        different numbers for *max_processes*.
-
-        Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            func: A reference to a function. The function should expect as
-                first argument the content object which is returned by the file
-                handler's *read* method.
-            func_arguments: Additional keyword arguments for the function.
-            reading_arguments: Additional keyword arguments that will be passed
+            end: End timestamp. Same format as "start".
+            func: A reference to a function. If *on_content* is true, the
+                function get passed the content of a file and its corresponding
+                FileInfo object. If it is false, only the FileInfo object will
+                be passed. If *bundle* is not 1 (default value), then each
+                argument is a list instead of a single object.
+            func_args: Additional keyword arguments for the function.
+            on_content: If true, the file will be read before *func* will be
+                applied. The content will then be passed to *func*.
+            read_args: Additional keyword arguments that will be passed
                 to the reading function (see Dataset.read() for more
-                information).
-            output: Set this to a Dataset object and the return value of
-                *func* will be copied there. In that case
-                *return_file_info* will be ignored.
-            max_processes: Max. number of parallel processes to use. When
+                information). Will be ignored if *on_content* is False.
+            output: Set this to a path containing placeholders or a Dataset
+                object and the return value of *func* will be copied there if
+                it is not None.
+            bundle: Instead of only applying a function onto one file at a
+                time, you can map it onto a bundle of files. Look at the
+                documentation of the *bundle* argument in
+                :meth:`~typhon.spareice.Dataset.find_files` for more details.
+            processes: Max. number of parallel processes to use. When
                 lacking performance, you should change this number.
-            return_file_info: Since the order of the returning results is
-                arbitrary, you can include the name of the processed file
-                and its time coverage in the results.
             process_initializer: Must be a reference to a function that is
                 called once when starting a new process. Can be used to preload
                 variables into one process workspace. See also
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
             process_initargs: A tuple with arguments for *process_initializer*.
-            bundle: Instead of only mapping a function onto one file at a time,
-                you can map it onto a bundle of files. Look at the
-                documentation of the *bundle* argument in
-                :meth:`~typhon.spareice.Dataset.find_files` for more details.
-            verbose: If  true, debug information will be printed.
 
         Returns:
-            A list with one item for each processed file. The order is
-            arbitrary.
-            If *output* is set to a Dataset object, only a list with all
-                processed files is returned.
-            If *return_file_info* is true, the item is a tuple of a FileInfo
-                object and the return value of the applied function.
-            If *return_file_info* is false, it is simply the return value
-                of the applied function.
+            Two lists which corresponds to each other. The first contains the
+            FileInfo objects of the processed files. The second list contains
+            either the return values of the applied function or - if *output*
+            is set - boolean values indicating whether the return value was not
+            None.
 
         Examples:
 
+
         """
+        # Convert the path to a Dataset object:
+        if isinstance(output, str):
+            output_path = output
+            output = copy.copy(self)
+            output.path = output_path
 
-        if verbose:
-            print("Process all files from %s to %s.\nThis may take a while..."
-                  % (start, end))
+        if processes is None:
+            processes = self.processes
 
-            # Measure the time for profiling.
-            start_time = time.time()
-
-        if max_processes is None:
-            max_processes = self.max_processes
-
-        # Create a pool of processes and process all the files with them.
+        # Create a pool of workers
         pool = Pool(
-            max_processes, initializer=process_initializer,
+            processes, initializer=process_initializer,
             initargs=process_initargs,
         )
 
-        # Prepare argument list for mapping function
+        # Prepare the arguments
         args = (
-            (self, x, func, func_arguments, output, reading_arguments,
-             return_file_info, verbose)
-            for x in self.find_files(start, end, sort=False, bundle=bundle, )
+            (self, info, func, func_args, output, on_content, read_args)
+            for info in self.find_files(start, end, sort=False, bundle=bundle)
         )
 
-        results = pool.map(
-            Dataset._call_function_with_file_content,
-            args, #chunksize=10,
-        )
+        # Process all found files with the arguments.
+        files, results = zip(*pool.map(Dataset._call_map_function, args))
 
-        if verbose:
-            print("It took %.2f seconds using %d parallel processes to "
-                  "process %d files." % (
-                    time.time() - start_time, max_processes, len(results)))
+        return files, results
 
-        return results
+    @staticmethod
+    def _call_map_function(args):
+        """ This is a small wrapper function to call the function that is
+        called on dataset files via .map() or .map_content().
+
+        Args:
+            args: A tuple containing following elements:
+                (Dataset object, file_info, function,
+                function_arguments)
+
+        Returns:
+            The return value of *function* called with the arguments *args*.
+        """
+        dataset, file_info, func, function_arguments, output, \
+            on_content, read_args = args
+
+        if function_arguments is None:
+            function_arguments = {}
+
+        if on_content:
+            if read_args is None:
+                read_args = {}
+
+            if isinstance(file_info, FileInfo):
+                data = dataset.read(file_info, **read_args)
+            else:
+                data = [
+                    dataset.read(file, **read_args)
+                    for file in file_info
+                ]
+
+            return_value = func(data, file_info, **function_arguments)
+        else:
+            return_value = func(file_info, **function_arguments)
+
+        if output is None:
+            return file_info, return_value
+
+        if return_value is None:
+            return file_info, False
+
+        # file_info could be a bundle of files
+        if isinstance(file_info, list):
+            start_times, end_times = zip(
+                *(
+                    file.times
+                    for file in file_info
+                )
+            )
+            new_filename = output.generate_filename(
+                (min(start_times), max(end_times)), fill=file_info[0].attr
+            )
+        else:
+            new_filename = output.generate_filename(
+                file_info.times, fill=file_info.attr
+            )
+
+        output.write(new_filename, return_value)
+
+        return file_info, True
 
     @property
     def name(self):
@@ -1926,6 +1772,26 @@ class Dataset:
         # Mask all dots and convert the asterisk to regular expression syntax:
         path = path.replace(".", "\.").replace("*", ".*?")
 
+        # Python's standard regex module (re) cannot handle multiple groups
+        # with the same name. Hence, we need to cover duplicated placeholders
+        # so that only the first of them does group capturing.
+        path_placeholders = re.findall("\{(\w+)\}", path)
+        duplicated_placeholders = {
+            p: self._remove_group_capturing(p, placeholder[p])
+            for p in path_placeholders if path_placeholders.count(p) > 1
+        }
+
+        if duplicated_placeholders:
+            for p, v in duplicated_placeholders.items():
+                split_index = path.index("{"+p+"}") + len(p) + 2
+
+                # The value of the placeholder might contain a { or } as regex.
+                # We have to escape them because we use the formatting function
+                # later.
+                v = v.replace("{", "{{").replace("}", "}}")
+
+                changed_part = path[split_index:].replace("{" + p + "}", v)
+                path = path[:split_index] + changed_part
         try:
             # Prepare the regex for the template, convert it to an exact match:
             regex = "^" + path.format(**placeholder) + "$"
@@ -1945,18 +1811,33 @@ class Dataset:
         Returns:
 
         """
-        def convert(name, value):
-            if value is None:
-                return None
-            elif isinstance(value, (tuple, list)):
-                return f"(?P<{name}>{'|'.join(value)})"
-            else:
-                return f"(?P<{name}>{value})"
 
         return {
-            name: convert(name, value)
+            name: Dataset._add_group_capturing(name, value)
             for name, value in placeholder.items()
         }
+
+    @staticmethod
+    def _add_group_capturing(placeholder, value):
+        """Complete placeholder's regex to capture groups.
+
+        Args:
+            placeholder: A dictionary of placeholders and their matching
+            regular expressions
+
+        Returns:
+
+        """
+        if value is None:
+            return None
+        elif isinstance(value, (tuple, list)):
+            return f"(?P<{placeholder}>{'|'.join(value)})"
+        else:
+            return f"(?P<{placeholder}>{value})"
+
+    @staticmethod
+    def _remove_group_capturing(placeholder, value):
+        return value.lstrip(f"(?P<{placeholder}>").rstrip(")")
 
     def set_placeholders(self, **placeholders):
         """Set placeholders for this Dataset.
@@ -1977,7 +1858,7 @@ class Dataset:
         self._path_regex = self._fill_placeholders_with_regexes(self.path)
 
     @expects_file_info
-    def read(self, file_info, **reading_arguments):
+    def read(self, file_info, **read_args):
         """Opens and reads a file.
 
         Notes:
@@ -1987,7 +1868,7 @@ class Dataset:
         Args:
             file_info: A string, path-alike object or a :class:`FileInfo`
                 object.
-            **reading_arguments: Additional key word arguments for the
+            **read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
 
         Returns:
@@ -2004,12 +1885,11 @@ class Dataset:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
                 return self.handler.read(
-                    decompressed_file, **reading_arguments)
+                    decompressed_file, **read_args)
         else:
-            return self.handler.read(file_info, **reading_arguments)
+            return self.handler.read(file_info, **read_args)
 
-    def read_period(self, start, end, sort=True, filters=None,
-                    **reading_arguments):
+    def read_period(self, start, end, sort=True, filters=None, **read_args):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -2021,14 +1901,14 @@ class Dataset:
             sort: Sort the files by their starting time.
             filters: The same filter argument that is allowed for
                 :meth:`find_files`.
-            **reading_arguments: Additional key word arguments for the
+            **read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
 
         Yields:
             The content of the read file.
         """
         for file in self.find_files(start, end, sort=sort, filters=filters):
-            data = self.read(file, **reading_arguments)
+            data = self.read(file, **read_args)
             if data is not None:
                 yield data
 
@@ -2074,9 +1954,9 @@ class Dataset:
             None
         """
         if filename is not None:
-            print("Save information cache of {} dataset to {}.".format(
-                self.name, filename))
-            with open(filename, 'w') as file:
+            # First write all to a backup file. If something happens, only the
+            # backup file will be overwritten.
+            with open(filename+".backup", 'w') as file:
                 # We cannot save datetime objects with json directly. We have
                 # to convert them to strings first:
                 info_cache = [
@@ -2084,6 +1964,9 @@ class Dataset:
                     for info in self.info_cache.values()
                 ]
                 json.dump(info_cache, file)
+
+            # Then rename the backup file
+            shutil.move(filename+".backup", filename)
 
     @property
     def time_coverage(self):

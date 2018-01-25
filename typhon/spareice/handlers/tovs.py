@@ -96,6 +96,10 @@ class MHSAAPP(FileHandler):
 
         # Add standard field "time":
         dataset["time"] = self._get_time_field(dataset)
+        dataset.drop(
+            ["Data/scnlinyr", "Data/scnlindy", "Data/scnlintime"],
+            inplace=True
+        )
 
         # Flat the latitude and longitude vectors:
         dataset["lon"] = dataset["lon"].flatten()
@@ -106,13 +110,7 @@ class MHSAAPP(FileHandler):
         dataset["scnline"] = np.repeat(dataset["scnline"], 90)
 
         # Some fields need special treatment
-        vars_to_drop = []
         for var in dataset.vars(deep=True):
-            # Some variables have been loaded only for temporary reasons.
-            if (var in self.standard_fields
-                    or (fields is not None and var not in fields)):
-                vars_to_drop.append(var)
-
             # Unfold the variable automatically if it is a swath variable.
             if len(dataset[var].shape) > 1 and dataset[var].shape[1] == 90:
                 # Unfold the dimension of the variable
@@ -127,7 +125,7 @@ class MHSAAPP(FileHandler):
                 dataset[var] = dataset[var] * dataset[var].attrs["Scale"]
                 del dataset[var].attrs["Scale"]
 
-        dataset.drop(vars_to_drop, inplace=True)
+            dataset[var].dims = ["time_id"]
 
         if self.user_mapping is not None:
             dataset.rename(self.user_mapping)
