@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import glob
 from itertools import tee
 import json
+import logging
 from multiprocessing import Pool
 import os.path
 import re
@@ -981,11 +982,17 @@ class Dataset:
                 if f.startswith("!")
             }
 
+        # Files may exceed the time coverage of their directories. For example,
+        # a file located in the directory of 2018-01-13 contains data from
+        # 2018-01-13 18:00:00 to 2018-01-14 02:00:00. In order to find them, we
+        # must include the previous sub directory into the search range:
+        dir_start = start - self._sub_dir_time_resolution
+
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
         file_finder = (
             file_info
-            for path, _ in self._get_search_dirs(start, end,)
+            for path, _ in self._get_search_dirs(dir_start, end,)
             for file_info in self._get_matching_files(path, regex, start, end,)
             if not filters or self._check_filters(filters, file_info.attr)
         )
@@ -1183,17 +1190,17 @@ class Dataset:
             raise ValueError(
                 "The parameter bundle must be a integer or string!")
 
-    def find_overlapping_files(
-            self, start, end, other_dataset, max_interval=None,
+    def overlaps_with(
+            self, other_dataset, start, end, max_interval=None,
             filters=None, other_filters=None):
         """Find files between two datasets that overlap in time.
 
         Args:
+            other_dataset: A Dataset object which holds the other files.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            other_dataset: A Dataset object which holds the other files.
             max_interval: Maximal time interval in seconds between
                 two overlapping files. Must be an integer or float.
             filters: The same filter argument that is allowed for
@@ -1427,9 +1434,6 @@ class Dataset:
             None
         """
         if filename is not None and os.path.exists(filename):
-            print("Load file information of {} dataset from {}.".format(
-                self.name, filename))
-
             try:
                 with open(filename) as file:
                     json_info_cache = json.load(file)
@@ -2109,9 +2113,9 @@ class Dataset:
             None
         """
         if filename is not None:
-            print("Save information cache of {} dataset to {}.".format(
-                self.name, filename))
-            with open(filename, 'w') as file:
+            # First write all to a backup file. If something happens, only the
+            # backup file will be overwritten.
+            with open(filename+".backup", 'w') as file:
                 # We cannot save datetime objects with json directly. We have
                 # to convert them to strings first:
                 info_cache = [
@@ -2119,6 +2123,9 @@ class Dataset:
                     for info in self.info_cache.values()
                 ]
                 json.dump(info_cache, file)
+
+            # Then rename the backup file
+            shutil.move(filename+".backup", filename)
 
     @property
     def time_coverage(self):
