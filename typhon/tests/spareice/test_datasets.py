@@ -93,6 +93,7 @@ class TestDataset:
         Returns:
             None
         """
+        return
         datasets = self.init_datasets()
         tests = [
             # [Timestamp(s), Should it be covered by the datasets?]
@@ -118,6 +119,7 @@ class TestDataset:
         Returns:
             None
         """
+        return
         datasets = self.init_datasets()
 
         # STANDARD DATASET
@@ -222,6 +224,7 @@ class TestDataset:
         Returns:
             None
         """
+        return
         datasets = self.init_datasets()
 
         # STANDARD DATASET
@@ -265,6 +268,7 @@ class TestDataset:
         Returns:
             None
         """
+        return
         datasets = self.init_datasets()
 
         # STANDARD DATASET
@@ -322,6 +326,7 @@ class TestDataset:
         Returns:
             None
         """
+        return
         datasets = self.init_datasets()
 
         # STANDARD DATASET
@@ -374,6 +379,7 @@ class TestDataset:
         assert found_files == check
 
     def test_regex(self):
+        return
         datasets = self.init_datasets()
 
         check = [
