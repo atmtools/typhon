@@ -466,8 +466,6 @@ class Dataset:
             start = to_datetime(item)
             end = start + timedelta(microseconds=1)
 
-        print(start, end)
-
         try:
             next(self.find_files(start, end,
                                  no_files_error=False, sort=False,))
@@ -868,7 +866,10 @@ class Dataset:
         # a file located in the directory of 2018-01-13 contains data from
         # 2018-01-13 18:00:00 to 2018-01-14 02:00:00. In order to find them, we
         # must include the previous sub directory into the search range:
-        dir_start = start - self._sub_dir_time_resolution
+        if self._sub_dir_time_resolution is None:
+            dir_start = start
+        else:
+            dir_start = start - self._sub_dir_time_resolution
 
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
