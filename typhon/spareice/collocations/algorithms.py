@@ -1,5 +1,5 @@
 import abc
-from collections import OrderedDict
+import logging
 import time
 
 
@@ -73,13 +73,17 @@ class BallTree(Finder):
 
         timer = time.time()
 
-        # We try to find collocations by building one 3-d tree for each dataset
+        # We try to find collocations by building one 3-d Ball tree
         # (see https://en.wikipedia.org/wiki/K-d_tree) and searching for the
         # nearest neighbours. Since a k-d tree cannot handle latitude /
         # longitude data, we have to convert them to 3D-cartesian
-        # coordinates.
+        # coordinates. This introduces an error of the distance calculation
+        # since it is now the distance in a 3D euclidean space and not the
+        # distance along the sphere any longer. When having two points with a
+        # distance of 5 degrees in longitude, the error is smaller than 177
+        # meters.
         cart_points = geocentric2cart(
-            typhon.constants.earth_radius,
+            6371000.0, # typhon.constants.earth_radius,
             primary_data["lat"],
             primary_data["lon"]
         )
@@ -88,7 +92,7 @@ class BallTree(Finder):
 
         # We need to convert the secondary data as well:
         cart_points = geocentric2cart(
-            typhon.constants.earth_radius,
+            6371000.0, # typhon.constants.earth_radius,
             secondary_data["lat"],
             secondary_data["lon"]
         )
@@ -126,11 +130,13 @@ class BallTree(Finder):
             for secondary_index in found
         ])
 
-        print("\tFound {} primary and {} secondary spatial collocations"
-              " in {:.2f}s.".format(
-                    primary_collocation_indices.size,
-                    secondary_collocation_indices.size,
-                    time.time() - timer)
+        logging.debug(
+            "\tFound {} primary and {} secondary spatial collocations in "
+            "{:.2f}s.".format(
+                primary_collocation_indices.size,
+                secondary_collocation_indices.size,
+                time.time() - timer
+            )
         )
 
         # Check here for temporal collocations:
@@ -184,7 +190,7 @@ class BallTree(Finder):
         timer = time.time()
         tree = SklearnBallTree(
             secondary_points, leaf_size=self.primary_leafsize)
-        print("\tNeeded {:.2f}s: for building the tree.".format(
+        logging.debug("\tNeeded {:.2f}s: for building the tree.".format(
             time.time() - timer))
 
         # Search for all collocations. This returns a list of lists. The index
@@ -195,8 +201,8 @@ class BallTree(Finder):
         timer = time.time()
         collocation_indices = tree.query_radius(
             primary_points, r=max_distance*1000)
-        print("\tNeeded {:.2f}s for finding spatial collocations".format(
-            time.time() - timer))
+        logging.debug("\tNeeded {:.2f}s for finding spatial "
+                      "collocations".format(time.time() - timer))
 
         return sequence_id, collocation_indices
 
@@ -247,8 +253,9 @@ class BruteForce(Finder):
         primary_indices, secondary_indices = np.nonzero(
             distances < max_distance*1000)
 
-        print("\tFound {} primary and {} secondary spatial collocations"
-              " in {:.2f}s.".format(
+        logging.debug(
+            "\tFound {} primary and {} secondary spatial collocations in "
+            "{:.2f}s.".format(
                 primary_indices.size,
                 secondary_indices.size,
                 time.time() - timer
