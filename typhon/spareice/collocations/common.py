@@ -10,6 +10,7 @@ Created by John Mrziglod, June 2017
 from datetime import datetime, timedelta
 import logging
 import time
+import traceback
 
 try:
     import cartopy.crs as ccrs
@@ -538,25 +539,31 @@ class CollocationsFinder:
 
             # To avoid multiple reading of the same file, we cache their
             # content.
-            self._debug("Load next primary from:")
-            if last_primary is None or last_primary != primary:
-                self._debug("  %s" % primary)
-                primary_cache, primary_data = self._read_input_file(
-                    primary_ds, primary, primary_fields
-                )
-                last_primary = primary
-            else:
-                self._debug("  Cache")
+            try:
+                self._debug("Load next primary from:")
+                if last_primary is None or last_primary != primary:
+                    self._debug("  %s" % primary)
+                    primary_cache, primary_data = self._read_input_file(
+                        primary_ds, primary, primary_fields
+                    )
+                    last_primary = primary
+                else:
+                    self._debug("  Cache")
 
-            self._debug("Load next secondary from:")
-            if last_secondary is None or last_secondary != secondary:
-                self._debug("  %s" % secondary)
-                secondary_cache, secondary_data = self._read_input_file(
-                    secondary_ds, secondary, secondary_fields
-                )
-                last_secondary = secondary
-            else:
-                self._debug("  Cache")
+                self._debug("Load next secondary from:")
+                if last_secondary is None or last_secondary != secondary:
+                    self._debug("  %s" % secondary)
+                    secondary_cache, secondary_data = self._read_input_file(
+                        secondary_ds, secondary, secondary_fields
+                    )
+                    last_secondary = secondary
+                else:
+                    self._debug("  Cache")
+            except Exception as err:
+                self._debug(
+                    "The search in this time period failed due to an error!")
+                traceback.print_exc()
+                self._debug("-" * 79)
 
             # TODO: Filter out duplicates (overlapping between files from the
             # TODO: same dataset)
@@ -671,7 +678,7 @@ class CollocationsFinder:
             original_files:
 
         Returns:
-            None
+            List with number of collocations
         """
         collocated_data = GeoData(name="CollocatedData")
         collocated_data.attrs["max_interval"] = \
