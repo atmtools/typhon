@@ -1148,7 +1148,7 @@ class ArrayGroup:
         return obj
 
     def select(self, indices_or_fields, inplace=False):
-        """Select an TODO.
+        """Select a part of this ArrayGroup.
 
         Args:
             indices_or_fields:
