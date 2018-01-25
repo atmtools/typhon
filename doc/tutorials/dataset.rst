@@ -1,7 +1,5 @@
-Using typhon.spareice.Dataset For Data Processing
+Using typhon.spareice.Dataset for data processing
 #################################################
-
-**TODO:** Add a small testing dataset for the user.
 
 .. contents:: :local:
 
@@ -38,8 +36,12 @@ the :class:`~typhon.spareice.datasets.Dataset` class.
 Quick Start
 ===========
 
+If you want to run the code from this tutorial on your machine as well,
+download :download:`_data/tutorial_datasets.zip <tutorial_datasets.zip>`, unzip
+it and follow the README.txt inside.
+
 We stick to our example from above and want to find all files from our
-*Instrument A* dataset between two dates. To do this, we need to initialize a
+*Satellite A* dataset between two dates. To do this, we need to initialize a
 Dataset object and tell it where to find our files:
 
 .. code-block:: python
