@@ -134,7 +134,15 @@ class AdversarialTrainingGenerator:
                  component.
         batch_size: The size of a training batch.
     """
-    def __init__(self, x_train, x_mean, x_sigma, y_train, sigma_noise, batch_size, input_gradients):
+    def __init__(self,
+                 x_train,
+                 x_mean,
+                 x_sigma,
+                 y_train,
+                 sigma_noise,
+                 batch_size,
+                 input_gradients,
+                 eps):
         self.bs = batch_size
 
         self.x_train  = x_train
@@ -150,6 +158,7 @@ class AdversarialTrainingGenerator:
         bs2 = self.bs // 2
 
         self.input_gradients = input_gradients
+        self.eps = eps
 
     def __iter__(self):
         print("iter...")
@@ -177,16 +186,16 @@ class AdversarialTrainingGenerator:
 
             x_batch[:bs2, :]  = np.copy(self.x_train[inds,:])
             if (self.sigma_noise):
-                x_batch[:bs2, :] += np.random.randn(bs2, self.x_train.shape[1]) * self.sigma_noise
+                x_batch[:bs2, :] += np.random.randn(bs2, self.x_train.shape[1]) \
+                                    * self.sigma_noise
             x_batch[:bs2, :]  = (x_batch[:bs2, :] - self.x_mean) / self.x_sigma
             y_batch[:bs2, :]  = self.y_train[inds].reshape(-1, 1)
             x_batch[bs2:, :]  = x_batch[:bs2, :]
             y_batch[bs2:, :]  = y_batch[:bs2, :]
 
             if (self.i > 10):
-                grads = self.input_gradients([x_batch[:bs2, :], y_batch[:bs2, :], [1.0], 0])[0]
-                eps = 0.1
-                x_batch[bs2:, :] += eps * grads
+                grads = self.input_gradients([x_batch[:bs2, :], y_batch[:bs2, :], [1.0]])[0]
+                x_batch[bs2:, :] += self.eps * np.sign(grads)
 
         self.i = self.i + 1
         return (x_batch, y_batch)
@@ -376,7 +385,9 @@ class QRNN:
             model.add(Dense(units = len(quantiles), activation = None))
         self.models = [clone_model(model) for i in range(ensemble_size)]
 
-    def __fit_params(self, kwargs):
+    def __fit_params__(self, kwargs):
+        at                    = kwargs.pop("adversarial_training", False)
+        dat                   = kwargs.pop("delta_at", 0.01)
         batch_size            = kwargs.pop("batch_size", 512)
         convergence_epochs    = kwargs.pop("convergence_epochs", 10)
         initial_learning_rate = kwargs.pop('initial_learning_rate', 0.01)
@@ -384,7 +395,7 @@ class QRNN:
         learning_rate_minimum = kwargs.pop('learning_rate_minimum', 1e-6)
         maximum_epochs        = kwargs.pop("maximum_epochs", 200)
         training_split        = kwargs.pop("training_split", 0.9)
-        return batch_size, convergence_epochs, initial_learning_rate, \
+        return at, dat, batch_size, convergence_epochs, initial_learning_rate, \
                learning_rate_decay, learning_rate_minimum, maximum_epochs, \
                training_split, kwargs
 
@@ -402,7 +413,7 @@ class QRNN:
         # lrm: learning rate maximum
         # me:  maximum number of epochs
         # ts:  split ratio of training set
-        bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params(kwargs)
+        at, dat, bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params__(kwargs)
 
         # Mean and std. dev
         x_mean  = np.mean(x_train, axis = 0, keepdims = True)
@@ -485,7 +496,13 @@ class QRNN:
         print(results)
         return (np.mean(results, axis = 0), np.std(results, axis = 0))
 
-    def fit(self, x_train, y_train, sigma_noise = None, **kwargs):
+    def fit(self,
+            x_train,
+            y_train,
+            sigma_noise = None,
+            x_val = None,
+            y_val = None,
+            **kwargs):
         r"""
         Train the QRNN on given training data.
 
@@ -510,7 +527,7 @@ class QRNN:
 
         Arguments:
 
-            x_train(np.array): Arry of shape `(n, m)` containing n training
+            x_train(np.array): Array of shape `(n, m)` containing n training
                                samples of dimension m.
 
             y_train(np.array): Array of shape `(n, )` containing the training
@@ -522,6 +539,16 @@ class QRNN:
                                                 that is added to each training
                                                 batch. If None no noise is
                                                 added.
+            x_val(np.array): Array of shape :code:`(n', m)` containing n' validation
+                             inputs that will be used to monitor training loss. Must
+                             be provided in unison with :code:`y_val` or otherwise
+                             will be ignored.
+
+            y_val(np.array): Array of shape :code:`(n')` containing n'  validation
+                             outputs corresponding to the inputs in :code:`x_val`.
+                             Must be provided in unison with :code:`x_val` or
+                             otherwise will be ignored.
+
             batch_size(float): The batch size to use during training. Defaults to `512`.
 
             convergence_epochs(int): The number of epochs without decrease in
@@ -557,6 +584,7 @@ class QRNN:
         self.x_sigma = x_sigma
 
         # Handle parameters
+        # at:  adversarial training
         # bs:  batch size
         # ce:  convergence epochs
         # ilr: initial learning rate
@@ -564,27 +592,43 @@ class QRNN:
         # lrm: learning rate minimum
         # me:  maximum number of epochs
         # ts:  split ratio of training set
-        bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params(kwargs)
+        at, dat, bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params__(kwargs)
 
-        # Split training and validation set.
+        # Split training and validation set if x_val or y_val
+        # are not provided.
         n = x_train.shape[0]
-        n_train = round(ts * n)
-        n_val = n - n_train
-        inds  = np.random.permutation(n)
-        x_val   = x_train[inds[n_train:], :]
-        y_val   = y_train[inds[n_train:]]
-        x_train = x_train[inds[:n_train], :]
-        y_train = y_train[inds[:n_train]]
+        n_train = n
+        if x_val is None and y_val is None:
+            n_train = round(ts * n)
+            n_val = n - n_train
+            inds  = np.random.permutation(n)
+            x_val   = x_train[inds[n_train:], :]
+            y_val   = y_train[inds[n_train:]]
+            x_train = x_train[inds[:n_train], :]
+            y_train = y_train[inds[:n_train]]
         loss = QuantileLoss(self.quantiles)
 
         self.custom_objects = {loss.__name__ : loss}
         for model in self.models:
             optimizer = SGD(lr = ilr)
             model.compile(loss = loss, optimizer = optimizer)
-            training_generator   = TrainingGenerator(x_train, self.x_mean, self.x_sigma,
-                                                     y_train, sigma_noise, bs)
+
+            if at:
+                inputs = [model.input, model.targets[0], model.sample_weights[0]]
+                input_gradients = K.function(inputs, K.gradients(model.total_loss, model.input))
+                training_generator   = AdversarialTrainingGenerator(x_train,
+                                                                    self.x_mean,
+                                                                    self.x_sigma,
+                                                                    y_train,
+                                                                    sigma_noise,
+                                                                    bs,
+                                                                    input_gradients,
+                                                                    dat)
+            else:
+                training_generator   = TrainingGenerator(x_train, self.x_mean, self.x_sigma,
+                                                        y_train, sigma_noise, bs)
             validation_generator = ValidationGenerator(x_val, self.x_mean, self.x_sigma,
-                                                       y_val, sigma_noise)
+                                                    y_val, sigma_noise)
             lr_callback = LRDecay(model, lrd, lrm, ce)
             model.fit_generator(training_generator, steps_per_epoch = n_train // bs,
                                 epochs = me, validation_data = validation_generator,
@@ -595,18 +639,60 @@ class QRNN:
         Forward propagate the inputs in `x` through the network to
         obtain the predicted quantiles `y`.
 
-        Arguments:
+        arguments:
 
-            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
+            x(np.array): array of shape `(n, m)` containing `n` inputs for which
                          to predict the conditional quantiles.
 
-        Returns:
+        returns:
 
-             Array of shape `(n, k)` where k is the number of quantiles that are
+             array of shape `(n, k)` where k is the number of quantiles that are
              to be predicted by the network.
         """
         predictions = np.stack([m.predict((x - self.x_mean) / self.x_sigma) for m in self.models])
         return np.mean(predictions, axis = 0)
+
+    def predict_ensemble(self, x, y_train):
+        predictions = np.stack([m.predict((x - self.x_mean) / self.x_sigma) for m in self.models])
+
+        bins = np.linspace(y_train.min(), y_train.max(), 100)
+        y_a, x_a = np.histogram(y_train)
+
+        predictions_e = np.zeros((predictions.shape[0], predictions.shape[1], predictions.shape[2] + 2))
+        predictions_e[:, :, 0]  = 2.0 * predictions[:, :, 1] - predictions[:, :, 2]
+        predictions_e[:, :, -1] = 2.0 * predictions[:, :, -2] - predictions[:, :, -3]
+        predictions_e_c = 0.5 * (predictions_e[:, :, 1:] + predictions_e[:, :, :-1])
+
+        qs = np.zeros(self.quantiles.size + 2)
+        qs[0] = 0.0
+        qs[1] = 1.0
+
+        y_a_i = np.interp(predictions_e_c, y_a, x_a)
+        corrections = y_a_i * np.diff(qs).reshape(1, 1, -1)
+        corrections /= np.sum(corrections, axis = 2, keepdims = True)
+
+        d_pred = np.diff(predicitons, axis = 2)
+        d_pred *= corrections
+
+        pred_corrected = predictions_e
+        pred_corrected[:, :, :] = predictions_e[:, :, 0]
+        pred_corrected[:, :, 1:] = np.cumsum(d_pred, axis = 2)
+
+        predictions_e = np.mean(pred_corrected, axis = 0)
+        predictions_e_c = 0.5 * (predictions[:, 1] + predictions[: -1])
+
+        y_a_i = np.interp(predictions_e_c, y_a, x_a)
+        corrections = np.diff(qs).reshape(1, 1, -1) / y_a_i
+        corrections /= np.sum(corrections, axis = 2, keepdims = True)
+
+        d_pred = np.diff(predictions, axis = 1)
+        d_pred *= corrections
+
+        pred_corrected = predictions_e
+        pred_corrected[:, :] = predictions_e[:, :, 0]
+        pred_corrected[:, 1:] = np.cumsum(d_pred, axis = 2)
+
+        return pred_corrected
 
     def cdf(self, x):
         r"""
@@ -670,8 +756,8 @@ class QRNN:
         """
         y_pred, qs = self.cdf(x)
         p = np.random.rand(n)
-        x = np.interp(qs, y_pred, x)
-        return x
+        y = np.interp(p, qs, y_pred)
+        return y
 
     @staticmethod
     def crps(y_pred, y_test, quantiles):
