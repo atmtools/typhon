@@ -18,8 +18,9 @@ except ImportError:
     pass
 
 import numpy as np
+import pandas as pd
 import scipy.stats
-from typhon.spareice.array import ArrayGroup
+from typhon.spareice.array import Array, ArrayGroup
 from typhon.spareice.datasets import Dataset
 from typhon.spareice.geographical import GeoData
 from typhon.utils.time import to_datetime, to_timedelta
@@ -523,43 +524,45 @@ class CollocationsFinder:
         )
 
         total_primaries_points, total_secondaries_points = 0, 0
-        last_primary, last_primary_end_time = None, None
-        last_secondary, last_secondary_end_time = None, None
+        last_primary, last_primary_end_time, primary_cache = None, None, None
+        last_secondary, last_secondary_end_time, secondary_cache = \
+            None, None, None
         for primary, secondary in file_pairs:
             # To avoid multiple reading of the same file, we cache their
             # content.
+            self._debug("Load next primary from:")
             if last_primary is None or last_primary != primary:
-                self._debug("Primary: %s" % primary)
+                self._debug("  %s" % primary)
                 primary_cache, primary_data = self._read_input_file(
                     primary_ds, primary, primary_fields
                 )
                 last_primary = primary
             else:
-                self._debug("Primary is still in cache.")
+                self._debug("  Cache")
+
+            self._debug("Load next secondary from:")
             if last_secondary is None or last_secondary != secondary:
-                self._debug("Secondary: %s" % secondary)
+                self._debug("  %s" % secondary)
                 secondary_cache, secondary_data = self._read_input_file(
                     secondary_ds, secondary, secondary_fields
                 )
                 last_secondary = secondary
             else:
-                self._debug("Secondary is still in cache.")
+                self._debug("  Cache")
 
             # TODO: Filter out duplicates (overlapping between files from the
             # TODO: same dataset)
 
-            print(primary_data)
-            print(secondary_data)
-
             # Find the collocations in those data arrays:
             collocations = self.scan_arrays(primary_data, secondary_data)
 
-            if collocations is None:
+            if not collocations.any():
                 self._debug("Found no collocations!")
+                self._debug("-"*79)
                 continue
 
             # Store the collocated data to the output dataset:
-            self._store_collocations(
+            number_of_collocations = self._store_collocations(
                 output_ds,
                 datasets=[primary_ds, secondary_ds],
                 data_list=[primary_cache, secondary_cache],
@@ -567,8 +570,8 @@ class CollocationsFinder:
                 original_files=[primary, secondary],
             )
 
-            total_primaries_points += collocations.size(0)
-            total_secondaries_points += collocations.size(1)
+            total_primaries_points += number_of_collocations[0]
+            total_secondaries_points += number_of_collocations[1]
 
         self._debug(
             "Needed {0:.2f} seconds to find {1} ({2}) and {3} ({4}) "
@@ -645,7 +648,6 @@ class CollocationsFinder:
         Returns:
             None
         """
-
         collocated_data = GeoData(name="CollocatedData")
         collocated_data.attrs["max_interval"] = \
             "Max. interval in secs: {}".format(
@@ -656,24 +658,61 @@ class CollocationsFinder:
             "Max. distance in kilometers: %d" % self.max_distance
         collocated_data.attrs["primary_dataset"] = datasets[0].name
 
+        number_of_collocations = []
+
         # If a dataset is a CollocatedDataset, then we have to store also its
         # other collocated datasets:
         for i, dataset in enumerate(datasets):
-            collocation_ids = collocations.ids[i]
-            original_indices = collocations.ids[i]
+            # These are the indices of the points in the original data that
+            # have collocations. Remove the duplicates since we want to copy
+            # the required data only once:
+            original_indices = pd.unique(collocations[i])
+
+            # After selecting the collocated data, the original indices cannot
+            # be applied any longer. We need new indices that indicate the
+            # pairs in the collocated data.
+            indices_in_collocated_data = {
+                original_index: new_index
+                for new_index, original_index in enumerate(original_indices)
+            }
+            collocation_indices = [
+                indices_in_collocated_data[index]
+                for index in collocations[i]
+            ]
+
+            number_of_collocations.append(len(original_indices))
 
             if isinstance(dataset, CollocatedDataset):
                 # This dataset contains multiple already-collocated datasets.
                 for group in data_list[i].groups(exclude_prefix="__"):
                     data = data_list[i][group][original_indices]
-                    data["__collocation_ids"] = collocation_ids
-                    data["__original_indices"] = original_indices
+                    # Change the collocation ids
+                    data["__collocation_ids"] = collocation_indices
                     collocated_data[group] = data
             else:
                 data = data_list[i][original_indices]
-                data["__collocation_ids"] = collocation_ids
-                data["__original_indices"] = original_indices
+                data["__collocation_ids"] = collocation_indices
                 data.attrs["original_file"] = original_files[i].path
+
+                # We want to give each point a specific id, which we can use
+                # for retrieving additional information about this point later.
+                # It is simply the starting timestamp of the file (seconds
+                # since 1970) and the original index.
+                timestamp = original_files[i].times[0].timestamp()
+                data["__file_ids"] = Array(
+                    [timestamp] * number_of_collocations[i], dims=["time_id"],
+                    attrs={
+                        "long_name": "Starting timestamp of original file",
+                        "units": "seconds since 1970-01-01T00:00:00"
+                    }
+                )
+                data["__original_indices"] = Array(
+                    original_indices, dims=["time_id", ],
+                    attrs={
+                        "long_name": "Index in the original file",
+                    }
+                )
+
                 collocated_data[datasets[i].name] = data
 
         time_coverage = collocated_data.get_range("time", deep=True)
@@ -685,20 +724,17 @@ class CollocationsFinder:
         # Prepare the name for the output file:
         filename = output.generate_filename(time_coverage)
 
-        self._debug(
-            "Found collocations:\n"
-            "  Write to: {file}\n  Time: {start} - {end}\n"
-            "  {name1}: {collocations1} points, "
-            "{name2}: {collocations2} points".format(
-                file=filename, start=time_coverage[0], end=time_coverage[1],
-                name1=datasets[0].name, name2=datasets[1].name,
-                collocations1=collocations.size(0),
-                collocations2=collocations.size(1),
-            )
-        )
+        self._debug("Store {} ({}) and {} ({}) collocations in\n  {}".format(
+            number_of_collocations[0], datasets[0].name,
+            number_of_collocations[1], datasets[1].name,
+            filename
+        ))
+        self._debug("-" * 79)
 
         # Write the data to the file.
         output.write(filename, collocated_data)
+
+        return number_of_collocations
 
     def scan_arrays(self, data1, data2,):
         """Find the collocations between two data arrays
@@ -718,6 +754,10 @@ class CollocationsFinder:
         Examples:
             TODO
         """
+        # TODO: We could bin all data along the time coordinates into periods
+        # TODO: that have the duration of max_interval. Then we only find for
+        # TODO: collocations that are in neighbour bins (we could parallelise
+        # TODO: this).
 
         # Firstly, we start by selecting only the time period where both data
         # arrays have data and that lies in the time period requested by the
@@ -728,62 +768,33 @@ class CollocationsFinder:
 
         if time_indices is None:
             # There was no common time window found
-            return None
+            return np.array([[], []])
+
+        # Get the offsets between the original data and the selected data.
+        offset1 = np.where(time_indices[0])[0][0]
+        offset2 = np.where(time_indices[1])[0][0]
 
         # Select the relevant data:
         data1 = data1[time_indices[0]]
         data2 = data2[time_indices[1]]
 
-        # Get the offsets between the original data and the selected data.
-        offset1 = np.where(time_indices[0])[0][0]
-        offset2 = np.where(time_indices[0])[0][0]
-
         # Secondly, find the collocations.
-        collocation_indices1, collocation_indices2 = \
-            self.algorithm.find_collocations(
-                data1, data2, self.max_interval, self.max_distance,
-                processes=self.processes
-            )
+        pairs = self.algorithm.find_collocations(
+            data1, data2, self.max_interval, self.max_distance,
+            processes=self.processes
+        )
+
+        # No collocations were found.
+        if not pairs.any():
+            return pairs
 
         # We selected a common time window and cut off a part in the beginning,
         # do you remember? Now we correct the indices so that they point again
         # to the real original data.
-        collocation_indices1 += offset1
-        collocation_indices2 += offset2
+        pairs[0] += offset1
+        pairs[1] += offset2
 
-        # No collocations were found.
-        if not collocation_indices1.any():
-            return None
-
-        # These are the indices of the points in the original data that have
-        # collocations. We want to copy the required data only once:
-        original_indices1 = collocation_indices1.remove_duplicates()
-        original_indices2 = collocation_indices2.remove_duplicates()
-
-        # We want the collocation lists (collocations1 and collocations2) to
-        # show the indices of the indices lists (
-        # primary_indices and secondary_indices). For example, primary_
-        # collocation_indices shows [44, 44, 44, 103, 103, 109] at the
-        # moment, but we want it to convert to [0, 0, 0, 1, 1, 2] where the
-        # numbers correspond to the indices of the elements in
-        # primary_indices which are [44, 103, 109].
-        original_index_ids1 = \
-            {original_index: xid
-             for xid, original_index in enumerate(original_indices1)}
-        original_index_ids2 = \
-            {original_index: xid
-             for xid, original_index in enumerate(original_indices2)}
-
-        collocation_ids1 = np.array(
-            [original_index_ids1[index1] for index1 in collocation_indices1])
-        collocation_ids2 = np.array(
-            [original_index_ids2[index2] for index2 in collocation_indices2])
-
-        collocations = CollocationIndices()
-        collocations.add(collocation_ids1, original_indices1)
-        collocations.add(collocation_ids2, original_indices2)
-
-        return collocations
+        return pairs
 
     def _select_common_time_period(self, times1, times2,):
         """Selects only the time window where both time series have data
@@ -812,22 +823,3 @@ class CollocationsFinder:
             return None
 
         return indices1, indices2
-
-
-class CollocationIndices:
-    def __init__(self,):
-        self.ids = []
-        self.originals = []
-
-    def add(self, ids, original):
-        self.ids.append(ids)
-        self.originals.append(original)
-
-    def expanded_originals(self, dataset):
-        return self.originals[dataset][self.ids[dataset]]
-
-    def size(self, dataset):
-        return len(self.originals[dataset])
-    #
-    # def collocation_ids(self, dataset,):
-    #     return self.collocations[dataset]
