@@ -289,9 +289,9 @@ class FileInfo(os.PathLike):
 
     def __str__(self):
         if self.attr:
-            attr_string = "\n  Attributes:\n"
+            attr_string = "\n  Attributes:"
             for k, v in self.attr.items():
-                attr_string += "    %s: %s\n" % (k, v)
+                attr_string += "\n    %s: %s" % (k, v)
 
         return "{}\n  Start: {}\n  End: {}{}".format(
             self.path, *self.times,
