@@ -230,11 +230,13 @@ class SRF(FwmuMixin):
         except AttributeError:
             T = ureg.Quantity(T, "K")
         T = ureg.Quantity(numpy.atleast_1d(T), T.u)
+        # fails if T is multidimensional
+        shp = T.shape
         return self.integrate_radiances(
             self.frequency, planck_f(
                 self.frequency[numpy.newaxis, :],
-                T[:, numpy.newaxis]),
-                spectral=spectral)
+                T.reshape((-1,))[:, numpy.newaxis]),
+                spectral=spectral).reshape(shp)
 
     def make_lookup_table(self):
         """Construct lookup table radiance <-> BT
