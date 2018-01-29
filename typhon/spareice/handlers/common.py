@@ -12,7 +12,7 @@ __all__ = [
     'CSV',
     'FileHandler',
     'FileInfo',
-    'Plot',
+    'Plotter',
     'NetCDF4',
     'expects_file_info',
     # 'Numpy',
@@ -522,7 +522,7 @@ class NetCDF4(FileHandler):
             data.to_netcdf(file_info.path, **kwargs)
 
 
-class Plot(FileHandler):
+class Plotter(FileHandler):
     """File handler that can save matplotlib.figure objects to a file.
 
     This is a specialised file handler object that can just store
@@ -532,7 +532,7 @@ class Plot(FileHandler):
     """
 
     def __init__(self, fig_args=None, **kwargs):
-        """Initializes a Plot file handler class.
+        """Initializes a Plotter file handler class.
 
         Args:
             fig_args: A dictionary of additional keyword arguments for the

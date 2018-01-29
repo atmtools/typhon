@@ -1517,7 +1517,7 @@ class Dataset:
                 (min(start_times), max(end_times)), fill=file_info[0].attr
             )
 
-        output.write(new_filename, return_value)
+        output.write(new_filename, return_value, in_background=True)
 
         return file_info, True
 
@@ -2097,13 +2097,51 @@ class Dataset:
             file_info: A string, path-alike object or a :class:`FileInfo`
                 object.
             data: An object that can be stored by the used file handler class.
-            in_background: If true, this runs the writing process in a
-                background thread so it does not pause the main process.
+            in_background: If true (default), this runs the writing process in
+                a background thread so it does not pause the main process.
             **write_args: Additional key word arguments for the *write* method
                 of the used file handler object.
 
         Returns:
             None
+
+        Examples:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from typhon.spareice.datasets import Dataset
+            from typhon.spareice.handlers import Plotter
+
+            # Define a dataset consisting of multiple files:
+            plots = Dataset(
+                path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.png",
+                handler=Plotter,
+            )
+
+            # Let's create a plot example
+            fig, ax = plt.subplots()
+            ax.plot([0, 1], [0, 1])
+            ax.set_title("Data from 2018-01-01")
+
+            ## To save the plot as a file of the dataset, you have two options:
+            # Use this simple expression:
+            plots["2018-01-01"] = fig
+
+            # OR use write in combination with generate_filename
+            filename = plots.generate_filename("2018-01-01")
+            plots.write(filename, fig)
+
+            # Hint: If saving the plot takes a lot of time but you want to
+            # continue with the program in the meanwhile, you can use the
+            # *in_background* option. This saves the plot in a background
+            # thread.
+            plots.write(filename, fig, in_background=True)
+
+            # continue with other stuff immediately and do not wait until the
+            # plot is saved...
+            do_other_stuff(...)
+
         """
         if self.handler is None:
             raise NoHandlerError(
