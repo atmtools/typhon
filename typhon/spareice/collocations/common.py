@@ -11,12 +11,7 @@ from datetime import datetime, timedelta
 import logging
 import time
 import traceback
-
-try:
-    import cartopy.crs as ccrs
-    import matplotlib.pyplot as plt
-except ImportError:
-    pass
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -148,7 +143,7 @@ class CollocatedDataset(Dataset):
                 built data bins of the variable before collapsing. The variable
                 must be one-dimensional.
             **mapping_args: Additional keyword arguments that are allowed
-                for :meth:`Dataset.map_content` method (except *output*).
+                for :meth:`Dataset.map` method (except *output*).
 
         Returns:
             None
@@ -193,15 +188,17 @@ class CollocatedDataset(Dataset):
             "collapser": collapser,
         }
 
-        self.map_content(
+        self.map(
             start, end, CollocatedDataset.collapse_data,
-            func_args, **mapping_args,
+            func_args, on_content=True, **mapping_args,
         )
 
     @staticmethod
     def collapse_data(
-            collocated_data, reference, include_stats, collapser):
+            collocated_data, file_info, reference, include_stats, collapser):
         """TODO: Write documentation."""
+
+        print("Collapse %s" % file_info.path)
 
         # Get the bin indices by the main dataset to which all other
         # shall be collapsed:
@@ -241,27 +238,39 @@ class CollocatedDataset(Dataset):
 
             collocations = collocated_data[dataset][COLLOCATION_FIELD]
 
-            # We do not need the original and collocation indices any
-            # longer because they will soon become useless. Moreover,
-            # they could have a different dimension length than the
-            # other variables and lead to errors in the selecting process:
-            del collocated_data[dataset]["__original_indices"]
-            del collocated_data[dataset][COLLOCATION_FIELD]
-
             if (dataset == reference
                 or collocated_data[dataset].attrs.get("COLLAPSED_TO", None)
                     == reference):
+                # The collocation indices will become useless
+                del collocated_data[dataset][COLLOCATION_FIELD]
+
                 # This is the main dataset to which all other will be
                 # collapsed. Therefore, we do not need explicitly
                 # collapse here.
                 collapsed_data[dataset] = \
                     collocated_data[dataset][np.unique(collocations)]
             else:
+                # We do not need the original and collocation indices from the
+                # dataset that will be collapsed because they will soon become
+                # useless. Moreover, they could have a different dimension
+                # length than the other variables and lead to errors in the
+                # selecting process.
+
+                del collocated_data[dataset]["__original_indices"]
+                del collocated_data[dataset][COLLOCATION_FIELD]
+
                 bins = collocations.bin(reference_bins)
-                collapsed_data[dataset] = \
-                    collocated_data[dataset].collapse(
-                        bins, collapser=collapser,
-                    )
+
+                # We ignore some warnings rather than fixing them
+                # TODO: Maybe fix them?
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message="invalid value encountered in double_scalars")
+                    collapsed_data[dataset] = \
+                        collocated_data[dataset].collapse(
+                            bins, collapser=collapser,
+                        )
 
                 collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
 
@@ -270,19 +279,6 @@ class CollocatedDataset(Dataset):
 
         # Overwrite the content of the old file:
         return collapsed_data
-
-    @staticmethod
-    def _collapse_file(
-            collocated_dataset, filename, _,
-            reference, include_stats, **collapsing_args):
-
-        collocated_data = collocated_dataset.read(filename)
-        collapsed_data = CollocatedDataset.collapse_data(
-            collocated_data, reference, include_stats, **collapsing_args
-        )
-
-        # Overwrite the content of the old file:
-        collocated_dataset.write(filename, collapsed_data)
 
     @classmethod
     def from_dataset(cls, dataset):
