@@ -491,13 +491,14 @@ class Dataset:
             filters = None
 
         if isinstance(time_args, slice):
-            return list(self.read_period(
-                time_args.start, time_args.stop, filters=filters))
+            return self.read_period(
+                time_args.start, time_args.stop, filters=filters)
         elif isinstance(time_args, (datetime, str)):
             filename = self.find_file(time_args, filters=filters)
-            if filename is not None:
-                return self.read(filename)
-            return None
+            if filename is None:
+                return None
+
+            return self.read(filename)
 
     def __setitem__(self, key, value):
         if isinstance(key, (tuple, list)):
@@ -1432,23 +1433,20 @@ class Dataset:
         else:
             raise ValueError(f"Unknown worker type '{worker_type}!")
 
-        args = [] if args is None else list(args)
-
         if kwargs is None:
             kwargs = {}
 
         if read_args is None:
             read_args = {}
 
-        # Prepare the arguments and the file list
-        args = (
+        files_with_arguments = (
             (self, info, func, args, kwargs, file_arg_keys, output, on_content,
              read_args)
             for info in self.find_files(start, end, **find_files_args)
         )
 
         # Process all found files with the arguments:
-        return pool.map(Dataset._call_map_function, args)
+        return pool.map(Dataset._call_map_function, files_with_arguments)
 
     @staticmethod
     def _call_map_function(all_args):
@@ -1468,6 +1466,8 @@ class Dataset:
         dataset, file_info, func, args, kwargs, file_arg_keys, output, \
             on_content, read_args = all_args
 
+        args = [] if args is None else list(args)
+
         if on_content:
             # file_info could be a bundle of files
             if isinstance(file_info, FileInfo):
@@ -1478,7 +1478,7 @@ class Dataset:
                     for file in file_info
                 ]
             if file_arg_keys is None:
-                args.extend([file_content])
+                args.append(file_content)
             else:
                 kwargs.update(**{
                     file_arg_keys[1]: file_content,
@@ -1938,7 +1938,8 @@ class Dataset:
         else:
             return self.handler.read(file_info, **read_args)
 
-    def read_period(self, start, end, read_args=None, **find_files_args):
+    def read_period(self, start, end, read_args=None, parallelize=True,
+                    **find_files_args):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -1949,6 +1950,10 @@ class Dataset:
             end: End date. Same format as "start".
             read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
+            parallelize: Parallelize the reading of the files by using
+                threads. This should give a speed up if the file handler's read
+                function internally uses CPython code that releases the GIL
+                lock.
             **find_files_args: Additional keyword arguments that are allowed
                 for :meth`find_files`.
 
@@ -1959,15 +1964,26 @@ class Dataset:
         if read_args is None:
             read_args = {}
 
-        # If we used map with processes, it would need to pickle the data
-        # coming from all workers. This is very inefficient.
-        data_list = self.map(
-            start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-            worker_type="thread", **find_files_args
-        )
+        if parallelize:
+            # If we used map with processes, it would need to pickle the data
+            # coming from all workers. This would be very inefficient. Threads
+            # are better because sharing data does not costs much. However, if
+            # the reading function consists mainly of pure python that does not
+            # release the GIL, this will slow down performance.
+            data_list = self.map(
+                start, end, func=Dataset.read, args=(self,), kwargs=read_args,
+                worker_type="thread", **find_files_args
+            )
 
-        # We do not want to have any None as data
-        return [data[1] for data in data_list if data[1] is not None]
+            # We do not want to have any None as data
+            return [data[1] for data in data_list if data[1] is not None]
+        else:
+            data_list = [
+                self.read(file, **read_args)
+                for file in self.find_files(start, end, **find_files_args)
+            ]
+            # We do not want to have any None as data
+            return [data for data in data_list if data is not None]
 
     def _retrieve_time_coverage(self, filled_placeholder,):
         """Retrieve the time coverage from a dictionary of placeholders.
