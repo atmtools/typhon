@@ -1342,28 +1342,36 @@ class Dataset:
                 )
 
     def map(
-        self, start, end, func, func_args=None,
-        on_content=False, read_args=None, output=None, bundle=None,
+        self, start, end, func, args=None, kwargs=None, file_arg_keys=None,
+        on_content=False, read_args=None, output=None,
         max_workers=None, worker_type=None,
-        worker_initializer=None, worker_initargs=None,
+        worker_initializer=None, worker_initargs=None, **find_files_args
     ):
         """Apply a function on all files of this dataset between two dates.
 
-        This method can use multiple workers to boost the procedure
-        significantly. Depending on which system you work, you should try
-        different numbers for *max_workers*.
+        This method can use multiple workers processes / threads to boost the
+        procedure significantly. Depending on which system you work, you should
+        try different numbers for *max_workers*.
 
         Args:
             start: Start timestamp either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End timestamp. Same format as "start".
-            func: A reference to a function. If *on_content* is true, the
-                function get passed the content of a file and its corresponding
-                FileInfo object. If it is false, only the FileInfo object will
-                be passed. If *bundle* is not 1 (default value), then each
-                argument is a list instead of a single object.
-            func_args: Additional keyword arguments for the function.
+            func: A reference to a function that should be applied.
+            args: A list/tuple with positional arguments that should be passed
+                to *func*. It will be extended with the file arguments, i.e.
+                a FileInfo object if *on_content* is false or - if *on_content*
+                is true - the read content of a file and its corresponding
+                FileInfo object. If you want to pass the file arguments rather
+                as key word arguments, you can use the option *file_arg_keys*.
+            kwargs: A dictionary with keyword arguments that should be passed
+                to *func*.
+            file_arg_keys: Use this if you want to pass the file arguments as
+                key word arguments. If *on_content* is false, this is the key
+                name of the file info object. If *on_content* is true, this is
+                a tuple of the key name of the file info object and the key
+                name of the file content object.
             on_content: If true, the file will be read before *func* will be
                 applied. The content will then be passed to *func*.
             read_args: Additional keyword arguments that will be passed
@@ -1372,10 +1380,6 @@ class Dataset:
             output: Set this to a path containing placeholders or a Dataset
                 object and the return value of *func* will be copied there if
                 it is not None.
-            bundle: Instead of only applying a function onto one file at a
-                time, you can map it onto a bundle of files. Look at the
-                documentation of the *bundle* argument in
-                :meth:`~typhon.spareice.Dataset.find_files` for more details.
             max_workers: Max. number of parallel workers to use. When
                 lacking performance, you should change this number.
             worker_type: The type of the workers that will be used to
@@ -1390,16 +1394,17 @@ class Dataset:
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
             worker_initargs: A tuple with arguments for *worker_initializer*.
+            **find_files_args: Additional keyword arguments that are allowed
+                for :meth`find_files`.
 
         Returns:
-            Two lists which corresponds to each other. The first contains the
-            FileInfo objects of the processed files. The second list contains
-            either the return values of the applied function or - if *output*
-            is set - boolean values indicating whether the return value was not
-            None.
+            A list with tuples: each contains the FileInfo object of the
+            processed file and the return value of the applied function. If
+            *output* is set, the second element is not the return value but a
+            boolean values indicating whether the return value was not None.
 
         Examples:
-
+            TODO
 
         """
         # Convert the path to a Dataset object:
@@ -1427,72 +1432,89 @@ class Dataset:
         else:
             raise ValueError(f"Unknown worker type '{worker_type}!")
 
+        args = [] if args is None else list(args)
+
+        if kwargs is None:
+            kwargs = {}
+
+        if read_args is None:
+            read_args = {}
+
         # Prepare the arguments and the file list
         args = (
-            (self, info, func, func_args, output, on_content, read_args)
-            for info in self.find_files(start, end, sort=False, bundle=bundle)
+            (self, info, func, args, kwargs, file_arg_keys, output, on_content,
+             read_args)
+            for info in self.find_files(start, end, **find_files_args)
         )
 
         # Process all found files with the arguments:
-        files, results = zip(*pool.map(Dataset._call_map_function, args))
-
-        return files, results
+        return pool.map(Dataset._call_map_function, args)
 
     @staticmethod
-    def _call_map_function(args):
+    def _call_map_function(all_args):
         """ This is a small wrapper function to call the function that is
         called on dataset files via .map().
 
         Args:
-            args: A tuple containing following elements:
+            all_args: A tuple containing following elements:
                 (Dataset object, file_info, function,
-                function_arguments, output, on_content, read_args)
+                args, kwargs, output, on_content, read_args)
 
         Returns:
-            The return value of *function* called with the arguments *args*.
+            The return value of *function* called with the arguments *args* and
+            *kwargs*. This arguments have been extended by file info (and file
+            content).
         """
-        dataset, file_info, func, function_arguments, output, \
-            on_content, read_args = args
-
-        if function_arguments is None:
-            function_arguments = {}
+        dataset, file_info, func, args, kwargs, file_arg_keys, output, \
+            on_content, read_args = all_args
 
         if on_content:
-            if read_args is None:
-                read_args = {}
-
+            # file_info could be a bundle of files
             if isinstance(file_info, FileInfo):
-                data = dataset.read(file_info, **read_args)
+                file_content = dataset.read(file_info, **read_args)
             else:
-                data = [
+                file_content = [
                     dataset.read(file, **read_args)
                     for file in file_info
                 ]
+            if file_arg_keys is None:
+                args.extend([file_content])
+            else:
+                kwargs.update(**{
+                    file_arg_keys[1]: file_content,
+                })
 
-            return_value = func(data, file_info, **function_arguments)
+        if file_arg_keys is None:
+            args.append(file_info)
         else:
-            return_value = func(file_info, **function_arguments)
+            kwargs.update(**{
+                file_arg_keys[0]: file_info,
+            })
+
+        # Call the function:
+        return_value = func(*args, **kwargs)
 
         if output is None:
+            # No output is needed, simply return the file info and the
+            # function's return value
             return file_info, return_value
 
         if return_value is None:
+            # We cannot write a file with the content None, hence simply return
+            # the file info and False indicating that we did not write a file.
             return file_info, False
 
         # file_info could be a bundle of files
-        if isinstance(file_info, list):
+        if isinstance(file_info, FileInfo):
+            new_filename = output.generate_filename(
+                file_info.times, fill=file_info.attr
+            )
+        else:
             start_times, end_times = zip(
-                *(
-                    file.times
-                    for file in file_info
-                )
+                *(file.times for file in file_info)
             )
             new_filename = output.generate_filename(
                 (min(start_times), max(end_times)), fill=file_info[0].attr
-            )
-        else:
-            new_filename = output.generate_filename(
-                file_info.times, fill=file_info.attr
             )
 
         output.write(new_filename, return_value)
@@ -1912,12 +1934,11 @@ class Dataset:
             with typhon.files.decompress(file_info.path) as decompressed_path:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
-                return self.handler.read(
-                    decompressed_file, **read_args)
+                return self.handler.read(decompressed_file, **read_args)
         else:
             return self.handler.read(file_info, **read_args)
 
-    def read_period(self, start, end, filters=None, **read_args):
+    def read_period(self, start, end, read_args=None, **find_files_args):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -1926,18 +1947,27 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            filters: The same filter argument that is allowed for
-                :meth:`find_files`.
-            **read_args: Additional key word arguments for the
+            read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
+            **find_files_args: Additional keyword arguments that are allowed
+                for :meth`find_files`.
 
-        Yields:
-            The content of the read file.
+        Returns:
+            A list with all content objects of the read files sorted by their
+            starting time.
         """
-        for file in self.find_files(start, end, sort=sort, filters=filters):
-            data = self.read(file, **read_args)
-            if data is not None:
-                yield data
+        if read_args is None:
+            read_args = {}
+
+        # If we used map with processes, it would need to pickle the data
+        # coming from all workers. This is very inefficient.
+        data_list = self.map(
+            start, end, func=Dataset.read, args=(self,), kwargs=read_args,
+            worker_type="thread", **find_files_args
+        )
+
+        # We do not want to have any None as data
+        return [data[1] for data in data_list if data[1] is not None]
 
     def _retrieve_time_coverage(self, filled_placeholder,):
         """Retrieve the time coverage from a dictionary of placeholders.
