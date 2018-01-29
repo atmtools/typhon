@@ -14,7 +14,8 @@ import glob
 from itertools import tee
 import json
 import logging
-from multiprocessing import Pool
+from multiprocessing import Pool as ProcessPool
+from multiprocessing.pool import ThreadPool
 import os.path
 import re
 import shutil
@@ -175,7 +176,8 @@ class Dataset:
     def __init__(
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholder=None, processes=None, read_args=None, write_args=None,
+            placeholder=None, max_workers=None, worker_type=None,
+            read_args=None, write_args=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -235,9 +237,13 @@ class Dataset:
             placeholder: A dictionary with pairs of placeholder name matching
                 regular expression. These are user-defined placeholders, the
                 standard temporal placeholders do not have to be defined.
-            processes: Maximal number of parallel processes that will be
-                used for :meth:`~typhon.spareice.datasets.Dataset.map`-like
-                methods (default is 4).
+            max_workers: Maximal number of workers that will be used for
+                parallelising some methods. This sets also the default for the
+                :meth:`~typhon.spareice.datasets.Dataset.map` method
+                (default is 4).
+            worker_type: The type of the workers that will be used to
+                parallelise some methods. Can be *thread* or *process*
+                (default).
             compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
@@ -392,12 +398,11 @@ class Dataset:
         self._exclude = None
         self.exclude = exclude
 
-        if processes is None:
-            self.processes = 4
-        else:
-            self.processes = processes
+        # The default worker settings for map-like functions
+        self.max_workers = 4 if max_workers is None else max_workers
+        self.worker_type = "process" if worker_type is None else worker_type
 
-        # The default keyword arguments for read and write methods
+        # The default settings for read and write methods
         self.read_args = {} if read_args is None else read_args
         self.write_args = {} if write_args is None else write_args
 
@@ -1339,13 +1344,14 @@ class Dataset:
     def map(
         self, start, end, func, func_args=None,
         on_content=False, read_args=None, output=None, bundle=None,
-        processes=None, process_initializer=None, process_initargs=None,
+        max_workers=None, worker_type=None,
+        worker_initializer=None, worker_initargs=None,
     ):
         """Apply a function on all files of this dataset between two dates.
 
-        This method can use multiple processes to boost the procedure
+        This method can use multiple workers to boost the procedure
         significantly. Depending on which system you work, you should try
-        different numbers for *processes*.
+        different numbers for *max_workers*.
 
         Args:
             start: Start timestamp either as datetime object or as string
@@ -1370,14 +1376,20 @@ class Dataset:
                 time, you can map it onto a bundle of files. Look at the
                 documentation of the *bundle* argument in
                 :meth:`~typhon.spareice.Dataset.find_files` for more details.
-            processes: Max. number of parallel processes to use. When
+            max_workers: Max. number of parallel workers to use. When
                 lacking performance, you should change this number.
-            process_initializer: Must be a reference to a function that is
-                called once when starting a new process. Can be used to preload
-                variables into one process workspace. See also
+            worker_type: The type of the workers that will be used to
+                parallelise *func*. Can be *process* or *thread*. If *func* is
+                a function that needs to share a lot of data with its
+                parallelised copies, you should set this to *thread*. Note that
+                this may reduce the performance due to Python's Global
+                Interpreter Lock (`GIL <https://stackoverflow.com/q/1294382>`).
+            worker_initializer: Must be a reference to a function that is
+                called once when initialising a new worker. Can be used to
+                preload variables into a worker's workspace. See also
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
-            process_initargs: A tuple with arguments for *process_initializer*.
+            worker_initargs: A tuple with arguments for *worker_initializer*.
 
         Returns:
             Two lists which corresponds to each other. The first contains the
@@ -1396,22 +1408,32 @@ class Dataset:
             output = copy.copy(self)
             output.path = output_path
 
-        if processes is None:
-            processes = self.processes
+        if max_workers is None:
+            max_workers = self.max_workers
 
-        # Create a pool of workers
-        pool = Pool(
-            processes, initializer=process_initializer,
-            initargs=process_initargs,
-        )
+        if worker_type is None:
+            worker_type = self.worker_type
 
-        # Prepare the arguments
+        if worker_type is None or worker_type == "process":
+            pool = ProcessPool(
+                max_workers, initializer=worker_initializer,
+                initargs=worker_initargs,
+            )
+        elif worker_type == "thread":
+            pool = ThreadPool(
+                max_workers, initializer=worker_initializer,
+                initargs=worker_initargs,
+            )
+        else:
+            raise ValueError(f"Unknown worker type '{worker_type}!")
+
+        # Prepare the arguments and the file list
         args = (
             (self, info, func, func_args, output, on_content, read_args)
             for info in self.find_files(start, end, sort=False, bundle=bundle)
         )
 
-        # Process all found files with the arguments.
+        # Process all found files with the arguments:
         files, results = zip(*pool.map(Dataset._call_map_function, args))
 
         return files, results
@@ -1419,12 +1441,12 @@ class Dataset:
     @staticmethod
     def _call_map_function(args):
         """ This is a small wrapper function to call the function that is
-        called on dataset files via .map() or .map_content().
+        called on dataset files via .map().
 
         Args:
             args: A tuple containing following elements:
                 (Dataset object, file_info, function,
-                function_arguments)
+                function_arguments, output, on_content, read_args)
 
         Returns:
             The return value of *function* called with the arguments *args*.
@@ -1883,6 +1905,8 @@ class Dataset:
                 "Could not read the file '{}'! No file handler is "
                 "specified!".format(file_info.path))
 
+        read_args = {**self.read_args, **read_args}
+
         if self._path_extension not in self.handler.handle_compression_formats\
                 and self.decompress:
             with typhon.files.decompress(file_info.path) as decompressed_path:
@@ -1893,7 +1917,7 @@ class Dataset:
         else:
             return self.handler.read(file_info, **read_args)
 
-    def read_period(self, start, end, sort=True, filters=None, **read_args):
+    def read_period(self, start, end, filters=None, **read_args):
         """Reads all files between two dates and returns their content sorted
         by their starting time.
 
@@ -1902,7 +1926,6 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            sort: Sort the files by their starting time.
             filters: The same filter argument that is allowed for
                 :meth:`find_files`.
             **read_args: Additional key word arguments for the
@@ -2036,18 +2059,20 @@ class Dataset:
         Returns:
             None
         """
+        if self.handler is None:
+            raise NoHandlerError(
+                "Could not write data to the file '{}'! No file handler is "
+                "specified!".format(file_info.path))
+
         if in_background:
-            # Run this function again but in a background thread:
+            # Run this function again but inside a background thread:
             threading.Thread(
                 target=Dataset.write, args=(self, file_info, data),
                 kwargs=write_args.update(in_background=False),
             ).start()
             return
 
-        if self.handler is None:
-            raise NoHandlerError(
-                "Could not write data to the file '{}'! No file handler is "
-                "specified!".format(file_info.path))
+        write_args = {**self.write_args, **write_args}
 
         # The users should not be bothered with creating directories by
         # themselves.
@@ -2102,7 +2127,6 @@ class JointData:
     @staticmethod
     def _select_fields(array, fields=None):
         return array[fields]
-
 
 
 class DatasetManager(dict):
