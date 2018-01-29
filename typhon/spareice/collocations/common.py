@@ -7,9 +7,10 @@ TODO: I would like to have this package as typhon.collocations.
 Created by John Mrziglod, June 2017
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import time
+import traceback
 
 try:
     import cartopy.crs as ccrs
@@ -517,37 +518,52 @@ class CollocationsFinder:
         # Go through all primary files and find the secondaries to them:
         overlaps = primary_ds.overlaps_with(secondary_ds, self.start, self.end)
 
-        file_pairs = (
+        # We can flush this into one list because Dataset did this already by
+        # itself
+        file_pairs = [
             (primary, secondary)
             for primary, secondaries in overlaps
             for secondary in secondaries
-        )
+        ]
 
         total_primaries_points, total_secondaries_points = 0, 0
         last_primary, last_primary_end_time = None, None
         last_secondary, last_secondary_end_time = None, None
-        for primary, secondary in file_pairs:
+
+        for i, file_pair in enumerate(file_pairs):
+            self._debug_collocation_status(
+                primary_ds, secondary_ds, timer, file_pairs, i
+            )
+
+            primary, secondary = file_pair
+
             # To avoid multiple reading of the same file, we cache their
             # content.
-            self._debug("Load next primary from:")
-            if last_primary is None or last_primary != primary:
-                self._debug("  %s" % primary)
-                primary_cache, primary_data = self._read_input_file(
-                    primary_ds, primary, primary_fields
-                )
-                last_primary = primary
-            else:
-                self._debug("  Cache")
+            try:
+                self._debug("Load next primary from:")
+                if last_primary is None or last_primary != primary:
+                    self._debug("  %s" % primary)
+                    primary_cache, primary_data = self._read_input_file(
+                        primary_ds, primary, primary_fields
+                    )
+                    last_primary = primary
+                else:
+                    self._debug("  Cache")
 
-            self._debug("Load next secondary from:")
-            if last_secondary is None or last_secondary != secondary:
-                self._debug("  %s" % secondary)
-                secondary_cache, secondary_data = self._read_input_file(
-                    secondary_ds, secondary, secondary_fields
-                )
-                last_secondary = secondary
-            else:
-                self._debug("  Cache")
+                self._debug("Load next secondary from:")
+                if last_secondary is None or last_secondary != secondary:
+                    self._debug("  %s" % secondary)
+                    secondary_cache, secondary_data = self._read_input_file(
+                        secondary_ds, secondary, secondary_fields
+                    )
+                    last_secondary = secondary
+                else:
+                    self._debug("  Cache")
+            except Exception as err:
+                self._debug(
+                    "The search in this time period failed due to an error!")
+                traceback.print_exc()
+                self._debug("-" * 79)
 
             # TODO: Filter out duplicates (overlapping between files from the
             # TODO: same dataset)
@@ -557,7 +573,7 @@ class CollocationsFinder:
 
             if not collocations.any():
                 self._debug("Found no collocations!")
-                self._debug("-"*79)
+
                 continue
 
             # Store the collocated data to the output dataset:
@@ -578,6 +594,23 @@ class CollocationsFinder:
                 time.time() - timer, total_primaries_points,
                 primary_ds.name, total_secondaries_points,
                 secondary_ds.name, self.end - self.start)
+        )
+
+    def _debug_collocation_status(
+            self, primary_ds, secondary_ds, timer, file_pairs, i):
+        if i == 0:
+            expected_time = "unknown"
+        else:
+            elapsed_time = time.time()-timer
+            expected_time = timedelta(
+                seconds=int(elapsed_time/i * len(file_pairs) - elapsed_time)
+            )
+
+        self._debug("-" * 79)
+        self._debug(
+            f"Collocating {primary_ds.name} to {secondary_ds.name}: "
+            f"{100*i/len(file_pairs):.2f}% processed "
+            f"({expected_time} hours remaining)"
         )
 
     def _read_input_file(self, dataset, file, fields):
@@ -645,7 +678,7 @@ class CollocationsFinder:
             original_files:
 
         Returns:
-            None
+            List with number of collocations
         """
         collocated_data = GeoData(name="CollocatedData")
         collocated_data.attrs["max_interval"] = \
@@ -728,7 +761,6 @@ class CollocationsFinder:
             number_of_collocations[1], datasets[1].name,
             filename
         ))
-        self._debug("-" * 79)
 
         # Write the data to the file.
         output.write(filename, collocated_data)

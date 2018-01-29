@@ -18,7 +18,7 @@ from multiprocessing import Pool
 import os.path
 import re
 import shutil
-import time
+import threading
 import warnings
 
 import numpy as np
@@ -175,7 +175,7 @@ class Dataset:
     def __init__(
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholder=None, processes=None,
+            placeholder=None, processes=None, read_args=None, write_args=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -396,6 +396,10 @@ class Dataset:
             self.processes = 4
         else:
             self.processes = processes
+
+        # The default keyword arguments for read and write methods
+        self.read_args = {} if read_args is None else read_args
+        self.write_args = {} if write_args is None else write_args
 
         self.compress = compress
         self.decompress = decompress
@@ -2009,7 +2013,7 @@ class Dataset:
         return self._time_coverage
 
     @expects_file_info
-    def write(self, file_info, data, **writing_arguments):
+    def write(self, file_info, data, in_background=False, **write_args):
         """Writes content to a file by using the Dataset's file handler.
 
         If the filename extension is a compression format (such as *zip*,
@@ -2024,12 +2028,22 @@ class Dataset:
             file_info: A string, path-alike object or a :class:`FileInfo`
                 object.
             data: An object that can be stored by the used file handler class.
-            **writing_arguments: Additional key word arguments for the
-            *write* method of the used file handler class.
+            in_background: If true, this runs the writing process in a
+                background thread so it does not pause the main process.
+            **write_args: Additional key word arguments for the *write* method
+                of the used file handler object.
 
         Returns:
             None
         """
+        if in_background:
+            # Run this function again but in a background thread:
+            threading.Thread(
+                target=Dataset.write, args=(self, file_info, data),
+                kwargs=write_args.update(in_background=False),
+            ).start()
+            return
+
         if self.handler is None:
             raise NoHandlerError(
                 "Could not write data to the file '{}'! No file handler is "
@@ -2043,10 +2057,52 @@ class Dataset:
             with typhon.files.compress(file_info.path) as compressed_path:
                 compressed_file = file_info.copy()
                 compressed_file.path = compressed_path
-                return self.handler.write(
-                    compressed_file, data, **writing_arguments)
+                self.handler.write(compressed_file, data, **write_args)
         else:
-            return self.handler.write(file_info, data, **writing_arguments)
+            self.handler.write(file_info, data, **write_args)
+
+
+class JointData:
+    """Join and align data from different sources
+
+    Still under development.
+
+    """
+
+    def __init__(self, *data_field_pairs, dtype=None,):
+        """Initialise a DataExtractor object
+
+        Args:
+            *data_field_pairs: A tuple of a data source and its fields that
+                should be extracted. A data source can either be a
+                dict-like array set (e.g. xarray.Dataset) or a typhon Dataset
+                object which read-method returns such an array set.
+        """
+
+        self.datasets = []
+        self.arrays = []
+
+        for pair in data_field_pairs:
+            if isinstance(pair, tuple):
+                self.add(*pair)
+            else:
+                self.add(pair, None, None)
+
+    def add_source(self, data_source, fields=None, suffix=None):
+        if isinstance(data_source, Dataset):
+            self.datasets.append([data_source, fields, suffix])
+        else:
+            self.arrays.append(
+                [self._select_fields(data_source, fields), suffix]
+            )
+
+    def get(self, start, end):
+        pass
+
+    @staticmethod
+    def _select_fields(array, fields=None):
+        return array[fields]
+
 
 
 class DatasetManager(dict):
@@ -2082,3 +2138,5 @@ class DatasetManager(dict):
 
         self[dataset.name] = dataset
         return self
+
+
