@@ -2095,3 +2095,14 @@ def which_hirs(satname):
                 return h(satname=satname)
     else:
         raise ValueError("Unknown HIRS satellite: {:s}".format(satname))
+
+def norm_tovs_name(satname):
+    """Given a TOVS satellite name, return normalised name
+
+    """
+
+    for h in {HIRS2, HIRS3, HIRS4}:
+        for (k, v) in h.satellites.items():
+            if satname in {k}|v:
+                return k
+    raise ValueError(f"Unknown TOVS satellite: {satname:s}")
