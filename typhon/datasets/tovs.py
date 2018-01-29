@@ -1837,6 +1837,8 @@ class TOVSCollocatedDataset:
             
             idx_all = numpy.arange(M.dims[self.colloc_dim])
             for varname in scnlin_names:
+                attrs = MM[varname].attrs
+                coding = MM[varname].encoding
                 MM[varname] = (
                     [self.colloc_dim if MM[varname].coords[d].dtype.kind=="M" else d
                      for d in MM[varname].dims if d != col_dim_name],
@@ -1845,6 +1847,8 @@ class TOVSCollocatedDataset:
                             else idx_all if MM[varname].coords[d].dtype.kind == "M"
                             else slice(None) for d in MM[varname].dims)
                          ])
+                MM[varname].attrs.update(attrs)
+                MM[varname].encoding.update(coding)
             # how parent class returned it, there are now several
             # equally-sized dimensions all related to time: time,
             # scanline_earth, calibration_cycle, etc.  Make sure they all
