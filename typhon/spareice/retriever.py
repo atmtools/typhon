@@ -8,25 +8,30 @@ __all__ = [
     'Retriever',
     ]
 
+
 class Retriever:
     """Still under development.
 
     """
-    def __init__(self, input_dataset, output_dataset, parameters_file):
+    def __init__(self, inputs, output, parameters_file):
         """
         
         Args:
-            input_dataset (typhon.datasets.Dataset): The dataset where it should retrieve from.
-            output_dataset (typhon.datasets.Dataset): The dataset where it should store the retrieved data.
-            parameters_file (str): The name of the file with the parameters that were used for training SPARE-ICE and 
-                now will be used for rerieving. Should be created with the typhon.spareice.Trainer.save_parameters() 
-                method first.
+            inputs: A list of data sources where the input fields should come
+                from. A data source can either be a dict-like array set or a
+                Dataset which read method returns such an array set.
+            output: The dataset where it should store the retrieved data.
+            parameters_file: The name of the file with the parameters
+                that were used for training SPARE-ICE and  now will be used for
+                retrieving. Should be created with the
+                :meth:`~typhon.spareice.Trainer.save_parameters` method first.
         """
 
-        self.input_dataset = input_dataset
-        self.output_dataset = output_dataset
+        self.inputs = inputs
+        self.output = output
 
-        ## Declare all other member variables which will be defined by self.load_parameters().
+        # Declare all other member variables which will be defined by
+        # self.load_parameters().
         self.hidden_layer_sizes = None
 
         self.inputs = None
@@ -37,7 +42,7 @@ class Retriever:
         self.classifier = None
         self.regressor = None
 
-        ## Load from parameters file
+        # Load from parameters file
         self.load_parameters(parameters_file)
 
     def load_parameters(self, filename):
@@ -86,20 +91,20 @@ class Retriever:
             except KeyError:
                 print("WARNING: The regressor NN has not been trained yet.")
 
-
-
-    def retrieve(self, start=(0, 0, 0), end=(9999, 12, 31)):
+    def retrieve(self, start=None, end=None):
         """
         
         Args:
-            start (tuple): Starting date from when to retrieve.
-            end (tuple): Ending date to when to retrieve.
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
 
         Returns:
             None
         """
 
-        for file, timestamp in self.input_dataset.find_files(all=True):
+        for file in self.inputs.find_files(start, end):
             data = self.input_dataset.read_file(file)
 
             # Generate the training tuples.
