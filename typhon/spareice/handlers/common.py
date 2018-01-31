@@ -12,7 +12,7 @@ __all__ = [
     'CSV',
     'FileHandler',
     'FileInfo',
-    'Plot',
+    'Plotter',
     'NetCDF4',
     'expects_file_info',
     # 'Numpy',
@@ -44,6 +44,7 @@ def expects_file_info(func):
         else:
             if not isinstance(kwargs["file_info"], FileInfo):
                 kwargs["file_info"] = FileInfo(kwargs["file_info"])
+
         return func(obj, *args, **kwargs)
 
     return new_func
@@ -148,8 +149,7 @@ class FileHandler:
 
     @expects_file_info
     def read(self, file_info, **kwargs):
-        """This method opens a file by its name, reads its content and returns
-        a object containing this content.
+        """Open a file by its name, read its content and return it
 
         Notes:
             This is the base class method that does nothing per default.
@@ -469,7 +469,7 @@ class NetCDF4(FileHandler):
             self.return_type = return_type
 
     @expects_file_info
-    def read(self, file_info, fields=None, mapping=None):
+    def read(self, file_info, fields=None, mapping=None, **kwargs):
         """Reads and parses NetCDF files and load them to an ArrayGroup.
 
         If you need another return value, change it via the parameter
@@ -490,11 +490,11 @@ class NetCDF4(FileHandler):
 
         # ArrayGroup supports reading from multiple files.
         if self.return_type == "ArrayGroup":
-            ds = ArrayGroup.from_netcdf(file_info.path, fields)
+            ds = ArrayGroup.from_netcdf(file_info.path, fields, **kwargs)
             if not ds:
                 return None
         elif self.return_type == "xarray":
-            ds = xr.open_dataset(file_info.path, mask_and_scale=False)
+            ds = xr.open_dataset(file_info.path, **kwargs)
             if not ds.variables:
                 return None
         else:
@@ -522,7 +522,7 @@ class NetCDF4(FileHandler):
             data.to_netcdf(file_info.path, **kwargs)
 
 
-class Plot(FileHandler):
+class Plotter(FileHandler):
     """File handler that can save matplotlib.figure objects to a file.
 
     This is a specialised file handler object that can just store
@@ -532,7 +532,7 @@ class Plot(FileHandler):
     """
 
     def __init__(self, fig_args=None, **kwargs):
-        """Initializes a Plot file handler class.
+        """Initializes a Plotter file handler class.
 
         Args:
             fig_args: A dictionary of additional keyword arguments for the

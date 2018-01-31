@@ -10,17 +10,14 @@ Created by John Mrziglod, June 2017
 from datetime import datetime, timedelta
 import logging
 import time
+from multiprocessing.pool import ThreadPool
 import traceback
-
-try:
-    import cartopy.crs as ccrs
-    import matplotlib.pyplot as plt
-except ImportError:
-    pass
+import warnings
 
 import numpy as np
 import pandas as pd
 import scipy.stats
+from typhon.math import cantor_pairing
 from typhon.spareice.array import Array, ArrayGroup
 from typhon.spareice.datasets import Dataset
 from typhon.spareice.geographical import GeoData
@@ -148,7 +145,7 @@ class CollocatedDataset(Dataset):
                 built data bins of the variable before collapsing. The variable
                 must be one-dimensional.
             **mapping_args: Additional keyword arguments that are allowed
-                for :meth:`Dataset.map_content` method (except *output*).
+                for :meth:`Dataset.map` method (except *output*).
 
         Returns:
             None
@@ -193,14 +190,14 @@ class CollocatedDataset(Dataset):
             "collapser": collapser,
         }
 
-        self.map_content(
+        self.map(
             start, end, CollocatedDataset.collapse_data,
-            func_args, **mapping_args,
+            kwargs=func_args, on_content=True, **mapping_args,
         )
 
     @staticmethod
     def collapse_data(
-            collocated_data, reference, include_stats, collapser):
+            collocated_data, file_info, reference, include_stats, collapser):
         """TODO: Write documentation."""
 
         # Get the bin indices by the main dataset to which all other
@@ -241,27 +238,39 @@ class CollocatedDataset(Dataset):
 
             collocations = collocated_data[dataset][COLLOCATION_FIELD]
 
-            # We do not need the original and collocation indices any
-            # longer because they will soon become useless. Moreover,
-            # they could have a different dimension length than the
-            # other variables and lead to errors in the selecting process:
-            del collocated_data[dataset]["__original_indices"]
-            del collocated_data[dataset][COLLOCATION_FIELD]
-
             if (dataset == reference
                 or collocated_data[dataset].attrs.get("COLLAPSED_TO", None)
                     == reference):
+                # The collocation indices will become useless
+                del collocated_data[dataset][COLLOCATION_FIELD]
+
                 # This is the main dataset to which all other will be
                 # collapsed. Therefore, we do not need explicitly
                 # collapse here.
                 collapsed_data[dataset] = \
                     collocated_data[dataset][np.unique(collocations)]
             else:
+                # We do not need the original and collocation indices from the
+                # dataset that will be collapsed because they will soon become
+                # useless. Moreover, they could have a different dimension
+                # length than the other variables and lead to errors in the
+                # selecting process.
+
+                del collocated_data[dataset]["__original_indices"]
+                del collocated_data[dataset][COLLOCATION_FIELD]
+
                 bins = collocations.bin(reference_bins)
-                collapsed_data[dataset] = \
-                    collocated_data[dataset].collapse(
-                        bins, collapser=collapser,
-                    )
+
+                # We ignore some warnings rather than fixing them
+                # TODO: Maybe fix them?
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message="invalid value encountered in double_scalars")
+                    collapsed_data[dataset] = \
+                        collocated_data[dataset].collapse(
+                            bins, collapser=collapser,
+                        )
 
                 collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
 
@@ -270,19 +279,6 @@ class CollocatedDataset(Dataset):
 
         # Overwrite the content of the old file:
         return collapsed_data
-
-    @staticmethod
-    def _collapse_file(
-            collocated_dataset, filename, _,
-            reference, include_stats, **collapsing_args):
-
-        collocated_data = collocated_dataset.read(filename)
-        collapsed_data = CollocatedDataset.collapse_data(
-            collocated_data, reference, include_stats, **collapsing_args
-        )
-
-        # Overwrite the content of the old file:
-        collocated_dataset.write(filename, collapsed_data)
 
     @classmethod
     def from_dataset(cls, dataset):
@@ -313,7 +309,7 @@ class CollocationsFinder:
     }
 
     def __init__(self, start=None, end=None, max_interval=None,
-                 max_distance=None, algorithm=None, processes=None,
+                 max_distance=None, algorithm=None, threads=None,
                  verbose=False):
         """Initialise a CollocationsFinder object.
 
@@ -324,7 +320,8 @@ class CollocationsFinder:
             end: End date. Same format as *start*.
             max_interval: The maximum interval of time between two data points
                 in seconds. Default is 300 seconds. If this is None, the data
-                will be searched for spatial collocations only.
+                will be searched for spatial collocations only. This is not yet
+                fully implemented in :meth:`match_datasets` though.
             max_distance: The maximum distance between two data points in
                 kilometers to meet the collocation criteria. If this is None,
                 the data will be searched for spatial collocations only (not
@@ -335,11 +332,8 @@ class CollocationsFinder:
                 a string with the name of an algorithm. Default is the
                 *BallTree* algorithm. See below for a table of available
                 algorithms.
-            processes: The number of processes that should be used to boost the
-                collocation process. The optimal number of processes heavily
-                depends on your machine where you are working. I recommend to
-                start with 8 processes and to in/decrease this parameter
-                when lacking performance.
+            threads: The number of threads that should be used to boost the
+                collocation process. Default is 4.
             verbose: Prints debug messages if true.
 
         How the collocations are going to be found is specified by the used
@@ -398,7 +392,7 @@ class CollocationsFinder:
             else:
                 self.algorithm = algorithm
 
-        self.processes = processes
+        self.threads = 6 if threads is None else threads
         self.verbose = verbose
 
     def _debug(self, msg):
@@ -409,13 +403,13 @@ class CollocationsFinder:
         """Finds all collocations between two datasets and store them in files.
 
         This takes all files from the datasets between two dates and find
-        collocations of their data points. Where and how the collocated data is
-        stored is controlled by the *files* and *handler* parameter.
+        collocations of their data points. Afterwards they will be stored in
+        *output*.
 
         If you want to collocate multiple datasets (more than two), you can
-        give as primary or secondary dataset also a CollocatedDataset. Please
-        note, that the data in the CollocatedDataset have to be collapsed
-        before (via the :meth:`collapse` method).
+        pass a CollocatedDataset in *datasets*. Please note, that the data in
+        the CollocatedDataset have to be collapsed before (via the
+        :meth:`collapse` method).
 
         Each collocation output file provides these standard fields:
 
@@ -763,7 +757,7 @@ class CollocationsFinder:
         ))
 
         # Write the data to the file.
-        output.write(filename, collocated_data)
+        output.write(filename, collocated_data, in_background=True)
 
         return number_of_collocations
 
@@ -772,7 +766,10 @@ class CollocationsFinder:
 
         A data array must be dictionary-like providing the fields *time*,
         *lat*, *lon*. Its values must be 1-dimensional numpy.array-like
-        objects and share the same length. See below for examples.
+        objects and share the same length. The field *time* must have the data
+        type *numpy.datetime64*, *lat* must be latitudes between *-90* (south)
+        and *90* (north) and *lon* must be longitudes between *-180* (west)
+        and *180* (east) degrees. See below for examples.
 
         Args:
             data1: A data array that fulfills the specifications from above.
@@ -785,47 +782,134 @@ class CollocationsFinder:
         Examples:
             TODO
         """
-        # TODO: We could bin all data along the time coordinates into periods
-        # TODO: that have the duration of max_interval. Then we only find for
-        # TODO: collocations that are in neighbour bins (we could parallelise
-        # TODO: this).
 
-        # Firstly, we start by selecting only the time period where both data
+        # We start by selecting only the time period where both data
         # arrays have data and that lies in the time period requested by the
         # user.
-        time_indices = self._select_common_time_period(
+        common_time = self._select_common_time_period(
             data1["time"], data2["time"],
         )
 
-        if time_indices is None:
+        if common_time is None:
             # There was no common time window found
             return np.array([[], []])
 
-        # Get the offsets between the original data and the selected data.
-        offset1 = np.where(time_indices[0])[0][0]
-        offset2 = np.where(time_indices[1])[0][0]
+        start, end, *time_indices = common_time
 
         # Select the relevant data:
+        # TODO: We should convert the data arrays first to an ArrayGroup or
+        # TODO: xarray explicitly
         data1 = data1[time_indices[0]]
         data2 = data2[time_indices[1]]
 
-        # Secondly, find the collocations.
-        pairs = self.algorithm.find_collocations(
-            data1, data2, self.max_interval, self.max_distance,
-            processes=self.processes
+        # We need this frequency as pandas.Timestamp because we use
+        # pandas.period_range later.
+        bin_size = pd.Timedelta(
+            (pd.Timestamp(end) - pd.Timestamp(start)) / (4 * self.threads - 1)
         )
+
+        # Now let's split the two data arrays along their time coordinate so we
+        # avoid searching for spatial collocations that do not fulfill the
+        # temporal condition in the first place. However, the overhead of the
+        # finding algorithm must be considered too (for example the BallTree
+        # creation time). We choose therefore a bin size of roughly 10'000
+        # elements and minimum bin duration of max_interval.
+        # The collocations that we will miss at the bin edges are going to be
+        # found later.
+        # TODO: Unfortunately, a first attempt parallelizing this using threads
+        # TODO: worsened the performance.
+        pairs_without_overlaps = np.hstack([
+            self._collocate_period(data1, data2, period)
+            for period in pd.period_range(start, end, freq=bin_size)
+        ])
+
+        # Now, imagine our situation like this:
+        #
+        # [ PRIMARY BIN 1       ][ PRIMARY BIN 2        ]
+        # ---------------------TIME--------------------->
+        #   ... [ -max_interval ][ +max_interval ] ...
+        # ---------------------TIME--------------------->
+        # [ SECONDARY BIN 1     ][ SECONDARY BIN 2      ]
+        #
+        # We have already found the collocations between PRIMARY BIN 1 &
+        # SECONDARY BIN 1 and PRIMARY BIN 2 & SECONDARY BIN 2. However, the
+        # [-max_interval] part of PRIMARY BIN 2 might be collocated with the
+        # [+max_interval] part of SECONDARY BIN 1 (the same applies to
+        # [+max_interval] of the PRIMARY BIN 1 and [-max_interval] of the
+        # SECONDARY BIN 2). Let's find them here:
+        pairs_of_overlaps = np.hstack([
+            self._collocate_period(
+                data1, data2,
+                pd.Period(date - self.max_interval, self.max_interval)
+                if prev1_with_next2 else pd.Period(date, self.max_interval),
+                pd.Period(date, self.max_interval) if prev1_with_next2
+                else pd.Period(date - self.max_interval, self.max_interval),
+            )
+            for date in pd.date_range(start, end, freq=bin_size)[1:-1]
+            for prev1_with_next2 in [True, False]
+        ])
+
+        # Put all collocations together then. Note that they are not sorted:
+        pairs = np.hstack([pairs_without_overlaps, pairs_of_overlaps])
 
         # No collocations were found.
         if not pairs.any():
             return pairs
 
         # We selected a common time window and cut off a part in the beginning,
-        # do you remember? Now we correct the indices so that they point again
+        # do you remember? Now we shift the indices so that they point again
         # to the real original data.
-        pairs[0] += offset1
-        pairs[1] += offset2
+        pairs[0] += np.where(time_indices[0])[0][0]
+        pairs[1] += np.where(time_indices[1])[0][0]
 
         return pairs
+
+    def _collocate_period(self, data1, data2, period1, period2=None):
+        if period2 is None:
+            period2 = period1
+
+        # Select the period
+        indices1 = np.where(
+            (period1.start_time < data1["time"])
+            & (data1["time"] < period1.end_time)
+        )[0]
+        if not indices1.any():
+            return np.array([[], []])
+
+        indices2 = np.where(
+            (period2.start_time < data2["time"])
+            & (data2["time"] < period2.end_time)
+        )[0]
+        if not indices2.any():
+            return np.array([[], []])
+
+        pair_indices = self.algorithm.find_collocations(
+            data1[indices1], data2[indices2],
+            self.max_interval, self.max_distance
+        )
+
+        if not pair_indices.any():
+            return np.array([[], []])
+
+        # We selected a time period, hence we must correct the found indices
+        # to let them point to the original data1 and data2
+        pair_indices[0] = indices1[pair_indices[0]]
+        pair_indices[1] = indices2[pair_indices[1]]
+
+        # Get also the indices where we searched in overlapping periods
+        # overlapping_with_before = \
+        #     np.where(
+        #         (period.start_time - self.max_interval < data1["time"])
+        #         & (data1["time"] < period.start_time)
+        #     )
+        # overlapping_with_after = \
+        #     np.where(
+        #         (period.end_time - self.max_interval < data1["time"])
+        #         & (data1["time"] < period.end_time)
+        #     )
+
+        # Return also unique collocation ids to detect duplicates later
+        return pair_indices
 
     def _select_common_time_period(self, times1, times2,):
         """Selects only the time window where both time series have data
@@ -853,4 +937,39 @@ class CollocationsFinder:
         if not indices2.any():
             return None
 
-        return indices1, indices2
+        return common_start.item(0), common_end.item(0), indices1, indices2
+
+    # Parallelizing match_arrays does not work properly since threading and the
+    # GIL introduces a significant overhead. Maybe one should give
+    # multiprocessing a try but this would require pickling many (possibly
+    # huge) data arrays.
+    # def _parallelizing():
+    #     # We need to decide whether we should parallelize everything by using
+    #     # threads or not.
+    #     if (time_indices[0].size > 10000 and time_indices[1].size > 10000) or
+    #             self.algorithm.loves_threading:
+    #         # Oh yes, let's parallelize it and create a pool of threads! Why
+    #         # threads instead of processes? We do not want to pickle the arrays
+    #         # (because they could be huge) and we trust our finding algorithm
+    #         # when it says it loves threading.
+    #         pool = ThreadPool(self.threads, )
+    #
+    #         # Get all overlaps (time periods where two threads search for
+    #         # collocations):
+    #         # overlap_indicess = [
+    #         #     [[period.start_time-self.max_interval, period.start_time],
+    #         #      [period.end_time + self.max_interval, period.end_time]]
+    #         #     for i, period in enumerate(periods)
+    #         #     if i > 0
+    #         # ]
+    #
+    #         overlapping_pairs = \
+    #             pool.map(self._collocate_thread_period, periods)
+    #
+    #         # The search periods had overlaps. Hence the collocations contain
+    #         # duplicates.
+    #         pairs = np.hstack([
+    #             pairs_of_thread[0]
+    #             for i, pairs_of_thread in enumerate(overlapping_pairs)
+    #             if pairs_of_thread is not None
+    #         ])

@@ -6,6 +6,7 @@ import numpy as np
 import functools
 
 __all__ = [
+    'cantor_pairing',
     'integrate_column',
     'interpolate_halflevels',
     'sum_digits',
@@ -14,6 +15,28 @@ __all__ = [
     'calculate_precisely',
     'squeezable_logspace',
 ]
+
+
+def cantor_pairing(a, b, ):
+    """Create an unique number from two natural numbers
+
+    For more information about the Cantor pairing function, have a look at:
+    https://en.wikipedia.org/wiki/Pairing_function
+
+    This create an unique number from two natural numbers according to
+    .. math::
+        \pi (a,b):={\frac{1}{2}}(a+b)(a+b+1)+b.
+
+    Args:
+        a: A numpy.array with natural numbers, i.e. unsigned integer.
+        b: A numpy.array with natural numbers, i.e. unsigned integer.
+
+    Returns:
+        A numpy.array with the unique values.
+    """
+
+    a_b_sum = a + b
+    return (0.5 * a_b_sum * (a_b_sum+1) + b).astype("int")
 
 
 def integrate_column(y, x=None, axis=0):

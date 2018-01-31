@@ -9,6 +9,7 @@ from sklearn.neighbors import BallTree as SklearnBallTree
 import typhon.constants
 from typhon.geodesy import geocentric2cart
 from typhon.spareice.array import Array
+from typhon.utils.time import to_timedelta
 
 __all__ = [
         "Finder",
@@ -18,6 +19,11 @@ __all__ = [
 
 
 class Finder(metaclass=abc.ABCMeta):
+    # Multiple threads in Python only speed things up when the code releases
+    # the GIL. This flag can be used to indicate that this finder algorithm
+    # should be used in multiple threads because it can handle such GIL issues.
+    loves_threading = True
+
     @abc.abstractmethod
     def find_collocations(
             self, primary_data, secondary_data, max_interval, max_distance,
@@ -32,8 +38,7 @@ class Finder(metaclass=abc.ABCMeta):
                 xarray.Dataset object. Needs to meet the same conditions as
                 primary_data ("lat", "lon" and "time" fields).
             max_interval: The maximum interval of time between two data points
-                in seconds. As well you can give here a datetime.timedelta
-                object. If this is None, the data will be searched for
+                in seconds. If this is None, the data will be searched for
                 spatial collocations only.
             max_distance: The maximum distance between two data points in
                 kilometers to meet the collocation criteria.
@@ -57,19 +62,17 @@ class Finder(metaclass=abc.ABCMeta):
 
 
 class BallTree(Finder):
-    def __init__(self, primary_leafsize=None, secondary_leafsize=None):
+    def __init__(self, leaf_size=None):
         super(BallTree, self).__init__()
-        
-        if primary_leafsize is None:
-            self.primary_leafsize = 15
-        else:
-            self.primary_leafsize = primary_leafsize
-        self.secondary_leafsize = secondary_leafsize
+
+        self.leaf_size = 20 if leaf_size is None else leaf_size
 
     def find_collocations(
         self, primary_data, secondary_data, max_interval, max_distance,
         **kwargs
     ):
+
+        max_interval = to_timedelta(max_interval)
 
         if max_distance is None:
             # Search for temporal collocations only
@@ -117,7 +120,7 @@ class BallTree(Finder):
             max_radius = max_distance*1000
 
         tree = SklearnBallTree(
-            secondary_points, leaf_size=self.primary_leafsize)
+            secondary_points, leaf_size=self.leaf_size)
 
         # Search for all collocations. This returns a list of lists. The index
         # of each element is the index of the primary data and each element
