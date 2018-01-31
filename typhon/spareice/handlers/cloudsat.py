@@ -27,12 +27,6 @@ __all__ = [
 class CloudSat(FileHandler):
     """File handler for CloudSat data in HDF4 files.
     """
-    standard_fields = ["time", "lat", "lon",]
-
-    mapping = {
-        "lat": "Latitude",
-        "lon": "Longitude"
-    }
 
     def __init__(self, **kwargs):
         if not pyhdf_is_installed:
@@ -65,15 +59,19 @@ class CloudSat(FileHandler):
         return file_info
 
     @expects_file_info
-    def read(self, file_info, fields=None):
+    def read(self, file_info, extra_fields=None, mapping=None):
         """Read and parse HDF4 files and load them to an ArrayGroup.
 
-        See the parent class for further documentation.
+        Args:
+            file_info: Path and name of the file as string or FileInfo object.
+            extra_fields: Additional field names that you want to extract from
+                this file as a list.
+            mapping: A dictionary that maps old field names to new field names.
+                If given, *extra_fields* must contain the old field names.
+
+        Returns:
+            An ArrayGroup object.
         """
-        if fields is None:
-            fields = self.standard_fields
-        else:
-            fields = list(set(list(fields) + self.standard_fields))
 
         dataset = GeoData(name="CloudSat")
 
@@ -89,83 +87,73 @@ class CloudSat(FileHandler):
         try:
             vs = file.vstart()
 
-            for field, dimensions in self.parse_fields(fields):
-                # The time variable has to be handled as something special:
-                if field == "time":
-                    # This gives us the starting time of the first profile in
-                    # seconds since midnight in UTC:
-                    first_profile_time_id = vs.attach(vs.find('UTC_start'))
-                    first_profile_time_id.setfields('UTC_start')
-                    nrecs, _, _, _, _ = first_profile_time_id.inquire()
-                    first_profile_time = \
-                        first_profile_time_id.read(nRec=nrecs)[0][0]
-                    first_profile_time_id.detach()
+            # Extract the standard fields:
+            dataset["time"] = self._get_time_field(vs, file_info)
+            dataset["lat"] = self._get_field(vs, "Latitude")
+            dataset["lon"] = self._get_field(vs, "Longitude")
+            dataset["scnline"] = Array(
+                np.arange(dataset["time"].size), dims=["time_id"]
+            )
+            dataset["scnpos"] = Array(
+                [1 for _ in range(dataset["time"].size)], dims=["time_id"]
+            )
 
-                    # This gives us the starting time of all other profiles in
-                    # seconds since the start of the first profile.
-                    profile_times_id = vs.attach(vs.find('Profile_time'))
-                    profile_times_id.setfields('Profile_time')
-                    nrecs, _, _, _, _ = profile_times_id.inquire()
-                    profile_times = \
-                        np.array(profile_times_id.read(nRec=nrecs)).ravel()
-                    profile_times_id.detach()
+            # Get the extra fields:
+            if extra_fields is not None:
+                for field, dimensions in self.parse_fields(extra_fields):
+                    data = self._get_field(vs, field)
 
-                    # Convert the seconds to milliseconds
-                    profile_times *= 1000
-                    profile_times = profile_times.astype("int")
-
-                    try:
-                        date = file_info.times[0].date()
-                    except AttributeError:
-                        warnings.warn("No starting date in file_info set. Use "
-                                      "1970-01-01 as starting point.")
-                        date = datetime(1970, 1, 1)
-
-                    # Put all times together so we obtain one full timestamp
-                    # (date + time) for each data point. We are using the
-                    # starting date coming from parsing the filename.
-                    profile_times = \
-                        np.datetime64(date) \
-                        + np.timedelta64(round(first_profile_time), "s") \
-                        + profile_times.astype("timedelta64[ms]")
-
-                    data = Array(profile_times, dims=["time_id"])
-                else:
-                    # All other data (including latitudes, etc.)
-
-                    if field in self.mapping:
-                        field_id = vs.find(self.mapping[field])
-                    else:
-                        field_id = vs.find(field)
-
-                    if field_id == 0:
-                        # Field was not found.
-                        warnings.warn(
-                            "Field '{0}' was not found!".format(field),
-                            RuntimeWarning)
-                        continue
-
-                    field_id = vs.attach(field_id)
-                    #field_id.setfields(field)
-
-                    nrecs, _, _, _, _ = field_id.inquire()
-                    raw_data = field_id.read(nRec=nrecs)
-                    data = Array(raw_data, dims=["time_id"]).ravel()
-                    field_id.detach()
-
-                # Add the field data to the dataset.
-                dataset[field] = self.select(data, dimensions)
-
+                    # Add the field data to the dataset.
+                    dataset[field] = self.select(data, dimensions)
         except Exception as e:
             raise e
         finally:
             file.close()
 
-        dataset["scnline"] = Array(
-            np.arange(dataset["time"].size), dims=["time_id"]
-        )
-        dataset["scnpos"] = Array(
-            [1 for _ in range(dataset["time"].size)], dims=["time_id"]
-        )
-
         return dataset
+
+    def _get_field(self, vs, field):
+        field_id = vs.find(field)
+
+        if field_id == 0:
+            # Field was not found.
+            warnings.warn(
+                "Field '{0}' was not found!".format(field),
+                RuntimeWarning)
+
+        field_id = vs.attach(field_id)
+        nrecs, _, _, _, _ = field_id.inquire()
+        raw_data = field_id.read(nRec=nrecs)
+        data = Array(raw_data, dims=["time_id"]).ravel()
+        field_id.detach()
+        return data
+
+    def _get_time_field(self, vs, file_info):
+        # This gives us the starting time of the first profile in
+        # seconds since midnight in UTC:
+        first_profile_time = self._get_field(vs, 'UTC_start')[0][0]
+
+        # This gives us the starting time of all other profiles in
+        # seconds since the start of the first profile.
+        profile_times = self._get_field(vs, 'Profile_time').ravel()
+
+        # Convert the seconds to milliseconds
+        profile_times *= 1000
+        profile_times = profile_times.astype("int")
+
+        try:
+            date = file_info.times[0].date()
+        except AttributeError:
+            warnings.warn("No starting date in file_info set. Use "
+                          "1970-01-01 as starting point.")
+            date = datetime(1970, 1, 1)
+
+        # Put all times together so we obtain one full timestamp
+        # (date + time) for each data point. We are using the
+        # starting date coming from parsing the filename.
+        profile_times = \
+            np.datetime64(date) \
+            + np.timedelta64(round(first_profile_time), "s") \
+            + profile_times.astype("timedelta64[ms]")
+
+        return Array(profile_times, dims=["time_id"])

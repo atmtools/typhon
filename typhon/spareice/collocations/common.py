@@ -392,14 +392,14 @@ class CollocationsFinder:
             else:
                 self.algorithm = algorithm
 
-        self.threads = 6 if threads is None else threads
+        self.threads = 2 if threads is None else threads
         self.verbose = verbose
 
     def _debug(self, msg):
         if self.verbose:
             print(msg)
 
-    def match_datasets(self, datasets, output, fields=None,):
+    def match_datasets(self, datasets, output,):
         """Finds all collocations between two datasets and store them in files.
 
         This takes all files from the datasets between two dates and find
@@ -430,14 +430,6 @@ class CollocationsFinder:
                 then collocates the result with next the dataset, etc.
             output: Either a path as string containing placeholders or a
                 Dataset-like object.
-            fields: The fields that should be extracted from the datasets and
-                copied to the new collocation files. This should be a list
-                of lists, one for each dataset in *datasets*. The list should
-                containing the field names. Please note if one dataset is a
-                CollocatedDataset object, its field selection will be ignored.
-                If you want to learn more about how to extract specific
-                dimension from those fields, please read the documentation of
-                the typhon.handlers classes.
 
         Returns:
             A :class:`CollocatedDataset` object holding the collocated data.
@@ -468,10 +460,7 @@ class CollocationsFinder:
 
             if index == 1:
                 # The first two datasets will be collocated...
-                self._match_two_datasets(
-                    datasets[0], datasets[1],
-                    output, fields[0], fields[1],
-                )
+                self._match_two_datasets(datasets[0], datasets[1], output)
             else:
                 # Before we can collocate the next dataset, we need to collapse
                 # the collocations from the last ones...
@@ -481,20 +470,15 @@ class CollocationsFinder:
                     #include_stats="2C-ICE/IO_RO_ice_water_path",
                 )
 
-                self._match_two_datasets(
-                    output, dataset, output, fields[index], fields[index+1]
-                )
+                self._match_two_datasets(output, dataset, output)
 
-    def _match_two_datasets(
-            self, primary_ds, secondary_ds, output_ds,
-            primary_fields, secondary_fields):
+    def _match_two_datasets(self, primary_ds, secondary_ds, output_ds,):
         """
 
         Args:
             primary_ds:
             secondary_ds:
             output_ds:
-            fields:
 
         Returns:
             None
@@ -509,55 +493,53 @@ class CollocationsFinder:
 
         self._debug("Retrieve time coverages from files...")
 
-        # Go through all primary files and find the secondaries to them:
-        overlaps = primary_ds.overlaps_with(secondary_ds, self.start, self.end)
-
-        # We can flush this into one list because Dataset did this already by
-        # itself
-        file_pairs = [
-            (primary, secondary)
-            for primary, secondaries in overlaps
-            for secondary in secondaries
-        ]
-
         total_primaries_points, total_secondaries_points = 0, 0
-        last_primary, last_primary_end_time = None, None
-        last_secondary, last_secondary_end_time = None, None
+        primary, secondary = None, None
 
-        for i, file_pair in enumerate(file_pairs):
+        # We have searched for collocations up to this timestamp
+        last_search_end = self.start
+
+        # All primary and secondary files in this period:
+        primaries = primary_ds.icollect(
+            self.start, self.end
+        )
+        secondaries = primary_ds.icollect(
+            self.start, self.end
+        )
+        while True:
             self._debug_collocation_status(
                 primary_ds, secondary_ds, timer, file_pairs, i
             )
-
-            primary, secondary = file_pair
 
             # To avoid multiple reading of the same file, we cache their
             # content.
             try:
                 self._debug("Load next primary from:")
-                if last_primary is None or last_primary != primary:
+                if primary is None \
+                        or primary_data["time"][-1] <= last_search_end:
                     self._debug("  %s" % primary)
-                    primary_cache, primary_data = self._read_input_file(
-                        primary_ds, primary, primary_fields
-                    )
-                    last_primary = primary
+                    primary, primary_cache, primary_data = \
+                        self._get_next_file(primary_ds, primaries,)
                 else:
                     self._debug("  Cache")
 
                 self._debug("Load next secondary from:")
-                if last_secondary is None or last_secondary != secondary:
+                if secondary is None \
+                        or secondary_data["time"][-1] <= last_search_end:
                     self._debug("  %s" % secondary)
-                    secondary_cache, secondary_data = self._read_input_file(
-                        secondary_ds, secondary, secondary_fields
-                    )
-                    last_secondary = secondary
+                    secondary, secondary_cache, secondary_data = \
+                        self._get_next_file(secondary_ds, secondaries,)
                 else:
                     self._debug("  Cache")
+            except StopIteration:
+                # No new files
+                break
             except Exception as err:
                 self._debug(
                     "The search in this time period failed due to an error!")
                 traceback.print_exc()
                 self._debug("-" * 79)
+                break
 
             # TODO: Filter out duplicates (overlapping between files from the
             # TODO: same dataset)
@@ -607,29 +589,31 @@ class CollocationsFinder:
             f"({expected_time} hours remaining)"
         )
 
-    def _read_input_file(self, dataset, file, fields):
+    def _get_next_file(self, dataset, files,):
         """Read a file from a dataset and extract fields
 
         Args:
             dataset:
             file:
-            fields:
 
         Returns:
             Two ArrayGroups: The first contains all fields extracted from the
             file, the second contains only the time, lat and lon information.
         """
 
-        # All additional fields given by the user and the standard fields that
-        # we need for finding collocations.
-        fields = list(set(fields) | {"time", "lat", "lon"})
+        # Get the next file:
+        try:
+            file = next(files)
+        except StopIteration:
+            raise StopIteration
+
+        file_info, data = file
 
         if isinstance(dataset, CollocatedDataset):
             # The data comes from a collocated dataset, i.e. we pick its
             # internal primary dataset for finding collocations. After
             # collocating we use the original indices and copy also
             # its other datasets to the newly created files.
-            data = dataset.read(file).as_type(GeoData)
 
             # The whole collocation routine does not work with non
             # collapsed data.
@@ -654,10 +638,19 @@ class CollocationsFinder:
                     "set this via the primary_dataset attribute from "
                     "'{0}'.".format(dataset.name))
 
-            return data, data[dataset.primary_dataset][("time", "lat", "lon")]
+            data_for_collcating = data[dataset.primary_dataset]
         else:
-            data = dataset.read(file, fields=fields).as_type(GeoData)
-            return data, data[("time", "lat", "lon")]
+            data_for_collcating = data
+
+        return file_info, data, data_for_collcating[("time", "lat", "lon")]
+
+    @staticmethod
+    def _no_overlap(data1, data2):
+        # We assume that the arrays are ordered in time:
+        return (
+            data1["time"][-1] < data2["time"][0]
+            or data1["time"][0] > data2["time"][-1]
+        )
 
     def _store_collocations(
             self, output, datasets, data_list, collocations, original_files,):

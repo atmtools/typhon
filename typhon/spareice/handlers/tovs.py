@@ -17,21 +17,20 @@ class MHSAAPP(FileHandler):
     """
     # This file handler always wants to return at least time, lat and lon
     # fields. These fields are required for this:
-    standard_fields = [
+    standard_fields = {
         "Data/scnlintime",  # milliseconds since midnight
         "Data/scnlinyr",
         "Data/scnlindy",
         "Data/scnlin",
         "Geolocation/Latitude",
         "Geolocation/Longitude"
-    ]
+    }
 
     mapping = {
         "Geolocation/Latitude": "lat",
         "Geolocation/Longitude": "lon",
         "Data/scnlin": "scnline",
     }
-    inv_mapping = {v: k for k, v in mapping.items()}
 
     def __init__(self, mapping=None, apply_scaling=True, **kwargs):
         """
@@ -65,41 +64,34 @@ class MHSAAPP(FileHandler):
             return file_info
 
     @expects_file_info
-    def read(self, file_info, fields=None):
-        """Reads and parses NetCDF files and load them to a GeoData object.
+    def read(self, file_info, extra_fields=None, mapping=None):
+        """"Read and parse HDF4 files and load them to an ArrayGroup.
 
-        TODO: Extend documentation.
+        Args:
+            file_info: Path and name of the file as string or FileInfo object.
+            extra_fields: Additional field names that you want to extract from
+                this file as a list.
+            mapping: A dictionary that maps old field names to new field names.
+                If given, *extra_fields* must contain the old field names.
+
+        Returns:
+            An ArrayGroup object.
         """
 
-        if fields is None:
-            fields_to_extract = self.standard_fields
-        else:
-            mapped_fields = [
-                self.inv_mapping.get(field, field)
-                for field in fields
-            ]
-            fields_to_extract = mapped_fields + self.standard_fields
-            fields_to_extract = set(fields_to_extract)
-            for field in ["time", "scnpos"]:
-                try:
-                    fields_to_extract.remove(field)
-                except KeyError:
-                    pass
-            fields_to_extract = list(fields_to_extract)
+        if extra_fields is None:
+            extra_fields = []
 
-        dataset = GeoData.from_netcdf(file_info.path, fields_to_extract)
+        fields = self.standard_fields | set(extra_fields)
+
+        dataset = GeoData.from_netcdf(file_info.path, fields)
         dataset.name = "MHS"
 
         # We do the internal mapping first so we do not deal with difficult
         # names in the following loop.
         dataset.rename(self.mapping, inplace=True)
 
-        # Add standard field "time":
+        # Handle the standard fields:
         dataset["time"] = self._get_time_field(dataset)
-        dataset.drop(
-            ["Data/scnlinyr", "Data/scnlindy", "Data/scnlintime"],
-            inplace=True
-        )
 
         # Flat the latitude and longitude vectors:
         dataset["lon"] = dataset["lon"].flatten()
@@ -108,6 +100,14 @@ class MHSAAPP(FileHandler):
         # Repeat the scanline and create the scnpos:
         dataset["scnpos"] = np.tile(np.arange(1, 91), dataset["scnline"].size)
         dataset["scnline"] = np.repeat(dataset["scnline"], 90)
+
+        # Remove fields that we do not need any longer (expect the user asked
+        # for them explicitly)
+        dataset.drop(
+            {"Data/scnlinyr", "Data/scnlindy", "Data/scnlintime"}
+            - set(extra_fields),
+            inplace=True
+        )
 
         # Some fields need special treatment
         for var in dataset.vars(deep=True):
@@ -127,8 +127,9 @@ class MHSAAPP(FileHandler):
 
             dataset[var].dims = ["time_id"]
 
-        if self.user_mapping is not None:
-            dataset.rename(self.user_mapping)
+        if mapping is not None:
+            dataset.rename(mapping)
+
         return dataset
 
     @staticmethod
