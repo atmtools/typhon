@@ -543,7 +543,10 @@ class Dataset:
         This parallelizes the reading of the files by using threads. This
         should give a speed up if the file handler's read function internally
         uses CPython code that releases the GIL lock. Note that this method is
-        more memory consuming than :meth:`icollect`.
+        faster than :meth:`icollect` but also more memory consuming.
+
+        Use this if you need all files at once but if want to use a for-loop
+        consider using :meth:`icollect` instead.
 
         Args:
             start: Start date either as datetime object or as string
@@ -563,6 +566,21 @@ class Dataset:
 
         .. code-block:: python
 
+            data_list = dataset.collect("2018-01-01", "2018-01-02")
+            file_infos, contents = zip(*data_list)
+            # If contents are numpy arrays
+            data = np.hstack(contents)
+
+            ## If you only want to concatenate the data, use this magic method:
+            data = np.hstack(dataset["2018-01-01":"2018-01-02"])
+
+            ## If you want to iterate through the files in a for loop, e.g.:
+            for file, content in dataset.collect("2018-01-01", "2018-01-02"):
+                # do something with file and content...
+
+            # You should rather use icollect, which uses less memory:
+            for file, content in dataset.icollect("2018-01-01", "2018-01-02"):
+                # do something with file and content...
 
         """
         if read_args is None:
@@ -594,6 +612,9 @@ class Dataset:
                  **find_files_args):
         """Load all files between two dates sorted by their starting time
 
+        Use this in for-loops but if you need all files at once, use
+        :meth:`collect` instead.
+
         Does the same as :meth:`collect` but works as a generator and is
         therefore less memory space consuming but also slower.
 
@@ -617,7 +638,15 @@ class Dataset:
 
         .. code-block:: python
 
+            ## Perfect for iterating over many files.
+            for file, content in dataset.icollect("2018-01-01", "2018-01-02"):
+                # do something with file and content...
 
+            ## If you want to have all files at once, do not use this:
+            files = list(dataset.icollect("2018-01-01", "2018-01-02"))
+
+            # This version is better:
+            files = dataset.collect("2018-01-01", "2018-01-02")
         """
 
         if read_args is None:
@@ -1474,6 +1503,10 @@ class Dataset:
         procedure significantly. Depending on which system you work, you should
         try different numbers for *max_workers*.
 
+        Use this if you need to process the files as fast as possible without
+        needing to retrieve the results immediately. Otherwise you should
+        consider using :meth:`imap` in a for-loop.
+
         Notes:
             This method sorts the results after the starting time of the files
             unless *sort* is False.
@@ -1508,9 +1541,9 @@ class Dataset:
             max_workers: Max. number of parallel workers to use. When
                 lacking performance, you should change this number.
             worker_type: The type of the workers that will be used to
-                parallelise *func*. Can be *process* or *thread*. If *func* is
+                parallelize *func*. Can be *process* or *thread*. If *func* is
                 a function that needs to share a lot of data with its
-                parallelised copies, you should set this to *thread*. Note that
+                parallelized copies, you should set this to *thread*. Note that
                 this may reduce the performance due to Python's Global
                 Interpreter Lock (`GIL <https://stackoverflow.com/q/1294382>`).
             worker_initializer: Must be a reference to a function that is
@@ -1529,8 +1562,43 @@ class Dataset:
             whether the return value was not None.
 
         Examples:
-            TODO
 
+        .. code-block:: python
+
+            ## Imaging you want to calculate some statistical values from the
+            ## data of the files
+            def calc_statistics(content, file_info):
+                # return the mean and maximum value
+                return content["data"].mean(), content["data"].max()
+
+            results = dataset.map("2018-01-01", "2018-01-02", calc_statistics)
+
+            # This will be run after processing all files...
+            for file, result in results
+                print(file) # prints the FileInfo object
+                print(result) # prints the mean and maximum value
+
+            ## If you need the results directly, you can use imap instead:
+            results = dataset.imap("2018-01-01", "2018-01-02", calc_statistics)
+
+            for file, result in results
+                # After the first file has been processed, this will be run
+                # immediately ...
+                print(file) # prints the FileInfo object
+                print(result) # prints the mean and maximum value
+
+        .. code-block:: python
+
+            ## If you need to pass some args to the function, use the
+            ## parameters args and kwargs
+            def calc_statistics(arg1, content, file_info, kwarg1=None):
+                # return the mean and maximum value
+                return content["data"].mean(), content["data"].max()
+
+            results = dataset.map(
+                "2018-01-01", "2018-01-02", calc_statistics,
+                args=("value1",), kwargs={"kwarg": "value2"}
+            )
         """
 
         pool, func_args_queue = self._configure_map_pool_and_worker_args(
