@@ -320,7 +320,8 @@ class CollocationsFinder:
             end: End date. Same format as *start*.
             max_interval: The maximum interval of time between two data points
                 in seconds. Default is 300 seconds. If this is None, the data
-                will be searched for spatial collocations only.
+                will be searched for spatial collocations only. This is not yet
+                fully implemented in :meth:`match_datasets` though.
             max_distance: The maximum distance between two data points in
                 kilometers to meet the collocation criteria. If this is None,
                 the data will be searched for spatial collocations only (not
@@ -402,13 +403,13 @@ class CollocationsFinder:
         """Finds all collocations between two datasets and store them in files.
 
         This takes all files from the datasets between two dates and find
-        collocations of their data points. Where and how the collocated data is
-        stored is controlled by the *files* and *handler* parameter.
+        collocations of their data points. Afterwards they will be stored in
+        *output*.
 
         If you want to collocate multiple datasets (more than two), you can
-        give as primary or secondary dataset also a CollocatedDataset. Please
-        note, that the data in the CollocatedDataset have to be collapsed
-        before (via the :meth:`collapse` method).
+        pass a CollocatedDataset in *datasets*. Please note, that the data in
+        the CollocatedDataset have to be collapsed before (via the
+        :meth:`collapse` method).
 
         Each collocation output file provides these standard fields:
 
@@ -801,51 +802,55 @@ class CollocationsFinder:
         data1 = data1[time_indices[0]]
         data2 = data2[time_indices[1]]
 
-        # We need to decide whether we should parallelize everything by using
-        # threads or not.
-        if (time_indices[0].size > 10000 and time_indices[1].size > 10000) or \
-                self.algorithm.loves_threading:
-            # Oh yes, let's parallelize it and create a pool of threads! Why
-            # threads instead of processes? We do not want to pickle the arrays
-            # (because they could be huge) and we trust our finding algorithm
-            # when it says it loves threading.
-            pool = ThreadPool(self.threads, )
+        # We need this frequency as pandas.Timestamp because we use
+        # pandas.period_range later.
+        bin_size = pd.Timedelta(
+            (pd.Timestamp(end) - pd.Timestamp(start)) / (4 * self.threads - 1)
+        )
 
-            # Now let's split all data along the time coordinate so that each
-            # thread gets its own bin that overlaps the bin of its neighbours
-            # (the overlaps are max_interval long).
-            frequency = pd.Timedelta(
-                (pd.Timestamp(end) - pd.Timestamp(start)) / (4*self.threads-1)
+        # Now let's split the two data arrays along their time coordinate so we
+        # avoid searching for spatial collocations that do not fulfill the
+        # temporal condition in the first place. However, the overhead of the
+        # finding algorithm must be considered too (for example the BallTree
+        # creation time). We choose therefore a bin size of roughly 10'000
+        # elements and minimum bin duration of max_interval.
+        # The collocations that we will miss at the bin edges are going to be
+        # found later.
+        # TODO: Unfortunately, a first attempt parallelizing this using threads
+        # TODO: worsened the performance.
+        pairs_without_overlaps = np.hstack([
+            self._collocate_period(data1, data2, period)
+            for period in pd.period_range(start, end, freq=bin_size)
+        ])
+
+        # Now, imagine our situation like this:
+        #
+        # [ PRIMARY BIN 1       ][ PRIMARY BIN 2        ]
+        # ---------------------TIME--------------------->
+        #   ... [ -max_interval ][ +max_interval ] ...
+        # ---------------------TIME--------------------->
+        # [ SECONDARY BIN 1     ][ SECONDARY BIN 2      ]
+        #
+        # We have already found the collocations between PRIMARY BIN 1 &
+        # SECONDARY BIN 1 and PRIMARY BIN 2 & SECONDARY BIN 2. However, the
+        # [-max_interval] part of PRIMARY BIN 2 might be collocated with the
+        # [+max_interval] part of SECONDARY BIN 1 (the same applies to
+        # [+max_interval] of the PRIMARY BIN 1 and [-max_interval] of the
+        # SECONDARY BIN 2). Let's find them here:
+        pairs_of_overlaps = np.hstack([
+            self._collocate_period(
+                data1, data2,
+                pd.Period(date - self.max_interval, self.max_interval)
+                if prev1_with_next2 else pd.Period(date, self.max_interval),
+                pd.Period(date, self.max_interval) if prev1_with_next2
+                else pd.Period(date - self.max_interval, self.max_interval),
             )
-            periods = (
-                (self, period, data1, data2)
-                for period in pd.period_range(start, end, freq=frequency)
-            )
+            for date in pd.date_range(start, end, freq=bin_size)[1:-1]
+            for prev1_with_next2 in [True, False]
+        ])
 
-            # Get all overlaps (time periods where two threads search for
-            # collocations):
-            # overlap_indicess = [
-            #     [[period.start_time-self.max_interval, period.start_time],
-            #      [period.end_time + self.max_interval, period.end_time]]
-            #     for i, period in enumerate(periods)
-            #     if i > 0
-            # ]
-
-            overlapping_pairs = \
-                pool.map(self._collocate_thread_period, periods)
-
-            # The search periods had overlaps. Hence the collocations contain
-            # duplicates.
-            pairs = np.hstack([
-                pairs_of_thread[0]
-                for i, pairs_of_thread in enumerate(overlapping_pairs)
-                if pairs_of_thread is not None
-            ])
-        else:
-            # We should not parallelize but process everything in once:
-            pairs = self.algorithm.find_collocations(
-                data1, data2, self.max_interval, self.max_distance,
-            )
+        # Put all collocations together then. Note that they are not sorted:
+        pairs = np.hstack([pairs_without_overlaps, pairs_of_overlaps])
 
         # No collocations were found.
         if not pairs.any():
@@ -859,27 +864,32 @@ class CollocationsFinder:
 
         return pairs
 
-    @staticmethod
-    def _collocate_thread_period(args):
-        finder, period, data1, data2 = args
+    def _collocate_period(self, data1, data2, period1, period2=None):
+        if period2 is None:
+            period2 = period1
 
-        # Select the period +/- max_interval
+        # Select the period
         indices1 = np.where(
-            (period.start_time - finder.max_interval < data1["time"])
-            & (data1["time"] < period.end_time + finder.max_interval)
+            (period1.start_time < data1["time"])
+            & (data1["time"] < period1.end_time)
         )[0]
-        indices2 = np.where(
-            (period.start_time - finder.max_interval < data2["time"])
-            & (data2["time"] < period.end_time + finder.max_interval)
-        )[0]
+        if not indices1.any():
+            return np.array([[], []])
 
-        pair_indices = finder.algorithm.find_collocations(
+        indices2 = np.where(
+            (period2.start_time < data2["time"])
+            & (data2["time"] < period2.end_time)
+        )[0]
+        if not indices2.any():
+            return np.array([[], []])
+
+        pair_indices = self.algorithm.find_collocations(
             data1[indices1], data2[indices2],
-            finder.max_interval, finder.max_distance
+            self.max_interval, self.max_distance
         )
 
         if not pair_indices.any():
-            return None
+            return np.array([[], []])
 
         # We selected a time period, hence we must correct the found indices
         # to let them point to the original data1 and data2
@@ -887,19 +897,19 @@ class CollocationsFinder:
         pair_indices[1] = indices2[pair_indices[1]]
 
         # Get also the indices where we searched in overlapping periods
-        overlapping_with_before = \
-            np.where(
-                (period.start_time - finder.max_interval < data1["time"])
-                & (data1["time"] < period.start_time)
-            )
-        overlapping_with_after = \
-            np.where(
-                (period.end_time - finder.max_interval < data1["time"])
-                & (data1["time"] < period.end_time)
-            )
+        # overlapping_with_before = \
+        #     np.where(
+        #         (period.start_time - self.max_interval < data1["time"])
+        #         & (data1["time"] < period.start_time)
+        #     )
+        # overlapping_with_after = \
+        #     np.where(
+        #         (period.end_time - self.max_interval < data1["time"])
+        #         & (data1["time"] < period.end_time)
+        #     )
 
         # Return also unique collocation ids to detect duplicates later
-        return pair_indices, overlapping_with_before, overlapping_with_after
+        return pair_indices
 
     def _select_common_time_period(self, times1, times2,):
         """Selects only the time window where both time series have data
@@ -928,3 +938,38 @@ class CollocationsFinder:
             return None
 
         return common_start.item(0), common_end.item(0), indices1, indices2
+
+    # Parallelizing match_arrays does not work properly since threading and the
+    # GIL introduces a significant overhead. Maybe one should give
+    # multiprocessing a try but this would require pickling many (possibly
+    # huge) data arrays.
+    # def _parallelizing():
+    #     # We need to decide whether we should parallelize everything by using
+    #     # threads or not.
+    #     if (time_indices[0].size > 10000 and time_indices[1].size > 10000) or
+    #             self.algorithm.loves_threading:
+    #         # Oh yes, let's parallelize it and create a pool of threads! Why
+    #         # threads instead of processes? We do not want to pickle the arrays
+    #         # (because they could be huge) and we trust our finding algorithm
+    #         # when it says it loves threading.
+    #         pool = ThreadPool(self.threads, )
+    #
+    #         # Get all overlaps (time periods where two threads search for
+    #         # collocations):
+    #         # overlap_indicess = [
+    #         #     [[period.start_time-self.max_interval, period.start_time],
+    #         #      [period.end_time + self.max_interval, period.end_time]]
+    #         #     for i, period in enumerate(periods)
+    #         #     if i > 0
+    #         # ]
+    #
+    #         overlapping_pairs = \
+    #             pool.map(self._collocate_thread_period, periods)
+    #
+    #         # The search periods had overlaps. Hence the collocations contain
+    #         # duplicates.
+    #         pairs = np.hstack([
+    #             pairs_of_thread[0]
+    #             for i, pairs_of_thread in enumerate(overlapping_pairs)
+    #             if pairs_of_thread is not None
+    #         ])

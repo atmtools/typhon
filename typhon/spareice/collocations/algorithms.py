@@ -62,14 +62,10 @@ class Finder(metaclass=abc.ABCMeta):
 
 
 class BallTree(Finder):
-    def __init__(self, primary_leafsize=None, secondary_leafsize=None):
+    def __init__(self, leaf_size=None):
         super(BallTree, self).__init__()
-        
-        if primary_leafsize is None:
-            self.primary_leafsize = 15
-        else:
-            self.primary_leafsize = primary_leafsize
-        self.secondary_leafsize = secondary_leafsize
+
+        self.leaf_size = 20 if leaf_size is None else leaf_size
 
     def find_collocations(
         self, primary_data, secondary_data, max_interval, max_distance,
@@ -124,7 +120,7 @@ class BallTree(Finder):
             max_radius = max_distance*1000
 
         tree = SklearnBallTree(
-            secondary_points, leaf_size=self.primary_leafsize)
+            secondary_points, leaf_size=self.leaf_size)
 
         # Search for all collocations. This returns a list of lists. The index
         # of each element is the index of the primary data and each element
