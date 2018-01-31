@@ -11,9 +11,11 @@ import xarray as xr
 
 from .common import FileHandler, expects_file_info
 
+pyhdf_is_installed = False
 try:
     from pyhdf import HDF, VS, V
     from pyhdf.SD import SD, SDC
+    pyhdf_is_installed = True
 except ImportError:
     pass
 
@@ -33,6 +35,10 @@ class CloudSat(FileHandler):
     }
 
     def __init__(self, **kwargs):
+        if not pyhdf_is_installed:
+            raise ImportError("Could not import pyhdf, which is necessary for "
+                              "reading CloudSat HDF files!")
+
         # Call the base class initializer
         super().__init__(**kwargs)
 
@@ -78,8 +84,9 @@ class CloudSat(FileHandler):
         # CloudSat dataset can be found in
         # http://www.cloudsat.cira.colostate.edu/data-products/level-2c/2c-ice?term=53.
 
+        file = HDF.HDF(file_info.path)
+
         try:
-            file = HDF.HDF(file_info.path)
             vs = file.vstart()
 
             for field, dimensions in self.parse_fields(fields):
