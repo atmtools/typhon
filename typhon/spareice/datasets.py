@@ -1571,7 +1571,10 @@ class Dataset:
                 # return the mean and maximum value
                 return content["data"].mean(), content["data"].max()
 
-            results = dataset.map("2018-01-01", "2018-01-02", calc_statistics)
+            results = dataset.map(
+                "2018-01-01", "2018-01-02", calc_statistics,
+                on_content=True,
+            )
 
             # This will be run after processing all files...
             for file, result in results
@@ -1579,7 +1582,9 @@ class Dataset:
                 print(result) # prints the mean and maximum value
 
             ## If you need the results directly, you can use imap instead:
-            results = dataset.imap("2018-01-01", "2018-01-02", calc_statistics)
+            results = dataset.imap(
+                "2018-01-01", "2018-01-02", calc_statistics, on_content=True,
+            )
 
             for file, result in results
                 # After the first file has been processed, this will be run
@@ -1597,7 +1602,8 @@ class Dataset:
 
             results = dataset.map(
                 "2018-01-01", "2018-01-02", calc_statistics,
-                args=("value1",), kwargs={"kwarg": "value2"}
+                args=("value1",), kwargs={"kwarg": "value2"},
+                on_content=True,
             )
         """
 

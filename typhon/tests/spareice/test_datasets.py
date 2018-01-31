@@ -265,26 +265,26 @@ class TestDataset:
 
         assert found_files == check
 
-        # Check map method
-        _, results = datasets["tutorial"].map(
-            "2018-01-01", "2018-01-03", func=TestDataset._tutorial_map
-        )
-        check = ('gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz')
+        for test_method in [Dataset.map, Dataset.imap]:
+            # Check map method
+            _, results = zip(*test_method(
+                datasets["tutorial"],
+                "2018-01-01", "2018-01-03", func=TestDataset._tutorial_map
+            ))
+            check = ('gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz')
+            assert results == check
 
-        assert results == check
-
-        # Check map method on content
-        _, results = datasets["tutorial"].map(
-            "2018-01-01", "2018-01-03", func=TestDataset._tutorial_map_content,
-            on_content=True,
-        )
-
-        check = (
-            0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
-            0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
-            0.25007269785924874, 0.25007269785924874)
-
-        assert np.allclose(results, check)
+            # Check map method on content
+            _, results = zip(*test_method(
+                datasets["tutorial"],
+                "2018-01-01", "2018-01-03",
+                func=TestDataset._tutorial_map_content,on_content=True,
+            ))
+            check = (
+                0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
+                0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
+                0.25007269785924874, 0.25007269785924874)
+            assert np.allclose(results, check)
 
     @staticmethod
     def _tutorial_map(file_info):
