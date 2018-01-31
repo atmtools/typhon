@@ -10,6 +10,7 @@ import atexit
 from collections import Iterable, OrderedDict
 import copy
 from datetime import datetime, timedelta
+import gc
 import glob
 from itertools import tee
 import json
@@ -54,11 +55,12 @@ class NoFilesError(Exception):
     method.
 
     """
-    def __init__(self, name, start, end, *args):
+    def __init__(self, dataset, start, end, *args):
         message = \
-            "Found no files for %s between %s and %s!\nMaybe you "\
+            "Found no files for %s between %s and %s!\nPath: %s\nMaybe you "\
             "misspelled the files path? Or maybe there are "\
-            "no files for this time period?" % (name, start, end)
+            "no files for this time period?" % (
+                dataset.name, start, end, dataset.path,)
         Exception.__init__(self, message, *args)
 
 
@@ -176,8 +178,8 @@ class Dataset:
     def __init__(
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
-            placeholder=None, max_workers=None, worker_type=None,
-            read_args=None, write_args=None,
+            placeholder=None, max_threads=None, max_processes=None,
+            worker_type=None, read_args=None, write_args=None,
             compress=True, decompress=True,
     ):
         """Initializes a dataset object.
@@ -237,13 +239,17 @@ class Dataset:
             placeholder: A dictionary with pairs of placeholder name matching
                 regular expression. These are user-defined placeholders, the
                 standard temporal placeholders do not have to be defined.
-            max_workers: Maximal number of workers that will be used for
-                parallelising some methods. This sets also the default for the
-                :meth:`~typhon.spareice.datasets.Dataset.map` method
+            max_threads: Maximal number of threads that will be used for
+                parallelising some methods. This sets also the default for
+                :meth:`~typhon.spareice.datasets.Dataset.map`-like methods
                 (default is 4).
+            max_processes: Maximal number of processes that will be used for
+                parallelising some methods. This sets also the default for
+                :meth:`~typhon.spareice.datasets.Dataset.map`-like methods
+                (default is 8).
             worker_type: The type of the workers that will be used to
-                parallelise some methods. Can be *thread* or *process*
-                (default).
+                parallelise some methods. Can be *process* (default) or
+                *thread*.
             compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
@@ -399,7 +405,8 @@ class Dataset:
         self.exclude = exclude
 
         # The default worker settings for map-like functions
-        self.max_workers = 4 if max_workers is None else max_workers
+        self.max_threads = 4 if max_threads is None else max_threads
+        self.max_processes = 4 if max_processes is None else max_processes
         self.worker_type = "process" if worker_type is None else worker_type
 
         # The default settings for read and write methods
@@ -491,8 +498,10 @@ class Dataset:
             filters = None
 
         if isinstance(time_args, slice):
-            return self.read_period(
-                time_args.start, time_args.stop, filters=filters)
+            files = self.collect(
+                time_args.start, time_args.stop, filters=filters
+            )
+            return [content for _, content in files]
         elif isinstance(time_args, (datetime, str)):
             filename = self.find_file(time_args, filters=filters)
             if filename is None:
@@ -528,49 +537,106 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
-    @staticmethod
-    def _copy_single_file(
-            file_info, dataset, destination, convert, delete_original):
-        """This is a small wrapper function for copying files. It is better to
-        use :meth:`Dataset.copy` directly.
+    def collect(self, start, end, read_args=None, **find_files_args):
+        """Load all files between two dates sorted by their starting time
+
+        This parallelizes the reading of the files by using threads. This
+        should give a speed up if the file handler's read function internally
+        uses CPython code that releases the GIL lock. Note that this method is
+        more memory consuming than :meth:`icollect`.
 
         Args:
-            dataset:
-            file_info: FileInfo object of the file that should be to copied.
-            destination:
-            convert:
-            delete_original:
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            read_args: Additional key word arguments for the
+                *read* method of the used file handler class.
+            **find_files_args: Additional keyword arguments that are allowed
+                for :meth:`find_files`.
 
-        Returns:
-            None
+        Yields:
+            A list of tuples with of the FileInfo object of a file and its
+            content. The list is sorted by the starting times of the files.
+
+        Examples:
+
+        .. code-block:: python
+
+
+        """
+        if read_args is None:
+            read_args = {}
+
+        # If we used map with processes, it would need to pickle the data
+        # coming from all workers. This would be very inefficient. Threads
+        # are better because sharing data does not cost much and a file
+        # reading function is typically io-bound. However, if the reading
+        # function consists mainly of pure python code that does not
+        # release the GIL, this will slow down the performance.
+        files = self.map(
+            start, end, func=Dataset.read, args=(self,), kwargs=read_args,
+            worker_type="thread", **find_files_args
+        )
+
+        # Tell the python interpreter explicitly to free up memory to improve
+        # performance (see https://stackoverflow.com/q/1316767/9144990):
+        gc.collect()
+
+        # We do not want to have any None as data
+        return [
+            (info, content)
+            for info, content in files
+            if content is not None
+        ]
+
+    def icollect(self, start, end, read_args=None, preload=True,
+                 **find_files_args):
+        """Load all files between two dates sorted by their starting time
+
+        Does the same as :meth:`collect` but works as a generator and is
+        therefore less memory space consuming but also slower.
+
+        Args:
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            read_args: Additional key word arguments for the
+                *read* method of the used file handler class.
+            preload: Per default this method loads the next file to yield in a
+                background thread. Set this to False, if you do not want this.
+            **find_files_args: Additional keyword arguments that are allowed
+                for :meth:`find_files`.
+
+        Yields:
+            A tuple of the FileInfo object of a file and its content. These
+            tuples are yielded sorted by its file starting time.
+
+        Examples:
+
+        .. code-block:: python
+
+
         """
 
-        # Generate the new file name
-        new_filename = destination.generate_filename(
-            file_info.times, fill=file_info.attr)
+        if read_args is None:
+            read_args = {}
 
-        # Shall we simply copy or even convert the files?
-        if convert:
-            # Read the file with the current file handler
-            data = dataset.read(file_info.path)
+        if preload:
+            files = self.imap(
+                start, end, func=Dataset.read, args=(self,), kwargs=read_args,
+                worker_type="thread", **find_files_args
+            )
 
-            # Maybe the user has given us a converting function?
-            if callable(convert):
-                data = convert(data)
-
-            # Store the data of the file with the new file handler
-            destination.write(new_filename, data)
-
-            if delete_original:
-                os.remove(file_info.path)
+            for file, data in files:
+                if data is not None:
+                    yield file, data
         else:
-            # Create the new directory if necessary.
-            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
-
-            if delete_original:
-                shutil.move(file_info.path, new_filename)
-            else:
-                shutil.copy(file_info.path, new_filename)
+            for file in self.find_files(start, end, **find_files_args):
+                data = self.read(file, **read_args)
+                if data is not None:
+                    yield file, data
 
     def copy(
             self, start, end, to, convert=None, delete_originals=False,
@@ -670,6 +736,50 @@ class Dataset:
             self.map(start, end, Dataset._copy_single_file, copy_args)
 
         return destination
+
+    @staticmethod
+    def _copy_single_file(
+            file_info, dataset, destination, convert, delete_original):
+        """This is a small wrapper function for copying files. It is better to
+        use :meth:`Dataset.copy` directly.
+
+        Args:
+            dataset:
+            file_info: FileInfo object of the file that should be to copied.
+            destination:
+            convert:
+            delete_original:
+
+        Returns:
+            None
+        """
+
+        # Generate the new file name
+        new_filename = destination.generate_filename(
+            file_info.times, fill=file_info.attr)
+
+        # Shall we simply copy or even convert the files?
+        if convert:
+            # Read the file with the current file handler
+            data = dataset.read(file_info.path)
+
+            # Maybe the user has given us a converting function?
+            if callable(convert):
+                data = convert(data)
+
+            # Store the data of the file with the new file handler
+            destination.write(new_filename, data)
+
+            if delete_original:
+                os.remove(file_info.path)
+        else:
+            # Create the new directory if necessary.
+            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+
+            if delete_original:
+                shutil.move(file_info.path, new_filename)
+            else:
+                shutil.copy(file_info.path, new_filename)
 
     @property
     def exclude(self):
@@ -839,7 +949,7 @@ class Dataset:
                         file_info.times, (start, end)):
                     yield file_info
                 elif no_files_error:
-                    raise NoFilesError(self.name, start, end)
+                    raise NoFilesError(self, start, end)
                 return
             else:
                 raise ValueError(
@@ -909,7 +1019,7 @@ class Dataset:
             yield from self._prepare_find_files_return(
                 return_files, sort, bundle)
         except StopIteration:
-            raise NoFilesError(self.name, start, end)
+            raise NoFilesError(self, start, end)
 
     def _get_search_dirs(self, start, end,):
         """Yields all searching directories for a time period.
@@ -938,6 +1048,16 @@ class Dataset:
         ]
 
         for subdir_chunk in self._sub_dir_chunks:
+            # Sometimes there is a sub directory part that has no
+            # regex/placeholders:
+            if not any(True for ch in subdir_chunk
+                       if ch in self._special_chars):
+                search_dirs = [
+                    (os.path.join(old_dir, subdir_chunk), attr)
+                    for old_dir, attr in search_dirs
+                ]
+                continue
+
             # The sub directory covers a certain time coverage, we make
             # sure that it is included into the search range.
             start_check = set_time_resolution(
@@ -1354,6 +1474,10 @@ class Dataset:
         procedure significantly. Depending on which system you work, you should
         try different numbers for *max_workers*.
 
+        Notes:
+            This method sorts the results after the starting time of the files
+            unless *sort* is False.
+
         Args:
             start: Start timestamp either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
@@ -1399,28 +1523,89 @@ class Dataset:
                 for :meth`find_files`.
 
         Returns:
-            A list with tuples: each contains the FileInfo object of the
-            processed file and the return value of the applied function. If
-            *output* is set, the second element is not the return value but a
-            boolean values indicating whether the return value was not None.
+            A list with tuples of a FileInfo object and the return value of the
+            function applied to this file. If *output* is set, the second
+            element is not the return value but a boolean values indicating
+            whether the return value was not None.
 
         Examples:
             TODO
 
         """
+
+        pool, func_args_queue = self._configure_map_pool_and_worker_args(
+            start, end, func, args, kwargs, file_arg_keys,
+            on_content, read_args, output,
+            max_workers, worker_type, worker_initializer, worker_initargs,
+            **find_files_args
+        )
+
+        # Process all found files with the arguments:
+        return pool.map(
+            self._call_map_function, func_args_queue,
+        )
+
+    def imap(self, *args, **kwargs):
+        """Apply a function on all files of this dataset between two dates.
+
+        This method does exact the same as :meth:`map` but works as a generator
+        and is therefore less memory space consuming.
+
+        Args:
+            *args: The same positional arguments as for :meth:`map`.
+            **kwargs: The same keyword arguments as for :meth:`map`.
+
+        Yields:
+            A tuple with the FileInfo object of the processed file and the
+            return value of the applied function. If *output* is set, the
+            second element is not the return value but a boolean values
+            indicating whether the return value was not None.
+
+        """
+
+        pool, func_args_queue = self._configure_map_pool_and_worker_args(
+            *args, **kwargs
+        )
+
+        # Preload the first file
+        pre_loaded = pool.apply_async(
+            self._call_map_function,
+            args=(next(func_args_queue), ),
+        )
+
+        for i, func_args in enumerate(func_args_queue):
+            yield_this = pre_loaded
+            pre_loaded = pool.apply_async(
+                self._call_map_function, args=(func_args, )
+            )
+            yield yield_this.get()
+
+        # Flush the last processed file
+        yield pre_loaded.get()
+
+    def _configure_map_pool_and_worker_args(
+            self, start, end, func, args=None, kwargs=None,
+            file_arg_keys=None,
+            on_content=False, read_args=None, output=None,
+            max_workers=None, worker_type=None,
+            worker_initializer=None, worker_initargs=None, **find_files_args
+    ):
         # Convert the path to a Dataset object:
         if isinstance(output, str):
             output_path = output
             output = copy.copy(self)
             output.path = output_path
 
-        if max_workers is None:
-            max_workers = self.max_workers
-
         if worker_type is None:
             worker_type = self.worker_type
 
-        if worker_type is None or worker_type == "process":
+        if max_workers is None:
+            if worker_type == "thread":
+                max_workers = self.max_threads
+            else:
+                max_workers = self.max_processes
+
+        if worker_type == "process":
             pool = ProcessPool(
                 max_workers, initializer=worker_initializer,
                 initargs=worker_initargs,
@@ -1439,14 +1624,13 @@ class Dataset:
         if read_args is None:
             read_args = {}
 
-        files_with_arguments = (
+        function_arguments = (
             (self, info, func, args, kwargs, file_arg_keys, output, on_content,
              read_args)
             for info in self.find_files(start, end, **find_files_args)
         )
 
-        # Process all found files with the arguments:
-        return pool.map(Dataset._call_map_function, files_with_arguments)
+        return pool, function_arguments
 
     @staticmethod
     def _call_map_function(all_args):
@@ -1934,56 +2118,11 @@ class Dataset:
             with typhon.files.decompress(file_info.path) as decompressed_path:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
-                return self.handler.read(decompressed_file, **read_args)
+                data = self.handler.read(decompressed_file, **read_args)
         else:
-            return self.handler.read(file_info, **read_args)
+            data = self.handler.read(file_info, **read_args)
 
-    def read_period(self, start, end, read_args=None, parallelize=True,
-                    **find_files_args):
-        """Reads all files between two dates and returns their content sorted
-        by their starting time.
-
-        Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            read_args: Additional key word arguments for the
-                *read* method of the used file handler class.
-            parallelize: Parallelize the reading of the files by using
-                threads. This should give a speed up if the file handler's read
-                function internally uses CPython code that releases the GIL
-                lock.
-            **find_files_args: Additional keyword arguments that are allowed
-                for :meth`find_files`.
-
-        Returns:
-            A list with all content objects of the read files sorted by their
-            starting time.
-        """
-        if read_args is None:
-            read_args = {}
-
-        if parallelize:
-            # If we used map with processes, it would need to pickle the data
-            # coming from all workers. This would be very inefficient. Threads
-            # are better because sharing data does not costs much. However, if
-            # the reading function consists mainly of pure python that does not
-            # release the GIL, this will slow down performance.
-            data_list = self.map(
-                start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-                worker_type="thread", **find_files_args
-            )
-
-            # We do not want to have any None as data
-            return [data[1] for data in data_list if data[1] is not None]
-        else:
-            data_list = [
-                self.read(file, **read_args)
-                for file in self.find_files(start, end, **find_files_args)
-            ]
-            # We do not want to have any None as data
-            return [data for data in data_list if data is not None]
+        return data
 
     def _retrieve_time_coverage(self, filled_placeholder,):
         """Retrieve the time coverage from a dictionary of placeholders.
