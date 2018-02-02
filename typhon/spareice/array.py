@@ -394,6 +394,8 @@ class ArrayGroup:
         else:
             self.name = name
 
+        self._link_from_main = None
+
     def __contains__(self, item):
         var, rest = self.parse(item)
         if var == "/":
@@ -471,15 +473,27 @@ class ArrayGroup:
                 return self
 
             if not rest:
-                if var in self._vars:
-                    return self._vars[var]
+                def get_field(var):
+                    try:
+                        return self._vars[var]
+                    except KeyError:
+                        pass
+
+                    try:
+                        return self._groups[var]
+                    except KeyError:
+                        raise KeyError(
+                            "There is neither a variable nor group named "
+                            "'{}'!".format(var)
+                        )
 
                 try:
-                    return self._groups[var]
-                except KeyError:
-                    raise KeyError(
-                        "There is neither a variable nor group named "
-                        "'{}'!".format(var))
+                    return get_field(var)
+                except KeyError as err:
+                    if self._link_from_main is None:
+                        raise err
+
+                return self[self._link_from_main][var]
             else:
                 if var in self._groups:
                     return self._groups[var][rest]
@@ -985,6 +999,34 @@ class ArrayGroup:
         else:
             raise ValueError("One bound must be set!")
         return self[indices]
+
+    def link_main_group(self, sub_group):
+        """Link the main group to a sub group
+
+        When searching for variables in the main group and they are not found,
+        for the variables will also be searched in this linked sub group.
+
+        Args:
+            sub_group: A name of an existing sub group.
+
+        Returns:
+            None
+
+        Examples:
+
+        .. :code-block:: python
+
+            # Create an ArrayGroup
+            ag = ArrayGroup()
+            ag["group1/time"] = np.arange(100)
+
+            # Try to get the time field from the main group
+            print(ag["time"])  # will fail because there is no time variable in
+                               # the main group
+
+            ag.link_main_group("group1")
+            print(ag["time"])  # now it works
+        """
 
     @classmethod
     def merge(cls, objects, groups=None, overwrite_error=True):
