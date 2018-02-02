@@ -750,7 +750,7 @@ class CollocationsFinder:
         ))
 
         # Write the data to the file.
-        output.write(filename, collocated_data, in_background=True)
+        output.write(collocated_data, filename, in_background=True)
 
         return number_of_collocations
 
@@ -903,34 +903,6 @@ class CollocationsFinder:
 
         # Return also unique collocation ids to detect duplicates later
         return pair_indices
-
-    def _select_common_time_period(self, times1, times2,):
-        """Selects only the time window where both time series have data
-
-        Returns:
-            Two lists. Each contains the selected indices for the primary or
-            second dataset file, respectively.
-        """
-        # numpy arrays do not work with native python timedelta objects
-        max_interval = np.timedelta64(self.max_interval)
-
-        common_start = max(self.start,
-                           times1.min() - max_interval,
-                           times2.min() - max_interval)
-        common_end = min(self.end,
-                         times1.max() + max_interval,
-                         times2.max() + max_interval)
-        indices1 = (times1 >= common_start) & (times1 <= common_end)
-
-        if not indices1.any():
-            return None
-
-        indices2 = (times2 >= common_start) & (times2 <= common_end)
-
-        if not indices2.any():
-            return None
-
-        return common_start.item(0), common_end.item(0), indices1, indices2
 
     # Parallelizing match_arrays does not work properly since threading and the
     # GIL introduces a significant overhead. Maybe one should give

@@ -21,12 +21,14 @@ import os.path
 import re
 import shutil
 import threading
+import traceback
 import warnings
 
 import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
+from typhon.spareice.array import ArrayGroup
 from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
@@ -34,6 +36,7 @@ from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 __all__ = [
     "Dataset",
     "DatasetManager",
+    "JointData",
     "InhomogeneousFilesError",
     "NoFilesError",
     "NoHandlerError",
@@ -442,19 +445,13 @@ class Dataset:
                     Dataset.save_info_cache,
                     self, self.info_cache_filename)
 
-    """def __iter__(self):
+    def __iter__(self):
         return self
 
     def __next__(self):
-        # We split the path of the input files after the first appearance of 
-        # {day} or {doy}.
-        path_parts = re.split(r'({\w+})', self.path)
+        # Go through all files sorted by their starting time
+        yield from self.find_files(datetime.min, datetime.max)
 
-        for dir in self._find_subdirs(path_parts[0])
-            print(path_parts)
-
-            yield file
-    """
     def __contains__(self, item):
         """Checks whether a timestamp is covered by this dataset.
 
@@ -523,8 +520,7 @@ class Dataset:
         else:
             start = end = time_args
 
-        filename = self.generate_filename((start, end), fill=fill)
-        self.write(filename, value)
+        self.write(value, times=(start, end), fill=fill)
 
     def __repr__(self):
         return str(self)
@@ -797,7 +793,7 @@ class Dataset:
                 data = convert(data)
 
             # Store the data of the file with the new file handler
-            destination.write(new_filename, data)
+            destination.write(data, new_filename)
 
             if delete_original:
                 os.remove(file_info.path)
@@ -1290,14 +1286,14 @@ class Dataset:
             yield files1[i], [files2[oi] for oi in sorted(overlapping_files)]
 
     def generate_filename(
-            self, time_period, template=None, fill=None):
+            self, times, template=None, fill=None):
         """ Generate the full path and name of a file for a time period.
 
         Use :meth:`parse_filename` if you want retrieve information from the
         filename.
 
         Args:
-            time_period: Either a tuple of two datetime objects representing
+            times: Either a tuple of two datetime objects representing
                 start and end time or simply one datetime object (for timestamp
                  files).
             template: A string with format placeholders such as {year} or
@@ -1325,11 +1321,11 @@ class Dataset:
 
         """
 
-        if isinstance(time_period, (tuple, list)):
-            start_time = to_datetime(time_period[0])
-            end_time = to_datetime(time_period[1])
+        if isinstance(times, (tuple, list)):
+            start_time = to_datetime(times[0])
+            end_time = to_datetime(times[1])
         else:
-            start_time = to_datetime(time_period)
+            start_time = to_datetime(times)
             end_time = start_time
 
         if template is None:
@@ -1485,10 +1481,10 @@ class Dataset:
                         for json_dict in json_info_cache
                     }
                     self.info_cache.update(info_cache)
-            except Exception as e:
+            except Exception as err:
                 warnings.warn(
-                    "Could not load the file information from cache file "
-                    "'%s':\n%s." % (filename, e)
+                    f"Could not load the file information from cache file "
+                    "'{filename}':\n{err}."
                 )
 
     def map(
@@ -1775,7 +1771,7 @@ class Dataset:
                 (min(start_times), max(end_times)), fill=file_info[0].attr
             )
 
-        output.write(new_filename, return_value, in_background=True)
+        output.write(return_value, new_filename, in_background=True)
 
         return file_info, True
 
@@ -2294,8 +2290,8 @@ class Dataset:
 
         return self._time_coverage
 
-    @expects_file_info
-    def write(self, file_info, data, in_background=False, **write_args):
+    def write(self, data, file_info=None, times=None, fill=None,
+              in_background=False, **write_args):
         """Writes content to a file by using the Dataset's file handler.
 
         If the filename extension is a compression format (such as *zip*,
@@ -2343,19 +2339,34 @@ class Dataset:
 
             # OR use write in combination with generate_filename
             filename = plots.generate_filename("2018-01-01")
-            plots.write(filename, fig)
+            plots.write(fig, filename)
 
             # Hint: If saving the plot takes a lot of time but you want to
             # continue with the program in the meanwhile, you can use the
             # *in_background* option. This saves the plot in a background
             # thread.
-            plots.write(filename, fig, in_background=True)
+            plots.write(fig, filename, in_background=True)
 
             # continue with other stuff immediately and do not wait until the
             # plot is saved...
             do_other_stuff(...)
 
         """
+
+        if file_info is None:
+            if times is None:
+                raise ValueError(
+                    "Either the argument file_info or times must be given!")
+            else:
+                file_info = FileInfo(
+                    self.generate_filename(times, fill=None), times, fill
+                )
+        elif times is not None:
+            raise ValueError(
+                "Either the argument file_info or times must be given!")
+        elif isinstance(file_info, str):
+            file_info = FileInfo(file_info)
+
         if self.handler is None:
             raise NoHandlerError(
                 "Could not write data to the file '{}'! No file handler is "
@@ -2364,7 +2375,7 @@ class Dataset:
         if in_background:
             # Run this function again but inside a background thread:
             threading.Thread(
-                target=Dataset.write, args=(self, file_info, data),
+                target=Dataset.write, args=(self, data, file_info),
                 kwargs=write_args.update(in_background=False),
             ).start()
             return
@@ -2379,9 +2390,9 @@ class Dataset:
             with typhon.files.compress(file_info.path) as compressed_path:
                 compressed_file = file_info.copy()
                 compressed_file.path = compressed_path
-                self.handler.write(compressed_file, data, **write_args)
+                self.handler.write(data, compressed_file, **write_args)
         else:
-            self.handler.write(file_info, data, **write_args)
+            self.handler.write(data, file_info, **write_args)
 
 
 class JointData:
@@ -2391,35 +2402,155 @@ class JointData:
 
     """
 
-    def __init__(self, *data_field_pairs, dtype=None,):
-        """Initialise a DataExtractor object
+    def __init__(self, *data_sources, ):
+        """Initialise a JointData object
 
         Args:
-            *data_field_pairs: A tuple of a data source and its fields that
+            *data_sources: A tuple of a data source and its fields that
                 should be extracted. A data source can either be a
                 dict-like array set (e.g. xarray.Dataset) or a typhon Dataset
                 object which read-method returns such an array set.
         """
 
-        self.datasets = []
-        self.arrays = []
+        self.sources = OrderedDict()
 
-        for pair in data_field_pairs:
+        for pair in data_sources:
             if isinstance(pair, tuple):
-                self.add(*pair)
+                self.add(*reversed(pair))
             else:
-                self.add(pair, None, None)
+                self.add(pair, None)
 
-    def add_source(self, data_source, fields=None, suffix=None):
-        if isinstance(data_source, Dataset):
-            self.datasets.append([data_source, fields, suffix])
-        else:
-            self.arrays.append(
-                [self._select_fields(data_source, fields), suffix]
-            )
+    def add(self, data_source, name=None):
+        if not isinstance(data_source, Dataset):
+            raise ValueError("So far only Dataset objects are allowed for data "
+                             "sources!")
 
-    def get(self, start, end):
-        pass
+        if name is None:
+            if hasattr(data_source, "name"):
+                name = data_source.name
+            else:
+                raise ValueError("Need a name for all data sources!")
+
+        self.sources[name] = data_source
+
+    def slide(self, start, end, min_steps=None):
+        """Yield chunks from all data sources that cover the same time period
+
+        Args:
+            start:
+            end:
+            min_steps:
+
+        Yields:
+
+        """
+
+        # I would like to use xarray here, but it does not support grouping.
+        joint = {}
+
+        # Get the fetcher generators for the Dataset sources
+        fetcher = {
+            name: source.icollect(start, end)
+            for name, source in self.sources.items()
+            if isinstance(source, Dataset)
+        }
+
+        current_end = datetime.min
+
+        # Shall the new fetched data be added to the old one? We need this
+        # mainly when the chunk size is not large enough.
+        add = False
+
+        # Go through all data sources and fetch the next chunk
+        while True:
+            try:
+                joint = self._fetch_data_from_sources(
+                    current_end, joint, fetcher, add
+                )
+                add = False
+            except StopIteration:
+                # One source has no data left
+
+                # Is there still one chunk to be yielded?
+                if all(data["time"].any() for data in selected_joint.values())\
+                        and add:
+                    yield selected_joint
+
+                return
+            except Exception as err:
+                # TODO: We could think of catching errors here, but what would
+                # TODO: we do against a infinite while loop?
+                raise err
+
+            selected_joint, current_end = \
+                self._select_common_time(start, end, joint, current_end)
+
+            time_steps = np.array(
+                [data["time"].shape[0] for data in selected_joint.values()])
+            if (time_steps < min_steps).any():
+                # Some data sources have not enough data
+                add = True
+                continue
+
+            yield selected_joint
+
+    def _fetch_data_from_sources(
+            self, current_end, joint, fetcher, add):
+        """Fetch new data from sources if necessary
+
+        Args:
+            current_end:
+            joint:
+            fetcher:
+            forced: If True, add new fetched data to the old one.
+
+        Returns:
+            A dictionary with data arrays
+        """
+
+        # To avoid multiple reading of the same file, we cache their
+        # content.
+        for name, source in self.sources.items():
+            # Check whether we need to load the next file of this Dataset
+            if isinstance(source, Dataset):
+                if name not in joint \
+                        or current_end >= joint[name]["time"].max():
+                    if add:
+                        joint[name] = ArrayGroup.concatenate(
+                            [joint[name], next(fetcher[name])]
+                        )
+                    else:
+                        joint[name] = next(fetcher[name])
+            elif name not in joint:
+                # Source is already an array group:
+
+                joint[name] = source
+
+        return joint
+
+    def _select_common_time(self, start, end, joint, current_end):
+        """Select only the time window where all time series have data
+
+        Returns:
+            The start and end time and a dict of numpy arrays containing the
+            selected indices.
+        """
+
+        common_start = max(joint[name]["time"].min() for name in self.sources)
+        common_start = max(common_start, start, current_end)
+
+        common_end = min(joint[name]["time"].max() for name in self.sources)
+        common_end = min(common_end, end)
+
+        selected_joint = {
+            name: data[
+                (data["time"] >= common_start)
+                & (data["time"] <= common_end)
+            ]
+            for name, data in joint.items()
+        }
+
+        return selected_joint, common_end
 
     @staticmethod
     def _select_fields(array, fields=None):
@@ -2459,5 +2590,3 @@ class DatasetManager(dict):
 
         self[dataset.name] = dataset
         return self
-
-

@@ -22,10 +22,10 @@ __all__ = [
 
 
 def expects_file_info(func):
-    """Convert a method argument to :class:`FileInfo` object
+    """Convert a method argument to a :class:`FileInfo` object
 
     This is a decorator function that either converts the first positional
-    argument or the key word argument *file_info* to a FileInfo object.
+    argument or the key word argument *filename* to a FileInfo object.
 
     If the argument is already a FileInfo object, nothing happens.
 
@@ -36,18 +36,18 @@ def expects_file_info(func):
         The return value of the decorated method.
     """
 
-    def new_func(obj, *args, **kwargs):
+    def func_with_file_info(obj, *args, **kwargs):
         args = list(args)
         if args:
             if not isinstance(args[0], FileInfo):
                 args[0] = FileInfo(args[0])
         else:
-            if not isinstance(kwargs["file_info"], FileInfo):
-                kwargs["file_info"] = FileInfo(kwargs["file_info"])
+            if not isinstance(kwargs["filename"], FileInfo):
+                kwargs["filename"] = FileInfo(kwargs["filename"])
 
         return func(obj, *args, **kwargs)
 
-    return new_func
+    return func_with_file_info
 
 
 class FileHandler:
@@ -94,7 +94,7 @@ class FileHandler:
         self.writer = writer
 
     @expects_file_info
-    def get_info(self, file_info, **kwargs):
+    def get_info(self, filename, **kwargs):
         """Return a :class:`FileInfo` object with parameters about the
         file content.
 
@@ -102,7 +102,7 @@ class FileHandler:
             This is the base class method that does nothing per default.
 
         Args:
-            file_info: Path and name of the file of which to retrieve the info
+            filename: Path and name of the file of which to retrieve the info
                 about.
             **kwargs: Additional keyword arguments.
 
@@ -115,9 +115,9 @@ class FileHandler:
             # "self" or "class" parameter.
             number_args = 1 + int(ismethod(self.info_reader))
             if len(signature(self.info_reader).parameters) > number_args:
-                return self.info_reader(file_info, **kwargs)
+                return self.info_reader(filename, **kwargs)
             else:
-                return self.info_reader(file_info)
+                return self.info_reader(filename)
 
         raise NotImplementedError(
             "This file handler does not support reading data from a file. You "
@@ -148,14 +148,14 @@ class FileHandler:
                     "strings or tuples!".format(type(field)))
 
     @expects_file_info
-    def read(self, file_info, **kwargs):
+    def read(self, filename, **kwargs):
         """Open a file by its name, read its content and return it
 
         Notes:
             This is the base class method that does nothing per default.
 
         Args:
-            file_info: A :class:`FileInfo` object of the file from which to
+            filename: A :class:`FileInfo` object of the file from which to
                 read.
             **kwargs: Additional key word arguments.
 
@@ -168,9 +168,9 @@ class FileHandler:
             # "self" or "class" parameter.
             number_args = 1 + int(ismethod(self.reader))
             if len(signature(self.reader).parameters) > number_args:
-                return self.reader(file_info, **kwargs)
+                return self.reader(filename, **kwargs)
             else:
-                return self.reader(file_info)
+                return self.reader(filename)
 
         raise NotImplementedError(
             "This file handler does not support reading data from a file. You "
@@ -198,14 +198,14 @@ class FileHandler:
         return data
 
     @expects_file_info
-    def write(self, file_info, data, **kwargs):
+    def write(self, data, filename, **kwargs):
         """Store a data object to a file.
 
         Notes:
             This is the base class method that does nothing per default.
 
         Args:
-            file_info: A :class:`FileInfo` object of the file to which to store
+            filename: A :class:`FileInfo` object of the file to which to store
                 the data. Existing files will be overwritten.
             data: Object with data (e.g. numpy array, etc.).
 
@@ -214,7 +214,7 @@ class FileHandler:
         """
         if self.writer is not None:
             if len(signature(self.writer).parameters) > 2:
-                self.writer(data, file_info, **kwargs)
+                self.writer(data, filename, **kwargs)
             else:
                 self.writer(data, file_info)
 
@@ -268,10 +268,8 @@ class FileInfo(os.PathLike):
         self._path = None
         self.path = path
 
-        if times is None:
-            self.times = [None, None]
-        else:
-            self.times = list(times)
+        self._times = None
+        self.times = times
 
         if attr is None:
             self.attr = {}
@@ -325,6 +323,20 @@ class FileInfo(os.PathLike):
         if isinstance(value, FileInfo):
             raise ValueError("You cannot set path to a FileInfo object.")
         self._path = value
+
+    @property
+    def times(self):
+        return self._times.copy()
+
+    @times.setter
+    def times(self, value):
+        if value is None:
+            self._times = [None, None]
+        else:
+            self._times = list(value)
+            if len(self._times) != 2:
+                raise ValueError("FileInfo.times can only be a list of two "
+                                 "timestamps!")
 
     def update(self, other_info, ignore_none_time=True):
         """Update this object with another FileInfo object.
@@ -397,7 +409,7 @@ class CSV(FileHandler):
             self.write_csv = write_csv
 
     @expects_file_info
-    def read(self, file_info, fields=None, **read_csv):
+    def read(self, filename, fields=None, **read_csv):
         """Read a CSV file and return an ArrayGroup object with its content.
 
         Args:
@@ -416,18 +428,18 @@ class CSV(FileHandler):
         kwargs.update(read_csv)
 
         if self.return_type == "ArrayGroup":
-            return ArrayGroup.from_csv(file_info.path, fields, **kwargs)
+            return ArrayGroup.from_csv(filename.path, fields, **kwargs)
         else:
-            dataframe = pd.read_csv(file_info.path, **kwargs)
+            dataframe = pd.read_csv(filename.path, **kwargs)
             return xr.Dataset.from_dataframe(dataframe)
 
     @expects_file_info
-    def write(self, file_info, data, **write_csv):
+    def write(self, data, filename, **write_csv):
         """Write an ArrayGroup object to a CSV file.
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
             data: An ArrayGroup object that should be saved.
+            filename: Path and name of the file as string or FileInfo object.
             **write_csv: Additional keyword arguments for
                 `pandas.Dataframe.to_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
@@ -442,7 +454,7 @@ class CSV(FileHandler):
         if isinstance(data, xr.Dataset):
             data = data.to_dataframe()
 
-        return data.to_csv(file_info.path, **kwargs)
+        return data.to_csv(filename.path, **kwargs)
 
 
 class NetCDF4(FileHandler):
@@ -469,20 +481,23 @@ class NetCDF4(FileHandler):
             self.return_type = return_type
 
     @expects_file_info
-    def read(self, file_info, fields=None, mapping=None, **kwargs):
+    def read(self, filename, fields=None, mapping=None, main_group=None,
+             **kwargs):
         """Reads and parses NetCDF files and load them to an ArrayGroup.
 
         If you need another return value, change it via the parameter
         *return_type* of the :meth:`__init__` method.
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
+            filename: Path and name of the file as string or FileInfo object.
                 If *return_type* is *ArrayGroup*, this can also be a tuple/list
                 of file names.
-            fields: (optional) List of field names that should be read. The
-                other fields will be ignored.
-            mapping: (optional) A dictionary which is used for renaming the
-                fields. The keys are the old and the values are the new names.
+            fields: List of field names that should be read. The other fields
+                will be ignored.
+            mapping: A dictionary which is used for renaming the fields. The
+                keys are the old and the values are the new names.
+            main_group: If the file contains multiple groups, the main group
+                will be linked to this one (only valid for ArrayGroup).
 
         Returns:
             An ArrayGroup object.
@@ -490,11 +505,11 @@ class NetCDF4(FileHandler):
 
         # ArrayGroup supports reading from multiple files.
         if self.return_type == "ArrayGroup":
-            ds = ArrayGroup.from_netcdf(file_info.path, fields, **kwargs)
+            ds = ArrayGroup.from_netcdf(filename.path, fields, **kwargs)
             if not ds:
                 return None
         elif self.return_type == "xarray":
-            ds = xr.open_dataset(file_info.path, **kwargs)
+            ds = xr.open_dataset(filename.path, **kwargs)
             if not ds.variables:
                 return None
         else:
@@ -509,7 +524,7 @@ class NetCDF4(FileHandler):
         return ds
 
     @expects_file_info
-    def write(self, file_info, data, **kwargs):
+    def write(self, data, filename, **kwargs):
         """ Writes a data object to a NetCDF file.
 
         The data object must have a *to_netcdf* method, e.g. as an ArrayGroup
@@ -517,9 +532,9 @@ class NetCDF4(FileHandler):
         """
 
         if len(signature(data.to_netcdf).parameters) == 2:
-            data.to_netcdf(file_info.path)
+            data.to_netcdf(filename.path)
         else:
-            data.to_netcdf(file_info.path, **kwargs)
+            data.to_netcdf(filename.path, **kwargs)
 
 
 class Plotter(FileHandler):
@@ -547,12 +562,12 @@ class Plotter(FileHandler):
             self.fig_args = fig_args
 
     @expects_file_info
-    def write(self, file_info, figure, fig_args=None):
+    def write(self, figure, filename, fig_args=None):
         """ Saves a matplotlib.figure object to a file.
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
             figure: A matplotlib.figure object.
+            filename: Path and name of the file as string or FileInfo object.
             fig_args: A dictionary of additional keyword arguments for the
                 fig.savefig method. This updates the *fig_args* given during
                 initialisation.
@@ -562,7 +577,7 @@ class Plotter(FileHandler):
         if fig_args is not None:
             params.update(**fig_args)
 
-        return figure.savefig(file_info.path, **params)
+        return figure.savefig(filename.path, **params)
 
 
 # class Numpy(handlers.FileHandler):
