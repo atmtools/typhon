@@ -27,7 +27,7 @@ from .algorithms import BallTree, BruteForce
 
 __all__ = [
     "CollocatedDataset",
-    "CollocationsFinder",
+    "Collocator",
     "NotCollapsedError",
 ]
 
@@ -295,7 +295,7 @@ class CollocatedDataset(Dataset):
         return obj
 
 
-class CollocationsFinder:
+class Collocator:
     """Find collocations between datasets or data arrays.
 
     Collocations are two or more data points that are located close to each
@@ -311,7 +311,7 @@ class CollocationsFinder:
     def __init__(self, start=None, end=None, max_interval=None,
                  max_distance=None, algorithm=None, threads=None,
                  verbose=False):
-        """Initialise a CollocationsFinder object.
+        """Initialise a Collocator object.
 
         Args:
             start: Start date either as datetime object or as string
