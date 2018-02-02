@@ -131,7 +131,7 @@ class CloudSat(FileHandler):
     def _get_time_field(self, vs, file_info):
         # This gives us the starting time of the first profile in
         # seconds since midnight in UTC:
-        first_profile_time = self._get_field(vs, 'UTC_start')[0][0]
+        first_profile_time = round(self._get_field(vs, 'UTC_start').item(0))
 
         # This gives us the starting time of all other profiles in
         # seconds since the start of the first profile.
@@ -153,7 +153,7 @@ class CloudSat(FileHandler):
         # starting date coming from parsing the filename.
         profile_times = \
             np.datetime64(date) \
-            + np.timedelta64(round(first_profile_time), "s") \
+            + np.timedelta64(first_profile_time, "s") \
             + profile_times.astype("timedelta64[ms]")
 
         return Array(profile_times, dims=["time_id"])
