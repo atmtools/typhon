@@ -326,7 +326,7 @@ class FileInfo(os.PathLike):
 
     @property
     def times(self):
-        return self._times.copy()
+        return self._times
 
     @times.setter
     def times(self, value):
