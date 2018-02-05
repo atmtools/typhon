@@ -59,11 +59,20 @@ class NoFilesError(Exception):
 
     """
     def __init__(self, dataset, start, end, *args):
-        message = \
-            "Found no files for %s between %s and %s!\nPath: %s\nMaybe you "\
-            "misspelled the files path? Or maybe there are "\
-            "no files for this time period?" % (
-                dataset.name, start, end, dataset.path,)
+        if start == datetime.min and end == datetime.max:
+            message = \
+                "Found no files for %s!\nPath: %s\n" \
+                "Check the path for misspellings and whether there are files "\
+                "in this time period." % (
+                    dataset.name, dataset.path
+                )
+        else:
+            message = \
+                "Found no files for %s between %s and %s!\nPath: %s\n" \
+                "Check the path for misspellings and whether there are files "\
+                "in this time period." % (
+                    dataset.name, start, end, dataset.path
+                )
         Exception.__init__(self, message, *args)
 
 
@@ -393,7 +402,7 @@ class Dataset:
             self.handler = handler
 
         # Defines which method will be used by .get_info():
-        if info_via is None:
+        if info_via is None or info_via == "filename":
             self.info_via = "filename"
         else:
             if self.handler is None:
@@ -422,10 +431,9 @@ class Dataset:
         self._time_coverage = None
         self.time_coverage = time_coverage
 
-        # Multiple calls of .find() can be very slow when using a time
-        # coverage retrieving method "content". Hence, we use a cache to
-        # store the names and time coverages of already touched files in this
-        # dictionary.
+        # Multiple calls of .find() can be very slow when using the handler as
+        # as information retrieving method. Hence, we use a cache to store the
+        # names and time coverages of already touched files in this dictionary.
         self.info_cache_filename = info_cache
         self.info_cache = {}
         if self.info_cache_filename is not None:
@@ -441,16 +449,11 @@ class Dataset:
                 # happens if the error occurs during the loading of the time
                 # coverages? We would overwrite the cache with nonsense.
                 # Therefore, we need this code in this else block.
-                atexit.register(
-                    Dataset.save_info_cache,
-                    self, self.info_cache_filename)
+                atexit.register(Dataset.save_info_cache,
+                                self, self.info_cache_filename)
 
     def __iter__(self):
-        return iter(self)
-
-    def __next__(self):
-        # Go through all files sorted by their starting time
-        yield from self.find(datetime.min, datetime.max)
+        return iter(self.find(datetime.min, datetime.max))
 
     def __contains__(self, item):
         """Checks whether a timestamp is covered by this dataset.
@@ -532,7 +535,7 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
-    def collect(self, start, end, read_args=None, **find_files_args):
+    def collect(self, start, end, read_args=None, **find_args):
         """Load all files between two dates sorted by their starting time
 
         This parallelizes the reading of the files by using threads. This
@@ -550,7 +553,7 @@ class Dataset:
             end: End date. Same format as "start".
             read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
-            **find_files_args: Additional keyword arguments that are allowed
+            **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
         Yields:
@@ -589,7 +592,7 @@ class Dataset:
         # release the GIL, this will slow down the performance.
         files = self.map(
             start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-            worker_type="thread", **find_files_args
+            worker_type="thread", **find_args
         )
 
         # Tell the python interpreter explicitly to free up memory to improve
@@ -604,7 +607,7 @@ class Dataset:
         ]
 
     def icollect(self, start, end, read_args=None, preload=True,
-                 **find_files_args):
+                 **find_args):
         """Load all files between two dates sorted by their starting time
 
         Use this in for-loops but if you need all files at once, use
@@ -622,7 +625,7 @@ class Dataset:
                 *read* method of the used file handler class.
             preload: Per default this method loads the next file to yield in a
                 background thread. Set this to False, if you do not want this.
-            **find_files_args: Additional keyword arguments that are allowed
+            **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
         Yields:
@@ -638,10 +641,10 @@ class Dataset:
                 # do something with file and content...
 
             ## If you want to have all files at once, do not use this:
-            files = list(dataset.icollect("2018-01-01", "2018-01-02"))
+            data_list = list(dataset.icollect("2018-01-01", "2018-01-02"))
 
-            # This version is better:
-            files = dataset.collect("2018-01-01", "2018-01-02")
+            # This version is faster:
+            data_list = dataset.collect("2018-01-01", "2018-01-02")
         """
 
         if read_args is None:
@@ -650,14 +653,14 @@ class Dataset:
         if preload:
             files = self.imap(
                 start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-                worker_type="thread", **find_files_args
+                worker_type="thread", **find_args
             )
 
             for file, data in files:
                 if data is not None:
                     yield file, data
         else:
-            for file in self.find(start, end, **find_files_args):
+            for file in self.find(start, end, **find_args):
                 data = self.read(file, **read_args)
                 if data is not None:
                     yield file, data
@@ -1010,7 +1013,7 @@ class Dataset:
         # a file located in the directory of 2018-01-13 contains data from
         # 2018-01-13 18:00:00 to 2018-01-14 02:00:00. In order to find them, we
         # must include the previous sub directory into the search range:
-        if self._sub_dir_time_resolution is None:
+        if self._sub_dir_time_resolution is None or start == datetime.min:
             dir_start = start
         else:
             dir_start = start - self._sub_dir_time_resolution
@@ -1057,25 +1060,25 @@ class Dataset:
             A tuple of path as string and parsed placeholders as dictionary.
         """
 
-        # If the directory does not contain regex or placeholders, we simply
-        # return the base directory
-        if not self._sub_dir:
-            return [(self._base_dir, {})]
-
         # Goal: Search for all directories that match the path regex and is
         # between start and end date.
         # Strategy: Go through each folder in the hierarchy and find the ones
         # that match the regex so far. Filter out folders that does not overlap
         # with the given time interval.
-        search_dirs = [
-            (self._base_dir, {}),
-        ]
+        search_dirs = [(self._base_dir, {}), ]
+
+        # If the directory does not contain regex or placeholders, we simply
+        # return the base directory
+        if not self._sub_dir:
+            return search_dirs
 
         for subdir_chunk in self._sub_dir_chunks:
             # Sometimes there is a sub directory part that has no
             # regex/placeholders:
             if not any(True for ch in subdir_chunk
                        if ch in self._special_chars):
+                # We can add this sub directory part because it will always
+                # match to our path
                 search_dirs = [
                     (os.path.join(old_dir, subdir_chunk), attr)
                     for old_dir, attr in search_dirs
@@ -1321,7 +1324,7 @@ class Dataset:
         except KeyError:
             raise UnknownPlaceholderError(self.name)
 
-    @expects_file_info
+    @expects_file_info()
     def get_info(self, file_info, retrieve_via=None):
         """Get information about a file.
 
@@ -1380,19 +1383,27 @@ class Dataset:
                 info.update(handler_info)
 
         if info.times[0] is None:
-            raise ValueError(
-                "Could not retrieve the starting time information from "
-                "the file '%s' from the %s dataset!"
-                % (info.path, self.name)
-            )
-
-        # Sometimes the files have only a starting time. But if the user has
-        # defined a timedelta for the coverage, the ending time can be
-        # calculated from them.
-        if isinstance(self.time_coverage, timedelta):
-            info.times[1] = info.times[0] + self.time_coverage
+            if info.times[1] is None:
+                # This is obviously a non-temporal dataset, set the times to
+                # minimum and maximum so we have no problem to find it
+                info.times = [datetime.min, datetime.max]
+            else:
+                # Something went wrong, we need a starting time if we have an
+                # ending time.
+                raise ValueError(
+                    "Could not retrieve the starting time information from "
+                    "the file '%s' from the %s dataset!"
+                    % (info.path, self.name)
+                )
         elif info.times[1] is None:
-            info.times[1] = info.times[0]
+            # Sometimes the files have only a starting time. But if the user
+            # has defined a timedelta for the coverage, the ending time can be
+            # calculated from this. Otherwise this is a Dataset that has only
+            # files that are discrete in time
+            if isinstance(self.time_coverage, timedelta):
+                info.times[1] = info.times[0] + self.time_coverage
+            else:
+                info.times[1] = info.times[0]
 
         self.info_cache[info.path] = info
         return info
@@ -1437,7 +1448,7 @@ class Dataset:
         self, start, end, func, args=None, kwargs=None, file_arg_keys=None,
         on_content=False, read_args=None, output=None,
         max_workers=None, worker_type=None,
-        worker_initializer=None, worker_initargs=None, **find_files_args
+        worker_initializer=None, worker_initargs=None, **find_args
     ):
         """Apply a function on all files of this dataset between two dates.
 
@@ -1494,7 +1505,7 @@ class Dataset:
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
             worker_initargs: A tuple with arguments for *worker_initializer*.
-            **find_files_args: Additional keyword arguments that are allowed
+            **find_args: Additional keyword arguments that are allowed
                 for :meth`find`.
 
         Returns:
@@ -1505,55 +1516,56 @@ class Dataset:
 
         Examples:
 
-        .. code-block:: python
+            .. code-block:: python
 
-            ## Imaging you want to calculate some statistical values from the
-            ## data of the files
-            def calc_statistics(content, file_info):
-                # return the mean and maximum value
-                return content["data"].mean(), content["data"].max()
+                ## Imaging you want to calculate some statistical values from the
+                ## data of the files
+                def calc_statistics(content, file_info):
+                    # return the mean and maximum value
+                    return content["data"].mean(), content["data"].max()
 
-            results = dataset.map(
-                "2018-01-01", "2018-01-02", calc_statistics,
-                on_content=True,
-            )
+                results = dataset.map(
+                    "2018-01-01", "2018-01-02", calc_statistics,
+                    on_content=True,
+                )
 
-            # This will be run after processing all files...
-            for file, result in results
-                print(file) # prints the FileInfo object
-                print(result) # prints the mean and maximum value
+                # This will be run after processing all files...
+                for file, result in results
+                    print(file) # prints the FileInfo object
+                    print(result) # prints the mean and maximum value
 
-            ## If you need the results directly, you can use imap instead:
-            results = dataset.imap(
-                "2018-01-01", "2018-01-02", calc_statistics, on_content=True,
-            )
+                ## If you need the results directly, you can use imap instead:
+                results = dataset.imap(
+                    "2018-01-01", "2018-01-02", calc_statistics, on_content=True,
+                )
 
-            for file, result in results
-                # After the first file has been processed, this will be run
-                # immediately ...
-                print(file) # prints the FileInfo object
-                print(result) # prints the mean and maximum value
+                for file, result in results
+                    # After the first file has been processed, this will be run
+                    # immediately ...
+                    print(file) # prints the FileInfo object
+                    print(result) # prints the mean and maximum value
 
-        .. code-block:: python
+            If you need to pass some args to the function, use the parameters
+            *args* and *kwargs*:
 
-            ## If you need to pass some args to the function, use the
-            ## parameters args and kwargs
-            def calc_statistics(arg1, content, file_info, kwarg1=None):
-                # return the mean and maximum value
-                return content["data"].mean(), content["data"].max()
+            .. code-block:: python
 
-            results = dataset.map(
-                "2018-01-01", "2018-01-02", calc_statistics,
-                args=("value1",), kwargs={"kwarg": "value2"},
-                on_content=True,
-            )
+                def calc_statistics(arg1, content, file_info, kwarg1=None):
+                    # return the mean and maximum value
+                    return content["data"].mean(), content["data"].max()
+
+                results = dataset.map(
+                    "2018-01-01", "2018-01-02", calc_statistics,
+                    args=("value1",), kwargs={"kwarg1": "value2"},
+                    on_content=True,
+                )
         """
 
         pool, func_args_queue = self._configure_map_pool_and_worker_args(
             start, end, func, args, kwargs, file_arg_keys,
             on_content, read_args, output,
             max_workers, worker_type, worker_initializer, worker_initargs,
-            **find_files_args
+            **find_args
         )
 
         # Process all found files with the arguments:
@@ -1604,7 +1616,7 @@ class Dataset:
             file_arg_keys=None,
             on_content=False, read_args=None, output=None,
             max_workers=None, worker_type=None,
-            worker_initializer=None, worker_initargs=None, **find_files_args
+            worker_initializer=None, worker_initargs=None, **find_args
     ):
         # Convert the path to a Dataset object:
         if isinstance(output, str):
@@ -1643,7 +1655,7 @@ class Dataset:
         function_arguments = (
             (self, info, func, args, kwargs, file_arg_keys, output, on_content,
              read_args)
-            for info in self.find(start, end, **find_files_args)
+            for info in self.find(start, end, **find_args)
         )
 
         return pool, function_arguments
@@ -1930,7 +1942,7 @@ class Dataset:
                 self._sub_dir
             )[1]
 
-        # Retrieve the used placeholder names from the path and directory:
+        # Retrieve the used placeholder names from the path:
         self._path_placeholders = set(re.findall("\{(\w+)\}", self.path))
 
         # Set additional user-defined placeholders to default values (
@@ -1951,16 +1963,12 @@ class Dataset:
         self._end_time_superior = \
             self._get_superior_time_resolution(end_time_placeholders)
 
-        # Flag whether this is a single file dataset or not:
-        no_temporal_placeholders = \
-            not set(self._time_placeholder).intersection(
-                self._path_placeholders)
-        self.single_file = no_temporal_placeholders and "*" not in self.path
-
-        if self.single_file and self._path_placeholders:
-            raise ValueError(
-                "Placeholders in the files path are not allowed for "
-                "single file datasets!")
+        # Flag whether this is a single file dataset or not. We simply check
+        # whether the path contains special characters:
+        self.single_file = not any(
+            True for ch in self.path
+            if ch in self._special_chars
+        )
 
         self._path_extension = os.path.splitext(self.path)[0].lstrip(".")
 
@@ -2043,7 +2051,7 @@ class Dataset:
         # E.g. if we want to find the temporal placeholder with the lowest
         # resolution, we have to search for the maximum of their values because
         # they are represented as timedelta objects, i.e. month > day > hour,
-        # etc.
+        # etc. expect
         if highest:
             placeholder = min(
                 placeholders, key=lambda k: Dataset._temporal_resolution[k]
@@ -2144,7 +2152,7 @@ class Dataset:
     def _remove_group_capturing(placeholder, value):
         return value.lstrip(f"(?P<{placeholder}>").rstrip(")")
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, file_info, **read_args):
         """Opens and reads a file.
 
