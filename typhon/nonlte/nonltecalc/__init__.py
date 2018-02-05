@@ -278,8 +278,12 @@ class MolecularConsts:
         Ite_pop = [[Ni_LTE[i].reshape((self.ni, 1))] for i in range(Mole.size)]
         return Ite_pop
 
+<<<<<<< HEAD
 
 #import numba
+=======
+import numba
+>>>>>>> 84c04424e23739129dc358e1ed1b5bde8d3c0fdc
 
 
 """Population Calculation
