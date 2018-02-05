@@ -1,12 +1,14 @@
-import json
+try:
+    import json_tricks
+except ImportError:
+    # Loading and saving of the retriever is not possible
+    pass
 
 import numpy as np
 from scipy import stats
-from sklearn.model_selection import GridSearchCV, train_test_split, \
-    RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split
 import sklearn.neural_network as nn
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-
 from typhon.spareice.array import ArrayGroup
 from typhon.spareice.datasets import Dataset, DataSlider
 
@@ -16,24 +18,24 @@ __all__ = [
 
 
 class Retriever:
-    """Still under development.
+    """Retrieval that can be trained with data
 
     """
 
     def __init__(
-            self, parameter=None, parameters_file=None, model=None,
-            scaler=None):
-        """
-
-        Either a file with previously stored training parameters must given or
-        the training parameters must be set by oneself.
+            self, parameter=None, parameters_file=None, estimator=None,
+            trainer=None, scaler=None):
+        """Initialize a Retriever object
 
         Args:
             parameter: A dictionary with training parameters.
             parameters_file: Name of file with previously stored training
                 parameters.
-            model: Object that will be used for learn and produce the
-                retrieval. Default is a GridSearchCV with MLPRegressor.
+            estimator: Object that will be used for producing the
+                retrieval.
+            trainer: Object that will be used to train and to find the best
+                retrieval estimator. Default is a GridSearchCV with a
+                MLPRegressor.
         """
 
         default_parameter = {
@@ -47,26 +49,21 @@ class Retriever:
 
         self.parameter = {**default_parameter, **parameter}
 
-        # The learners for this Retriever:
-        if model is None:
-            self.model = self._init_default_model()
-        else:
-            self.model = model
+        # The trainer and/or model for this retriever:
+        self.estimator = estimator
+        self.trainer = trainer
+        self.scaler = scaler
 
         if parameters_file is not None:
             self.load_parameters(parameters_file)
 
-        # The data must be scaled before passed to the regressor. Always the
-        # same scaling must be applied.
-        self._scaler = None
-        if self.parameter["scaling"] is not None:
-            self._scaler = StandardScaler()
-            self._scaler.scale_ = [
-                np.array(scaling)
-                for scaling in parameter["scaling"]
-            ]
+    def _default_estimator(self):
+        return nn.MLPRegressor(
+            max_iter=1200,
+            # verbose=True,
+        )
 
-    def _init_default_model(self,):
+    def _default_trainer(self,):
         # To optimize the results, we try different hyper parameters by
         # using the default tuner
         hidden_layer_sizes = [
@@ -88,15 +85,46 @@ class Retriever:
             #     'beta_2': [0.95, 0.99],
             # },
         ]
-        estimator = nn.MLPRegressor(
-            max_iter=1000,
-            # verbose=True,
-        )
+
+        if self.estimator is None:
+            estimator = nn.MLPRegressor(
+                max_iter=1200,
+                # verbose=True,
+            )
+        else:
+            estimator = self.estimator
 
         return GridSearchCV(
             estimator, hyper_parameter, n_jobs=10,
             refit=True, cv=3, verbose=2,
         )
+
+    def _get_sklearn_coefs(self, sklearn_obj):
+        """
+
+        Returns:
+            A tuple with the weights and biases.
+        """
+
+        if sklearn_obj is None:
+            raise ValueError("No object trained!")
+
+        attrs = {
+            name: getattr(sklearn_obj, name)
+            for name in sklearn_obj.__dir__()
+            if not name.startswith("__") and name.endswith("_")
+        }
+        return attrs
+        # return {
+        #     name: #[layer.tolist() for layer in attr]
+        #     if hasattr(attr, "tolist") else attr
+        #     for name, attr in attrs.items()
+        # }
+
+    def _set_sklearn_coefs(self, sklearn_obj, coefs):
+        for attr, value in coefs.items():
+            setattr(sklearn_obj, attr, value)
+                    #np.array(value) if isinstance(attr, list) else value)
 
     def load_parameters(self, filename):
         """ Loads the training parameters from a JSON file.
@@ -113,22 +141,35 @@ class Retriever:
             None
         """
 
-        with open(filename, 'r') as infile:
-            parameter = json.load(infile)
+        if self.estimator is None:
+            # TODO: Actually, we should retrieve that from the file
+            self.estimator = self._default_estimator()
 
-            try:
-                self._regressor.coefs_ = [
-                    np.array(weights)
-                    for weights in parameter["regressor_weights"]
-                ]
-                self._regressor.intercepts_ = [
-                    np.array(biases)
-                    for biases in parameter["regressor_biases"]
-                ]
-            except KeyError:
-                pass
+        with open(filename, 'r') as infile:
+            parameter = json_tricks.load(infile)
+
+            estimator_coefs = parameter.pop("estimator", None)
+            if estimator_coefs is None:
+                raise ValueError("Found no coefficients for estimator!")
+
+            self._set_sklearn_coefs(self.estimator, estimator_coefs)
+
+            scaler_coefs = parameter.pop("scaler", None)
+            if scaler_coefs is None:
+                raise ValueError("Found no coefficients for scaler!")
+
+            self._set_sklearn_coefs(self.scaler, scaler_coefs)
 
             self.parameter.update(parameter)
+
+        # The data must be scaled before passed to the regressor. Always the
+        # same scaling must be applied.
+        if self.parameter["scaling"] is not None:
+            self.scaler = MinMaxScaler(feature_range=[0, 1])
+            self.scaler.scale_ = [
+                np.array(scaling)
+                for scaling in parameter["scaling"]
+            ]
 
     def save_parameters(self, filename):
         """ Saves the training parameters as a JSON file.
@@ -145,22 +186,15 @@ class Retriever:
             None
         """
 
-        # try:
-        #     self.parameter["classifier_weights"] = self._classifier.coefs_
-        # except KeyError:
-        #     pass
+        parameter = self.parameter.copy()
 
-        self.parameter["regressor_weights"] = \
-            [weights.tolist() for weights in self._regressor.coefs_]
-        self.parameter["regressor_biases"] = \
-            [biases.tolist() for biases in self._regressor.intercepts_]
+        parameter["estimator"] = self._get_sklearn_coefs(self.estimator)
+        parameter["scaler"] = self._get_sklearn_coefs(self.scaler)
 
-        if self._scaler is not None:
-            self.parameter["scaling"] = \
-                [scaling.tolist() for scaling in self._scaler.scale_]
+        print(parameter)
 
         with open(filename, 'w') as outfile:
-            json.dump(self.parameter, outfile)
+            json_tricks.dump(parameter, outfile)
 
     def run(self, start, end, sources, inputs, output=None, extra_fields=None,
             cleaner=None):
@@ -227,19 +261,20 @@ class Retriever:
                 continue
 
             # Scale the input data:
-            input_data = self._scaler.transform(input_data)
+            input_data = self.scaler.transform(input_data)
 
             # Retrieve the data from the neural network.
-            output_data = self.model.predict(input_data)
+            output_data = self.estimator.predict(input_data)
 
-            print(output_data)
-
-            retrieved_data = ArrayGroup.from_dict({
-                name: output_data[:, i]
-                for i, name in enumerate(sorted(self.parameter["targets"]))
-            })
-
-            print(retrieved_data)
+            if len(self.parameter["targets"]) == 1:
+                retrieved_data = ArrayGroup()
+                target_label = list(self.parameter["targets"].keys())[0]
+                retrieved_data[target_label] = output_data
+            else:
+                retrieved_data = ArrayGroup.from_dict({
+                    name: output_data[:, i]
+                    for i, name in enumerate(sorted(self.parameter["targets"]))
+                })
 
             if extra_fields is not None:
                 for new_name, old_name in extra_fields.items():
@@ -249,14 +284,20 @@ class Retriever:
                 results.append(retrieved_data)
             else:
                 # Store the generated data.
-                times = retrieved_data["time"].min(), retrieved_data[
-                    "time"].max()
+                times = retrieved_data["time"].min().item(0), \
+                        retrieved_data["time"].max().item(0)
+
                 output.write(retrieved_data, times=times, in_background=True)
 
-        return ArrayGroup.concatenate(results)
+
+        if output is None:
+            if results:
+                return ArrayGroup.concatenate(results)
+            else:
+                return None
 
     def train(self, start, end, sources, inputs, targets, cleaner=None,
-              test_size=None):
+              test_size=None, verbose=0):
         """Train this retriever
 
         Args:
@@ -274,11 +315,17 @@ class Retriever:
                 original data coming from *sources*.
             cleaner: A filter function that can be used to clean the training
                 data.
-            verbose: Print debug messages if true.
+            test_size: Fraction of the data should be used for testing not
+                training.
+            verbose: Level of verbosity (=number of debug messages). Default is
+                0.
 
         Returns:
             Last training and testing score.
         """
+
+        if self.trainer is None:
+            self.trainer = self._default_trainer()
 
         # The input and target labels will be saved because they can be used in
         # run as well.
@@ -298,13 +345,17 @@ class Retriever:
                 data, inputs, targets, cleaner, test_size
             )
 
-        # Train the model
-        self.model.fit(train_input, train_target)
+        # Unleash the trainer
+        self.trainer.verbose = verbose
+        self.trainer.fit(train_input, train_target)
+
+        # Use the best estimator from now on:
+        self.estimator = self.trainer.best_estimator_
 
         return (
             train_input.shape[0],
-            self.model.score(train_input, train_target),
-            self.model.score(test_input, test_target)
+            self.trainer.score(train_input, train_target),
+            self.trainer.score(test_input, test_target)
         )
 
     def _prepare_training_data(
@@ -328,10 +379,10 @@ class Retriever:
             raise ValueError("Not enough data for training!")
 
         # We have not prepared a scaler yet. This should be done only once.
-        if self._scaler is None:
-            self._scaler = MinMaxScaler(feature_range=[0, 1])
-            self._scaler.fit(input_data)
+        if self.scaler is None:
+            self.scaler = MinMaxScaler(feature_range=[0, 1])
+            self.scaler.fit(input_data)
 
-        input_data = self._scaler.transform(input_data)
+        input_data = self.scaler.transform(input_data)
 
         return train_test_split(input_data, target_data, test_size=test_size)
