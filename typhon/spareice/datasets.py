@@ -36,7 +36,7 @@ from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 __all__ = [
     "Dataset",
     "DatasetManager",
-    "JointData",
+    "DataSlider",
     "InhomogeneousFilesError",
     "NoFilesError",
     "NoHandlerError",
@@ -446,7 +446,7 @@ class Dataset:
                     self, self.info_cache_filename)
 
     def __iter__(self):
-        return self
+        return iter(self)
 
     def __next__(self):
         # Go through all files sorted by their starting time
@@ -2398,15 +2398,13 @@ class Dataset:
             self.handler.write(data, file_info, **write_args)
 
 
-class JointData:
-    """Join and align data from different sources
-
-    Still under development.
-
+class DataSlider:
+    """Join and align data from different datasets
     """
 
-    def __init__(self, *sources_with_names, **sources, ):
-        """Initialise a JointData object
+    def __init__(
+            self, start, end, *sources_with_names, **sources,):
+        """Initialise a DataSlider object
 
         Args:
             *data_sources: A tuple of a data source and its fields that
@@ -2415,159 +2413,141 @@ class JointData:
                 object which read-method returns such an array set.
         """
 
-        self.sources = OrderedDict()
+        self.start = to_datetime(start)
+        self.end = to_datetime(end)
 
+        self._cache = {}
+        self._current_end = None
+
+        # In this container will only sources be saved that are 'collectable',
+        # i.e. Dataset objects. Static sources as arrays will be directly saved
+        # to the cache.
+        self.sources = OrderedDict()
         for source in sources_with_names:
             self.add(source)
-
         for name, source in sources.items():
             self.add(source, name)
 
-    def add(self, source, name=None):
-        if not isinstance(source, Dataset):
-            raise ValueError("So far only Dataset objects are allowed for data "
-                             "sources!")
+    def __iter__(self):
+        # Get the fetcher generators for the Dataset sources
+        self._fetcher = {
+            name: source.icollect(self.start, self.end)
+            for name, source in self.sources.items()
+        }
 
+        # Reset the current time:
+        self._current_end = datetime.min
+
+        return self
+
+    def __next__(self,):
+        if self._current_end == self.end:
+            raise StopIteration
+
+        # Go through all data sources and update the cache if necessary
+        cache_update = self._fetch_cache_update()
+
+        # Update the cache with the newly fetched data
+        self._cache.update(cache_update)
+
+        # Select only the time period from the cache that is in all data
+        # sources
+        selection, self._current_end = self._select_common_time(self._cache)
+
+        # There are only static sources:
+        if not self._fetcher:
+            # We have all data already, stop iteration next time
+            self._current_end = self.end
+            return selection
+
+        if not all(data["time"].shape[0] for data in selection.values()):
+            return self.__next__()
+
+        return selection
+
+    def _fetch_cache_update(self, sources=None):
+        if sources is None:
+            forced = False
+            sources = self.sources.keys()
+        else:
+            forced = True
+
+        try:
+            return {
+                name: next(self._fetcher[name])[1]
+                for name in sources
+                if forced or name not in self._cache
+                or self._current_end >= self._cache[name]["time"].max()
+            }
+        except StopIteration:
+            # One source has no data left
+            raise StopIteration
+        except Exception as err:
+            # TODO: We could think of catching errors here, but what would
+            # TODO: we do against a infinite while loop?
+            raise err
+
+    def _select_common_time(self, cache):
+        """Select only the time window where all time series have data
+        """
+
+        common_start = np.max(
+            [data["time"].min() for data in cache.values()]
+        )
+        common_start = max(common_start, self.start, self._current_end)
+
+        common_end = np.min(
+            [data["time"].max() for data in cache.values()]
+        )
+        common_end = min(common_end, self.end)
+
+        # Return the selection
+        return {
+            name: data[
+                (data["time"] >= common_start)
+                & (data["time"] <= common_end)
+            ]
+            for name, data in cache.items()
+        }, common_end
+
+    def add(self, source, name=None):
+        """Add a new source to this data slider
+
+        Args:
+            source: A dict-like array set (e.g. xarray.Dataset) or a Dataset
+                object.
+            name:
+
+        Returns:
+            None
+        """
         if name is None:
             if hasattr(source, "name"):
                 name = source.name
             else:
                 raise ValueError("Need a name for all data sources!")
 
-        self.sources[name] = source
+        if isinstance(source, Dataset):
+            self.sources[name] = source
+        else:
+            self._cache[name] = source
 
-    def slide(self, start, end, min_steps=None):
-        """Yield chunks from all data sources that cover the same time period
+    def flush(self):
+        """Return the data of all sources at once.
 
-        Args:
-            start:
-            end:
-            min_steps:
-
-        Yields:
-
+        Returns:
+            A dictionary of array objects (numpy, ArrayGroup, xarray, etc.)
         """
-
-        start = to_datetime(start)
-        end = to_datetime(end)
-
-        if min_steps is None:
-            min_steps = 0
-
-        # I would like to use xarray here, but it does not support grouping.
-        joint = {}
-        selected_joint = {}
-
-        # Get the fetcher generators for the Dataset sources
-        fetcher = {
-            name: source.icollect(start, end)
+        fetched_data = {
+            name: ArrayGroup.concatenate(source.collect(self.start, self.end))
             for name, source in self.sources.items()
-            if isinstance(source, Dataset)
         }
 
-        current_end = datetime.min
+        # Reset the current time:
+        self._current_end = datetime.min
 
-        # Shall the new fetched data be added to the old one? We need this
-        # mainly when the chunk size is not large enough.
-        add = False
-
-        # Go through all data sources and fetch the next chunk
-        while True:
-            try:
-                joint = self._fetch_data_from_sources(
-                    current_end, joint, fetcher, add
-                )
-                add = False
-            except StopIteration:
-                # One source has no data left
-
-                # Is there still one chunk to be yielded?
-                if all(data["time"].any() for data in selected_joint.values())\
-                        and add:
-                    yield selected_joint
-
-                return
-            except Exception as err:
-                # TODO: We could think of catching errors here, but what would
-                # TODO: we do against a infinite while loop?
-                raise err
-
-            selected_joint, current_end = \
-                self._select_common_time(start, end, joint, current_end)
-
-            time_steps = np.array(
-                [data["time"].shape[0] for data in selected_joint.values()])
-            if (time_steps < min_steps).any():
-                # Some data sources have not enough data
-                add = True
-                continue
-
-            yield selected_joint
-
-    def _fetch_data_from_sources(
-            self, current_end, joint, fetcher, add):
-        """Fetch new data from sources if necessary
-
-        Args:
-            current_end:
-            joint:
-            fetcher:
-            forced: If True, add new fetched data to the old one.
-
-        Returns:
-            A dictionary with data arrays
-        """
-
-        # To avoid multiple reading of the same file, we cache their
-        # content.
-        for name, source in self.sources.items():
-            # Check whether we need to load the next file of this Dataset
-            if isinstance(source, Dataset):
-                if name not in joint \
-                        or current_end >= joint[name]["time"].max():
-                    if add:
-                        joint[name] = ArrayGroup.concatenate(
-                            [joint[name], next(fetcher[name])[1]]
-                        )
-                    else:
-                        joint[name] = next(fetcher[name])[1]
-            elif name not in joint:
-                # Source is already an array group:
-
-                joint[name] = source
-
-        return joint
-
-    def _select_common_time(self, start, end, joint, current_end):
-        """Select only the time window where all time series have data
-
-        Returns:
-            The start and end time and a dict of numpy arrays containing the
-            selected indices.
-        """
-
-        common_start = np.max(
-            [joint[name]["time"].min() for name in self.sources])
-        common_start = max(common_start, start, current_end)
-        print(start, common_start)
-
-        common_end = min(joint[name]["time"].max() for name in self.sources)
-        common_end = min(common_end, end)
-        print(common_end)
-
-        selected_joint = {
-            name: data[
-                (data["time"] >= common_start)
-                & (data["time"] <= common_end)
-            ]
-            for name, data in joint.items()
-        }
-
-        return selected_joint, common_end
-
-    @staticmethod
-    def _select_fields(array, fields=None):
-        return array[fields]
+        # The static data is already in the cache:
+        return self._select_common_time({**self._cache, **fetched_data})[0]
 
 
 class DatasetManager(dict):
