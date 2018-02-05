@@ -2,7 +2,7 @@
 import numpy as np
 import pylab as plt
 from scipy.constants import c, k, h
-from ..mathmatics import Trapz_inte_edge
+from ..mathmatics import trapz_inte_edge
 # from . import sub
 # from ..spectra.lineshape import DLV
 from ..spectra.source_function import Bv_T, PopuSource_AB
@@ -10,93 +10,53 @@ from ..spectra.abscoeff import basic
 from ..rtc import SOSC, FOSC
 from ..spectra.lineshape import DopplerWind
 
-def calcu_grid(Radius, Alt_ref, angle=False, speed=None):
-    Mu_delta = Radius/100. # *1000.  # m
-    Mu_point = np.r_[np.arange(0, Radius, Mu_delta),
-                     Alt_ref*1.e3+Radius]  # [m] # Alt_center
-    # Mu_point = np.r_[np.arange(0, Radius, Mu_delta)[:-3]] # #plame prarell
-    Mu_tangent = (Mu_point-Radius)*1.e-3
-    PSC = ((Alt_ref*1.e3+Radius)**2 -
-           Mu_point.reshape(Mu_point.size, 1)**2)**0.5
-    PSC2 = np.zeros((Mu_point.size, Alt_ref.size-1))  # Alt_center
-    for xx in range(1, Alt_ref.size):  # Alt_center
-        PSC2[:, -xx] = PSC[:, -xx] - PSC[:, -xx-1]
-        # PSC2[-xx, -xx] = 0
-    # ======================================================================
-    # PSC2 = ma.masked_invalid(PSC2)
-    # Symmetric2 = PSC2[:, ::-1]*1.
-    # Symmetric2[Mu_tangent <= 0, :] = np.nan
-    # Symmetric = np.hstack((Symmetric2, PSC2))
-    # dammy = Symmetric*1.
-    # dammy[dammy != dammy] = 0
-    # Symmetric[Mu_tangent > 0, :] = dammy[Mu_tangent > 0, :]*1
-    # =========================================================================
-    PSC_sin = Mu_point.reshape(Mu_point.size, 1)/(Alt_ref*1.e3+Radius)
-    deg = np.arcsin(PSC_sin)
-    PSC_sin[deg != deg] = 0
-    deg[deg != deg] = np.pi/2.
-    mu_weight = np.zeros((Mu_point.size, Alt_ref.size))
-    for i in range(Alt_ref.size):
-        mu_weight[:, i] = Trapz_inte_edge(PSC_sin[:, i], deg[:, i])
-    # test = Trapz_inte_edge(PSC_sin[:, -1], deg[:, -1])
-    # PSC_cos = np.arccos(PSC/(Alt_ref*1.e3+Radius))
-    # PSC_cos1 = PSC/(Alt_ref*1.e3+Radius)
-    # PSC_sin = (1-PSC_cos**2)**0.5
-    # PSC_cos = np.cos( np.arccos(PSC_cos1)*1.)  # degree (pi)
-    if angle is True:
-        return mu_weight, PSC2, Mu_tangent, PSC_sin
-    elif speed is not None:
-        #velocity = 100*np.cos(deg)
-        velocity = speed*np.cos(deg)
-        velocity[deg == np.pi/2.] = 0
-        return mu_weight, PSC2, Mu_tangent,velocity
-    else:
-        return mu_weight, PSC2, Mu_tangent
+def calcu_grid(radius, alt_ref, angle=False, speed=None):
+    """ Calculation grid for given altitude and radius
 
+    Parameters:
+        radius: Radius of planet/moon/object [meters]
+        alt_ref: Reference altitude grid (1D grid) [kilometers]
+        angle: Will return the angle grid of the atmospheric layers
+        speed: Using wind-velocities (1D grid) [meters/second]
 
-
-
-def calcu_grid_alt0(Radius, Alt_ref):
-    """make ray distance"""
-    Mu_delta = Radius/100. # *1000.  # m
-    Mu_point = np.r_[np.arange(0, Radius, Mu_delta),
-                     Alt_ref*1.e3+Radius]  # [m] # Alt_center
-    # Mu_point = np.r_[np.arange(0, Radius, Mu_delta)[:-3]] # #plame prarell
-    Mu_tangent = (Mu_point-Radius)*1.e-3
-    PSC = ((Alt_ref*1.e3+Radius)**2 -
-           Mu_point.reshape(Mu_point.size, 1)**2)**0.5
-    PSC2 = np.zeros((Mu_point.size, Alt_ref.size-1))  # Alt_center
-    for xx in range(1, Alt_ref.size):  # Alt_center
-        PSC2[:, -xx] = PSC[:, -xx] - PSC[:, -xx-1]
-    """make angle and weight
-    Alt_ref[0] is 0!!
+    Returns:
+        Grid point weights, central altitudes, tangent point, [angle at grid points]
     """
-    Alt_ref2 = np.r_[Alt_ref[0],
-                     ((Alt_ref[1:]+Alt_ref[:-1])/2.)[1:],
-                     Alt_ref[-1]]
-    Mu_point_ang = np.r_[0,
-                         np.arange(0.+Mu_delta/2.,
-                                   Radius+Mu_delta/2.,
-                                   Mu_delta),
-                         Alt_ref2*1.e3+Radius]  # [m] # Alt_center
-    PSC_sin = Mu_point_ang.reshape(Mu_point_ang.size, 1)/(Alt_ref2*1.e3+Radius)
+    mu_delta = radius/100. # *1000.  # m
+    mu_point = np.r_[np.arange(0, radius, mu_delta),
+                     alt_ref*1e3 + radius]  # [m]
+    mu_tangent = (mu_point - radius) * 1e-3
+
+    PSC = ((alt_ref*1.e3 + radius)**2 -
+           mu_point.reshape(mu_point.size, 1)**2)**0.5
+    PSC2 = np.zeros((mu_point.size, alt_ref.size-1))  # alt_center
+
+    for xx in range(1, alt_ref.size):  # alt_center
+        PSC2[:, -xx] = PSC[:, -xx] - PSC[:, -xx-1]
+        
+    PSC_sin = mu_point.reshape(mu_point.size, 1)/(alt_ref*1.e3 + radius)
     deg = np.arcsin(PSC_sin)
     PSC_sin[deg != deg] = 0
-    deg[deg != deg] = np.pi/2.
-    mu_weight = np.zeros((Mu_point.size, Alt_ref.size))
-    for i in range(Alt_ref.size):
-        mu_weight[:, i] = (-np.cos(deg[1:,i]) + np.cos(deg[:-1,i]))
-    # test = Trapz_inte_edge(PSC_sin[:, -1], deg[:, -1])
-    # PSC_cos = np.arccos(PSC/(Alt_ref*1.e3+Radius))
-    # PSC_cos1 = PSC/(Alt_ref*1.e3+Radius)
-    # PSC_sin = (1-PSC_cos**2)**0.5
-    # PSC_cos = np.cos( np.arccos(PSC_cos1)*1.)  # degree (pi)
-    return mu_weight, PSC2, Mu_tangent
+    deg[deg != deg] = np.pi / 2.
+    mu_weight = np.zeros(mu_point.size, alt_ref.size)
+    
+    for i in range(alt_ref.size):
+        mu_weight[:, i] = trapz_inte_edge(PSC_sin[:, i], deg[:, i])
+    
+    if angle is True:
+        return mu_weight, PSC2, mu_tangent, PSC_sin
+    elif speed is not None:
+        velocity = speed * np.cos(deg)
+        velocity[deg == np.pi / 2.] = 0
+        return mu_weight, PSC2, mu_tangent, velocity
+    else:
+        return mu_weight, PSC2, mu_tangent
+
 
 class MolecularConsts:
     def __init__(self, molecules_state_consts):
         self.filename = molecules_state_consts
-        fn = open(molecules_state_consts+'oH2O16.lev_7levels', 'rb')
+        fn = open(molecules_state_consts + 'oH2O16.lev_7levels', 'rb')
         self.fr = fn.readlines()
         fn.close()
         self.ni = int(self.fr[3])  # NUMBER OF ENERGY LEVELS
@@ -284,7 +244,8 @@ class MolecularConsts:
 """Population Calculation
 """
 
-
+""" Takayoshi Yamada:  Work in progress below.  Change sparingly.
+"""
 def Calc(Ite_pop, Abs_ite,
          PSC2, Mu_tangent, mu_weight,
          Alt_ref, Temp,
@@ -347,6 +308,11 @@ def Calc(Ite_pop, Abs_ite,
                 ji_in_all[xx, ii, :, :],lambda_approx_in[xx, ii, :, :]\
                          = FOSC(tdu, Sd1, Sd, Idu)
                 ji_in_all[xx, ii, ((Mu_tangent > Alt_ref[ii])), :] = 0
+    # test = trapz_inte_edge(PSC_sin[:, -1], deg[:, -1])
+    # PSC_cos = np.arccos(PSC/(Alt_ref*1.e3+Radius))
+    # PSC_cos1 = PSC/(Alt_ref*1.e3+Radius)
+    # PSC_sin = (1-PSC_cos**2)**0.5
+    # PSC_cos = np.cos( np.arccos(PSC_cos1)*1.)  # degree (pi)
                 lambda_approx_in[xx, ii, ((Mu_tangent > Alt_ref[ii])), :] = 0
                 # mu; 0->i,
             elif ii == 0:  # SOSC is not available (FOSC elif ii>=0)
@@ -463,7 +429,7 @@ def Calc(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 tl_3 = Abs_coeff[i+1] * F_vl_i[xx][i+1]
@@ -536,7 +502,7 @@ def Calc(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 """===Doppler=========="""
@@ -575,7 +541,7 @@ def Calc(Ite_pop, Abs_ite,
                            Mu_tangent == Alt_ref[i],
                            :] = lambda_approx_in[xx, i, Mu_tangent == Alt_ref[i], :]
         for xx in range(Nt):  # transitions
-            Fre_weight = Trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
+            Fre_weight = trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
             weighttemp = (mu_weight[:, i].reshape(mu_weight[:, i].size, 1) *
                           np.ones((mu_weight[:, i].size, Fre_weight.size)))
             weighttemp = weighttemp*1./weighttemp[:, 0].sum()
@@ -616,7 +582,7 @@ def Calc(Ite_pop, Abs_ite,
         b = np.zeros((Ni, 1))*1.
         b[-1] = Ite_pop[i][0].sum()
         n_old = Ite_pop[i][0]*1.
-        #"""correction method (normal?)"""
+        #"""correction method (normal?)"""Don't repeat yourself
         #n_delta = b - np.dot(A_m, n_old)
 #        if (i>0)&(i<Alt_ref.size-1):  # preconditioning part
 #            ##"""method1"""
@@ -634,7 +600,7 @@ def Calc(Ite_pop, Abs_ite,
         if (i>0) & (i<Alt_ref.size-1):  # preconditioning part
             n_new = np.linalg.inv(P_m).dot(b)
         else:
-            n_new = np.linalg.inv(A_m).dot(b)
+            n_new = np.linalg.inv(A_m).dot(b)Don't repeat yourself
         n_delta = n_new-n_old
         # """Population input """
         #new_pop[i, 0, :] = n_new
@@ -660,7 +626,7 @@ def Calc(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 tl_3 = Abs_coeff[i+1] * F_vl_i[xx][i+1]
@@ -900,7 +866,7 @@ def MALI(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 tl_3 = Abs_coeff[i+1] * F_vl_i[xx][i+1]
@@ -956,7 +922,7 @@ def MALI(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 Sl = PopuSource_AB(Ite_pop[i, 0, low_tag, 0],
@@ -981,7 +947,7 @@ def MALI(Ite_pop, Abs_ite,
                            Mu_tangent == Alt_ref[i],
                            :] = lambda_approx_in[xx, i, Mu_tangent == Alt_ref[i], :]
         for xx in range(Nt):  # transitions
-            Fre_weight = Trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
+            Fre_weight = trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
             weighttemp = (mu_weight[:, i].reshape(mu_weight[:, i].size, 1) *
                           np.ones((mu_weight[:, i].size, Fre_weight.size)))
             weighttemp = weighttemp*1./weighttemp[:, 0].sum()

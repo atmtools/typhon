@@ -5,8 +5,7 @@ from ..const import *
 
 
 def swifile(atmosphere):
-    """Read Files from SWI mission
-    only for H2O molecules
+    """Read Files from SWI mission only for H2O molecules
     """
     alt = np.loadtxt(atmosphere+'Alt.out', delimiter=',')  # should be km!!
     pre = np.loadtxt(atmosphere+'Pre.out', delimiter=',')  # should be Pa
@@ -15,7 +14,7 @@ def swifile(atmosphere):
     alt = np.r_[0, alt]
     pre = np.r_[pre[0], pre]
     temp = np.r_[temp[0], temp]
-    mole = np.r_[mole[0], mole]*H*H*O  # isotope in the Earth
+    mole = np.r_[mole[0], mole]*H*H*O16  # isotope in the Earth
     # inter polate
     alt_ref = np.r_[0, alt[1:-1]+4.5/2.]
 #==============================================================================
@@ -35,6 +34,8 @@ def swifile(atmosphere):
 
 
 def plot_alt_temp_mole(atmosphere):
+    """Plot-helping function
+    """
     alt, pre, temp, mole, alt_ref = swifile(atmosphere)
     fig = plt.figure()
     ax = fig.add_subplot(111)

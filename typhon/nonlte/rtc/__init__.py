@@ -7,111 +7,84 @@ from ..spectra.abscoeff import basic
 
 #@numba.jit
 def FOSC(tau, Sb, Sm, Ib):
-    u"""
-    First Order Short Characteristics \n
-    tau: optical depth between two layers \n
-    Sb: Source function at adjacent grid points \n
-    Sm: Source function at target point \n
-    Ib: Intensity adjacent grid points
+    """ First Order Short Characteristics 
+
+    See "Theory of stellar atmospheres: An introduction to astrophysical 
+    non-equilibrium quantitative spectroscopic analysis" by Ivan Hubeny
+    and Dimitri Mihalas, ISBN 978-0-691-16328-4
+
+    Parameters:
+        tau: optical depth between two layers 
+        Sb: Source function at adjacent grid points 
+        Sm: Source function at target point 
+        Ib: Intensity adjacent grid points
+
+    Returns: 
+        Inwards-directed intensity, lambda used in equation
     """
-    yd = tau-1.+np.exp(-tau)  # (12.120)
-    #print(yd)
-    # !check above!
-    # x = 1-exp(-tau))
-    dev_cond = tau*1.
+    yd = tau - 1. + np.exp(-tau)  # (12.120)
+    
+    dev_cond = tau * 1.
     dev_cond[tau == 0] = np.nan
+
     lambda_m = yd/dev_cond  # (12.117)
-    lambda_b = -(yd/dev_cond)+1.-np.exp(-tau)  # (12.118, 116)
-    Im = Ib*np.exp(-tau)+lambda_m*Sm+lambda_b*Sb  # (12.114)
+    lambda_b = - (yd / dev_cond) + 1. - np.exp(-tau)  # (12.118, 116)
+    Im = Ib * np.exp(-tau) + lambda_m * Sm + lambda_b * Sb  # (12.114)
     Im[tau == 0] = Ib[tau == 0]
     return Im, lambda_m
 
-# tau, Sb, Sm, Ib = tdu, Sd1, Sd, Idu
-"""
-import time
-A = time.time()
-AA=FOSC(tdu, Sd1, Sd, Idu)
-print (time.time() - A)
-B = time.time()
-BB = SOSC(tdu, tdb, Sd1, Sd, Sd3, Idu, 'inward')
-print (time.time() - B)
-C= time.time()
-CC = SOSCtemp(tdu, tdb, Sd1, Sd, Sd3, Idu, 'inward')
-print (time.time() - B)
-"""
 
 #@numba.jit
+def SOSC(tau1, tau3, S1, S2, S3, I1):
+    """ Second Order Short Characteristics
 
-def SOSC(tau1, tau3, S1, S2, S3, I1, direction):
-    u"""
-    Second Order Short Characteristics \n
-    tau1,3: optical depth at both adjacent grid\n
-    S1,3: Source function at adjacent grid points \n
-    S2: Source function at target point \n
-    I1: Intensity at entering grid points
-    grid1 is entering grid
-    grid2 is calculated point
-    grid3 is leaving point
-    SOSC(tl1, tl3, Sl1, Sl2, Sl3, Il, 'outward')
+    See "Theory of stellar atmospheres: An introduction to astrophysical 
+    non-equilibrium quantitative spectroscopic analysis" by Ivan Hubeny
+    and Dimitri Mihalas, ISBN 978-0-691-16328-4
+
+    and
+
+    See "Fast multilevel radiative transfer" by Frederic Paletou and 
+    Ludovick Leger, arXiv:astro-ph/0507021v3 4 Jul 2006
+
+    Parameters:
+        tau1,3: optical depth at both adjacent grid
+        S1,3: Source function at adjacent grid points 
+        S2: Source function at target point 
+        I1: Intensity entering/leaving grids
+    
+    Returns:
+        Outgoing/Entering intensity, lambda used in equation
+
     """
-    # x1 = 1.-np.exp(-1.*np.float128(tau1))
-    x1 = 1.-np.exp(-tau1)
-    # x1 = 1.-np.exp(-1.*tau1)
+    x1 = 1. - np.exp(-tau1)
     y1 = tau1 - 1. + np.exp(-1.*tau1)
-    # y1 = tau1-x1  # ,-- It cant do!!!!!!!
-    # y1 = np.around(-1.+np.exp(-tau1),16) + tau1
-    # z1 = np.around(tau1**2,15) - np.around(2*y1,15)
     z1 = tau1**2 - 2*y1
-    # z1 = (tau1 - (2*y1)**0.5) * (tau1 + (2*y1)**0.5)
-    # (12.120)
-    # !check above!
-    # x = 1-exp(-tau))
+
     la1_dev = tau1*(tau3+tau1)
     la1_dev[la1_dev == 0] = np.nan
     la2_dev = tau1*tau3
     la2_dev[la2_dev == 0] = np.nan
     la3_dev = tau3*(tau1*tau3)
     la3_dev[la3_dev == 0] = np.nan
+
     lambda_3 = (z1-tau1*y1)/(tau3*(tau3+tau1))  # (19c)
     lambda_2 = ((tau3+tau1)*y1-z1)/(la2_dev)  # (19b)
     lambda_1 = x1+(z1-(tau3+2*tau1)*y1)/la1_dev  # (19a)
-    discrimination = lambda_3*S3+lambda_2*S2+lambda_1*S1  # (12.124)
+
+    discrimination = lambda_3 * S3 + lambda_2 * S2 + lambda_1 * S1  # (12.124)
+
     taumask = tau1*1.
     taumask[tau1 != tau1] = np.inf
+
     discrimination[taumask <= 1.e-6] = 0  # remove calc. error
-    I2 = I1*np.exp(-tau1)+discrimination
-    # yd = tau1-1.+np.exp(-tau1)  # (12.120)
-    # !check above!
-    # x = 1-exp(-tau))
-    # lambda_m = yd/tau1  # (12.117)
-    # lambda_b = -(yd/tau1)+1.-np.exp(-tau1)  # (12.118, 116)
-    # Im = I1*np.exp(-tau1)+lambda_m*S2+lambda_b*S1  # (12.114)
-    # I2[np.log10(tau1)<=-8] = Im[np.log10(tau1)<=-8]
-    return I2,lambda_2#+lambda_1
 
-#
-#def SOSC(tau, tau3, Sb, Sm, S3, Ib, direction):
-#    u"""
-#    MIMIC_SOSC
-#    First Order Short Characteristics \n
-#    tau: optical depth between two layers \n
-#    Sb: Source function at adjacent grid points \n
-#    Sm: Source function at target point \n
-#    Ib: Intensity adjacent grid points
-#    """
-#    yd = tau-1.+np.exp(-tau)  # (12.120)
-#    #print(yd)
-#    # !check above!
-#    # x = 1-exp(-tau))
-#    dev_cond = tau*1.
-#    dev_cond[tau == 0] = np.nan
-#    lambda_m = yd/dev_cond  # (12.117)
-#    lambda_b = -(yd/dev_cond)+1.-np.exp(-tau)  # (12.118, 116)
-#    Im = Ib*np.exp(-tau)+lambda_m*Sm+lambda_b*Sb  # (12.114)
-#    Im[tau == 0] = Ib[tau == 0]
-#    return Im, lambda_m
+    I2 = I1 * np.exp(-tau1) + discrimination
+    return I2, lambda_2
 
 
+""" Takayoshi Yamada:  Work in progress below.  Change sparingly.
+"""
 def CalcSpectra(Ite_pop, Abs_ite,
                 PSC2, Mu_tangent, mu_weight,
                 Alt_ref, Temp,
@@ -256,7 +229,7 @@ def CalcSpectra(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 tl_3 = Abs_coeff[i+1] * F_vl_i[xx][i+1]
@@ -311,7 +284,7 @@ def CalcSpectra(Ite_pop, Abs_ite,
                              Blu[up_tag, low_tag],
                              Bul[up_tag, low_tag],
                              Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                # tdl2 = calc_abscoeff2(i-1, xx, IteNum+1) * F_vl_i[xx][i-1]
+                # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
                 Sl = PopuSource_AB(Ite_pop[i, 0, low_tag, 0],
@@ -336,5 +309,3 @@ def CalcSpectra(Ite_pop, Abs_ite,
                            Mu_tangent == Alt_ref[i],
                            :] = lambda_approx_in[xx, i, Mu_tangent == Alt_ref[i], :]
     return ji_out_all[:,-1,:,:], lambda_approx_out[:,-1,:,:]
-
-
