@@ -1,11 +1,11 @@
-import numba
+#import numba
 import numpy as np
 from ..spectra.source_function import Bv_T, PopuSource_AB
 from ..spectra.abscoeff import basic
 
 
 
-@numba.jit
+#@numba.jit
 def FOSC(tau, Sb, Sm, Ib):
     u"""
     First Order Short Characteristics \n
@@ -41,7 +41,7 @@ print (time.time() - B)
 """
 
 
-@numba.jit
+#@numba.jit
 def SOSC(tau1, tau3, S1, S2, S3, I1, direction):
     u"""
     Second Order Short Characteristics \n
