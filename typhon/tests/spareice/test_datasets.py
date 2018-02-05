@@ -28,6 +28,7 @@ class TestDataset:
             name="tutorial",
             handler=NetCDF4(),
         )
+
         self.datasets += Dataset(
             join(self.refdir, "dataset_of_single_file.nc",),
             name="single",
@@ -105,6 +106,64 @@ class TestDataset:
                 #     timestamp, check, timestamp in dataset
                 # ))
                 assert (timestamp in dataset) == check
+
+    def test_glob(self):
+        files = Dataset(
+            join(
+                self.refdir,
+                "tutorial_datasets/{satellite}/*/*/*/*.nc.gz"
+            ),
+        )
+
+        check = [
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/180000-000000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/120000-180000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/060000-120000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/180000-000000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/120000-180000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/060000-120000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/03/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+        ]
+
+        assert list(files) == check
 
     def test_magic_methods(self):
         """Test magic methods on the dataset examples of the tutorial.
@@ -493,7 +552,7 @@ class TestDataset:
 
         assert found_files == check
 
-    def _repr_files(self, files, comma=False):
+    def _print_files(self, files, comma=False):
         print("[")
         for file in files:
             if isinstance(file, FileInfo):
