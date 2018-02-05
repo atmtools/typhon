@@ -508,6 +508,8 @@ class NetCDF4(FileHandler):
             ds = ArrayGroup.from_netcdf(filename.path, fields, **kwargs)
             if not ds:
                 return None
+            if main_group is not None:
+                ds.set_main_group(main_group)
         elif self.return_type == "xarray":
             ds = xr.open_dataset(filename.path, **kwargs)
             if not ds.variables:
