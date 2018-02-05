@@ -1,19 +1,11 @@
-<<<<<<< HEAD
+
 #import numba
-=======
-import numba
->>>>>>> 84c04424e23739129dc358e1ed1b5bde8d3c0fdc
+
 import numpy as np
 from ..spectra.source_function import Bv_T, PopuSource_AB
 from ..spectra.abscoeff import basic
 
-
-
-<<<<<<< HEAD
 #@numba.jit
-=======
-@numba.jit
->>>>>>> 84c04424e23739129dc358e1ed1b5bde8d3c0fdc
 def FOSC(tau, Sb, Sm, Ib):
     u"""
     First Order Short Characteristics \n
@@ -48,12 +40,8 @@ CC = SOSCtemp(tdu, tdb, Sd1, Sd, Sd3, Idu, 'inward')
 print (time.time() - B)
 """
 
-
-<<<<<<< HEAD
 #@numba.jit
-=======
-@numba.jit
->>>>>>> 84c04424e23739129dc358e1ed1b5bde8d3c0fdc
+
 def SOSC(tau1, tau3, S1, S2, S3, I1, direction):
     u"""
     Second Order Short Characteristics \n
