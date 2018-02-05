@@ -36,7 +36,7 @@ class CloudSat(FileHandler):
         # Call the base class initializer
         super().__init__(**kwargs)
 
-    @expects_file_info
+    @expects_file_info()
     def get_info(self, file_info, **kwargs):
         """Return a :class:`FileInfo` object with parameters about the
         file content.
@@ -58,7 +58,7 @@ class CloudSat(FileHandler):
 
         return file_info
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, file_info, extra_fields=None, mapping=None):
         """Read and parse HDF4 files and load them to an ArrayGroup.
 

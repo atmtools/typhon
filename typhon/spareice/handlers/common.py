@@ -1,5 +1,6 @@
 from copy import copy
 from datetime import datetime
+from functools import wraps
 from inspect import signature, ismethod
 import os
 import pickle
@@ -21,33 +22,70 @@ __all__ = [
 ]
 
 
-def expects_file_info(func):
+def parametrized(dec):
+    """A decorator for decorators that need parameters
+
+    Do not think about this too long, it may cause headaches. Have a look at
+    this instead: https://stackoverflow.com/a/26151604
+
+    Args:
+        dec: A decorator function
+
+    Returns:
+        The decoratored decorator function.
+    """
+    def layer(*args, **kwargs):
+        def repl(f):
+            return dec(f, *args, **kwargs)
+        return repl
+    return layer
+
+
+@parametrized
+def expects_file_info(meth, pos=None, key=None):
     """Convert a method argument to a :class:`FileInfo` object
 
-    This is a decorator function that either converts the first positional
-    argument or the key word argument *filename* to a FileInfo object.
+    This is a decorator function that can take parameters.
 
     If the argument is already a FileInfo object, nothing happens.
 
     Args:
-        func: Method object that should be decorated.
+        meth: Method object that should be decorated.
+        pos: The index of the file info in the positional argument list.
+            Default is 1 (assumes to decorate a method).
+        key: The key of the file info in the key word argument dict.
 
     Returns:
         The return value of the decorated method.
+
+    Examples:
+
+        .. code-block:: python
+
+        @expects_file_info()(0)
+        def read(file, *args, *kwargs):
+            # file is a Fileinfo object now with the attribute path containing
+            # "path/to/file.txt"
+
+        read("path/to/file.txt")
+
     """
 
-    def func_with_file_info(obj, *args, **kwargs):
+    if pos is None and key is None:
+        pos = 1
+
+    @wraps(meth)
+    def wrapper(*args, **kwargs):
         args = list(args)
-        if args:
-            if not isinstance(args[0], FileInfo):
-                args[0] = FileInfo(args[0])
+        if args and pos is not None:
+            if not isinstance(args[pos], FileInfo):
+                args[pos] = FileInfo(args[pos])
         else:
-            if not isinstance(kwargs["filename"], FileInfo):
-                kwargs["filename"] = FileInfo(kwargs["filename"])
+            if not isinstance(kwargs[key], FileInfo):
+                kwargs[key] = FileInfo(kwargs[key])
 
-        return func(obj, *args, **kwargs)
-
-    return func_with_file_info
+        return meth(*args, **kwargs)
+    return wrapper
 
 
 class FileHandler:
@@ -93,7 +131,7 @@ class FileHandler:
         self.info_reader = info_reader
         self.writer = writer
 
-    @expects_file_info
+    @expects_file_info()
     def get_info(self, filename, **kwargs):
         """Return a :class:`FileInfo` object with parameters about the
         file content.
@@ -147,7 +185,7 @@ class FileHandler:
                     "Unknown field element: {}. The elements in fields must be"
                     "strings or tuples!".format(type(field)))
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, filename, **kwargs):
         """Open a file by its name, read its content and return it
 
@@ -197,7 +235,7 @@ class FileHandler:
 
         return data
 
-    @expects_file_info
+    @expects_file_info(pos=2)
     def write(self, data, filename, **kwargs):
         """Store a data object to a file.
 
@@ -216,7 +254,7 @@ class FileHandler:
             if len(signature(self.writer).parameters) > 2:
                 self.writer(data, filename, **kwargs)
             else:
-                self.writer(data, file_info)
+                self.writer(data, filename)
 
             return None
 
@@ -408,7 +446,7 @@ class CSV(FileHandler):
         else:
             self.write_csv = write_csv
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, filename, fields=None, **read_csv):
         """Read a CSV file and return an ArrayGroup object with its content.
 
@@ -433,7 +471,7 @@ class CSV(FileHandler):
             dataframe = pd.read_csv(filename.path, **kwargs)
             return xr.Dataset.from_dataframe(dataframe)
 
-    @expects_file_info
+    @expects_file_info(pos=2)
     def write(self, data, filename, **write_csv):
         """Write an ArrayGroup object to a CSV file.
 
@@ -480,7 +518,7 @@ class NetCDF4(FileHandler):
         else:
             self.return_type = return_type
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, filename, fields=None, mapping=None, main_group=None,
              **kwargs):
         """Reads and parses NetCDF files and load them to an ArrayGroup.
@@ -525,7 +563,7 @@ class NetCDF4(FileHandler):
 
         return ds
 
-    @expects_file_info
+    @expects_file_info(pos=2)
     def write(self, data, filename, **kwargs):
         """ Writes a data object to a NetCDF file.
 
@@ -563,7 +601,7 @@ class Plotter(FileHandler):
         else:
             self.fig_args = fig_args
 
-    @expects_file_info
+    @expects_file_info(pos=1)
     def write(self, figure, filename, fig_args=None):
         """ Saves a matplotlib.figure object to a file.
 

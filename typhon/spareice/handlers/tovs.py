@@ -5,15 +5,13 @@ import numpy as np
 from typhon.spareice.geographical import GeoData
 import xarray as xr
 
-from .common import FileHandler, FileInfo, expects_file_info
+from .common import FileHandler, expects_file_info
 
-__all__ = [
-    'MHSAAPP',
-    ]
+__all__ = ['MHSAAPP',]
 
 
 class MHSAAPP(FileHandler):
-    """File handler for MHS level 1C HDF files (convert with the AAPP tool.)
+    """File handler for MHS level 1C HDF files (converted with the AAPP tool.)
     """
     # This file handler always wants to return at least time, lat and lon
     # fields. These fields are required for this:
@@ -48,7 +46,7 @@ class MHSAAPP(FileHandler):
         self.user_mapping = mapping
         self.apply_scaling = apply_scaling
 
-    @expects_file_info
+    @expects_file_info()
     def get_info(self, file_info, **kwargs):
         with Dataset(file_info.path, "r") as file:
             file_info.times[0] = \
@@ -63,7 +61,7 @@ class MHSAAPP(FileHandler):
 
             return file_info
 
-    @expects_file_info
+    @expects_file_info()
     def read(self, file_info, extra_fields=None, mapping=None):
         """"Read and parse HDF4 files and load them to an ArrayGroup.
 
