@@ -94,6 +94,7 @@ setup(
         'docutils',
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
+        'numba',
         'numexpr',
         'numpy>=1.6',
         'scikit-learn',
