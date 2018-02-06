@@ -4,24 +4,27 @@
 Physical constants
 ==================
 
-============================  ==============================================
-``g``                         Earth standard gravity in :math:`\sf ms^{-1}`
-``h``                         Planck constant in :math:`\sf Js`
-``k``                         Boltzmann constant in :math:`\sf JK^{-1}`
-``c``                         Speed of light in :math:`\sf ms^{-1}`
-``N_A``                       Avogadro constant in :math:`\sf mol^{-1}`
-``K``, ``zero_celsius``       Kelvin at 0 Celsius
-``R``                         Universal gas constant in
-                              :math:`\sf J mol^{-1}K{^-1}`
-``molar_mass_dry_air``        Molar mass for dry air in
-                              :math:`\sf kg\,mol^{-1}`
-``molar_mass_water``          Molar mass for water vapor in
-                              :math:`\sf kg\,mol^{-1}`
-``gas_constant_dry_air``      Gas constant for dry air in
-                              :math:`\sf J K^{-1} kg^{-1}`
-``gas_constant_water_vapor``  Gas constant for water vapor in
-                              :math:`\sf J K^{-1} kg^{-1}`
-============================  ==============================================
+=============================== ==============================================
+``g``                           Earth standard gravity in :math:`\sf ms^{-1}`
+``h``                           Planck constant in :math:`\sf Js`
+``k``                           Boltzmann constant in :math:`\sf JK^{-1}`
+``c``                           Speed of light in :math:`\sf ms^{-1}`
+``N_A``                         Avogadro constant in :math:`\sf mol^{-1}`
+``K``, ``zero_celsius``         Kelvin at 0 Celsius
+``R``                           Universal gas constant in
+                                :math:`\sf J mol^{-1}K{^-1}`
+``molar_mass_dry_air``          Molar mass for dry air in
+                                :math:`\sf kg\,mol^{-1}`
+``molar_mass_water``            Molar mass for water vapor in
+                                :math:`\sf kg\,mol^{-1}`
+``gas_constant_dry_air``        Gas constant for dry air in
+                                :math:`\sf J K^{-1} kg^{-1}`
+``gas_constant_water_vapor``    Gas constant for water vapor in
+                                :math:`\sf J K^{-1} kg^{-1}`
+``isobaric_mass_heat_capacity`` Specific heat capacity in
+                                :math:`\sf J kg^{-1} K^{-1}`
+``heat_of_vaporization``        Heat of vaporization in :math:`\sf J kg{^-1}`
+=============================== ==============================================
 
 Mathematical constants
 ======================
@@ -111,6 +114,8 @@ gas_constant_dry_air = R / molar_mass_dry_air  # J K^-1 kg^-1
 gas_constant_water_vapor = R / molar_mass_water  # J K^-1 kg^-1
 amu = spc.m_u
 stefan_boltzmann_constant = 2 * np.pi**5 * k**4 / (15 * c**2 * h**3)
+isobaric_mass_heat_capacity = 1003.5  # J kg^-1 K^-1
+heat_of_vaporization = 2501000  # J kg^-1
 
 # Mathematical constants
 golden = golden_ratio = (1 + np.sqrt(5)) / 2
