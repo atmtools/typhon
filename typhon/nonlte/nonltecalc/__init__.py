@@ -255,7 +255,9 @@ def Calc(Ite_pop, Abs_ite,
          Nt, Ni, Aul, Bul, Blu,
          RaRaB_absorption, RaRaB_induced, RaRaA, RaRaAd, CoRa_block,
          Tran_tag,
-         wind_v=False):
+         wind_v=False,
+         update_population=True,
+         out_put_spectra=True):
     ji_in_all = np.zeros((Nt,
                           Alt_ref.size,
                           Mu_tangent.size,
@@ -603,9 +605,10 @@ def Calc(Ite_pop, Abs_ite,
             n_new = np.linalg.inv(A_m).dot(b)
         
         n_delta = n_new-n_old
-        # """Population input """
-        #new_pop[i, 0, :] = n_new
-        new_pop = Ite_pop #this is for no update
+        if update_population is True:
+            new_pop[i, 0, :] = n_new
+        else:
+            new_pop = Ite_pop #this is for no update
         max_true_error[i] = np.abs((n_delta/n_new)*100).max()
         if (i > 0) and (i < Alt_ref.size-1):
             for xx in range(Nt):  # transitions
@@ -681,7 +684,10 @@ def Calc(Ite_pop, Abs_ite,
                 = ji_in_all[xx, i, Mu_tangent == Alt_ref[i], :]
                 lambda_approx_out[xx, i, Mu_tangent == Alt_ref[i], :]\
                 = lambda_approx_in[xx, i, Mu_tangent == Alt_ref[i], :]
-    return new_pop,ji_out_all
+    if out_put_spectra is True:
+        return new_pop,ji_out_all
+    else:
+        return new_pop
 
 
 
