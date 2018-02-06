@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-from .version import __version__
 
 try:
     __ATRASU_SETUP__

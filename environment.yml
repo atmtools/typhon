@@ -10,3 +10,5 @@ dependencies:
         - scipy>=0.15.1
         - setuptools>=0.7.2
         - xarray
+        - numba
+

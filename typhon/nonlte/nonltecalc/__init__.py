@@ -38,7 +38,7 @@ def calcu_grid(radius, alt_ref, angle=False, speed=None):
     deg = np.arcsin(PSC_sin)
     PSC_sin[deg != deg] = 0
     deg[deg != deg] = np.pi / 2.
-    mu_weight = np.zeros(mu_point.size, alt_ref.size)
+    mu_weight = np.zeros((mu_point.size, alt_ref.size))
     
     for i in range(alt_ref.size):
         mu_weight[:, i] = trapz_inte_edge(PSC_sin[:, i], deg[:, i])
@@ -50,6 +50,7 @@ def calcu_grid(radius, alt_ref, angle=False, speed=None):
         velocity[deg == np.pi / 2.] = 0
         return mu_weight, PSC2, mu_tangent, velocity
     else:
+        #tete
         return mu_weight, PSC2, mu_tangent
 
 
@@ -391,8 +392,7 @@ def Calc(Ite_pop, Abs_ite,
                 ji_in_all[xx, ii, :, :], lambda_approx_in[xx, ii, :, :]\
                          = SOSC(tdu, tdb,
                                 Sd1, Sd, Sd3,
-                                Idu,
-                                'inward')
+                                Idu)
                 ji_in_all[xx, ii, (Mu_tangent == Alt_ref[ii]), :],\
                 lambda_approx_in[xx, ii, (Mu_tangent == Alt_ref[ii]), :]\
                           = FOSC(tdu[Mu_tangent == Alt_ref[ii]],
@@ -473,7 +473,7 @@ def Calc(Ite_pop, Abs_ite,
                 ji_out_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                           = SOSC(tl1, tl3,
                                  Sl1, Sl2, Sl3,
-                                 Il, 'outward')
+                                 Il)
                 ji_out_all[xx, i, Mu_tangent > Alt_ref[i], :]=0
                 lambda_approx_out[xx, i, Mu_tangent > Alt_ref[i], :] = 0
                 ji_out_all[xx, i, Mu_tangent == Alt_ref[i], :]\
@@ -484,7 +484,7 @@ def Calc(Ite_pop, Abs_ite,
                 ji_in_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                          = SOSC(tl3, tl1,
                                 Sl3, Sl2, Sl1,
-                                I3, 'inward')
+                                I3)
                 ji_in_all[xx, i, (Mu_tangent == Alt_ref[i]), :],\
                 lambda_approx_out[xx, i, (Mu_tangent == Alt_ref[i]), :]\
                              = FOSC(tl3[Mu_tangent == Alt_ref[i]],
@@ -600,11 +600,11 @@ def Calc(Ite_pop, Abs_ite,
         if (i>0) & (i<Alt_ref.size-1):  # preconditioning part
             n_new = np.linalg.inv(P_m).dot(b)
         else:
-            n_new = np.linalg.inv(A_m).dot(b)Don't repeat yourself
+            n_new = np.linalg.inv(A_m).dot(b)
         n_delta = n_new-n_old
         # """Population input """
         #new_pop[i, 0, :] = n_new
-        new_pop = Ite_pop
+        new_pop = Ite_pop #this is for no update
         max_true_error[i] = np.abs((n_delta/n_new)*100).max()
         if (i > 0) and (i < Alt_ref.size-1):
             for xx in range(Nt):  # transitions
@@ -673,7 +673,7 @@ def Calc(Ite_pop, Abs_ite,
                 ji_out_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                           = SOSC(tl1, tl3,
                                  Sl1, Sl2, Sl3,
-                                 Il, 'outward')
+                                 Il)
                 ji_out_all[xx, i, Mu_tangent > Alt_ref[i], :]=0
                 lambda_approx_out[xx, i, Mu_tangent > Alt_ref[i], :] = 0
                 ji_out_all[xx, i, Mu_tangent == Alt_ref[i], :]\
@@ -829,8 +829,7 @@ def MALI(Ite_pop, Abs_ite,
                 ji_in_all[xx, ii, :, :], lambda_approx_in[xx, ii, :, :]\
                          = SOSC(tdu, tdb,
                                 Sd1, Sd, Sd3,
-                                Idu,
-                                'inward')
+                                Idu)
                 ji_in_all[xx, ii, (Mu_tangent == Alt_ref[ii]), :],\
                 lambda_approx_in[xx, ii, (Mu_tangent == Alt_ref[ii]), :]\
                           = FOSC(tdu[Mu_tangent == Alt_ref[ii]],
@@ -893,7 +892,7 @@ def MALI(Ite_pop, Abs_ite,
                 ji_out_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                           = SOSC(tl1, tl3,
                                  Sl1, Sl2, Sl3,
-                                 Il, 'outward')
+                                 Il)
                 ji_out_all[xx, i, Mu_tangent > Alt_ref[i], :]=0
                 lambda_approx_out[xx, i, Mu_tangent > Alt_ref[i], :] = 0
                 ji_out_all[xx, i, Mu_tangent == Alt_ref[i], :]\
@@ -904,7 +903,7 @@ def MALI(Ite_pop, Abs_ite,
                 ji_in_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                          = SOSC(tl3, tl1,
                                 Sl3, Sl2, Sl1,
-                                I3, 'inward')
+                                I3)
                 ji_in_all[xx, i, (Mu_tangent == Alt_ref[i]), :],\
                 lambda_approx_out[xx, i, (Mu_tangent == Alt_ref[i]), :]\
                              = FOSC(tl3[Mu_tangent == Alt_ref[i]],
