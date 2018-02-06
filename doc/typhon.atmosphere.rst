@@ -9,5 +9,6 @@ atmosphere
    :toctree: generated
 
    iwv
+   moist_lapse_rate
    relative_humidity
    vmr

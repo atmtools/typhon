@@ -52,3 +52,9 @@ class TestAtmosphere:
         vmr = atmosphere.vmr(rh, 1013e2, 300)
 
         assert np.allclose(vmr, 0.025)
+
+    def test_moist_lapse_rate(self):
+        """Test calculation of moist-adiabatic lapse rate."""
+        gamma = atmosphere.moist_lapse_rate(1000e2, 300)
+
+        assert np.isclose(gamma, 0.00370478)
