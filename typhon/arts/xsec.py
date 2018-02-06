@@ -2,8 +2,16 @@ __all__ = ['XsecRecord']
 
 
 class XsecRecord:
+    """:class:`XsecRecord` implements the same-named ARTS datatype.
+
+    Contains the reference cross section data at low pressure and
+    the coefficients for the broadening formula.
+    """
+
     def __init__(self, species=None, coeffs=None, fmin=None, fmax=None,
                  refpressure=None, reftemperature=None, xsec=None):
+        """Initialize XsecRecord object.
+        """
         self.version = 1
         self.species = species
         self.coeffs = coeffs
@@ -14,7 +22,7 @@ class XsecRecord:
         self.xsec = xsec
 
     def write_xml(self, xmlwriter, attr=None):
-        """Write a XsecData object to an ARTS XML file.
+        """Write a XsecRecord object to an ARTS XML file.
         """
         # self.checksize()
         if attr is None:
@@ -32,7 +40,7 @@ class XsecRecord:
 
     @classmethod
     def from_xml(cls, xmlelement):
-        """Loads a XsecData object from an xml.ElementTree.Element.
+        """Loads a XsecRecord object from an xml.ElementTree.Element.
         """
 
         obj = cls()
