@@ -601,6 +601,7 @@ def Calc(Ite_pop, Abs_ite,
             n_new = np.linalg.inv(P_m).dot(b)
         else:
             n_new = np.linalg.inv(A_m).dot(b)
+        
         n_delta = n_new-n_old
         # """Population input """
         #new_pop[i, 0, :] = n_new
