@@ -115,7 +115,9 @@ class TestDataset:
             ),
         )
 
-        check = [
+        # Sort this after paths rather than times (because the times are all
+        # equal)
+        check = list(sorted([
             FileInfo(join(self.refdir,
                           'tutorial_datasets/SatelliteB/2018/01/02/180000-000000.nc.gz'),  # noqa
                      [datetime.datetime(1, 1, 1, 0, 0),
@@ -161,9 +163,9 @@ class TestDataset:
                      [datetime.datetime(1, 1, 1, 0, 0),
                       datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                      {'satellite': 'SatelliteB'}),
-        ]
+        ], key=lambda x: x.path))
 
-        assert list(files) == check
+        assert list(sorted(files, key=lambda x: x.path)) == check
 
     def test_magic_methods(self):
         """Test magic methods on the dataset examples of the tutorial.
@@ -571,6 +573,6 @@ class TestDataset:
             file_info.path[82:]
         )
 
-        return "FileInfo({}, {}, {}),".format(
+        return "FileInfo(\n\t{}, \t{}, \t{}),".format(
             path, repr(file_info.times), repr(file_info.attr)
         )
