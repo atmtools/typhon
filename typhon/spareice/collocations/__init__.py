@@ -10,7 +10,4 @@ Created by John Mrziglod, June 2017
 
 from .common import *  # noqa
 
-__all__ = [
-    "CollocatedDataset",
-    "NotCollapsedError",
-]
+__all__ = [s for s in dir() if not s.startswith('_')]

@@ -365,6 +365,20 @@ class ArrayGroup:
 
     Still under development and potentially deprecated in future releases in
     order to fully support xarray.
+
+    There are different ways to access one element of this ArrayGroup:
+    * *array_group["var"]*: returns a variable (Array) or group
+        (ArrayGroup) object.
+    * *array_group["group1/var"]*: returns the variable *var* from the
+        group *group1*.
+    * *array_group["/"]*: returns this object itself.
+    * *array_group[0:10]*: returns a copy of the first ten elements
+        for each variable in the ArrayGroup object. Note: all variables
+        should have the same length.
+    * *array_group[("var1", "var2", )]*: selects the fields "var1"
+        and "var2" from the array group and returns them as a new array
+        group object.
+    * *array_group["var", 0]*: selects the first column of var
     """
 
     def __init__(self, name=None, hidden_prefix=None):
@@ -393,6 +407,8 @@ class ArrayGroup:
             self.name = "{} {}".format(id(self), type(self), )
         else:
             self.name = name
+
+        self._link_from_main = None
 
     def __contains__(self, item):
         var, rest = self.parse(item)
@@ -441,19 +457,7 @@ class ArrayGroup:
     def __getitem__(self, item):
         """Enables dictionary-like access to the ArrayGroup.
 
-        There are different ways to access one element of this ArrayGroup:
-
-        * by *array_group["var"]*: returns a variable (Array) or group
-            (ArrayGroup) object.
-        * by *array_group["group1/var"]*: returns the variable *var* from the
-            group *group1*.
-        * by *array_group["/"]*: returns this object itself.
-        * by *array_group[0:10]*: returns a copy of the first ten elements
-            for each variable in the ArrayGroup object. Note: all variables
-            should have the same length.
-        * by *array_group[("var1", "var2", )]*: selects the fields "var1"
-            and "var2" from the array group and returns them as a new array
-            group object.
+        Documentation is in class description.
 
         Args:
             item: Can be a string, integer, slice or tuple of strings.
@@ -471,20 +475,36 @@ class ArrayGroup:
                 return self
 
             if not rest:
-                if var in self._vars:
-                    return self._vars[var]
+                def get_field(var):
+                    try:
+                        return self._vars[var]
+                    except KeyError:
+                        pass
+
+                    try:
+                        return self._groups[var]
+                    except KeyError:
+                        raise KeyError(
+                            "There is neither a variable nor group named "
+                            "'{}'!".format(var)
+                        )
 
                 try:
-                    return self._groups[var]
-                except KeyError:
-                    raise KeyError(
-                        "There is neither a variable nor group named "
-                        "'{}'!".format(var))
+                    return get_field(var)
+                except KeyError as err:
+                    main_group = self.attrs.get("MAIN_GROUP", None)
+                    if main_group is None:
+                        raise err
+
+                return self[main_group][var]
             else:
                 if var in self._groups:
                     return self._groups[var][rest]
                 else:
                     raise KeyError("'{}' is not a group!".format(var))
+        elif isinstance(item, (tuple, list)) and len(item) \
+                and isinstance(item[0], str) and isinstance(item[1], int):
+            return self[item[0]][:, item[1]]
         else:
             # Selecting elements via slicing:
             return self.select(item)
@@ -543,8 +563,13 @@ class ArrayGroup:
 
         info += "  Groups:\n"
         if self._groups:
+            main_group = self.attrs.get("MAIN_GROUP", None)
             for group in self.groups(deep=True):
-                info += "    {}\n".format(group)
+                if main_group is not None and main_group == group:
+                    info += f"    {group} (main group)\n"
+                else:
+                    info += f"    {group}\n"
+
         else:
             info += "    --\n"
 
@@ -640,8 +665,8 @@ class ArrayGroup:
         """Concatenate multiple ArrayGroup objects.
 
         Notes:
-            The attribute and dimension information of some arrays may get
-            lost.
+            The attribute and dimension information from the first object is
+            used.
 
         Args:
             objects: List of GeoData objects to concatenate.
@@ -651,6 +676,7 @@ class ArrayGroup:
             A
         """
         new_data = cls()
+        new_data.attrs.update(objects[0].attrs)
         for var in objects[0]:
             if isinstance(objects[0][var], cls):
                 new_data[var] = cls.concatenate(
@@ -986,6 +1012,35 @@ class ArrayGroup:
             raise ValueError("One bound must be set!")
         return self[indices]
 
+    def set_main_group(self, sub_group):
+        """Link the main group to a sub group
+
+        When searching for variables in the main group and they are not found,
+        for the variables will also be searched in this linked sub group.
+
+        Args:
+            sub_group: A name of an existing sub group.
+
+        Returns:
+            None
+
+        Examples:
+
+        .. :code-block:: python
+
+            # Create an ArrayGroup
+            ag = ArrayGroup()
+            ag["group1/time"] = np.arange(100)
+
+            # Try to get the time field from the main group
+            print(ag["time"])  # will fail because there is no time variable in
+                               # the main group
+
+            ag.link_main_group("group1")
+            print(ag["time"])  # now it works
+        """
+        self.attrs["MAIN_GROUP"] = sub_group
+
     @classmethod
     def merge(cls, objects, groups=None, overwrite_error=True):
         """Merges multiple ArrayGroup objects to one.
@@ -1161,6 +1216,7 @@ class ArrayGroup:
             raise TypeError("For field selection indices_or_fields must be "
                             "a tuple/list of strings.")
 
+        # Save the attributes
         if inplace:
             obj = self
         else:

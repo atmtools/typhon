@@ -28,6 +28,7 @@ class TestDataset:
             name="tutorial",
             handler=NetCDF4(),
         )
+
         self.datasets += Dataset(
             join(self.refdir, "dataset_of_single_file.nc",),
             name="single",
@@ -106,6 +107,66 @@ class TestDataset:
                 # ))
                 assert (timestamp in dataset) == check
 
+    def test_glob(self):
+        files = Dataset(
+            join(
+                self.refdir,
+                "tutorial_datasets/{satellite}/*/*/*/*.nc.gz"
+            ),
+        )
+
+        # Sort this after paths rather than times (because the times are all
+        # equal)
+        check = list(sorted([
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/180000-000000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/120000-180000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/02/060000-120000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/180000-000000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/120000-180000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/01/060000-120000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+            FileInfo(join(self.refdir,
+                          'tutorial_datasets/SatelliteB/2018/01/03/000000-060000.nc.gz'),  # noqa
+                     [datetime.datetime(1, 1, 1, 0, 0),
+                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                     {'satellite': 'SatelliteB'}),
+        ], key=lambda x: x.path))
+
+        assert list(sorted(files, key=lambda x: x.path)) == check
+
     def test_magic_methods(self):
         """Test magic methods on the dataset examples of the tutorial.
 
@@ -148,13 +209,13 @@ class TestDataset:
         # STANDARD DATASET
         # Should not find anything:
         empty = list(
-            datasets["tutorial"].find_files(
+            datasets["tutorial"].find(
                 "2017-12-31", "2018-01-01", no_files_error=False
             ))
         assert not empty
 
         # Find the closest file to 2018-01-01
-        found_file = datasets["tutorial"].find_file(
+        found_file = datasets["tutorial"].find_closest(
             "2018-01-01 03:00", filters={
                 "!satellite": ("SatelliteA", "SatelliteC")
             }
@@ -177,7 +238,7 @@ class TestDataset:
 
         # Should find four files:
         found_files = list(
-            datasets["tutorial"].find_files(
+            datasets["tutorial"].find(
                 "2018-01-01", "2018-01-02",
             ))
 
@@ -205,7 +266,7 @@ class TestDataset:
 
         # Should find four files and should return them in two bins:
         found_files = list(
-            datasets["tutorial"].find_files(
+            datasets["tutorial"].find(
                 "2018-01-01", "2018-01-02", bundle="12h",
             ))
 
@@ -236,7 +297,7 @@ class TestDataset:
 
         # Should find four files and should return them in two bins:
         found_files = list(
-            datasets["tutorial"].find_files(
+            datasets["tutorial"].find(
                 "2018-01-01", "2018-01-02", bundle=3,
             ))
 
@@ -301,7 +362,7 @@ class TestDataset:
         datasets["tutorial"].set_placeholders(
             satellite="SatelliteA"
         )
-        found_file = datasets["tutorial"].find_file("2018-01-03")
+        found_file = datasets["tutorial"].find_closest("2018-01-03")
 
         check = FileInfo(
             join(self.refdir,
@@ -315,7 +376,7 @@ class TestDataset:
         assert found_file == check
 
     def test_single(self):
-        """Test find_files on the single dataset.
+        """Test find on the single dataset.
 
         Returns:
             None
@@ -325,7 +386,7 @@ class TestDataset:
         # STANDARD DATASET
         # Should not find anything:
         empty = list(
-            datasets["single"].find_files(
+            datasets["single"].find(
                 "2016-12-31", "2018-01-01", no_files_error=False
             ))
         assert not empty
@@ -337,28 +398,28 @@ class TestDataset:
         ]
 
         found_files = list(
-            datasets["single"].find_files(
+            datasets["single"].find(
                 "2018-01-01", "2018-01-02",
             ))
 
         assert found_files == check
 
         found_files = list(
-            datasets["single"].find_files(
+            datasets["single"].find(
                 "2018-01-01", "2018-01-02", bundle="12h",
             ))
 
         assert found_files == check
 
         found_files = list(
-            datasets["single"].find_files(
+            datasets["single"].find(
                 "2018-01-01", "2018-01-02", bundle=3,
             ))
 
         assert found_files == check
 
     def test_sequence(self):
-        """Test find_files on the sequence datasets.
+        """Test find on the sequence datasets.
 
         Returns:
             None
@@ -368,14 +429,14 @@ class TestDataset:
         # STANDARD DATASET
         # Should not find anything:
         empty = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2016-12-31", "2018-01-01", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2018-01-01", "2018-01-02",
             ))
 
@@ -394,7 +455,7 @@ class TestDataset:
 
         # Should find two files and should return them in two bins:
         found_files = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2018-01-01", "2018-01-02", bundle="6h",
             ))
 
@@ -415,7 +476,7 @@ class TestDataset:
         assert found_files == check
 
     def test_sequence_placeholder(self):
-        """Test find_files on all standard datasets.
+        """Test find on all standard datasets.
 
         Returns:
             None
@@ -425,14 +486,14 @@ class TestDataset:
         # STANDARD DATASET
         # Should not find anything:
         empty = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2016-12-31", "2018-01-01", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2018-01-01", "2018-01-02",
             ))
 
@@ -451,7 +512,7 @@ class TestDataset:
 
         # Should find two files and should return them in two bins:
         found_files = list(
-            datasets["sequence-placeholder"].find_files(
+            datasets["sequence-placeholder"].find(
                 "2018-01-01", "2018-01-02", bundle="6h",
             ))
 
@@ -483,17 +544,17 @@ class TestDataset:
                       'station': 'WI'}),
         ]
 
-        found_file = datasets["regex-HIRS"].find_file("1999-05-08")
+        found_file = datasets["regex-HIRS"].find_closest("1999-05-08")
 
         assert found_file == check[0]
         assert found_file.attr == check[0].attr
 
         found_files = \
-            list(datasets["regex-HIRS"].find_files("1999-05-07", "1999-05-09"))
+            list(datasets["regex-HIRS"].find("1999-05-07", "1999-05-09"))
 
         assert found_files == check
 
-    def _repr_files(self, files, comma=False):
+    def _print_files(self, files, comma=False):
         print("[")
         for file in files:
             if isinstance(file, FileInfo):
@@ -512,6 +573,6 @@ class TestDataset:
             file_info.path[82:]
         )
 
-        return "FileInfo({}, {}, {}),".format(
+        return "FileInfo(\n\t{}, \t{}, \t{}),".format(
             path, repr(file_info.times), repr(file_info.attr)
         )
