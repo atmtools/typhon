@@ -1,11 +1,11 @@
 
-#import numba
+import numba
 
 import numpy as np
 from ..spectra.source_function import Bv_T, PopuSource_AB
 from ..spectra.abscoeff import basic
 
-#@numba.jit
+@numba.jit
 def FOSC(tau, Sb, Sm, Ib):
     """ First Order Short Characteristics 
 
@@ -34,7 +34,7 @@ def FOSC(tau, Sb, Sm, Ib):
     return Im, lambda_m
 
 
-#@numba.jit
+@numba.jit
 def SOSC(tau1, tau3, S1, S2, S3, I1):
     """ Second Order Short Characteristics
 
@@ -196,8 +196,7 @@ def CalcSpectra(Ite_pop, Abs_ite,
                 ji_in_all[xx, ii, :, :], lambda_approx_in[xx, ii, :, :]\
                          = SOSC(tdu, tdb,
                                 Sd1, Sd, Sd3,
-                                Idu,
-                                'inward')
+                                Idu)
                 ji_in_all[xx, ii, (Mu_tangent == Alt_ref[ii]), :],\
                 lambda_approx_in[xx, ii, (Mu_tangent == Alt_ref[ii]), :]\
                           = FOSC(tdu[Mu_tangent == Alt_ref[ii]],
@@ -255,7 +254,7 @@ def CalcSpectra(Ite_pop, Abs_ite,
                 ji_out_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                           = SOSC(tl1, tl3,
                                  Sl1, Sl2, Sl3,
-                                 Il, 'outward')
+                                 Il)
                 ji_out_all[xx, i, Mu_tangent > Alt_ref[i], :]=0
                 lambda_approx_out[xx, i, Mu_tangent > Alt_ref[i], :] = 0
                 ji_out_all[xx, i, Mu_tangent == Alt_ref[i], :]\
@@ -266,7 +265,7 @@ def CalcSpectra(Ite_pop, Abs_ite,
                 ji_in_all[xx, i, :, :],lambda_approx_out[xx, i, :, :]\
                          = SOSC(tl3, tl1,
                                 Sl3, Sl2, Sl1,
-                                I3, 'inward')
+                                I3)
                 ji_in_all[xx, i, (Mu_tangent == Alt_ref[i]), :],\
                 lambda_approx_out[xx, i, (Mu_tangent == Alt_ref[i]), :]\
                              = FOSC(tl3[Mu_tangent == Alt_ref[i]],
