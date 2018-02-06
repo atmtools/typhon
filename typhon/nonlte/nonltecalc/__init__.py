@@ -600,7 +600,7 @@ def Calc(Ite_pop, Abs_ite,
         if (i>0) & (i<Alt_ref.size-1):  # preconditioning part
             n_new = np.linalg.inv(P_m).dot(b)
         else:
-            n_new = np.linalg.inv(A_m).dot(b)Don't repeat yourself
+            n_new = np.linalg.inv(A_m).dot(b)  # Don't repeat yourself
         n_delta = n_new-n_old
         # """Population input """
         #new_pop[i, 0, :] = n_new
