@@ -1,20 +1,24 @@
 import numpy as np
 
-def trapz_inte_edge(i_dy, i_dx):
+def trapz_inte_edge(y, x):
     """ Trapezoidal integration including edge grids
 
     Parameters:
-        i_dy: Array of indices representing y-axis
-        i_dx: Array of indices representing x-axis
-    
-    Returns:
-        Concatenated step array of the axis from first to end
+        y: Array of y-axis value
+        x: Array of x-axis value
+
+        Returns:
+        Area corresponded to each y (or x) value
+            For Example,
+             Area corresponded to at y_n is
+            ..math:
+                0.5*y_n ((x_{n} - x_{n-1}) + (x_{n+1} - x_{n}))
+             Area corresponded to at y_0 (start point(edge)) is
+            ..math:
+                0.5*y_0(x_{1} - x_{0})
     """
-    dx_pre = 0.5 * np.abs(i_dx[1:] - i_dx[:-1])
-    dx_center = dx_pre[1:] + dx_pre[:-1]
-    dy_center = 0.5 * np.abs(i_dy[1:] + i_dy[:-1])
-    trapz_center = 0.5 * (dy_center[1:] + dy_center[:-1]) * dx_center
-    first_dydx = 0.5 * (i_dy[0] + dy_center[0]) * dx_center[0]
-    last_dydx = 0.5 * (i_dy[-1] + dy_center[-1]) * dx_center[-1]
-    inte_trapz = np.r_[first_dydx, trapz_center, last_dydx]
-    return inte_trapz
+    weight_x_0 = 0.5 * (x[1] - x[0])
+    weight_x_f = 0.5 * (x[-1] - x[-2])
+    weight_x_n = 0.5 * (x[1:-1] - x[:-2]) + 0.5 * (x[2:] - x[1:-1])
+    weight_x = np.r_[weight_x_0, weight_x_n, weight_x_f]
+    return weight_x*y
