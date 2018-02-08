@@ -36,10 +36,15 @@ class IntervalTree:
     Examples:
         Check 1000 intervals on 1000 other intervals:
 
-        >>> intervals = np.asarray([np.arange(1000)-0.5, np.arange(1000)+0.5]).T
-        >>> tree = IntervalTree(intervals)
-        >>> query_intervals = [[i-1, i+1] for i in range(1000)]
-        >>> results = tree.query(query_intervals)
+    .. code-block:: python
+
+        import numpy as np
+        from typhon.trees import IntervalTree
+
+        intervals = np.asarray([np.arange(1000)-0.5, np.arange(1000)+0.5]).T
+        tree = IntervalTree(intervals)
+        query_intervals = [[i-1, i+1] for i in range(1000)]
+        results = tree.query(query_intervals)
 
     """
     def __init__(self, intervals):
@@ -50,8 +55,6 @@ class IntervalTree:
                 numbers).
         """
         # Check the intervals whether they are valid:
-
-
         self.left = np.min(intervals)
         self.right = np.max(intervals)
 
@@ -90,16 +93,16 @@ class IntervalTree:
 
     @staticmethod
     def interval_overlaps(interval1, interval2):
-        """Checks whether two interval overlap each other.
+        """Checks whether two intervals overlap each other.
 
         Args:
-            interval1: A tuple of two numbers: the lower and higher bound of the
-                first interval.
-            interval2: A tuple of two numbers: the lower and higher bound of the
-                second interval.
+            interval1: A tuple of two numbers: the lower and higher bound of
+                the first interval.
+            interval2: A tuple of two numbers: the lower and higher bound of
+                the second interval.
 
         Returns:
-            True if the interval overlap.
+            True if the intervals overlap.
         """
         return interval1[0] <= interval2[0] <= interval1[1] or \
             interval1[0] <= interval2[1] <= interval1[1] or \
@@ -139,7 +142,7 @@ class IntervalTree:
         if (check_extreme
                 and IntervalTree.interval_contains(query_interval, self.left)
                 and IntervalTree.interval_contains(query_interval, self.right)):
-            return [] # TODO: Return all intervals
+            return []  # TODO: Return all intervals
 
         # Let's start with the centered intervals
         intervals = [int(interval[2]) for interval in node.center
@@ -167,8 +170,8 @@ class IntervalTree:
                 for point in points]
 
     def _query_point(self, point, node, check_extreme=False):
-        # Check this special case: the query point lies outside of the bounds of
-        # this tree:
+        # Check this special case: the query point lies outside of the bounds
+        # of this tree:
         if check_extreme \
                 and not IntervalTree.interval_contains((self.left, self.right), point):
             return []
