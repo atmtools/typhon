@@ -58,6 +58,9 @@ spareice.handlers
 .. autosummary::
    :toctree: generated
 
+File handlers for common formats
+++++++++++++++++++++++++++++++++
+
 .. automodule:: typhon.spareice.handlers.common
 
 .. currentmodule:: typhon.spareice.handlers.common
@@ -69,7 +72,10 @@ spareice.handlers
    FileHandler
    FileInfo
    NetCDF4
-   Plot
+   Plotter
+
+File handlers for satellite files
++++++++++++++++++++++++++++++++++
 
 .. automodule:: typhon.spareice.handlers.cloudsat
 

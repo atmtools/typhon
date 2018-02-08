@@ -80,8 +80,10 @@ class NoHandlerError(Exception):
     """Should be raised if no file handler is specified in a dataset object but
     a handler is required.
     """
-    def __init__(self, *args):
-        Exception.__init__(self, *args)
+    def __init__(self, msg, *args):
+        message = f"{msg} I do not know which file handler to " \
+                  f"use. Set one by yourself."
+        Exception.__init__(self, message, *args)
 
 
 class UnfilledPlaceholderError(Exception):
@@ -115,14 +117,10 @@ class UnknownPlaceholderError(Exception):
 class PlaceholderRegexError(Exception):
     """Should be raised if the regex of a placeholder is broken.
     """
-    def __init__(self, name, placeholder_name=None, ):
-        if placeholder_name is None:
-            placeholder_name = "one"
-
-        message = \
-            "The regex of %s placeholder is broken from the '%s' dataset." % (
-                placeholder_name, name)
-        Exception.__init__(self, message)
+    def __init__(self, name, msg):
+        Exception.__init__(
+            self, f"The path of '{name}' contains syntax errors: {msg}"
+        )
 
 
 class Dataset:
@@ -183,7 +181,7 @@ class Dataset:
         "asc": CSV(),
     }
 
-    # Special characters that show whether a path contains a regex /
+    # Special characters that show whether a path contains a regex or
     # placeholder:
     _special_chars = ["{", "*", "[", "\\", "<", "(", "?", "!", "|"]
 
@@ -406,9 +404,7 @@ class Dataset:
             self.info_via = "filename"
         else:
             if self.handler is None:
-                raise NoHandlerError(
-                    "Cannot set 'info_via' to '%s'! No file handler is "
-                    "specified!".format(info_via))
+                raise NoHandlerError(f"Cannot set 'info_via' to '{info_via}'!")
             else:
                 self.info_via = info_via
 
@@ -453,7 +449,7 @@ class Dataset:
                                 self, self.info_cache_filename)
 
     def __iter__(self):
-        return iter(self.find(datetime.min, datetime.max))
+        return iter(self.find())
 
     def __contains__(self, item):
         """Checks whether a timestamp is covered by this dataset.
@@ -535,7 +531,7 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
-    def collect(self, start, end, read_args=None, **find_args):
+    def collect(self, start=None, end=None, read_args=None, **find_args):
         """Load all files between two dates sorted by their starting time
 
         This parallelizes the reading of the files by using threads. This
@@ -576,7 +572,7 @@ class Dataset:
             for file, content in dataset.collect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
-            # You should rather use icollect, which uses less memory:
+            # Then you should rather use icollect, which uses less memory:
             for file, content in dataset.icollect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
@@ -606,7 +602,7 @@ class Dataset:
             if content is not None
         ]
 
-    def icollect(self, start, end, read_args=None, preload=True,
+    def icollect(self, start=None, end=None, read_args=None, preload=True,
                  **find_args):
         """Load all files between two dates sorted by their starting time
 
@@ -666,7 +662,8 @@ class Dataset:
                     yield file, data
 
     def copy(
-            self, start, end, to, convert=None, delete_originals=False,
+            self, start=None, end=None, to=None, convert=None,
+            delete_originals=False,
     ):
         """Copy files from this dataset to another location.
 
@@ -896,7 +893,7 @@ class Dataset:
         return files[np.argmin(intervals)]
 
     def find(
-            self, start, end, sort=True, bundle=None, filters=None,
+            self, start=None, end=None, sort=True, bundle=None, filters=None,
             no_files_error=True, verbose=False,
     ):
         """ Find all files of this dataset in a given time period.
@@ -911,8 +908,10 @@ class Dataset:
         Args:
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
+                Hours, minutes and seconds are optional. If not given, it is
+                datetime.min per default.
+            end: End date. Same format as "start". If not given, it is
+                datetime.max per default.
             sort: If true, all files will be yielded
                 sorted by their starting time. Default is true.
             bundle: Instead of only yielding one file at a time, you can get a
@@ -925,12 +924,12 @@ class Dataset:
                 argument will be ignored when having a single-file dataset.
                 When using *bundle*, the returned files will always be sorted
                 ignoring the state of the *sort* argument.
-            filters: Filters limit user-defined placeholder to certain values.
+            filters: Limits user-defined placeholder to certain values.
                 Must be a dictionary where the keys are the names of
                 user-defined placeholders and the values either strings or
                 lists of strings with allowed placeholder values (can be
                 represented by regular expressions). If the key name starts
-                with a *!* (exclamation mark), the value represent a negative
+                with a *!* (exclamation mark), the value represent a black
                 list (values that are not allowed).
             no_files_error: If true, raises an NoFilesError when no
                 files are found.
@@ -959,8 +958,8 @@ class Dataset:
         """
 
         # The user can give strings instead of datetime objects:
-        start = to_datetime(start)
-        end = to_datetime(end)
+        start = datetime.min if start is None else to_datetime(start)
+        end = datetime.max if end is None else to_datetime(end)
 
         if verbose:
             print("Find files between %s and %s!" % (start, end))
@@ -983,32 +982,6 @@ class Dataset:
                     "The path of '%s' neither contains placeholders"
                     " nor is a path to an existing file!" % self.name)
 
-        # Filter handling:
-        if filters is None:
-            regex = self._path_regex
-            filters = {}
-        else:
-            placeholders_filter = self._complete_placeholders_regex(
-                {f: v for f, v in filters.items() if not f.startswith("!")}
-            )
-            regex = self._fill_placeholders_with_regexes(
-                self._path,
-                extra_placeholder=placeholders_filter)
-
-            def convert(value):
-                if value is None:
-                    return None
-                elif isinstance(value, (tuple, list)):
-                    return re.compile(f"{'|'.join(value)}")
-                else:
-                    return re.compile(f"{value}")
-
-            filters = {
-                f.lstrip("!"): convert(v)
-                for f, v in filters.items()
-                if f.startswith("!")
-            }
-
         # Files may exceed the time coverage of their directories. For example,
         # a file located in the directory of 2018-01-13 contains data from
         # 2018-01-13 18:00:00 to 2018-01-14 02:00:00. In order to find them, we
@@ -1018,13 +991,46 @@ class Dataset:
         else:
             dir_start = start - self._sub_dir_time_resolution
 
+        # Filter handling:
+        if filters is None:
+            # We can apply the standard path regex:
+            regex = self._path_regex
+            white_list = {}
+            black_list = {}
+        else:
+            # Complete the regexes of the filters (simply adding curls around
+            # them):
+            white_list = self._complete_placeholders_regex(
+                {f: v for f, v in filters.items() if not f.startswith("!")}
+            )
+
+            # The new regex for all files:
+            regex = self._fill_placeholders_with_regexes(
+                self.path,
+                extra_placeholder=white_list
+            )
+
+            def convert(value):
+                if value is None:
+                    return None
+                elif isinstance(value, (tuple, list)):
+                    return re.compile(f"{'|'.join(value)}")
+                else:
+                    return re.compile(f"{value}")
+
+            black_list = {
+                f.lstrip("!"): convert(v)
+                for f, v in filters.items()
+                if f.startswith("!")
+            }
+
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
         file_finder = (
             file_info
-            for path, _ in self._get_search_dirs(dir_start, end,)
+            for path, _ in self._get_search_dirs(dir_start, end, white_list)
             for file_info in self._get_matching_files(path, regex, start, end,)
-            if not filters or self._check_filters(filters, file_info.attr)
+            if not black_list or self._check_file(black_list, file_info.attr)
         )
 
         # Even if no files were found, the user does not want to know.
@@ -1045,16 +1051,18 @@ class Dataset:
             # We have found some files and can return them
             yield from self._prepare_find_files_return(
                 return_files, sort, bundle)
-        except StopIteration:
+        except StopIteration as err:
             raise NoFilesError(self, start, end)
 
-    def _get_search_dirs(self, start, end,):
+    def _get_search_dirs(self, start, end, white_list):
         """Yields all searching directories for a time period.
 
         Args:
             start: Datetime that defines the start of a time interval.
             end: Datetime that defines the end of a time interval. The time
                 coverage of the files should overlap with this interval.
+            white_list: A dictionary that limits placeholders to certain
+                values.
 
         Returns:
             A tuple of path as string and parsed placeholders as dictionary.
@@ -1094,7 +1102,9 @@ class Dataset:
                 end, self._get_time_resolution(subdir_chunk)[0]
             )
 
-            regex = self._fill_placeholders_with_regexes(subdir_chunk)
+            regex = self._fill_placeholders_with_regexes(
+                subdir_chunk, extra_placeholder=white_list,
+            )
 
             search_dirs = [
                 (new_dir, attr)
@@ -1119,7 +1129,8 @@ class Dataset:
                 pass
 
     def _check_placeholders(self, attr, start, end):
-        attr_start, attr_end = self._to_datetime_args(attr, True)
+        attr_start, attr_end = self._to_datetime_args(attr)
+        attr_end = {**attr_start, **attr_end}
         year = attr_start.get("year", None)
         if year is not None:
             try:
@@ -1157,19 +1168,19 @@ class Dataset:
                     yield file_info
 
     @staticmethod
-    def _check_filters(filters, placeholders):
+    def _check_file(black_list, placeholders):
         """Check whether placeholders are filled with something forbidden
 
         Args:
-            filters: A dictionary with placeholder name and content that should
-                be filtered out.
+            black_list: A dictionary with placeholder name and content that
+                should be filtered out.
             placeholders: A dictionary with placeholders and their fillings.
 
         Returns:
             False if the placeholders are filled with something that is
             forbidden due to the filters. True otherwise.
         """
-        for placeholder, forbidden in filters.items():
+        for placeholder, forbidden in black_list.items():
             value = placeholders.get(placeholder, None)
             if value is None:
                 continue
@@ -1235,14 +1246,14 @@ class Dataset:
         """ Generate the full path and name of a file for a time period.
 
         Use :meth:`parse_filename` if you want retrieve information from the
-        filename.
+        filename instead.
 
         Args:
-            times: Either a tuple of two datetime objects representing
-                start and end time or simply one datetime object (for timestamp
-                 files).
+            times: Either a tuple of two datetime objects representing start
+                and end time or simply one datetime object (for discrete
+                files).
             template: A string with format placeholders such as {year} or
-                {day}. If not given, the template in *Dataset.files* is used.
+                {day}. If not given, the template in *Dataset.path* is used.
             fill: A dictionary with fillings for user-defined placeholder.
 
         Returns:
@@ -1331,7 +1342,8 @@ class Dataset:
         How the information will be retrieved is defined by
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
+            file_info: A string, path-alike object or a
+                :class:`~typhon.spareice.handlers.common.FileInfo` object.
             retrieve_via: Defines how further information about the file will
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is the value of the
@@ -1445,10 +1457,10 @@ class Dataset:
                 )
 
     def map(
-        self, start, end, func, args=None, kwargs=None, file_arg_keys=None,
-        on_content=False, read_args=None, output=None,
-        max_workers=None, worker_type=None,
-        worker_initializer=None, worker_initargs=None, **find_args
+            self, start=None, end=None, func=None, args=None, kwargs=None,
+            file_arg_keys=None, on_content=False, read_args=None, output=None,
+            max_workers=None, worker_type=None, worker_initializer=None,
+            worker_initargs=None, **find_args
     ):
         """Apply a function on all files of this dataset between two dates.
 
@@ -1749,13 +1761,11 @@ class Dataset:
 
         self._name = value
 
-    def _to_datetime_args(self, placeholder, start_as_default=False):
+    def _to_datetime_args(self, placeholder):
         """Get datetime args from placeholders for start and end date.
 
         Args:
             placeholder: A dictionary containing time placeholders.
-            start_as_default: The start time args will be used as default for
-                the end time args.
 
         Returns:
             A tuple of two dictionaries
@@ -1771,9 +1781,6 @@ class Dataset:
             for p, value in placeholder.items()
             if p.startswith("end_") and p in self._time_placeholder
         }
-
-        if start_as_default:
-            end_args = {**start_args, **end_args}
 
         return (
             self._standardise_datetime_args(start_args,),
@@ -1867,7 +1874,7 @@ class Dataset:
         """Parse the filename with temporal and additional regular expressions.
 
         This method uses the standard temporal placeholders which might be
-        overwritten by the user-defined placeholders in *Dataset.placeholder*.
+        overwritten by the user-defined placeholders.
 
         Args:
             filename: Path and name of the file.
@@ -1902,10 +1909,9 @@ class Dataset:
         Returns:
             A string with the path (can contain placeholders or wildcards.)
         """
-        if os.path.isabs(self._path):
-            return self._path
-        else:
-            return os.path.join(os.getcwd(), self._path)
+
+        # We need always the absolute path:
+        return os.path.abspath(self._path)
 
     @path.setter
     def path(self, value):
@@ -2110,6 +2116,8 @@ class Dataset:
             regex = "^" + path.format(**placeholder) + "$"
         except KeyError as err:
             raise UnknownPlaceholderError(self.name, err.args[0])
+        except ValueError as err:
+            raise PlaceholderRegexError(self.name, str(err))
 
         return re.compile(regex)
 
@@ -2153,16 +2161,16 @@ class Dataset:
         return value.lstrip(f"(?P<{placeholder}>").rstrip(")")
 
     @expects_file_info()
-    def read(self, file_info, **read_args):
-        """Opens and reads a file.
+    def read(self, file_info=None, **read_args):
+        """Open and read a file.
 
         Notes:
             You need to specify a file handler for this dataset before you
             can use this method.
 
         Args:
-            file_info: A string, path-alike object or a :class:`FileInfo`
-                object.
+            file_info: A string, path-alike object or a
+                :class:`~typhon.spareice.handlers.common.FileInfo` object.
             **read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
 
@@ -2170,9 +2178,7 @@ class Dataset:
             The content of the read file.
         """
         if self.handler is None:
-            raise NoHandlerError(
-                "Could not read the file '{}'! No file handler is "
-                "specified!".format(file_info.path))
+            raise NoHandlerError(f"Could not read '{file_info.path}'!")
 
         read_args = {**self.read_args, **read_args}
 
@@ -2200,15 +2206,15 @@ class Dataset:
         if not filled_placeholder:
             return None
 
-        start_args, end_args = self._to_datetime_args(
-            filled_placeholder, start_as_default=True,
-        )
+        start_args, end_args = self._to_datetime_args(filled_placeholder)
 
         if start_args:
             start_date = datetime(**start_args)
         else:
             start_date = None
+
         if end_args:
+            end_args = {**start_args, **end_args}
             end_date = datetime(**end_args)
 
             # Sometimes the filename does not explicitly provide the complete
@@ -2299,24 +2305,22 @@ class Dataset:
         # now
         self.info_cache = {}
 
-        return self._time_coverage
-
     def write(self, data, file_info=None, times=None, fill=None,
               in_background=False, **write_args):
-        """Writes content to a file by using the Dataset's file handler.
+        """Write content to a file by using the Dataset's file handler.
 
         If the filename extension is a compression format (such as *zip*,
-        etc. look at :func:`typhon.files.is_compression_format` for a list) and
-        *Dataset.compress* is set to true, the file will be compressed.
+        etc.) and *Dataset.compress* is set to true, the file will be
+        compressed afterwards.
 
         Notes:
             You need to specify a file handler for this dataset before you
             can use this method.
 
         Args:
-            file_info: A string, path-alike object or a :class:`FileInfo`
-                object.
             data: An object that can be stored by the used file handler class.
+            file_info: A string, path-alike object or a
+                :class:`~typhon.spareice.handlers.common.FileInfo` object.
             in_background: If true (default), this runs the writing process in
                 a background thread so it does not pause the main process.
             **write_args: Additional key word arguments for the *write* method
@@ -2380,8 +2384,8 @@ class Dataset:
 
         if self.handler is None:
             raise NoHandlerError(
-                "Could not write data to the file '{}'! No file handler is "
-                "specified!".format(file_info.path))
+                f"Could not write data to '{file_info.path}'!"
+            )
 
         if in_background:
             # Run this function again but inside a background thread:

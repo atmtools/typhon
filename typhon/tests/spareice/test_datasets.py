@@ -52,7 +52,7 @@ class TestDataset:
             join(self.refdir, "sequence_dataset/{year}/{doy}/sequence*.txt",),
             name="sequence-wildcard",
             handler=FileHandler(
-                info_reader=sequence_get_info,
+                info=sequence_get_info,
             ),
             info_via="handler",
         )
@@ -61,7 +61,7 @@ class TestDataset:
                 self.refdir, "sequence_dataset/{year}/{doy}/sequence{id}.txt",
             ),
             handler=FileHandler(
-                info_reader=sequence_get_info,
+                info=sequence_get_info,
             ),
             name="sequence-placeholder",
             info_via="both",

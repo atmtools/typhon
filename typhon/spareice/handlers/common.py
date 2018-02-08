@@ -92,7 +92,7 @@ class FileHandler:
     """Base file handler class.
 
     This can be used alone or with the Dataset classes. You can
-    either initialize specific *reader* ,*info_reader* or *writer* functions or
+    either initialize specific *reader* ,*info* or *writer* functions or
     you can inherit from this class and override its methods. If you need a
     very specialised and reusable file handler class, you should
     consider following the second approach.
@@ -110,25 +110,24 @@ class FileHandler:
     handle_compression_formats = []
 
     def __init__(
-            self, reader=None, info_reader=None, writer=None, **kwargs):
+            self, reader=None, info=None, writer=None, **kwargs):
         """Initialize a filer handler object.
 
         Args:
             reader: Reference to a function that defines how to read a given
                 file and returns an object with the read data. The function
                 must accept a :class:`FileInfo` object as first parameter.
-            info_reader: Reference to a function that returns a
-                :class:`FileInfo` object with information about the given file.
-                You cannot use the :meth:`get_info` without setting this
-                parameter. The function must accept a filename as string as
-                first parameter.
+            info: Reference to a function that returns a :class:`FileInfo`
+                object with information about the given file. You cannot use
+                the :meth:`get_info` without setting this parameter. The
+                function must accept a filename as string as first parameter.
             writer: Reference to a function that defines how to write the data
                 to a file. The function must accept the data object as first
                 and a :class:`FileInfo` object as second parameter.
         """
 
         self.reader = reader
-        self.info_reader = info_reader
+        self.info = info
         self.writer = writer
 
     @expects_file_info()
@@ -140,50 +139,26 @@ class FileHandler:
             This is the base class method that does nothing per default.
 
         Args:
-            filename: Path and name of the file of which to retrieve the info
-                about.
+            filename: A string containing path and name or a :class:`FileInfo`
+                object of the file of which to get the information about.
             **kwargs: Additional keyword arguments.
 
         Returns:
             A :class:`FileInfo` object.
         """
-        if self.info_reader is not None:
+        if self.info is not None:
             # Some functions do not accept additional key word arguments (via
             # kwargs). And if they are methods, they accept an additional
             # "self" or "class" parameter.
-            number_args = 1 + int(ismethod(self.info_reader))
-            if len(signature(self.info_reader).parameters) > number_args:
-                return self.info_reader(filename, **kwargs)
+            number_args = 1 + int(ismethod(self.info))
+            if len(signature(self.info).parameters) > number_args:
+                return self.info(filename, **kwargs)
             else:
-                return self.info_reader(filename)
+                return self.info(filename)
 
         raise NotImplementedError(
             "This file handler does not support reading data from a file. You "
             "should use a different file handler.")
-
-    @staticmethod
-    def parse_fields(fields):
-        """Checks whether the element of fields are strings or tuples.
-
-        So far, this function does not do much. But I want it to be here as a
-        central, static method to make it easier if we want to change the
-        behaviour of the field selection in the future.
-
-        Args:
-            fields: An iterable object of strings or fields.
-
-        Yields:
-            A tuple of a field name and its selected dimensions.
-        """
-        for field in fields:
-            if isinstance(field, str):
-                yield field, None
-            elif isinstance(field, tuple):
-                yield field
-            else:
-                raise ValueError(
-                    "Unknown field element: {}. The elements in fields must be"
-                    "strings or tuples!".format(type(field)))
 
     @expects_file_info()
     def read(self, filename, **kwargs):
@@ -193,8 +168,8 @@ class FileHandler:
             This is the base class method that does nothing per default.
 
         Args:
-            filename: A :class:`FileInfo` object of the file from which to
-                read.
+            filename: A string containing path and name or a :class:`FileInfo`
+                object of the file from which to read.
             **kwargs: Additional key word arguments.
 
         Returns:
@@ -214,27 +189,6 @@ class FileHandler:
             "This file handler does not support reading data from a file. You "
             "should use a different file handler.")
 
-    @staticmethod
-    def select(data, dimensions):
-        """ Return only the selected dimensions of the data.
-
-        So far, this function does not do much. But I want it to be here as a
-        central, static method to make it easier if we want to change the
-        behaviour of the field selection in the future.
-
-        Args:
-            data: A sliceable object such as xarray.DataArray or numpy.array.
-            dimensions: A list of the dimensions to select.
-
-        Returns:
-            The original data object but only with the selected dimensions.
-        """
-
-        if dimensions is not None:
-            data = data[:, dimensions]
-
-        return data
-
     @expects_file_info(pos=2)
     def write(self, data, filename, **kwargs):
         """Store a data object to a file.
@@ -243,8 +197,9 @@ class FileHandler:
             This is the base class method that does nothing per default.
 
         Args:
-            filename: A :class:`FileInfo` object of the file to which to store
-                the data. Existing files will be overwritten.
+            filename: A string containing path and name or a :class:`FileInfo`
+                object to which to store the data. Existing files will be
+                overwritten.
             data: Object with data (e.g. numpy array, etc.).
 
         Returns:
@@ -411,12 +366,12 @@ class CSV(FileHandler):
     comma separated values (or by any other delimiter).
     """
     def __init__(
-            self, info_reader=None, return_type=None,
+            self, info=None, return_type=None,
             read_csv=None, write_csv=None):
         """Initializes a CSV file handler class.
 
         Args:
-            info_reader: A function that return a :class:`FileInfo object of a
+            info: A function that return a :class:`FileInfo object of a
                 given file.
             return_type: Defines what object should be returned by
                 :meth:`read`. Default is *ArrayGroup* but *xarray* is also
@@ -429,29 +384,25 @@ class CSV(FileHandler):
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
         """
         # Call the base class initializer
-        super().__init__(info_reader=info_reader)
+        super().__init__(info=info)
 
         if return_type is None:
             self.return_type = "ArrayGroup"
         else:
             self.return_type = return_type
 
-        if read_csv is None:
-            self.read_csv = {}
-        else:
-            self.read_csv = read_csv
+        self.read_csv = {} if read_csv is None else read_csv
 
-        if write_csv is None:
-            self.write_csv = {}
-        else:
-            self.write_csv = write_csv
+        self.write_csv = {}
+        if write_csv is not None:
+            self.write_csv.update(write_csv)
 
     @expects_file_info()
     def read(self, filename, fields=None, **read_csv):
         """Read a CSV file and return an ArrayGroup object with its content.
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
+            filename: Path and name of the file as string or FileInfo object.
             fields: Field that you want to extract from the file. If not given,
                 all fields are going to be extracted.
             **read_csv: Additional keyword arguments for the pandas function
@@ -507,7 +458,7 @@ class NetCDF4(FileHandler):
             return_type: Defines what object should be returned by
                 :meth:`read`. Default is *ArrayGroup* but *xarray* is also
                 possible.
-            info_reader: You cannot use the :meth:`get_info` without giving a
+            info: You cannot use the :meth:`get_info` without giving a
                 function here that returns a FileInfo object.
         """
         # Call the base class initializer
