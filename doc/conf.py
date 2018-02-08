@@ -124,6 +124,9 @@ todo_include_todos = True
 if environ.get('ARTS_BUILD_PATH') is None:
     exclude_patterns.append('typhon.arts.workspace.rst')
 
+# Allows to automatically number figures, tables and code-blocks:
+numfig = True
+
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
