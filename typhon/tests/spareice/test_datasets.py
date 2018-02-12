@@ -328,23 +328,23 @@ class TestDataset:
 
         for test_method in [Dataset.map, Dataset.imap]:
             # Check map method
-            _, results = zip(*test_method(
+            results = list(test_method(
                 datasets["tutorial"],
                 "2018-01-01", "2018-01-03", func=TestDataset._tutorial_map
             ))
-            check = ('gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz')
+            check = ['gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz']
             assert results == check
 
             # Check map method on content
-            _, results = zip(*test_method(
+            results = list(test_method(
                 datasets["tutorial"],
                 "2018-01-01", "2018-01-03",
-                func=TestDataset._tutorial_map_content,on_content=True,
+                func=TestDataset._tutorial_map_content, on_content=True,
             ))
-            check = (
+            check = [
                 0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
                 0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
-                0.25007269785924874, 0.25007269785924874)
+                0.25007269785924874, 0.25007269785924874]
             assert np.allclose(results, check)
 
     @staticmethod
@@ -554,13 +554,39 @@ class TestDataset:
 
         assert found_files == check
 
+    def test_complicated_subdirs(self, ):
+        """Check whether Dataset can find files in subdirectories that contain
+        text and placeholders.
+        """
+
+        # The Pinocchio dataset from the cloud toolbox: a folder name contains
+        # normal text and a placeholder:
+        pinocchio = Dataset(
+            join(self.refdir,
+                 "pinocchio_dataset/t{year2}{month}{day}/tm{year2}{month}{day}"
+                 "{hour}{minute}{second}{millisecond}.jpg",
+                 ),
+        )
+
+        # Find all files:
+        files = list(pinocchio)
+
+        check = [
+            FileInfo(
+                join(self.refdir,
+                     'pinocchio_dataset/t171102/tm171102132855573.jpg'),
+                [datetime.datetime(2017, 11, 2, 13, 28, 55, 573000),
+                 datetime.datetime(2017, 11, 2, 13, 28, 55, 573000)], {}),
+        ]
+        assert files == check
+
     def _print_files(self, files, comma=False):
         print("[")
         for file in files:
             if isinstance(file, FileInfo):
                 print(self._repr_file_info(file))
             else:
-                self._repr_files(file, True)
+                self._print_files(file, True)
 
         if comma:
             print("],")

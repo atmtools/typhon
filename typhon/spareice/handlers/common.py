@@ -276,9 +276,6 @@ class FileInfo(os.PathLike):
         return self.path
 
     def __repr__(self):
-        return self.path
-
-    def __str__(self):
         if self.attr:
             attr_string = "\n  Attributes:"
             for k, v in self.attr.items():
@@ -288,7 +285,9 @@ class FileInfo(os.PathLike):
             self.path, *self.times,
             attr_string if self.attr else "",
         )
-        # return self.path
+
+    def __str__(self):
+        return self.path
 
     def copy(self):
         return copy(self)
