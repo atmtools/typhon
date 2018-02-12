@@ -17,10 +17,12 @@ import json
 import logging
 from multiprocessing import Pool as ProcessPool
 from multiprocessing.pool import ThreadPool
+from queue import Queue
 import os.path
 import re
 import shutil
 import threading
+from time import time
 import traceback
 import warnings
 
@@ -190,7 +192,7 @@ class Dataset:
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
-            compress=True, decompress=True,
+            writing_queue_limit=None, compress=True, decompress=True,
     ):
         """Initializes a dataset object.
 
@@ -250,7 +252,8 @@ class Dataset:
                 regular expression. These are user-defined placeholders, the
                 standard temporal placeholders do not have to be defined.
             max_threads: Maximal number of threads that will be used for
-                parallelising some methods. This sets also the default for
+                parallelising some methods (e.g. writing in background). This
+                sets also the default for
                 :meth:`~typhon.spareice.datasets.Dataset.map`-like methods
                 (default is 4).
             max_processes: Maximal number of processes that will be used for
@@ -448,6 +451,13 @@ class Dataset:
                 atexit.register(Dataset.save_info_cache,
                                 self, self.info_cache_filename)
 
+        # Writing processes can be moved to background threads. But we do want
+        # to have too many backgrounds threads running at the same time, so we
+        # create FIFO queue. The queue limits the number of parallel threads
+        # to a maximum. The users can also make sure that all writing threads
+        # are finished before they move on in the code.
+        self._write_queue = Queue(max_threads)
+
     def __iter__(self):
         return iter(self.find())
 
@@ -493,10 +503,9 @@ class Dataset:
             filters = None
 
         if isinstance(time_args, slice):
-            files = self.collect(
-                time_args.start, time_args.stop, filters=filters
+            return self.collect(
+                time_args.start, time_args.stop, filters=filters,
             )
-            return [content for _, content in files]
         elif isinstance(time_args, (datetime, str)):
             filename = self.find_closest(time_args, filters=filters)
             if filename is None:
@@ -531,7 +540,8 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
-    def collect(self, start=None, end=None, read_args=None, **find_args):
+    def collect(self, start=None, end=None, files=None, read_args=None,
+                return_info=False, **find_args):
         """Load all files between two dates sorted by their starting time
 
         This parallelizes the reading of the files by using threads. This
@@ -547,8 +557,14 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
+            files: If you have already a list of files that you want to
+                process, pass it here. The list can contain filenames or lists
+                (bundles) of filenames. If this parameter is given, it is not
+                allowed to set *start* and *end* then.
             read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
+            return_info: If true, return a FileInfo object with each content
+                value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
@@ -587,8 +603,9 @@ class Dataset:
         # function consists mainly of pure python code that does not
         # release the GIL, this will slow down the performance.
         files = self.map(
-            start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-            worker_type="thread", **find_args
+            start, end, files, func=Dataset.read, args=(self,),
+            kwargs=read_args, worker_type="thread", return_info=True,
+            **find_args
         )
 
         # Tell the python interpreter explicitly to free up memory to improve
@@ -597,13 +614,14 @@ class Dataset:
 
         # We do not want to have any None as data
         return [
-            (info, content)
+            (info, content) if return_info
+            else content
             for info, content in files
             if content is not None
         ]
 
-    def icollect(self, start=None, end=None, read_args=None, preload=True,
-                 **find_args):
+    def icollect(self, start=None, end=None, files=None, read_args=None,
+                 preload=True, return_info=False, **find_args):
         """Load all files between two dates sorted by their starting time
 
         Use this in for-loops but if you need all files at once, use
@@ -617,10 +635,16 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
+            files: If you have already a list of files that you want to
+                process, pass it here. The list can contain filenames or lists
+                (bundles) of filenames. If this parameter is given, it is not
+                allowed to set *start* and *end* then.
             read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
             preload: Per default this method loads the next file to yield in a
                 background thread. Set this to False, if you do not want this.
+            return_info: If true, return a FileInfo object with each return
+                value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
@@ -647,19 +671,28 @@ class Dataset:
             read_args = {}
 
         if preload:
-            files = self.imap(
-                start, end, func=Dataset.read, args=(self,), kwargs=read_args,
-                worker_type="thread", **find_args
+            results = self.imap(
+                start, end, files, func=Dataset.read, args=(self,),
+                kwargs=read_args, worker_type="thread", return_info=True,
+                **find_args
             )
 
-            for file, data in files:
-                if data is not None:
-                    yield file, data
+            for info, data in results:
+                if return_info:
+                    yield info, data
+                else:
+                    yield data
         else:
-            for file in self.find(start, end, **find_args):
-                data = self.read(file, **read_args)
+            if files is None:
+                files = self.find(start, end, **find_args)
+
+            for info in files:
+                data = self.read(info, **read_args)
                 if data is not None:
-                    yield file, data
+                    if return_info:
+                        yield info, data
+                    else:
+                        yield data
 
     def copy(
             self, start=None, end=None, to=None, convert=None,
@@ -1024,6 +1057,10 @@ class Dataset:
                 if f.startswith("!")
             }
 
+        if verbose and filters is not None:
+            print(f"Loaded filters:\nWhitelist: {white_list}"
+                  f"\nBlacklist: {black_list}")
+
         # Find all files by iterating over all searching paths and check
         # whether they match the path regex and the time period.
         file_finder = (
@@ -1102,10 +1139,10 @@ class Dataset:
                 end, self._get_time_resolution(subdir_chunk)[0]
             )
 
+            # compile the regex for this sub directory:
             regex = self._fill_placeholders_with_regexes(
                 subdir_chunk, extra_placeholder=white_list,
             )
-
             search_dirs = [
                 (new_dir, attr)
                 for search_dir in search_dirs
@@ -1118,7 +1155,9 @@ class Dataset:
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
         for new_dir in glob.iglob(os.path.join(base_dir + "*", "")):
-            basename = os.path.basename(new_dir.rstrip(os.sep))
+            # The glob function yields full paths, but we want only to check
+            # the new pattern that was added:
+            basename = new_dir[len(base_dir):].rstrip(os.sep)
             try:
                 new_attr = {
                     **dir_attr,
@@ -1457,10 +1496,11 @@ class Dataset:
                 )
 
     def map(
-            self, start=None, end=None, func=None, args=None, kwargs=None,
-            file_arg_keys=None, on_content=False, read_args=None, output=None,
-            max_workers=None, worker_type=None, worker_initializer=None,
-            worker_initargs=None, **find_args
+            self, start=None, end=None, files=None, func=None, args=None,
+            kwargs=None, file_arg_keys=None, on_content=False, read_args=None,
+            output=None, max_workers=None, worker_type=None,
+            worker_initializer=None, worker_initargs=None, return_info=False,
+            **find_args
     ):
         """Apply a function on all files of this dataset between two dates.
 
@@ -1481,6 +1521,10 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End timestamp. Same format as "start".
+            files: If you have already a list of files that you want to
+                process, pass it here. The list can contain filenames or lists
+                (bundles) of filenames. If this parameter is given, it is not
+                allowed to set *start* and *end* then.
             func: A reference to a function that should be applied.
             args: A list/tuple with positional arguments that should be passed
                 to *func*. It will be extended with the file arguments, i.e.
@@ -1517,6 +1561,8 @@ class Dataset:
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
             worker_initargs: A tuple with arguments for *worker_initializer*.
+            return_info: If true, return a FileInfo object with each return
+                value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
                 for :meth`find`.
 
@@ -1574,10 +1620,10 @@ class Dataset:
         """
 
         pool, func_args_queue = self._configure_map_pool_and_worker_args(
-            start, end, func, args, kwargs, file_arg_keys,
+            start, end, files, func, args, kwargs, file_arg_keys,
             on_content, read_args, output,
             max_workers, worker_type, worker_initializer, worker_initargs,
-            **find_args
+            return_info, **find_args
         )
 
         # Process all found files with the arguments:
@@ -1624,12 +1670,20 @@ class Dataset:
         yield pre_loaded.get()
 
     def _configure_map_pool_and_worker_args(
-            self, start, end, func, args=None, kwargs=None,
-            file_arg_keys=None,
+            self, start=None, end=None, files=None, func=None, args=None,
+            kwargs=None, file_arg_keys=None,
             on_content=False, read_args=None, output=None,
-            max_workers=None, worker_type=None,
-            worker_initializer=None, worker_initargs=None, **find_args
+            max_workers=None, worker_type=None, worker_initializer=None,
+            worker_initargs=None, return_info=False, **find_args
     ):
+        if func is None:
+            raise ValueError("The parameter *func* must be given!")
+
+        if files is not None and (start is not None or end is not None):
+            raise ValueError(
+                "Either *files* or *start* and *end* must be given. Not all of"
+                " them!")
+
         # Convert the path to a Dataset object:
         if isinstance(output, str):
             output_path = output
@@ -1664,10 +1718,13 @@ class Dataset:
         if read_args is None:
             read_args = {}
 
+        if files is None:
+            files = self.find(start, end, **find_args)
+
         function_arguments = (
-            (self, info, func, args, kwargs, file_arg_keys, output, on_content,
-             read_args)
-            for info in self.find(start, end, **find_args)
+            (self, file, func, args, kwargs, file_arg_keys, output,
+             on_content, read_args, return_info)
+            for file in files
         )
 
         return pool, function_arguments
@@ -1680,7 +1737,7 @@ class Dataset:
         Args:
             all_args: A tuple containing following elements:
                 (Dataset object, file_info, function,
-                args, kwargs, output, on_content, read_args)
+                args, kwargs, output, on_content, read_args, return_info)
 
         Returns:
             The return value of *function* called with the arguments *args* and
@@ -1688,19 +1745,18 @@ class Dataset:
             content).
         """
         dataset, file_info, func, args, kwargs, file_arg_keys, output, \
-            on_content, read_args = all_args
+            on_content, read_args, return_info = all_args
 
         args = [] if args is None else list(args)
 
+        timer = time()
         if on_content:
             # file_info could be a bundle of files
             if isinstance(file_info, FileInfo):
                 file_content = dataset.read(file_info, **read_args)
             else:
-                file_content = [
-                    dataset.read(file, **read_args)
-                    for file in file_info
-                ]
+                file_content = \
+                    dataset.collect(files=file_info, read_args=read_args)
             if file_arg_keys is None:
                 args.append(file_content)
             else:
@@ -1718,15 +1774,23 @@ class Dataset:
         # Call the function:
         return_value = func(*args, **kwargs)
 
+        def _return(file_info, return_value):
+            """Small helper for return / not return the file info object."""
+
+            if return_info:
+                return file_info, return_value
+            else:
+                return return_value
+
         if output is None:
             # No output is needed, simply return the file info and the
             # function's return value
-            return file_info, return_value
+            return _return(file_info, return_value)
 
         if return_value is None:
             # We cannot write a file with the content None, hence simply return
             # the file info and False indicating that we did not write a file.
-            return file_info, False
+            return _return(file_info, False)
 
         # file_info could be a bundle of files
         if isinstance(file_info, FileInfo):
@@ -1741,9 +1805,9 @@ class Dataset:
                 (min(start_times), max(end_times)), fill=file_info[0].attr
             )
 
-        output.write(return_value, new_filename, in_background=True)
+        output.write(return_value, new_filename, in_background=False)
 
-        return file_info, True
+        return _return(file_info, True)
 
     @property
     def name(self):
@@ -1777,7 +1841,7 @@ class Dataset:
         }
 
         end_args = {
-            p.lstrip("end_"): int(value)
+            p[len("end_"):]: int(value)
             for p, value in placeholder.items()
             if p.startswith("end_") and p in self._time_placeholder
         }
@@ -1960,7 +2024,7 @@ class Dataset:
 
         # Get all temporal placeholders from the path (for ending time):
         end_time_placeholders = {
-            p.lstrip("end_") for p in self._path_placeholders
+            p[len("end_"):] for p in self._path_placeholders
             if p.startswith("end") and p in self._time_placeholder
         }
 
@@ -2158,7 +2222,11 @@ class Dataset:
 
     @staticmethod
     def _remove_group_capturing(placeholder, value):
-        return value.lstrip(f"(?P<{placeholder}>").rstrip(")")
+        if f"(?P<{placeholder}>" not in value:
+            return value
+        else:
+            # The last character is the closing parenthesis:
+            return value[len(f"(?P<{placeholder}>"):-1]
 
     @expects_file_info()
     def read(self, file_info=None, **read_args):
@@ -2388,7 +2456,7 @@ class Dataset:
             )
 
         if in_background:
-            # Run this function again but inside a background thread:
+            # Run this function again but as a background thread in a queue:
             threading.Thread(
                 target=Dataset.write, args=(self, data, file_info),
                 kwargs=write_args.update(in_background=False),
@@ -2408,6 +2476,14 @@ class Dataset:
                 self.handler.write(data, compressed_file, **write_args)
         else:
             self.handler.write(data, file_info, **write_args)
+
+    def writing_complete(self):
+        """Check whether all writing threads are finished.
+
+        Returns:
+            True if all writing threads are done.
+        """
+        return self._write_queue.empty()
 
 
 class DataSlider:
