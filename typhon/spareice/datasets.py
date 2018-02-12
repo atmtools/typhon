@@ -456,7 +456,9 @@ class Dataset:
         # create FIFO queue. The queue limits the number of parallel threads
         # to a maximum. The users can also make sure that all writing threads
         # are finished before they move on in the code.
-        self._write_queue = Queue(max_threads)
+        # TODO: We cannot use queues as attributes for Dataset because they
+        # TODO: cannot be pickled.
+        # self._write_queue = Queue(max_threads)
 
     def __iter__(self):
         return iter(self.find())
