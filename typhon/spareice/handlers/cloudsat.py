@@ -1,13 +1,8 @@
-from datetime import datetime, timedelta
-from time import time
+from datetime import datetime
 import warnings
 
-from netCDF4 import Dataset
 import numpy as np
-import pandas as pd
-from typhon.spareice.array import Array
-from typhon.spareice.geographical import GeoData
-import xarray as xr
+from typhon.spareice.array import Array, GroupedArrays
 
 from .common import FileHandler, expects_file_info
 
@@ -60,7 +55,7 @@ class CloudSat(FileHandler):
 
     @expects_file_info()
     def read(self, file_info, extra_fields=None, mapping=None):
-        """Read and parse HDF4 files and load them to an ArrayGroup.
+        """Read and parse HDF4 files and load them to an GroupedArrays.
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
@@ -70,10 +65,10 @@ class CloudSat(FileHandler):
                 If given, *extra_fields* must contain the old field names.
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
-        dataset = GeoData(name="CloudSat")
+        dataset = GroupedArrays(name="CloudSat")
 
         # The files are in HDF4 format therefore we cannot use the netCDF4
         # module. This code is taken from

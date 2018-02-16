@@ -29,7 +29,7 @@ except ImportError:
 
 __all__ = [
     'Array',
-    'ArrayGroup',
+    'GroupedArrays',
 ]
 
 unit_mapper = {
@@ -256,11 +256,11 @@ class Array(np.ndarray):
             bins: List of lists which contain the indices for the bins.
             functions: Must be a dictionary of names (keys) and function
                 references (values).
-            return_dict: If true, a dictionary instead of an ArrayGroup will be
+            return_dict: If true, a dictionary instead of an GroupedArrays will be
                 returned.
 
         Returns:
-            An ArrayGroup or dictionary with the return values.
+            An GroupedArrays or dictionary with the return values.
         """
         binned_data = self.bin(bins)
 
@@ -272,7 +272,7 @@ class Array(np.ndarray):
                 for name, func in functions.items()
             }
         else:
-            return_values = ArrayGroup()
+            return_values = GroupedArrays()
             for name, func in functions.items():
                 return_values[name] = np.asarray([
                     func(bin, 0) for bin in binned_data]
@@ -360,20 +360,20 @@ class Array(np.ndarray):
         return xr.DataArray(self, attrs=self.attrs, dims=self.dims)
 
 
-class ArrayGroup:
+class GroupedArrays:
     """A specialised dictionary for arrays.
 
     Still under development and potentially deprecated in future releases in
     order to fully support xarray.
 
-    There are different ways to access one element of this ArrayGroup:
+    There are different ways to access one element of this GroupedArrays:
     * *array_group["var"]*: returns a variable (Array) or group
-        (ArrayGroup) object.
+        (GroupedArrays) object.
     * *array_group["group1/var"]*: returns the variable *var* from the
         group *group1*.
     * *array_group["/"]*: returns this object itself.
     * *array_group[0:10]*: returns a copy of the first ten elements
-        for each variable in the ArrayGroup object. Note: all variables
+        for each variable in the GroupedArrays object. Note: all variables
         should have the same length.
     * *array_group[("var1", "var2", )]*: selects the fields "var1"
         and "var2" from the array group and returns them as a new array
@@ -382,10 +382,10 @@ class ArrayGroup:
     """
 
     def __init__(self, name=None, hidden_prefix=None):
-        """Initializes an ArrayGroup object.
+        """Initializes an GroupedArrays object.
 
         Args:
-            name: Name of the ArrayGroup as string.
+            name: Name of the GroupedArrays as string.
             hidden_prefix: Define the prefix of hidden groups or variables.
                 The default is "__".
         """
@@ -455,7 +455,7 @@ class ArrayGroup:
                     "named '{}'!".format(var))
 
     def __getitem__(self, item):
-        """Enables dictionary-like access to the ArrayGroup.
+        """Enables dictionary-like access to the GroupedArrays.
 
         Documentation is in class description.
 
@@ -463,7 +463,7 @@ class ArrayGroup:
             item: Can be a string, integer, slice or tuple of strings.
 
         Returns:
-            Either an Array or an ArrayGroup object.
+            Either an Array or an GroupedArrays object.
         """
 
         # Accessing via key:
@@ -524,7 +524,7 @@ class ArrayGroup:
 
         if not rest:
             # Try automatic conversion from numpy array to Array.
-            if not isinstance(value, (Array, ArrayGroup, type(self))):
+            if not isinstance(value, (Array, GroupedArrays, type(self))):
                 value = Array(value)
 
             if isinstance(value, Array):
@@ -596,13 +596,13 @@ class ArrayGroup:
         Args:
             func_with_args: Tuple of reference to the function and arguments.
             deep: Apply the function also on variables of subgroups.
-            new_object: If this is true, a new ArrayGroup will be created
+            new_object: If this is true, a new GroupedArrays will be created
                 with variables of the return values. Otherwise the return
                 value is simply a dictionary with the variables names and the
                 return values.
 
         Returns:
-            An ArrayGroup or dictionary object with the return values.
+            An GroupedArrays or dictionary object with the return values.
         """
         if new_object:
             new_data = type(self)()
@@ -632,7 +632,7 @@ class ArrayGroup:
             deep: Collapses also the variables of the subgroups.
 
         Returns:
-            One ArrayGroup object with the collapsed data.
+            One GroupedArrays object with the collapsed data.
         """
         # Default collapser is the mean function:
         if collapser is None:
@@ -661,25 +661,28 @@ class ArrayGroup:
         return collapsed_data
 
     @classmethod
-    def concatenate(cls, objects, dimension=None):
-        """Concatenate multiple ArrayGroup objects.
+    def concat(cls, objects, dimension=None):
+        """Concatenate multiple GroupedArrays objects.
 
         Notes:
             The attribute and dimension information from the first object is
             used.
 
         Args:
-            objects: List of GeoData objects to concatenate.
+            objects: List of GroupedArrays objects to concatenate.
             dimension: Dimension on which to concatenate.
 
         Returns:
             A
         """
+        if len(objects) == 1:
+            return objects[0]
+
         new_data = cls()
         new_data.attrs.update(objects[0].attrs)
         for var in objects[0]:
             if isinstance(objects[0][var], cls):
-                new_data[var] = cls.concatenate(
+                new_data[var] = cls.concat(
                     [obj[var] for obj in objects],
                     dimension)
             else:
@@ -718,7 +721,7 @@ class ArrayGroup:
             inplace:
 
         Returns:
-            An ArrayGroup without the dropped fields.
+            An GroupedArrays without the dropped fields.
         """
         if inplace:
             obj = self
@@ -732,7 +735,7 @@ class ArrayGroup:
 
     @classmethod
     def from_csv(cls, filename, fields=None, **csv_args):
-        """Load an ArrayGroup object from a CSV file.
+        """Load an GroupedArrays object from a CSV file.
 
         Args:
             filename: Path and name of the file.
@@ -742,7 +745,7 @@ class ArrayGroup:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
         dataframe = pd.read_csv(filename, **csv_args)
         data_dict = dataframe.to_dict(orient="list")
@@ -760,13 +763,13 @@ class ArrayGroup:
 
     @classmethod
     def from_dict(cls, dictionary):
-        """Create an ArrayGroup from a dictionary.
+        """Create an GroupedArrays from a dictionary.
 
         Args:
             dictionary: Dictionary-like object of Arrays or numpy.arrays.
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
         obj = cls()
         for var, data in dictionary.items():
@@ -775,19 +778,21 @@ class ArrayGroup:
         return obj
 
     @classmethod
-    def from_netcdf(cls, filename, fields=None, convert_times=True,):
-        """Creates an ArrayGroup object from a netCDF file.
+    def from_netcdf(cls, filename, fields=None, convert_times=True,
+                    group=None,):
+        """Creates an GroupedArrays object from a netCDF file.
 
         Args:
-            filename: Path and file name from where to load a new ArrayGroup.
+            filename: Path and file name from where to load a new GroupedArrays.
                 Can also be a tuple/list of file names.
             fields: (optional) List or tuple of variable or
                 group names). Only those fields are going to be read.
             convert_times: Set this to true if you want to convert time
                 fields into datetime objects.
+            group:
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
         if isinstance(filename, (tuple, list)):
@@ -796,8 +801,13 @@ class ArrayGroup:
             opener = netCDF4.Dataset
 
         with opener(filename, "r") as root:
+            if group is None:
+                group = root
+            else:
+                group = root[group]
+
             return cls._get_group_from_netcdf_group(
-                root, fields, convert_times
+                group, fields, convert_times
             )
 
     @classmethod
@@ -815,7 +825,7 @@ class ArrayGroup:
                             field, None, convert_times)
                 else:
                     array_group[field] = \
-                        ArrayGroup._get_variable_from_netcdf_group(
+                        GroupedArrays._get_variable_from_netcdf_group(
                             group[field], convert_times
                         )
             return array_group
@@ -823,7 +833,7 @@ class ArrayGroup:
         # Otherwise, we want to read all variables and groups:
         # Add the variables:
         for var, data in group.variables.items():
-            array_group[var] = ArrayGroup._get_variable_from_netcdf_group(
+            array_group[var] = GroupedArrays._get_variable_from_netcdf_group(
                 data, convert_times
             )
 
@@ -865,13 +875,13 @@ class ArrayGroup:
 
     @classmethod
     def from_xarray(cls, xarray_object):
-        """Creates an ArrayGroup object from a xarray.Dataset object.
+        """Creates an GroupedArrays object from a xarray.Dataset object.
 
         Args:
             xarray_object: A xarray.Dataset object.
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
         array_dict = cls()
@@ -917,10 +927,10 @@ class ArrayGroup:
 
         .. code-block:: python
 
-            # Imagine you have an ArrayGroup with multiple subgroups, each with
+            # Imagine you have an GroupedArrays with multiple subgroups, each with
             # a field "time". You want to have the lowest and the highest time
             # value of all subgroups. Simply do:
-            ag = ArrayGroup()
+            ag = GroupedArrays()
             ag["group1/time"] = np.arange(10)
             ag["group2/time"] = np.arange(100, 200)
             ag["group3/time"] = np.arange(50, 250)
@@ -937,7 +947,7 @@ class ArrayGroup:
         return min(start), max(end)
 
     def groups(self, deep=False, exclude_prefix=None):
-        """Returns the names of all groups in this GeoData object.
+        """Returns the names of all groups in this GroupedArrays object.
 
         Args:
             deep: Including also subgroups (not only main group).
@@ -981,7 +991,7 @@ class ArrayGroup:
         return level
 
     def limit_by(self, field, lower_bound=None, upper_bound=None):
-        """Extract the parts of this Arraygroup where *field* lies between two
+        """Extract the parts of this GroupedArrays where *field* lies between two
         bounds.
 
         This works only if all first dimensions of each variable have the same
@@ -993,13 +1003,13 @@ class ArrayGroup:
             upper_bound: A number / object as upper bound.
 
         Returns:
-            New limited ArrayGroup object.
+            New limited GroupedArrays object.
 
         Examples:
 
             .. code-block:: python
 
-            ag = ArrayGroup()
+            ag = GroupedArrays()
         """
         if lower_bound is not None and upper_bound is not None:
             indices = (self[field] >= lower_bound) \
@@ -1028,8 +1038,8 @@ class ArrayGroup:
 
         .. :code-block:: python
 
-            # Create an ArrayGroup
-            ag = ArrayGroup()
+            # Create an GroupedArrays
+            ag = GroupedArrays()
             ag["group1/time"] = np.arange(100)
 
             # Try to get the time field from the main group
@@ -1043,21 +1053,21 @@ class ArrayGroup:
 
     @classmethod
     def merge(cls, objects, groups=None, overwrite_error=True):
-        """Merges multiple ArrayGroup objects to one.
+        """Merges multiple GroupedArrays objects to one.
 
         Notes:
             Merging of sub groups with the same name does not work properly.
 
         Args:
-            objects: List of GeoData objects.
+            objects: List of GroupedArrays objects.
             groups: List of strings. You can give each object in
                 :param:`objects` a group. Must have the same length as
                 :param:`objects`.
             overwrite_error: Throws a KeyError when trying to merge`
-                ArrayGroups containing same keys.
+                GroupedArrayss containing same keys.
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
         inserted = set()
         merged_data = cls()
@@ -1203,7 +1213,7 @@ class ArrayGroup:
         return obj
 
     def select(self, indices_or_fields, inplace=False):
-        """Select a part of this ArrayGroup.
+        """Select a part of this GroupedArrays.
 
         Args:
             indices_or_fields:
@@ -1251,7 +1261,7 @@ class ArrayGroup:
         return self[indices]
 
     def to_csv(self, filename, **csv_args):
-        """Store an ArrayGroup object to a CSV file.
+        """Store an GroupedArrays object to a CSV file.
 
         Args:
             filename: Path and name of the file.
@@ -1260,7 +1270,7 @@ class ArrayGroup:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
         dataframe = pd.DataFrame.from_dict(self.to_dict())
         return dataframe.to_csv(filename, **csv_args)
@@ -1276,9 +1286,9 @@ class ArrayGroup:
         """
         return {var: data for var, data in self.items(deep)}
 
-    def to_netcdf(self, filename, attribute_warning=True,
-                  avoid_dimension_errors=True):
-        """Stores the ArrayGroup to a netcdf4 file.
+    def to_netcdf(self, filename, group=None, attribute_warning=True,
+                  avoid_dimension_errors=True, compress=True,):
+        """Stores the GroupedArrays to a netcdf4 file.
 
         Args:
             filename: Path and file name to which to save this object.
@@ -1295,16 +1305,26 @@ class ArrayGroup:
             None
         """
 
-        with netCDF4.Dataset(filename, "w", format="NETCDF4") as root_group:
+        if group is None:
+            mode = "w"
+        else:
+            mode = "a"
+
+        with netCDF4.Dataset(filename, mode, format="NETCDF4") as root_group:
+            if group is None:
+                group = root_group
+            else:
+                group = root_group[group]
+
             # Add all variables of the main group:
             self._add_group_to_netcdf(
-                "/", root_group, attribute_warning, avoid_dimension_errors)
+                "/", group, attribute_warning, avoid_dimension_errors)
 
             # Add all variables of the sub groups:
-            for group in self.groups(deep=True):
-                nc_group = root_group.createGroup(group)
+            for ag_group in self.groups(deep=True):
+                nc_group = group.createGroup(ag_group)
                 self._add_group_to_netcdf(
-                    group, nc_group, attribute_warning,
+                    ag_group, nc_group, attribute_warning,
                     avoid_dimension_errors)
 
     def _add_group_to_netcdf(
@@ -1362,10 +1382,13 @@ class ArrayGroup:
                     )
                     data.dims[i] = dim
 
+        # Fill value attributes must be set during creating the variable:
+        fill_value = data.attrs.pop("_FillValue", None)
+
         # Try to catch up time objects:
         if str(data.dtype).startswith("datetime64"):
             nc_var = nc_group.createVariable(
-                var, "f8", data.dims
+                var, "f8", data.dims, fill_value=fill_value,
             )
             nc_var.units = \
                 "seconds since 1970-01-01T00:00:00Z"
@@ -1373,7 +1396,7 @@ class ArrayGroup:
             nc_var[:] = time_data
         elif isinstance(data.item(0), datetime):
             nc_var = nc_group.createVariable(
-                var, "f8", data.dims
+                var, "f8", data.dims, fill_value=fill_value,
             )
             # TODO: Per default we save seconds since blabla. Maybe this should
             # TODO: be dynamic?
@@ -1386,7 +1409,7 @@ class ArrayGroup:
                 data = data.astype("int")
             try:
                 nc_var = nc_group.createVariable(
-                    var, data.dtype, data.dims
+                    var, data.dtype, data.dims, fill_value=fill_value,
                 )
                 nc_var[:] = data
             except TypeError as e:
@@ -1405,7 +1428,7 @@ class ArrayGroup:
                         "a number, list or string!".format(attr))
 
     def to_xarray(self):
-        """Converts this ArrayGroup object to a xarray.Dataset.
+        """Converts this GroupedArrays object to a xarray.Dataset.
 
         Warnings:
             Still contain bugs!
@@ -1427,7 +1450,7 @@ class ArrayGroup:
             yield self[var]
 
     def vars(self, deep=False, with_name=None, hidden=True):
-        """Returns the names of all variables in this GeoData object main
+        """Returns the names of all variables in this GroupedArrays object main
         group.
 
         Args:

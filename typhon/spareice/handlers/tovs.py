@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from netCDF4 import Dataset
 import numpy as np
-from typhon.spareice.geographical import GeoData
+from typhon.spareice.array import GroupedArrays
 import xarray as xr
 
 from .common import FileHandler, expects_file_info
@@ -30,7 +30,8 @@ class MHSAAPP(FileHandler):
         "Data/scnlin": "scnline",
     }
 
-    def __init__(self, mapping=None, apply_scaling=True, **kwargs):
+    def __init__(self, mapping=None, apply_scaling=True,
+                 **kwargs):
         """
 
         Args:
@@ -63,7 +64,7 @@ class MHSAAPP(FileHandler):
 
     @expects_file_info()
     def read(self, file_info, extra_fields=None, mapping=None):
-        """"Read and parse HDF4 files and load them to an ArrayGroup.
+        """"Read and parse HDF4 files and load them to an GroupedArrays.
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
@@ -73,7 +74,7 @@ class MHSAAPP(FileHandler):
                 If given, *extra_fields* must contain the old field names.
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
         if extra_fields is None:
@@ -81,7 +82,7 @@ class MHSAAPP(FileHandler):
 
         fields = self.standard_fields | set(extra_fields)
 
-        dataset = GeoData.from_netcdf(file_info.path, fields)
+        dataset = GroupedArrays.from_netcdf(file_info.path, fields)
         dataset.name = "MHS"
 
         # We do the internal mapping first so we do not deal with difficult

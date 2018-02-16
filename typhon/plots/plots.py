@@ -745,7 +745,7 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             background_image=True, **kwargs):
+             background=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -758,13 +758,13 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         ax: A matplotlib axis object. If not given, a new axis
             object will be created in the current figure.
         projection: If no axis is given, specify here the cartopy projection.
-        background_image: If true, a background image will be drawn.
+        background: If true, a background image will be drawn.
         **kwargs:
 
     Returns:
         Axis and scatter plot objects.
     """
-    import cartopy.crs as ccrs
+    import cartopy.crs as ccrs  # noqa
 
     # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
@@ -777,23 +777,27 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         fig = plt.gcf()
 
     if projection is None:
-        if ax is not None:
-            projection = ax.projection
-        else:
+        if ax is None:
+
             projection = ccrs.PlateCarree()
+        else:
+            projection = ax.projection
 
     if ax is None:
         ax = fig.add_subplot(111, projection=projection)
 
-    if background_image:
+    if background:
         ax.stock_img()
 
+    # It is counter-intuitive but if we want to plot our data with normal
+    # latitudes and longitudes, we always have to set the transform to
+    # PlateCarree (see https://github.com/SciTools/cartopy/issues/911)
     if var is None:
         scatter_plot = ax.scatter(
-            lon, lat, transform=projection, **kwargs_defaults)
+            lon, lat, transform=ccrs.PlateCarree(), **kwargs_defaults)
     else:
         scatter_plot = ax.scatter(
-            lon, lat, c=var, transform=projection, **kwargs_defaults)
+            lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults)
         ax.colorbar(scatter_plot)
 
     return ax, scatter_plot

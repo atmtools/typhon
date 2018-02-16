@@ -1,7 +1,7 @@
 from os.path import dirname, join
 
 import numpy as np
-from typhon.spareice import Collocator, Dataset
+from typhon.spareice import collocate, collocate_datasets, Dataset
 
 
 class TestCollocator:
