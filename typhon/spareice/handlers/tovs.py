@@ -126,6 +126,10 @@ class MHSAAPP(FileHandler):
 
             dataset[var].dims = ["time_id"]
 
+        if "Data/btemps" in dataset:
+            # Mask error values:
+            dataset["Data/btemps"][dataset["Data/btemps"] <= -9999.] = np.nan
+
         if mapping is not None:
             dataset.rename(mapping)
 
