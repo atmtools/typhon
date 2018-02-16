@@ -554,16 +554,13 @@ for-loop or simply :meth:`~typhon.spareice.datasets.Dataset.collect` alone:
 .. code-block:: python
 
    # Read the second line of each file:
-   for file, data in our_dataset.icollect(read_args={"lineno": 2}):
+   for data in our_dataset.icollect(read_args={"lineno": 2}):
       ...
 
    # OR
 
    # Read the second line of all files at once:
-   collection = our_dataset.collect(read_args={"lineno": 2})
-   filenames, data_list = zip(*collection)
-
-   print(filenames)
+   data_list = our_dataset.collect(read_args={"lineno": 2})
    print(data_list)
 
 

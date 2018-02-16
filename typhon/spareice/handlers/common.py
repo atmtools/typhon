@@ -6,7 +6,7 @@ import os
 import pickle
 
 import pandas as pd
-from typhon.spareice.array import ArrayGroup
+from typhon.spareice.array import GroupedArrays
 import xarray as xr
 
 __all__ = [
@@ -110,7 +110,8 @@ class FileHandler:
     handle_compression_formats = []
 
     def __init__(
-            self, reader=None, info=None, writer=None, **kwargs):
+            self, reader=None, info=None, writer=None, data_merger=None,
+            data_concatenator=None, **kwargs):
         """Initialize a filer handler object.
 
         Args:
@@ -124,11 +125,33 @@ class FileHandler:
             writer: Reference to a function that defines how to write the data
                 to a file. The function must accept the data object as first
                 and a :class:`FileInfo` object as second parameter.
+            data_merger: Reference to a function that can merge objects
+                returned by :meth:`read`.
+            data_concatenator: Reference to a function that can concatenate
+                objects returned by :meth:`read`.
         """
 
         self.reader = reader
         self.info = info
         self.writer = writer
+        self.data_merger = data_merger
+        self.data_concatenator = data_concatenator
+
+    def _set_standard_return_type(self, return_type):
+        """Set the standard return types
+
+        Args:
+            return_type: A string such as *GroupedArrays* or *xarray*.
+
+        Returns:
+            None
+        """
+        if return_type is None or return_type == "GroupedArrays":
+            self.return_type = "GroupedArrays"
+        elif return_type == "xarray":
+            self.return_type = "xarray"
+        else:
+            raise ValueError(f"Unknown return type {return_type}!")
 
     @expects_file_info()
     def get_info(self, filename, **kwargs):
@@ -373,7 +396,7 @@ class CSV(FileHandler):
             info: A function that return a :class:`FileInfo object of a
                 given file.
             return_type: Defines what object should be returned by
-                :meth:`read`. Default is *ArrayGroup* but *xarray* is also
+                :meth:`read`. Default is *GroupedArrays* but *xarray* is also
                 possible.
             **read_csv: Additional keyword arguments for the pandas function
                 `pandas.read_csv`. See for more details:
@@ -385,10 +408,8 @@ class CSV(FileHandler):
         # Call the base class initializer
         super().__init__(info=info)
 
-        if return_type is None:
-            self.return_type = "ArrayGroup"
-        else:
-            self.return_type = return_type
+        # Set merger and concatenator for standard return types:
+        self._set_standard_return_type(return_type)
 
         self.read_csv = {} if read_csv is None else read_csv
 
@@ -398,7 +419,7 @@ class CSV(FileHandler):
 
     @expects_file_info()
     def read(self, filename, fields=None, **read_csv):
-        """Read a CSV file and return an ArrayGroup object with its content.
+        """Read a CSV file and return an GroupedArrays object with its content.
 
         Args:
             filename: Path and name of the file as string or FileInfo object.
@@ -409,31 +430,31 @@ class CSV(FileHandler):
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
         kwargs = self.read_csv.copy()
         kwargs.update(read_csv)
 
-        if self.return_type == "ArrayGroup":
-            return ArrayGroup.from_csv(filename.path, fields, **kwargs)
+        if self.return_type == "GroupedArrays":
+            return GroupedArrays.from_csv(filename.path, fields, **kwargs)
         else:
             dataframe = pd.read_csv(filename.path, **kwargs)
             return xr.Dataset.from_dataframe(dataframe)
 
     @expects_file_info(pos=2)
     def write(self, data, filename, **write_csv):
-        """Write an ArrayGroup object to a CSV file.
+        """Write an GroupedArrays object to a CSV file.
 
         Args:
-            data: An ArrayGroup object that should be saved.
+            data: An GroupedArrays object that should be saved.
             filename: Path and name of the file as string or FileInfo object.
             **write_csv: Additional keyword arguments for
                 `pandas.Dataframe.to_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
         kwargs = self.write_csv.copy()
@@ -455,7 +476,7 @@ class NetCDF4(FileHandler):
 
         Args:
             return_type: Defines what object should be returned by
-                :meth:`read`. Default is *ArrayGroup* but *xarray* is also
+                :meth:`read`. Default is *GroupedArrays* but *xarray* is also
                 possible.
             info: You cannot use the :meth:`get_info` without giving a
                 function here that returns a FileInfo object.
@@ -463,37 +484,35 @@ class NetCDF4(FileHandler):
         # Call the base class initializer
         super().__init__(**kwargs)
 
-        if return_type is None:
-            self.return_type = "ArrayGroup"
-        else:
-            self.return_type = return_type
+        # Set merger and concatenator for standard return types:
+        self._set_standard_return_type(return_type)
 
     @expects_file_info()
     def read(self, filename, fields=None, mapping=None, main_group=None,
              **kwargs):
-        """Reads and parses NetCDF files and load them to an ArrayGroup.
+        """Reads and parses NetCDF files and load them to an GroupedArrays.
 
         If you need another return value, change it via the parameter
         *return_type* of the :meth:`__init__` method.
 
         Args:
             filename: Path and name of the file as string or FileInfo object.
-                If *return_type* is *ArrayGroup*, this can also be a tuple/list
+                If *return_type* is *GroupedArrays*, this can also be a tuple/list
                 of file names.
             fields: List of field names that should be read. The other fields
                 will be ignored.
             mapping: A dictionary which is used for renaming the fields. The
                 keys are the old and the values are the new names.
             main_group: If the file contains multiple groups, the main group
-                will be linked to this one (only valid for ArrayGroup).
+                will be linked to this one (only valid for GroupedArrays).
 
         Returns:
-            An ArrayGroup object.
+            An GroupedArrays object.
         """
 
-        # ArrayGroup supports reading from multiple files.
-        if self.return_type == "ArrayGroup":
-            ds = ArrayGroup.from_netcdf(filename.path, fields, **kwargs)
+        # GroupedArrays supports reading from multiple files.
+        if self.return_type == "GroupedArrays":
+            ds = GroupedArrays.from_netcdf(filename.path, fields, **kwargs)
             if not ds:
                 return None
             if main_group is not None:
@@ -517,7 +536,7 @@ class NetCDF4(FileHandler):
     def write(self, data, filename, **kwargs):
         """ Writes a data object to a NetCDF file.
 
-        The data object must have a *to_netcdf* method, e.g. as an ArrayGroup
+        The data object must have a *to_netcdf* method, e.g. as an GroupedArrays
         or xarray.Dataset object.
         """
 
@@ -551,7 +570,7 @@ class Plotter(FileHandler):
         else:
             self.fig_args = fig_args
 
-    @expects_file_info(pos=1)
+    @expects_file_info(pos=2)
     def write(self, figure, filename, fig_args=None):
         """ Saves a matplotlib.figure object to a file.
 

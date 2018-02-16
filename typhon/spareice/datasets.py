@@ -1,13 +1,11 @@
 """
-This module contains classes to handle datasets consisting of many files. They
-are inspired by the implemented dataset classes in atmlab written by Gerrit
-Holl.
+This module contains classes to handle datasets consisting of many files.
 
 Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import Iterable, OrderedDict
+from collections import defaultdict, Iterable, OrderedDict
 import copy
 from datetime import datetime, timedelta
 import gc
@@ -30,10 +28,11 @@ import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from typhon.spareice.array import ArrayGroup
+from typhon.spareice.array import GroupedArrays
 from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
+import xarray as xr
 
 __all__ = [
     "Dataset",
@@ -61,20 +60,14 @@ class NoFilesError(Exception):
 
     """
     def __init__(self, dataset, start, end, *args):
-        if start == datetime.min and end == datetime.max:
-            message = \
-                "Found no files for %s!\nPath: %s\n" \
-                "Check the path for misspellings and whether there are files "\
-                "in this time period." % (
-                    dataset.name, dataset.path
-                )
+        if start == datetime.min and end >= datetime.max-timedelta(seconds=1):
+            message = f"Found no files for {dataset.name}!"
         else:
-            message = \
-                "Found no files for %s between %s and %s!\nPath: %s\n" \
-                "Check the path for misspellings and whether there are files "\
-                "in this time period." % (
-                    dataset.name, start, end, dataset.path
-                )
+            message = f"Found no files for {dataset.name} between {start} " \
+                      f"and {end}!"
+
+        message += f"\nPath: {dataset.path}\nCheck the path for misspellings" \
+                   f" and whether there are files in this time period."
         Exception.__init__(self, message, *args)
 
 
@@ -126,8 +119,56 @@ class PlaceholderRegexError(Exception):
 
 
 class Dataset:
-    """Class which provides methods to handle a set of multiple files
-    (dataset).
+    """Provide methods to handle a set of multiple files (dataset).
+
+    For more examples and an user guide, look at this tutorial_.
+
+    .. _tutorial: http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html
+
+    Examples:
+
+        Dataset with multiple files:
+
+        .. code-block:: python
+
+            from typhon.spareice import Dataset
+
+            # Define a dataset consisting of multiple files:
+            dataset = Dataset(
+                path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                name="TestData",
+                # If the time coverage of the data cannot be retrieved from the
+                # filename, you should set this to "handler" and giving a file
+                # handler to this object:
+                info_via="filename"
+            )
+
+            # Find some files of the dataset:
+            for file in dataset.find("2017-01-01", "2017-01-02"):
+                # Should print the path of the file and its time coverage:
+                print(file)
+
+        Dataset with a single file:
+
+        .. code-block:: python
+
+            # Define a dataset consisting of a single file:
+            dataset = Dataset(
+                # Simply use the path without placeholders:
+                path="/path/to/file.nc",
+                name="TestData2",
+                # The time coverage of the data cannot be retrieved from the
+                # filename (because there are no placeholders). You can use the
+                # file handler get_info() method with info_via="handler" or you
+                # can define the time coverage here directly:
+                time_coverage=("2007-01-01 13:00:00", "2007-01-14 13:00:00")
+            )
+
+    References:
+        This is inspired by the implemented dataset classes in atmlab_ written
+        by Gerrit Holl.
+
+        .. _atmlab: http://www.radiativetransfer.org/tools/
 
     """
 
@@ -192,7 +233,7 @@ class Dataset:
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
-            writing_queue_limit=None, compress=True, decompress=True,
+            concat_args=None, merge_args=None, compress=True, decompress=True,
     ):
         """Initializes a dataset object.
 
@@ -271,6 +312,12 @@ class Dataset:
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), dataset files
                 will be decompressed before reading them. Default value is
                 true.
+            read_args: Additional keyword arguments in a dictionary that should
+                be passed to :meth:`read`.
+            write_args: Additional keyword arguments in a dictionary that
+                should be passed to :meth:`write`.
+            merge_args:
+            concat_args:
 
         Allowed placeholders in the *path* argument are:
 
@@ -302,60 +349,6 @@ class Dataset:
 
         All those place holders are also allowed to have the prefix *end*
         (e.g. *end_year*). They represent the end of the time coverage.
-
-        Examples:
-
-        .. code-block:: python
-
-            ### Multi file dataset ###
-            # Define a dataset consisting of multiple files:
-            dataset = Dataset(
-                path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                name="TestData",
-                # If the time coverage of the data cannot be retrieved from the
-                # filename, you should set this to "handler" and giving a file
-                # handler to this object:
-                info_via="filename"
-            )
-
-            # Find some files of the dataset:
-            for file, times in dataset.find("2017-01-01", "2017-01-02"):
-                # Should print some files such as "/dir/2017/01/01/120000.nc":
-                print(file)
-
-            ### Single file dataset ###
-            # Define a dataset consisting of a single file:
-            dataset = Dataset(
-                # Simply use the path without placeholders:
-                path="/path/to/file.nc",
-                name="TestData2",
-                # The time coverage of the data cannot be retrieved from the
-                # filename (because there are no placeholders). You can use the
-                # file handler get_info() method via "content" or you can
-                # define the time coverage here directly:
-                time_coverage=("2007-01-01 13:00:00", "2007-01-14 13:00:00")
-            )
-
-            ### Play with the time_coverage parameter ###
-            # Define a dataset with daily files:
-            dataset = Dataset("/dir/{year}/{month}/{day}.nc")
-
-            file = dataset.get_info(
-                "/dir/2017/11/12.nc"
-            )
-            print(file)
-            # /dir/2017/11/12.nc
-            #   Start: 2017-11-12
-            #   End: 2017-11-12
-
-            file = dataset.get_info(
-                "/dir/2017/11/12.nc"
-            )
-            print("Start:", file.times[0])
-            print("End:", file.times[1])
-            # Start: 2017-11-12
-            # End: 2017-11-12
-
         """
 
         # Initialize member variables:
@@ -424,6 +417,10 @@ class Dataset:
         self.read_args = {} if read_args is None else read_args
         self.write_args = {} if write_args is None else write_args
 
+        # Data merging and concatenating arguments:
+        self.merge_args = {} if merge_args is None else merge_args
+        self.concat_args = {} if concat_args is None else concat_args
+
         self.compress = compress
         self.decompress = decompress
 
@@ -459,6 +456,9 @@ class Dataset:
         # TODO: We cannot use queues as attributes for Dataset because they
         # TODO: cannot be pickled.
         # self._write_queue = Queue(max_threads)
+
+        # Dictionary for holding links to other datasets:
+        self._link = {}
 
     def __iter__(self):
         return iter(self.find())
@@ -543,12 +543,12 @@ class Dataset:
         return info
 
     def collect(self, start=None, end=None, files=None, read_args=None,
-                return_info=False, **find_args):
+                return_info=False, concat=True, concat_args=None, **find_args):
         """Load all files between two dates sorted by their starting time
 
         This parallelizes the reading of the files by using threads. This
         should give a speed up if the file handler's read function internally
-        uses CPython code that releases the GIL lock. Note that this method is
+        uses CPython code that releases the GIL. Note that this method is
         faster than :meth:`icollect` but also more memory consuming.
 
         Use this if you need all files at once but if want to use a for-loop
@@ -567,6 +567,8 @@ class Dataset:
                 *read* method of the used file handler class.
             return_info: If true, return a FileInfo object with each content
                 value indicating to which file the function was applied.
+            concat: If true (default), return the data concatenated by using
+                standard concatenate functions.
             **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
@@ -579,7 +581,6 @@ class Dataset:
         .. code-block:: python
 
             data_list = dataset.collect("2018-01-01", "2018-01-02")
-            file_infos, contents = zip(*data_list)
             # If contents are numpy arrays
             data = np.hstack(contents)
 
@@ -587,16 +588,19 @@ class Dataset:
             data = np.hstack(dataset["2018-01-01":"2018-01-02"])
 
             ## If you want to iterate through the files in a for loop, e.g.:
-            for file, content in dataset.collect("2018-01-01", "2018-01-02"):
+            for content in dataset.collect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
             # Then you should rather use icollect, which uses less memory:
-            for file, content in dataset.icollect("2018-01-01", "2018-01-02"):
+            for content in dataset.icollect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
         """
         if read_args is None:
             read_args = {}
+
+        if concat_args is None:
+            concat_args = {}
 
         # If we used map with processes, it would need to pickle the data
         # coming from all workers. This would be very inefficient. Threads
@@ -604,7 +608,7 @@ class Dataset:
         # reading function is typically io-bound. However, if the reading
         # function consists mainly of pure python code that does not
         # release the GIL, this will slow down the performance.
-        files = self.map(
+        results = self.map(
             start, end, files, func=Dataset.read, args=(self,),
             kwargs=read_args, worker_type="thread", return_info=True,
             **find_args
@@ -615,12 +619,19 @@ class Dataset:
         gc.collect()
 
         # We do not want to have any None as data
-        return [
-            (info, content) if return_info
-            else content
-            for info, content in files
+        files, data = zip(*[
+            [info, content]
+            for info, content in results
             if content is not None
-        ]
+        ])
+
+        if concat:
+            data = self._concat_data(data, **concat_args)
+
+        if return_info:
+            return files, data
+        else:
+            return data
 
     def icollect(self, start=None, end=None, files=None, read_args=None,
                  preload=True, return_info=False, **find_args):
@@ -659,7 +670,7 @@ class Dataset:
         .. code-block:: python
 
             ## Perfect for iterating over many files.
-            for file, content in dataset.icollect("2018-01-01", "2018-01-02"):
+            for content in dataset.icollect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
             ## If you want to have all files at once, do not use this:
@@ -996,11 +1007,15 @@ class Dataset:
         start = datetime.min if start is None else to_datetime(start)
         end = datetime.max if end is None else to_datetime(end)
 
-        if verbose:
-            print("Find files between %s and %s!" % (start, end))
-
         # We want to have a semi-open interval as explained in the doc string.
         end -= timedelta(microseconds=1)
+
+        if end < start:
+            raise ValueError(
+                "The start must be smaller than the end parameter!")
+
+        if verbose:
+            print("Find files between %s and %s!" % (start, end))
 
         # Special case: the whole dataset consists of one file only.
         if self.single_file:
@@ -1461,6 +1476,44 @@ class Dataset:
         self.info_cache[info.path] = info
         return info
 
+    def _concat_data(self, objects, **kwargs):
+
+        if self.handler.data_merger is not None:
+            func = self.handler.data_merger
+        elif isinstance(objects[0], GroupedArrays):
+            func = type(objects[0]).concat
+        elif isinstance(objects[0], (xr.Dataset, xr.DataArray)):
+            func = xr.concat
+        elif isinstance(objects[0], pd.DataFrame):
+            func = pd.concat
+        else:
+            raise ValueError(
+                f"No concatenating function is specified for "
+                f"{type(objects[0])}! You set one via your file handler's "
+                f"data_concatenator parameter."
+            )
+
+        return func(objects, **{**self.concat_args, **kwargs})
+
+    def _merge_data(self, objects):
+
+        if self.handler.data_merger is not None:
+            func = self.handler.data_merger
+        elif isinstance(objects[0], GroupedArrays):
+            func = type(objects[0]).merge
+        elif isinstance(objects[0], (xr.Dataset, xr.DataArray)):
+            func = xr.merge
+        elif isinstance(objects[0], pd.DataFrame):
+            func = pd.merge
+        else:
+            raise ValueError(
+                f"No merging function is specified for "
+                f"{type(objects[0])}! You set one via your file handler's "
+                f"data_merger parameter."
+            )
+
+        return func(objects, **self.merge_args)
+
     def is_excluded(self, period):
         """Checks whether a time interval is excluded from this Dataset.
 
@@ -1474,6 +1527,51 @@ class Dataset:
             return False
 
         return period in self.exclude
+
+    def dislink(self, name_or_dataset):
+        """Remove the link between this and another dataset
+
+        Args:
+            name_or_dataset: Name of a dataset or the Dataset object itself. It
+                must be linked to this dataset. Otherwise a KeyError will be
+                raised.
+
+        Returns:
+            None
+        """
+        if isinstance(name_or_dataset, Dataset):
+            del self._link[name_or_dataset.name]
+        else:
+            del self._link[name_or_dataset]
+
+    def link(self, other_dataset, linker=None):
+        """Link this dataset with another
+
+        If one file is read from this dataset, its corresponding file from
+        `other_dataset` will be read, too. Their content will then be merged by
+        using the file handler's data merging function. If it is not
+        implemented, it tries to derive a standard merging function from known
+        data types.
+
+        Args:
+            other_dataset: Other Dataset-like object.
+            linker: Reference to a function that searches for the corresponding
+                file in *other_dataset* for a given file from this dataset.
+                Must accept *other_dataset* as first and a
+                :class:`~typhon.spareice.handlers.common.FileInfo` object as
+                parameters. It must return a FileInfo of the corresponding
+                file. If none is given,
+                :meth:`~typhon.spareice.datasets.Dataset.generate_filename`
+                will be used as default.
+
+        Returns:
+            None
+        """
+
+        self._link[other_dataset.name] = {
+            "target": other_dataset,
+            "linker": linker,
+        }
 
     def load_info_cache(self, filename):
         """ Loads the information cache from a file.
@@ -1586,7 +1684,7 @@ class Dataset:
 
                 results = dataset.map(
                     "2018-01-01", "2018-01-02", calc_statistics,
-                    on_content=True,
+                    on_content=True, return_info=True,
                 )
 
                 # This will be run after processing all files...
@@ -1596,13 +1694,13 @@ class Dataset:
 
                 ## If you need the results directly, you can use imap instead:
                 results = dataset.imap(
-                    "2018-01-01", "2018-01-02", calc_statistics, on_content=True,
+                    "2018-01-01", "2018-01-02", calc_statistics,
+                    on_content=True,
                 )
 
-                for file, result in results
+                for result in results
                     # After the first file has been processed, this will be run
                     # immediately ...
-                    print(file) # prints the FileInfo object
                     print(result) # prints the mean and maximum value
 
             If you need to pass some args to the function, use the parameters
@@ -2261,6 +2359,26 @@ class Dataset:
         else:
             data = self.handler.read(file_info, **read_args)
 
+        # Add also data from linked datasets:
+        if self._link:
+            linked_data = []
+            for link in self._link.values():
+                if link["linker"] is None:
+                    # Simply try to find the corresponding file by generating a
+                    # filename:
+                    other_file = link["target"].generate_filename(
+                        times=file_info.times, fill=file_info.attr
+                    )
+                else:
+                    # Find the corresponding file via the given linker function
+                    other_file = link["linker"](link["target"], file_info)
+
+                linked_data.append(
+                    self._link["target"].read(other_file)
+                )
+
+            return self._merge_data([data, *linked_data])
+
         return data
 
     def _retrieve_time_coverage(self, filled_placeholder,):
@@ -2490,17 +2608,17 @@ class Dataset:
 
 class DataSlider:
     """Join and align data from different datasets
+
+    Works only with Datasets which read return values are GroupedArrays.
     """
 
     def __init__(
-            self, start, end, *sources_with_names, **sources,):
+            self, start, end, *datasets,):
         """Initialise a DataSlider object
 
         Args:
-            *data_sources: A tuple of a data source and its fields that
-                should be extracted. A data source can either be a
-                dict-like array set (e.g. xarray.Dataset) or a typhon Dataset
-                object which read-method returns such an array set.
+            *datasets: A list / tuple of a datasets that should be iterated,
+                which read-method returns such an array set.
         """
 
         self.start = to_datetime(start)
@@ -2512,63 +2630,76 @@ class DataSlider:
         # In this container will only sources be saved that are 'collectable',
         # i.e. Dataset objects. Static sources as arrays will be directly saved
         # to the cache.
-        self.sources = OrderedDict()
-        for source in sources_with_names:
-            self.add(source)
-        for name, source in sources.items():
-            self.add(source, name)
+        self.datasets = datasets
 
     def __iter__(self):
-        # Get the fetcher generators for the Dataset sources
-        self._fetcher = {
-            name: source.icollect(self.start, self.end)
-            for name, source in self.sources.items()
-        }
+        return iter(self.move())
 
-        # Reset the current time:
-        self._current_end = datetime.min
+    def add(self, source, name=None):
+        """Add a new source to this data slider
 
-        return self
+        Args:
+            source: A dict-like array set (e.g. xarray.Dataset) or a Dataset
+                object.
+            name:
 
-    def __next__(self,):
-        if self._current_end == self.end:
-            raise StopIteration
+        Returns:
+            None
+        """
+        if not isinstance(source, Dataset):
+            raise ValueError(
+                f"Source of type {type(source)} is not a Dataset-like object!"
+            )
 
-        # Go through all data sources and update the cache if necessary
-        cache_update = self._fetch_cache_update()
+        self.datasets.append(source)
 
-        # Update the cache with the newly fetched data
-        self._cache.update(cache_update)
+    def move(self):
+        primaries = self.datasets[0].icollect(
+            self.start, self.end, return_info=True
+        )
+        for primary_file, primary_data in primaries:
+            # We add the primary data later:
+            data = {}
+            files = {self.datasets[0].name: [primary_file]}
+            for secondary in self.datasets[1:]:
+                # Get the corresponding secondary files:
+                # TODO: Use caching to avoid multiple reading of the same files
+                secondary_files, secondary_data = secondary.collect(
+                    *primary_file.times, return_info=True, concat=False,
+                )
+                data[secondary.name] = GroupedArrays.concat(
+                    secondary_data
+                )
+                files[secondary.name] = secondary_files
 
-        # Select only the time period from the cache that is in all data
-        # sources
-        selection, self._current_end = self._select_common_time(self._cache)
+            data = self._align_to_primary(data, primary_data)
+            data[self.datasets[0].name] = primary_data
 
-        # There are only static sources:
-        if not self._fetcher:
-            # We have all data already, stop iteration next time
-            self._current_end = self.end
-            return selection
+            yield data, files
 
-        if not all(data["time"].shape[0] for data in selection.values()):
-            return self.__next__()
+    def _align_to_primary(self, data, primary):
+        primary_start, primary_end = primary.get_range("time")
 
-        return selection
+        for name, dataset in data.items():
+            indices = (primary_start <= dataset["time"]) \
+                      & (dataset["time"] <= primary_end)
+            data[name] = dataset[indices]
 
     def _fetch_cache_update(self, sources=None):
-        if sources is None:
-            forced = False
-            sources = self.sources.keys()
-        else:
-            forced = True
-
+        data_dict = {}
         try:
-            return {
-                name: next(self._fetcher[name])[1]
-                for name in sources
-                if forced or name not in self._cache
-                or self._current_end >= self._cache[name]["time"].max()
-            }
+            for name in self._fetcher:
+                if (name in self._cache and
+                        self._current_end < self._cache[name]["time"].max()):
+                    continue
+
+                # Fetch the data from the dataset:
+                file, data = next(self._fetcher[name])
+
+                if "__original_file" not in data:
+                    # Set where the file came from:
+                    data.attrs["__original_file"] = file.path
+                data_dict[name] = data
         except StopIteration:
             # One source has no data left
             raise StopIteration
@@ -2577,7 +2708,9 @@ class DataSlider:
             # TODO: we do against a infinite while loop?
             raise err
 
-    def _select_common_time(self, cache):
+        return data_dict
+
+    def _select_common_time(self, data, start, end):
         """Select only the time window where all time series have data
         """
 
@@ -2600,36 +2733,14 @@ class DataSlider:
             for name, data in cache.items()
         }, common_end
 
-    def add(self, source, name=None):
-        """Add a new source to this data slider
-
-        Args:
-            source: A dict-like array set (e.g. xarray.Dataset) or a Dataset
-                object.
-            name:
-
-        Returns:
-            None
-        """
-        if name is None:
-            if hasattr(source, "name"):
-                name = source.name
-            else:
-                raise ValueError("Need a name for all data sources!")
-
-        if isinstance(source, Dataset):
-            self.sources[name] = source
-        else:
-            self._cache[name] = source
-
     def flush(self):
         """Return the data of all sources at once.
 
         Returns:
-            A dictionary of array objects (numpy, ArrayGroup, xarray, etc.)
+            A dictionary of array objects (numpy, GroupedArrays, xarray, etc.)
         """
         fetched_data = {
-            name: ArrayGroup.concatenate(source.collect(self.start, self.end))
+            name: GroupedArrays.concat(source.collect(self.start, self.end))
             for name, source in self.sources.items()
         }
 
@@ -2642,8 +2753,9 @@ class DataSlider:
 
 class DatasetManager(dict):
     def __init__(self, *args, **kwargs):
-        """ This manager can hold multiple Dataset objects. You can use it as a
-        native dictionary.
+        """Simple container for multiple Dataset objects.
+
+        You can use it as a native dictionary.
 
         More functionality will be added in future.
 
@@ -2659,7 +2771,7 @@ class DatasetManager(dict):
             )
 
             # do something with it
-            for name, dataset in datasets["images"].items():
+            for name, dataset in datasets.items():
                 dataset.find(...)
 
         """

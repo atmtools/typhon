@@ -9,7 +9,7 @@ from scipy import stats
 from sklearn.model_selection import GridSearchCV, train_test_split
 import sklearn.neural_network as nn
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from typhon.spareice.array import ArrayGroup
+from typhon.spareice.array import GroupedArrays
 from typhon.spareice.datasets import Dataset, DataSlider
 
 __all__ = [
@@ -57,7 +57,8 @@ class Retriever:
         if parameters_file is not None:
             self.load_parameters(parameters_file)
 
-    def _default_estimator(self):
+    @staticmethod
+    def _default_estimator():
         return nn.MLPRegressor(
             max_iter=1200,
             # verbose=True,
@@ -99,7 +100,8 @@ class Retriever:
             refit=True, cv=3, verbose=2,
         )
 
-    def _get_sklearn_coefs(self, sklearn_obj):
+    @staticmethod
+    def _get_sklearn_coefs(sklearn_obj):
         """
 
         Returns:
@@ -121,7 +123,8 @@ class Retriever:
         #     for name, attr in attrs.items()
         # }
 
-    def _set_sklearn_coefs(self, sklearn_obj, coefs):
+    @staticmethod
+    def _set_sklearn_coefs(sklearn_obj, coefs):
         for attr, value in coefs.items():
             setattr(sklearn_obj, attr, value)
                     #np.array(value) if isinstance(attr, list) else value)
@@ -221,7 +224,7 @@ class Retriever:
 
         Returns:
             If output is not None, a :class:`Dataset` object holding the data.
-            Otherwise an ArrayGroup / xarray.Dataset with the retrieved data.
+            Otherwise an GroupedArrays / xarray.Dataset with the retrieved data.
 
         Examples:
 
@@ -246,7 +249,7 @@ class Retriever:
         results = []
 
         # Slide through all input sources and apply the regression on them
-        for data in map(ArrayGroup.from_dict, slider):
+        for data in map(GroupedArrays.from_dict, slider):
             if callable(cleaner):
                 data = data[cleaner(data)]
 
@@ -267,11 +270,11 @@ class Retriever:
             output_data = self.estimator.predict(input_data)
 
             if len(self.parameter["targets"]) == 1:
-                retrieved_data = ArrayGroup()
+                retrieved_data = GroupedArrays()
                 target_label = list(self.parameter["targets"].keys())[0]
                 retrieved_data[target_label] = output_data
             else:
-                retrieved_data = ArrayGroup.from_dict({
+                retrieved_data = GroupedArrays.from_dict({
                     name: output_data[:, i]
                     for i, name in enumerate(sorted(self.parameter["targets"]))
                 })
@@ -292,7 +295,7 @@ class Retriever:
 
         if output is None:
             if results:
-                return ArrayGroup.concatenate(results)
+                return GroupedArrays.concat(results)
             else:
                 return None
 
@@ -338,7 +341,7 @@ class Retriever:
             slider = DataSlider(start, end, *sources)
 
         # Get all the data at once:
-        data = ArrayGroup.from_dict(slider.flush())
+        data = GroupedArrays.from_dict(slider.flush())
 
         train_input, test_input, train_target, test_target = \
             self._prepare_training_data(
