@@ -700,10 +700,9 @@ def collocate_datasets(
     if verbose:
         print("Retrieve time coverages from files...")
 
-    for data, files in DataSlider(start, end, *datasets):
+    for files, data in DataSlider(start, end, *datasets):
 
         primary_start, primary_end = data[primary.name].get_range("time")
-
 
         if verbose:
             _collocating_status(
