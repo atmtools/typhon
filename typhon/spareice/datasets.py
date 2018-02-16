@@ -783,7 +783,6 @@ class Dataset:
         else:
             destination = to
 
-
         if convert is None:
             convert = False
 
@@ -2625,8 +2624,8 @@ class DataSlider:
                 which read-method returns such an array set.
         """
 
-        self.start = to_datetime(start)
-        self.end = to_datetime(end)
+        self.start = None if start is None else to_datetime(start)
+        self.end = None if end is None else to_datetime(end)
 
         self._cache = {}
         self._current_end = None
@@ -2658,28 +2657,32 @@ class DataSlider:
         self.datasets.append(source)
 
     def move(self):
-        primaries = self.datasets[0].icollect(
+        primary = self.datasets[0]
+        primary_files = primary.icollect(
             self.start, self.end, return_info=True
         )
-        for primary_file, primary_data in primaries:
+        for primary_file, primary_data in primary_files:
             # We add the primary data later:
             data = {}
-            files = {self.datasets[0].name: [primary_file]}
-            for secondary in self.datasets[1:]:
-                # Get the corresponding secondary files:
-                # TODO: Use caching to avoid multiple reading of the same files
-                secondary_files, secondary_data = secondary.collect(
-                    *primary_file.times, return_info=True, concat=False,
-                )
-                data[secondary.name] = GroupedArrays.concat(
-                    secondary_data
-                )
-                files[secondary.name] = secondary_files
+            files = {primary.name: [primary_file]}
 
-            data = self._align_to_primary(data, primary_data)
-            data[self.datasets[0].name] = primary_data
+            if len(self.datasets) > 1:
+                for secondary in self.datasets[1:]:
+                    # Get the corresponding secondary files:
+                    # TODO: Use caching to avoid multiple reading of the same
+                    # files
+                    secondary_files, secondary_data = secondary.collect(
+                        *primary_file.times, return_info=True, concat=False,
+                    )
+                    data[secondary.name] = GroupedArrays.concat(
+                        secondary_data
+                    )
+                    files[secondary.name] = secondary_files
 
-            yield data, files
+            # data = self._align_to_primary(data, primary_data)
+            data[primary.name] = primary_data
+
+            yield files, data
 
     def _align_to_primary(self, data, primary):
         primary_start, primary_end = primary.get_range("time")
