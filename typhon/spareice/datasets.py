@@ -783,12 +783,16 @@ class Dataset:
         else:
             destination = to
 
+
         if convert is None:
             convert = False
 
         if self.single_file:
+            file_info = self.get_info(self.path)
+
             Dataset._copy_single_file(
-                self.path, self, destination, convert, delete_originals)
+                file_info, self, destination, convert, delete_originals
+            )
         else:
             if destination.single_file:
                 raise ValueError(
@@ -803,7 +807,7 @@ class Dataset:
             }
 
             # Copy the files
-            self.map(start, end, Dataset._copy_single_file, copy_args)
+            self.map(start, end, Dataset._copy_single_file, kwargs=copy_args)
 
         return destination
 
@@ -831,7 +835,7 @@ class Dataset:
         # Shall we simply copy or even convert the files?
         if convert:
             # Read the file with the current file handler
-            data = dataset.read(file_info.path)
+            data = dataset.read(file_info)
 
             # Maybe the user has given us a converting function?
             if callable(convert):
