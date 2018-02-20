@@ -19,7 +19,7 @@ spareice.array
    :toctree: generated
 
    Array
-   ArrayGroup
+   GroupedArrays
 
 spareice.collocations
 =====================
