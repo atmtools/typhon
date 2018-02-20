@@ -61,7 +61,6 @@ class Retriever:
     def _default_estimator():
         return MLPRegressor(
             max_iter=2000,
-            # verbose=True,
         )
 
     @staticmethod
@@ -74,22 +73,25 @@ class Retriever:
         # To optimize the results, we try different hyper parameters by
         # using the default tuner
         hidden_layer_sizes = [
-            (15, 10, 3,), (15, 5, 3,), (15, 5), (15, 10),
+            (15, 10, 5,), (15, 10, 3,), (15, 5), (15, 10), (15, 3),
         ]
+        common = {
+            'activation': ['relu', 'tanh'],
+            'hidden_layer_sizes': hidden_layer_sizes,
+            'random_state': [0, 1, 2, 4, 5, 9],
+            #'alpha': 10.0 ** -np.arange(1, 7),
+        }
         hyper_parameter = [
             {   # Hyper parameter for lbfgs solver
                 'solver': ['lbfgs'],
-                'activation': ['relu', 'tanh'],
-                'hidden_layer_sizes': hidden_layer_sizes,
-                'random_state': [0, 1, 2, 4, 5, 9],
+                **common
             },
             # {  # Hyper parameter for adam solver
             #     'solver': ['adam'],
-            #     'activation': ['relu', 'tanh', 'logistic'],
-            #     'hidden_layer_sizes': hidden_layer_sizes,
             #     'batch_size': [200, 1000],
             #     'beta_1': [0.95, 0.99],
             #     'beta_2': [0.95, 0.99],
+            #     **common
             # },
         ]
 
@@ -436,12 +438,9 @@ class Retriever:
         if input_data.shape[0] < 2 or target_data.shape[0] < 2:
             raise ValueError("Not enough data for training!")
 
-        # We have not prepared a scaler yet. This should be done only once.
-        if self.scaler is None:
-            self.scaler = self._default_scaler()
-            self.scaler.fit(input_data)
-
-        input_data = self.scaler.transform(input_data)
+        # We apply a scaler on the data.
+        self.scaler = self._default_scaler()
+        input_data = self.scaler.fit_transform(input_data)
 
         return train_test_split(input_data, target_data, test_size=test_size,
                                 shuffle=True)
