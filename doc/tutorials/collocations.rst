@@ -1,9 +1,9 @@
 
-Collocations Tutorial - Examples
-================================
+Find collocations with typhon
+=============================
 
 .. Warning::
-   This tutorial is still under development and might contain invalid code.
+   This tutorial is still under development and contains invalid code.
 
 Before we start, we configure this notebook so that it shows our
 matplotlib plots directly.
@@ -144,6 +144,10 @@ ones, we can set a *max\_interval* parameter only:
 
 Find collocations between two datasets
 --------------------------------------
+
+.. Warning::
+   This section is not up-to-date and will not work with the newest version of
+   typhon. Please wait for an update.
 
 Normally, one has the data stored in a set of many files. typhon
 provides an object to handle those *datasets* (see the `typhon
