@@ -6,4 +6,5 @@ formats."""
 
 from .common import *  # noqa
 from .cloudsat import *  # noqa
+from .ocean_rain import *  # noqa
 from .tovs import *  # noqa
