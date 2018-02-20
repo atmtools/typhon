@@ -15,12 +15,14 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FuncFormatter
 from matplotlib.cm import get_cmap
+import scipy.stats as stats
 
 from typhon.plots import formatter
 from typhon.math import stats as tpstats
 
 
 __all__ = [
+    'fractional_error',
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
@@ -29,10 +31,85 @@ __all__ = [
     'profile_p_log',
     'profile_z',
     'channels',
-    'worldmap',
     'colored_bars',
     'plot_bitfield',
+    'worldmap',
 ]
+
+
+def fractional_error(
+            estimate, reference, bins=20, log=False, ax=None, ptype=None,
+            pargs=None, **kwargs
+        ):
+    """Bin the data, calculate the fractional error and plot their statistics
+
+    The fractional error is calculated with this formula:
+
+    .. math::
+        FE := \exp \bigl| \ln \frac{estimate}{reference} \bigl| - 1
+
+    Per default, this calculates the median fractional error for each bin. If
+    you need another statistic (e.g. mean or std) use the keyword `statistic`.
+
+    Args:
+        estimate: The estimated data that may contain errors.
+        reference: The real / true data that is used as reference.
+        bins: Number of bins. Default is 20.
+        log: If true, it uses log10 bins. This is the default.
+        ax:
+        ptype:
+        pargs:
+        **kwargs: Additional key word arguments for
+            `scipy.stats.binned_statistic`.
+
+    Returns:
+        The axis and the plot object.
+    """
+
+    if ax is None:
+        ax = plt.gca()
+
+    if pargs is None:
+        pargs = {}
+
+    # The fractional error in percent
+    fe = (np.abs(np.exp(np.log(estimate / reference))) - 1) * 100.
+
+    if log:
+        reference = np.log10(reference)
+
+    if ptype is None or ptype == "scatter":
+        default = {
+            "statistic": "median",
+            "bins": bins,
+            **kwargs,
+        }
+
+        mfe, bin_edges, bin_ind = stats.binned_statistic(
+            reference, values=fe, **default
+        )
+        bin_width = (bin_edges[1] - bin_edges[0])
+        bin_centers = bin_edges[1:] - bin_width / 2
+
+        plot = ax.scatter(bin_centers, mfe, **pargs)
+    elif ptype == "boxplot":
+        bin_lefts = np.linspace(reference.min(), reference.max(), bins)
+        bins_indices = np.digitize(reference, bin_lefts)
+
+        plot = ax.boxplot(
+            [fe[bins_indices == i] for i in range(bins)],
+            **pargs
+        )
+
+        bin_width = (bin_lefts[1] - bin_lefts[0])
+        bin_centers = bin_lefts[1:] + bin_width / 2
+        ax.set_xticklabels([f"{center:.1f}" for center in bin_centers])
+    else:
+        raise ValueError(f"Unknown plot type {ptype}!")
+
+    ax.set_ylabel("fractional error [%]")
+
+    return ax, plot
 
 
 def plot_distribution_as_percentiles(ax, x, y,
