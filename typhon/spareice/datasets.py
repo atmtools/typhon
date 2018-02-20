@@ -627,9 +627,11 @@ class Dataset:
 
         if concat:
             data = self._concat_data(data, **concat_args)
+        else:
+            data = list(data)
 
         if return_info:
-            return files, data
+            return list(files), data
         else:
             return data
 
@@ -2627,7 +2629,7 @@ class DataSlider:
         self.start = None if start is None else to_datetime(start)
         self.end = None if end is None else to_datetime(end)
 
-        self._cache = {}
+        self._cache = dict()
         self._current_end = None
 
         # In this container will only sources be saved that are 'collectable',
@@ -2663,34 +2665,68 @@ class DataSlider:
         )
         for primary_file, primary_data in primary_files:
             # We add the primary data later:
-            data = {}
+            data = {primary.name: primary_data}
             files = {primary.name: [primary_file]}
 
-            if len(self.datasets) > 1:
-                for secondary in self.datasets[1:]:
-                    # Get the corresponding secondary files:
-                    # TODO: Use caching to avoid multiple reading of the same
-                    # files
+            if len(self.datasets) == 1:
+                yield files, data
+                continue
+
+            primary_start, primary_end = primary_data.get_range("time")
+
+            # Get the corresponding secondary files:
+            for secondary in self.datasets[1:]:
+                # We might have some secondary data still in the cache, so load
+                # only the data for the time that is not already covered:
+                if secondary.name in self._cache:
+                    cache_end = \
+                        self._cache[secondary.name][1]["time"].max().item(0)
+                    times = [
+                        max(primary_file.times[0], cache_end),
+                        primary_file.times[1]
+                    ]
+                else:
+                    times = primary_file.times
+
+                if secondary.name in self._cache:
+                    files[secondary.name] = self._cache[secondary.name][0]
+                    temp_data = self._cache[secondary.name][1]
+                else:
+                    temp_data = None
+
+                # Check whether we need new data:
+                if times[0] < times[1]:
+                    # Actually, we need the data to be concatenated, but we
+                    # want to do this by ourselves to keep the track of which
+                    # file the data came from.
                     secondary_files, secondary_data = secondary.collect(
-                        *primary_file.times, return_info=True, concat=False,
+                        *times, return_info=True, concat=False,
                     )
-                    data[secondary.name] = GroupedArrays.concat(
-                        secondary_data
-                    )
+
+                    if temp_data is not None:
+                        secondary_data.insert(0, temp_data)
+
+                    # TODO: Add a file identifier to each element
+                    temp_data = GroupedArrays.concat(secondary_data)
+
+                    # TODO: Add also the cached file names if they contributed
                     files[secondary.name] = secondary_files
 
-            # data = self._align_to_primary(data, primary_data)
-            data[primary.name] = primary_data
+                # We want to cut the secondary data into two parts. One
+                # overlaps with the primary data and should be returned in
+                # this iteration:
+                overlaps = (primary_start <= temp_data["time"]) \
+                    & (temp_data["time"] <= primary_end)
+                data[secondary.name] = temp_data[overlaps]
+
+                # The other part is beyond the primary data, will be cached and
+                # might be returned in the next iteration:
+                beyond = (primary_end < temp_data["time"])
+                self._cache[secondary.name] = [
+                    files[secondary.name], temp_data[beyond],
+                ]
 
             yield files, data
-
-    def _align_to_primary(self, data, primary):
-        primary_start, primary_end = primary.get_range("time")
-
-        for name, dataset in data.items():
-            indices = (primary_start <= dataset["time"]) \
-                      & (dataset["time"] <= primary_end)
-            data[name] = dataset[indices]
 
     def _fetch_cache_update(self, sources=None):
         data_dict = {}
