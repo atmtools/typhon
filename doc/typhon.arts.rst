@@ -121,3 +121,15 @@ arts.xml
    save
    make_binary
    make_directory_binary
+
+arts.xsec
+=========
+
+.. automodule:: typhon.arts.xsec
+
+.. currentmodule:: typhon.arts.xsec
+
+.. autosummary::
+   :toctree: generated
+
+   XsecRecord
