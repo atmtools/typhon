@@ -29,7 +29,7 @@ def get_arts_typename(var):
                         return None
                 ret = 'ArrayOf' + element_type
     elif isinstance(var, np.ndarray):
-        if np.issubdtype(var.dtype, np.complex):
+        if np.issubdtype(var.dtype, np.complex128):
             ret = complex_tensor_names[var.ndim - 1]
         else:
             ret = tensor_names[var.ndim - 1]
