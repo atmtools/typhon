@@ -39,7 +39,7 @@ unit_mapper = {
     "seconds": "s",
     "hours": "h",
     "minutes": "m",
-    "days": "d",
+    "days": "D",
 }
 
 
@@ -502,7 +502,7 @@ class GroupedArrays:
                     return self._groups[var][rest]
                 else:
                     raise KeyError("'{}' is not a group!".format(var))
-        elif isinstance(item, (tuple, list)) and len(item) \
+        elif isinstance(item, (tuple, list)) and len(item) == 2 \
                 and isinstance(item[0], str) and isinstance(item[1], int):
             return self[item[0]][:, item[1]]
         else:
