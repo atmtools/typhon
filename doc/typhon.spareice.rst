@@ -31,6 +31,8 @@ spareice.collocations
 .. autosummary::
    :toctree: generated
 
+   collocate
+   collocate_datasets
    CollocatedDataset
 
 spareice.datasets
