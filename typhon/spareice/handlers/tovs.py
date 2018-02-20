@@ -3,11 +3,10 @@ from datetime import datetime, timedelta
 from netCDF4 import Dataset
 import numpy as np
 from typhon.spareice.array import GroupedArrays
-import xarray as xr
 
 from .common import FileHandler, expects_file_info
 
-__all__ = ['MHSAAPP',]
+__all__ = ['MHSAAPP', ]
 
 
 class MHSAAPP(FileHandler):
@@ -126,9 +125,9 @@ class MHSAAPP(FileHandler):
 
             dataset[var].dims = ["time_id"]
 
-        if "Data/btemps" in dataset:
-            # Mask error values:
-            dataset["Data/btemps"][dataset["Data/btemps"] <= -9999.] = np.nan
+        # if "Data/btemps" in dataset:
+        #     # Mask error values:
+        #     dataset["Data/btemps"][dataset["Data/btemps"] <= -9999.] = np.nan
 
         if mapping is not None:
             dataset.rename(mapping)
