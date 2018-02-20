@@ -72,8 +72,8 @@ those placeholders by itself when searching for files. Let's see it in action:
 
 .. code-block:: python
 
-    # Find all files between 2018-01-01 and 2018-01-02:
-    for file in b_dataset.find("2018-01-01", "2018-01-02"):
+    # Find all files from our dataset:
+    for file in b_dataset:
         print(file)
 
 .. code-block:: none
@@ -92,11 +92,29 @@ those placeholders by itself when searching for files. Let's see it in action:
       Start: 2018-01-01 18:00:00
       End: 2018-01-02 00:00:00
 
-The :meth:`~typhon.spareice.datasets.Dataset.find` method finds all
-files between two dates and returns their names with some further information
-in :class:`~typhon.spareice.handlers.common.FileInfo` objects. The FileInfo
-object has three attributes: *path*, *times* and *attr*. Let's have a look at
-them:
+If we want to have only files from a certain time period, we can use the
+:meth:`~typhon.spareice.datasets.Dataset.find` method:
+
+.. code-block:: python
+
+   # Find all files in a certain time period
+   for file in b_dataset.find("2018-01-01", "2018-01-01 12:00:00"):
+       print(file)
+
+.. code-block:: none
+   :caption: Output:
+
+   .../data/SatelliteB/2018/01/01/000000-060000.nc.
+      Start: 2018-01-01 00:00:00
+      End: 2018-01-01 06:00:00
+   .../data/SatelliteB/2018/01/01/060000-120000.nc.gz
+      Start: 2018-01-01 06:00:00
+      End: 2018-01-01 12:00:00
+
+In both examples from above, we yield a
+:class:`~typhon.spareice.handlers.common.FileInfo` object in the `file`
+variable. The FileInfo object has three attributes: *path*, *times* and *attr*.
+Let's have a look at them:
 
 .. code-block:: python
 
@@ -128,7 +146,7 @@ make a placeholder out of the satellite name:
            "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
    )
 
-   for file in dataset.find("01/01/2018", "2018-01-02"):
+   for file in dataset.find("2018-01-01", "2018-01-02"):
       print("Path:", file.path)
       print("Attributes", file.attr)
 
@@ -652,9 +670,9 @@ Let's try at first option 1:
       End: 2018-01-01 11:59:59
 
 It works! But what if each file has an individual duration? Then we need to
-define a file handler that have a info method:
+define a file handler that have a `get_info` method:
 
-TODO
+TODO: The tutorial will be continued.
 
 
 .. _typhon-dataset-placeholders:
