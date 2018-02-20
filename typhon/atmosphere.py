@@ -37,9 +37,11 @@ def iwv(vmr, p, T, z, axis=0):
 def moist_lapse_rate(p, T, e_eq=None):
     r"""Calculate the moist-adiabatic temperature lapse rate.
 
+    Bohren and Albrecht (Equation 6.111, note the **sign change**):
+
     .. math::
         \frac{dT}{dz} =
-            - \frac{g}{c_p} \frac{1 + l_v w_s / RT}{1 + l_v^2 w_s/c_p R_v T^2}
+            \frac{g}{c_p} \frac{1 + l_v w_s / RT}{1 + l_v^2 w_s/c_p R_v T^2}
 
     Parameters:
         p (float or ndarray): Pressure [Pa].
@@ -55,7 +57,7 @@ def moist_lapse_rate(p, T, e_eq=None):
 
     Examples:
         >>> moist_lapse_rate(1013.25e2, 288.15)
-        0.0047477801666586045
+        0.004728194612232855
 
     References:
         Bohren C. and Albrecht B., Atmospheric Thermodynamics, p. 287-92
@@ -71,12 +73,12 @@ def moist_lapse_rate(p, T, e_eq=None):
     Cp = constants.isobaric_mass_heat_capacity
 
     gamma_d = g / Cp  # dry lapse rate
-    q_saturated = thermodynamics.vmr2specific_humidity(e_eq(T) / p)
+    w_saturated = thermodynamics.vmr2mixing_ratio(e_eq(T) / p)
 
     lapse = (
         gamma_d * (
-            (1 + (Lv * q_saturated) / (Rd * T)) /
-            (1 + (Lv**2 * q_saturated) / (Cp * Rv * T**2))
+            (1 + (Lv * w_saturated) / (Rd * T)) /
+            (1 + (Lv**2 * w_saturated) / (Cp * Rv * T**2))
         )
     )
 

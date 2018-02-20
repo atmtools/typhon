@@ -57,4 +57,4 @@ class TestAtmosphere:
         """Test calculation of moist-adiabatic lapse rate."""
         gamma = atmosphere.moist_lapse_rate(1000e2, 300)
 
-        assert np.isclose(gamma, 0.00370478)
+        assert np.isclose(gamma, 0.00367349)
