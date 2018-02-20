@@ -182,7 +182,7 @@ class ARTSXMLWriter:
             attr = {}
         ndim = var.ndim
         tag = get_arts_typename(var)
-        if np.issubdtype(var.dtype, np.complex):
+        if np.issubdtype(var.dtype, np.complex128):
             dtype = np.complex128
         else:
             dtype = 'd'
@@ -194,7 +194,7 @@ class ARTSXMLWriter:
             if self.binaryfilepointer is not None:
                 np.array(var, dtype=dtype).tofile(self.binaryfilepointer)
             else:
-                if np.issubdtype(var.dtype, np.complex):
+                if np.issubdtype(var.dtype, np.complex128):
                     var = var.astype(np.complex128)
                     var.dtype = np.float64
                 fmt = "{:" + self.precision + "}"
@@ -211,7 +211,7 @@ class ARTSXMLWriter:
             if self.binaryfilepointer is not None:
                 np.array(var, dtype=dtype).tofile(self.binaryfilepointer)
             else:
-                if np.issubdtype(var.dtype, np.complex):
+                if np.issubdtype(var.dtype, np.complex128):
                     var = var.astype(np.complex128)
                     var.dtype = np.float64
                 # Reshape for row-based linebreaks in XML file
