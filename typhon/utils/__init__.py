@@ -485,7 +485,6 @@ def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     if p.returncode != 0:
         raise Exception(p.stderr)
 
-
 def stack_xarray_repdim(da, **dims):
     """Like xarrays stack, but with partial support for repeated dimensions
 
@@ -524,3 +523,40 @@ def stack_xarray_repdim(da, **dims):
                     [da.coords[kk] for kk in dims[k]], names=dims[k])
                 if k in dims else da.coords[k] for k in np.unique(da3.dims)})
     return da3
+
+def split_units(value):
+    """Splits a string into float number and potential unit
+
+    Taken from https://stackoverflow.com/a/30087094
+
+    Args:
+        value: String with number and unit.
+
+    Returns
+        A tuple of a float and unit string.
+
+    Examples:
+
+        >>> split_units("2GB")
+        (2.0, 'GB')
+        >>> split_units("17 ft")
+        (17.0, 'ft')
+        >>> split_units("   3.4e-27 frobnitzem ")
+        (3.4e-27, 'frobnitzem')
+        >>> split_units("9001")
+        (9001.0, '')
+        >>> split_units("spam sandwhiches")
+        (0, 'spam sandwhiches')
+        >>> split_units("")
+        (0, '')
+    """
+    units = ""
+    number = 0
+    while value:
+        try:
+            number = float(value)
+            break
+        except ValueError:
+            units = value[-1:] + units
+            value = value[:-1]
+    return number, units.strip()
