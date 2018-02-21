@@ -9,6 +9,7 @@ Created by John Mrziglod, June 2017
 
 from datetime import datetime, timedelta
 import logging
+from numbers import Number
 import time
 from multiprocessing.pool import ThreadPool
 import traceback
@@ -20,6 +21,7 @@ import scipy.stats
 from typhon.math import cantor_pairing
 from typhon.spareice.array import Array, GroupedArrays
 from typhon.spareice.datasets import Dataset, DataSlider
+from typhon.utils import split_units
 from typhon.utils.time import to_datetime, to_timedelta
 
 from .algorithms import BallTree, BruteForce
@@ -38,6 +40,16 @@ ALGORITHM = {
 }
 
 COLLOCATION_FIELD = "__collocation_ids"
+
+# Factor to convert a length unit to kilometers
+UNITS_CONVERSION_FACTORS = [
+    [{"cm", "centimeter", "centimeters"}, 1e-6],
+    [{"m", "meter", "meters"}, 1e-3],
+    [{"km", "kilometer", "kilometers"}, 1],
+    [{"mi", "mile", "miles"}, 1.609344],  # english statute mile
+    [{"yd", "yds", "yard", "yards"}, 0.9144e-3],
+    [{"ft", "foot", "feet"}, 0.3048e-3],
+]
 
 
 class NotCollapsedError(Exception):
@@ -302,6 +314,35 @@ class CollocatedDataset(Dataset):
         return obj
 
 
+def _to_kilometers(distance):
+    """Convert different length units to kilometers
+
+    Args:
+        distance: A string or number.
+
+    Returns:
+        A distance as float in kilometers
+    """
+    if isinstance(distance, Number):
+        return distance
+    elif not isinstance(distance, str):
+        raise ValueError("Distance must be a number or a string!")
+
+    length, unit = split_units(distance)
+
+    if length == 0:
+        raise ValueError("A valid distance length must be given!")
+
+    if not unit:
+        return length
+
+    for units, factor in UNITS_CONVERSION_FACTORS:
+        if unit in units:
+            return length * factor
+
+    raise ValueError(f"Unknown distance unit: {unit}!")
+
+
 def collocate(arrays, max_interval=None, max_distance=None,
               algorithm=None, threads=None,):
     """Find collocations between two data arrays
@@ -405,6 +446,9 @@ def collocate(arrays, max_interval=None, max_distance=None,
     if max_interval is not None:
         max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
+    if max_distance is not None:
+        max_distance = _to_kilometers(max_distance)
+
     if algorithm is None:
         algorithm = BallTree()
     else:
@@ -464,7 +508,9 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # TODO: Unfortunately, a first attempt parallelizing this using threads
         # TODO: worsened the performance.
         pairs_without_overlaps = np.hstack([
-            _collocate_period(arrays[0], arrays[1], period)
+            _collocate_period(
+                arrays, algorithm, (max_interval, max_distance), period,
+            )
             for period in pd.period_range(start, end, freq=bin_size)
         ])
 
@@ -484,8 +530,7 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # SECONDARY BIN 2). Let's find them here:
         pairs_of_overlaps = np.hstack([
             _collocate_period(
-                *arrays,
-                algorithm, (max_interval, max_distance),
+                arrays, algorithm, (max_interval, max_distance),
                 pd.Period(date - max_interval, max_interval)
                 if prev1_with_next2 else pd.Period(date, max_interval),
                 pd.Period(date, max_interval) if prev1_with_next2
@@ -507,6 +552,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # to the real original data.
         pairs[0] += np.where(time_indices[0])[0][0]
         pairs[1] += np.where(time_indices[1])[0][0]
+
+        pairs = pairs.astype("int64")
     else:
         # Search for spatial or temporal-spatial collocations but do not do any
         # pre-binning:
@@ -517,28 +564,26 @@ def collocate(arrays, max_interval=None, max_distance=None,
     return pairs
 
 
-def _select_common_time(data1, data2, max_interval):
-    common_start = np.max(
-        [data1["time"].min(), data1["time"].min()]
-    ) - max_interval
-    common_end = np.min(
-        [data1["time"].max(), data1["time"].max()]
-    ) + max_interval
+def _select_common_time(time1, time2, max_interval):
+    common_start = np.max([time1.min(), time2.min()]).item(0) - max_interval
+    common_end = np.min([time1.max(), time2.max()]).item(0) + max_interval
 
     # Return the indices from the data in the common time window
-    indices1 = (common_start <= data1["time"]) & (data1["time"] <= common_end)
+    indices1 = (common_start <= time1) & (time1 <= common_end)
     if not indices1.any():
         return None
 
-    indices2 = (common_start <= data2["time"]) & (data2["time"] <= common_end)
+    indices2 = (common_start <= time2) & (time2 <= common_end)
     if not indices2.any():
         return None
 
     return common_start, common_end, indices1, indices2
 
 
-def _collocate_period(data1, data2, algorithm, algorithm_args,
+def _collocate_period(data_arrays, algorithm, algorithm_args,
                       period1, period2=None, ):
+    data1, data2 = data_arrays
+
     if period2 is None:
         period2 = period1
 
@@ -701,14 +746,12 @@ def collocate_datasets(
         print("Retrieve time coverages from files...")
 
     for files, data in DataSlider(start, end, *datasets):
-
         primary_start, primary_end = data[primary.name].get_range("time")
 
         if verbose:
             _collocating_status(
                 primary, secondary, timer, start, end,
-                np.min([primary_end,
-                        data[secondary.name]["time"].max()]).astype("O"),
+                min([primary_end, data[secondary.name]["time"].max().item(0)]),
             )
 
         # Find the collocations in those data arrays:
@@ -731,7 +774,7 @@ def collocate_datasets(
         if verbose:
             print(
                 f"Store {n_collocations[0]} ({datasets[0].name}) and "
-                f"{n_collocations[1]} ({datasets[1].name}) collocations in"
+                f"{n_collocations[1]} ({datasets[1].name}) collocations in\n"
                 f"{filename}"
             )
 
@@ -746,21 +789,30 @@ def collocate_datasets(
             f" collocations.\nProcessed {end-start} hours of data."
         )
 
+    return output
+
 
 def _collocating_status(primary, secondary, timer, start, end, current_end):
-    current = (current_end - start).total_seconds()
-    progress = current / (end - start).total_seconds()
-
-    elapsed_time = time.time()-timer
-    expected_time = timedelta(
-        seconds=int(elapsed_time * (1/progress - 1))
-    )
-
     print("-" * 79)
-    print(
-        f"Collocating {primary.name} to {secondary.name}: {100*progress:d}% "
-        f"done ({expected_time} hours remaining)"
-    )
+
+    if start == datetime.min and end == datetime.max:
+        print(
+            f"Collocating {primary.name} to {secondary.name}: "
+            f"processing {current_end}"
+        )
+    else:
+        current = (current_end - start).total_seconds()
+        progress = current / (end - start).total_seconds()
+
+        elapsed_time = time.time() - timer
+        expected_time = timedelta(
+            seconds=int(elapsed_time * (1 / progress - 1))
+        )
+
+        print(
+            f"Collocating {primary.name} to {secondary.name}: "
+            f"{100*progress:.0f}% done ({expected_time} hours remaining)"
+        )
 
 
 def _store_collocations(
@@ -869,7 +921,10 @@ def _store_collocations(
         time_coverage[1].strftime("%Y-%m-%dT%H:%M:%S.%f")
 
     # Prepare the name for the output file:
-    filename = output.generate_filename(time_coverage)
+    attributes = {
+        p: v for file in files for p, v in file.attrs
+    }
+    filename = output.generate_filename(time_coverage, fill=attributes)
 
     # Write the data to the file.
     output.write(output_data, filename)
