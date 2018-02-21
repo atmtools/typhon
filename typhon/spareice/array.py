@@ -661,7 +661,7 @@ class GroupedArrays:
         return collapsed_data
 
     @classmethod
-    def concat(cls, objects, dimension=None):
+    def concat(cls, groups, dimension=None):
         """Concatenate multiple GroupedArrays objects.
 
         Notes:
@@ -669,28 +669,36 @@ class GroupedArrays:
             used.
 
         Args:
-            objects: List of GroupedArrays objects to concatenate.
+            groups: List of GroupedArrays objects to concatenate.
             dimension: Dimension on which to concatenate.
 
         Returns:
             A
         """
-        if len(objects) == 1:
-            return objects[0]
+        if len(groups) == 1:
+            return groups[0]
 
+        # Preserve the attributes from the first group
         new_data = cls()
-        new_data.attrs.update(objects[0].attrs)
-        for var in objects[0]:
-            if isinstance(objects[0][var], cls):
+        new_data.attrs.update(groups[0].attrs)
+
+        if dimension is None:
+            dimension = 0
+
+        for var in groups[0]:
+            if isinstance(groups[0][var], cls):
                 new_data[var] = cls.concat(
-                    [obj[var] for obj in objects],
+                    [group[var] for group in groups],
                     dimension)
-            else:
-                if dimension is None:
-                    dimension = 0
+                continue
+
+            try:
                 new_data[var] = np.concatenate(
-                    [obj[var] for obj in objects],
-                    dimension)
+                    [group[var] for group in groups],
+                    dimension
+                )
+            except ValueError:
+                warnings.warn(f"Skip variable {var} while concatenating.")
 
         return new_data
 
@@ -1236,7 +1244,8 @@ class GroupedArrays:
         # Try selecting by indices or slices:
         try:
             for var in self.vars(True):
-                obj[var] = self[var][indices_or_fields]
+                if "__different_first_dimension__" not in self[var].attrs:
+                    obj[var] = self[var][indices_or_fields]
         except IndexError as e:
             fields = list(indices_or_fields)
             if isinstance(fields[0], str):
