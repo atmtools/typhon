@@ -100,6 +100,10 @@ class OceanRAIN(NetCDF4):
             An GroupedArrays object.
         """
 
+        # import always the standard fields:
+        fields = \
+            {"time", "latitude", "longitude"} | set(kwargs.pop("fields", {}))
+
         # This renaming makes the data compatible for collocate routines:
         mapping = {
             "latitude": "lat",
@@ -107,4 +111,4 @@ class OceanRAIN(NetCDF4):
             **kwargs.get("mapping", {})
         }
 
-        return super().read(filename, mapping=mapping, **kwargs)
+        return super().read(filename, fields=fields, mapping=mapping, **kwargs)
