@@ -352,7 +352,7 @@ class TestDataset:
         return file_info.attr["compression"]
 
     @staticmethod
-    def _tutorial_map_content(data, file_info):
+    def _tutorial_map_content(data,):
         return data["data"].mean().item(0)
 
     def test_files_overlap_subdirectory(self):
