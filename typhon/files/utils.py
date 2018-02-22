@@ -178,9 +178,10 @@ def decompress(filename, tmpdir=None):
         compfile = get_compressor(fmt)
         try:
             if fmt == 'zip':
-                shutil.copyfileobj(compfile(filename, 'r').open(filebase, 'r'),
-                                   tmpfile,
-                                   chunksize)
+                with compfile(filename, 'r') as cfile:
+                    shutil.copyfileobj(cfile.open(filebase, 'r'),
+                                       tmpfile,
+                                       chunksize)
             else:
                 shutil.copyfileobj(compfile(filename, 'r'),
                                    tmpfile,
