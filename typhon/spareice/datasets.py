@@ -1,6 +1,9 @@
 """
 This module contains classes to handle datasets consisting of many files.
 
+Have a look at this tutorial:
+http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html
+
 Created by John Mrziglod, June 2017
 """
 
@@ -313,13 +316,13 @@ class Dataset:
                 will be decompressed before reading them. Default value is
                 true.
             read_args: Additional keyword arguments in a dictionary that should
-                be passed to :meth:`read`.
+                always be passed to :meth:`read`.
             write_args: Additional keyword arguments in a dictionary that
-                should be passed to :meth:`write`.
+                should always be passed to :meth:`write`.
             merge_args:
             concat_args:
 
-        Allowed placeholders in the *path* argument are:
+        Allowed temporal placeholders in the *path* argument are:
 
         +-------------+------------------------------------------+------------+
         | Placeholder | Description                              | Example    |
@@ -349,6 +352,9 @@ class Dataset:
 
         All those place holders are also allowed to have the prefix *end*
         (e.g. *end_year*). They represent the end of the time coverage.
+
+        Moreover, you are allowed do define your own placeholders. Their names
+        must consist of alphanumeric signs (underscores are also allowed).
         """
 
         # Initialize member variables:
@@ -2707,8 +2713,6 @@ class DataSlider:
 
             # Check whether we need new data:
             if times[0] < times[1]:
-                print("Read secondary files!")
-
                 # Actually, we need the data to be concatenated, but we
                 # want to do this by ourselves to keep the track of which
                 # file the data came from.
@@ -2722,7 +2726,7 @@ class DataSlider:
                 # TODO: Add a file identifier to each element
                 temp_data = GroupedArrays.concat(secondary_data)
 
-                # TODO: Add also the cached file names if they contributed
+                # TODO: Add also the cached files if they contributed
                 all_files[secondary.name] = secondary_files
 
             # We want to cut the secondary data into two parts. One part does
