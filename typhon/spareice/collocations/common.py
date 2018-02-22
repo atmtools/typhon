@@ -28,10 +28,9 @@ import xarray as xr
 from .algorithms import BallTree, BruteForce
 
 __all__ = [
+    "collapse",
     "collocate",
     "collocate_datasets",
-    "CollocatedDataset",
-    "NotCollapsedError",
 ]
 
 # Finder algorithms for collocations:
@@ -52,246 +51,156 @@ UNITS_CONVERSION_FACTORS = [
     [{"ft", "foot", "feet"}, 0.3048e-3],
 ]
 
+# @staticmethod
+# def _add_fields_to_data(data, original_dataset, group, fields):
+#     try:
+#         original_file = data[group].attrs["__original_file"]
+#     except KeyError:
+#         raise KeyError(
+#             "The collocation files does not contain information about "
+#             "their original files.")
+#     original_data = original_dataset.read(original_file)[fields]
+#     original_indices = data[group]["__original_indices"]
+#     data[group] = GroupedArrays.merge(
+#         [data[group], original_data[original_indices]],
+#         overwrite_error=False
+#     )
+#
+#     return data
+#
+# def add_fields(self, start, end, original_dataset, group, fields):
+#     """
+#
+#     Args:
+#         start:
+#         end:
+#         original_dataset:
+#         group
+#         fields:
+#
+#     Returns:
+#         None
+#     """
+#     self.map(
+#         start, end, func=self._add_fields_to_data,
+#         kwargs={
+#             "group": group,
+#             "original_dataset": original_dataset,
+#             "fields": fields,
+#         }, on_content=True, output=self
+#     )
 
-class NotCollapsedError(Exception):
-    """Should be raised if a file from a CollocatedDataset object is not yet
-    collapsed but it is required.
+
+def collapse(data, reference=None, collapser=None, include_stats=None, ):
+    """Collapses all multiple collocation points to a single data point.
+
+    During searching for collocations, one might find multiple collocation
+    points from one dataset for one single point of the other dataset. For
+    example, the MHS instrument has a larger footprint than the AVHRR
+    instrument, hence one will find several AVHRR colloocation points for
+    each MHS data point. This method performs a function on the multiple
+    collocation points to merge them to one single point (e.g. the mean
+    function).
+
+    Args:
+        data: Data from collocations.
+        reference: Name of dataset which has the largest footprint. All
+            other datasets will be collapsed to its data points.
+        collapser: Reference to a function that should be applied on each bin
+            (numpy.nanmean is the default).
+        include_stats: Set this to a name of a variable (or list of
+            names) and statistical parameters will be stored about the
+            built data bins of the variable before collapsing. The variable
+            must be one-dimensional.
+
+    Returns:
+        A GroupedArrays object with the collapsed data
+
+    Examples:
+        .. code-block:: python
+
+            # TODO: Add examples
     """
-    def __init__(self, *args):
-        Exception.__init__(self, *args)
 
+    # Get the bin indices by the main dataset to which all other
+    # shall be collapsed:
+    reference_bins = list(
+        data[reference][COLLOCATION_FIELD].group().values()
+    )
 
-class CollocatedDataset(Dataset):
-    """Dataset that contains collocated data
+    collapsed_data = GroupedArrays()
 
-    A dataset that stores collocations that were found by
-    :func:`collocate_datasets` amongst different datasets with geographical
-    data.
-    """
-
-    def __init__(self, *args, primary=None, align_mode=None, **kwargs):
-        """Initialize a CollocatedDataset object
-
-        If you have already collocated some datasets, you can open the stored
-        collocations with this command.
-
-        Args:
-            reference: Name of the primary group.
-            align_mode: One needs collocations normally aligned before
-                processing them further. That means, if multiple points from
-                one dataset were found for one single point of the other
-                dataset, one needs either to collapse or expand them. Define whether the primary should be expanded or the
-                secondaries should be collapsed.
-            *args: Same positional arguments that the
-                :class:`typhon.spareice.datasets.Dataset` base class accepts.
-            **kwargs: Same key word arguments that the
-                :class:`typhon.spareice.datasets.Dataset` base class accepts.
-
-        Returns:
-            A CollocatedDataset object.
-
-        Examples:
-            >>> CollocatedDataset(
-            >>>     "/path/to/{year}/{month}/{day}.nc",
-            >>>     handler=NetCDF4(),
-            >>> )
-        """
-        super(CollocatedDataset, self).__init__(*args, **kwargs)
-
-        # Which dataset should be taken when we collocate this dataset with
-        # other datasets?
-        if primary is None:
-            self.primary = "/"
-        else:
-            self.primary = primary
-
-    @staticmethod
-    def _add_fields_to_data(data, original_dataset, group, fields):
-        try:
-            original_file = data[group].attrs["__original_file"]
-        except KeyError:
-            raise KeyError(
-                "The collocation files does not contain information about "
-                "their original files.")
-        original_data = original_dataset.read(original_file)[fields]
-        original_indices = data[group]["__original_indices"]
-        data[group] = GroupedArrays.merge(
-            [data[group], original_data[original_indices]],
-            overwrite_error=False
-        )
-
-        return data
-
-    def add_fields(self, start, end, original_dataset, group, fields):
-        """
-
-        Args:
-            start:
-            end:
-            original_dataset:
-            group
-            fields:
-
-        Returns:
-            None
-        """
-        self.map(
-            start, end, func=self._add_fields_to_data,
-            kwargs={
-                "group": group,
-                "original_dataset": original_dataset,
-                "fields": fields,
-            }, on_content=True, output=self
-        )
-
-    def collapse(self, reference, start=None, end=None, output=None,
-                 collapser=None, include_stats=None, **mapping_args):
-        """Collapses all multiple collocation points (collocations that refer
-        to the same point from another dataset) to a single data point.
-
-        During searching for collocations, one might find multiple collocation
-        points from one dataset for one single point of the other dataset. For
-        example, the MHS instrument has a larger footprint than the AVHRR
-        instrument, hence one will find several AVHRR colloocation points for
-        each MHS data point. This method performs a function on the multiple
-        collocation points to merge them to one single point (e.g. the mean
-        function).
-
-        Args:
-            start: Starting date as datetime object.
-            end: Ending date as datetime object.
-            output: Dataset object where the collapsed data should be stored.
-            reference: Name of dataset which has the largest footprint. All
-                other datasets will be collapsed to its data points.
-            collapser: Function that should be applied on each bin (
-                numpy.nanmean is the default).
-            include_stats: Set this to a name of a variable (or list of
-                names) and statistical parameters will be stored about the
-                built data bins of the variable before collapsing. The variable
-                must be one-dimensional.
-            **mapping_args: Additional keyword arguments that are allowed
-                for :meth:`Dataset.map` method (except *output*).
-
-        Returns:
-            None
-
-        Examples:
-
-        """
-
-        if not isinstance(output, Dataset):
-            raise ValueError("The argument output must be a Dataset object!")
-        mapping_args["output"] = output
-
-        func_args = {
-            "reference": reference,
-            "include_stats": include_stats,
-            "collapser": collapser,
+    # Add additional statistics about one binned variable:
+    if include_stats is not None:
+        statistic_functions = {
+            "variation": scipy.stats.variation,
+            "mean": np.nanmean,
+            "number": lambda x, _: x.shape[0],
+            "std": np.nanstd,
         }
 
-        self.map(
-            start, end, CollocatedDataset.collapse_data,
-            kwargs=func_args, on_content=True, **mapping_args,
+        # Create the bins for the varaible from which you want to have
+        # the statistics:
+        group, _ = GroupedArrays.parse(include_stats)
+        bins = data[group][COLLOCATION_FIELD].bin(
+            reference_bins
         )
-
-    @staticmethod
-    def collapse_data(
-            collocated_data, file_info, reference, include_stats, collapser):
-        """TODO: Write documentation."""
-
-        # Get the bin indices by the main dataset to which all other
-        # shall be collapsed:
-        reference_bins = list(
-            collocated_data[reference][COLLOCATION_FIELD].group().values()
-        )
-
-        collapsed_data = GroupedArrays()
-
-        # Add additional statistics about one binned variable:
-        if include_stats is not None:
-            statistic_functions = {
-                "variation": scipy.stats.variation,
-                "mean": np.nanmean,
-                "number": lambda x, _: x.shape[0],
-                "std": np.nanstd,
-            }
-
-            # Create the bins for the varaible from which you want to have
-            # the statistics:
-            group, _ = GroupedArrays.parse(include_stats)
-            bins = collocated_data[group][COLLOCATION_FIELD].bin(
-                reference_bins
+        collapsed_data["__statistics"] = \
+            data[include_stats].apply_on_bins(
+                bins, statistic_functions
             )
-            collapsed_data["__statistics"] = \
-                collocated_data[include_stats].apply_on_bins(
-                    bins, statistic_functions
-                )
-            collapsed_data["__statistics"].attrs["description"] = \
-                "Statistics about the collapsed bins of '{}'.".format(
-                    include_stats
-                )
+        collapsed_data["__statistics"].attrs["description"] = \
+            "Statistics about the collapsed bins of '{}'.".format(
+                include_stats
+            )
 
-        for dataset in collocated_data.groups():
-            if dataset.startswith("__"):
-                collapsed_data[dataset] = collocated_data[dataset]
+    for dataset in data.groups():
+        if dataset.startswith("__"):
+            collapsed_data[dataset] = data[dataset]
 
-            collocations = collocated_data[dataset][COLLOCATION_FIELD]
+        collocations = data[dataset][COLLOCATION_FIELD]
 
-            if (dataset == reference
-                or collocated_data[dataset].attrs.get("COLLAPSED_TO", None)
-                    == reference):
-                # The collocation indices will become useless
-                del collocated_data[dataset][COLLOCATION_FIELD]
+        if (dataset == reference
+            or data[dataset].attrs.get("COLLAPSED_TO", None)
+                == reference):
+            # The collocation indices will become useless
+            del data[dataset][COLLOCATION_FIELD]
 
-                # This is the main dataset to which all other will be
-                # collapsed. Therefore, we do not need explicitly
-                # collapse here.
+            # This is the main dataset to which all other will be
+            # collapsed. Therefore, we do not need explicitly
+            # collapse here.
+            collapsed_data[dataset] = \
+                data[dataset][np.unique(collocations)]
+        else:
+            # We do not need the original and collocation indices from the
+            # dataset that will be collapsed because they will soon become
+            # useless. Moreover, they could have a different dimension
+            # length than the other variables and lead to errors in the
+            # selecting process.
+
+            del data[dataset]["__original_indices"]
+            del data[dataset][COLLOCATION_FIELD]
+
+            bins = collocations.bin(reference_bins)
+
+            # We ignore some warnings rather than fixing them
+            # TODO: Maybe fix them?
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="invalid value encountered in double_scalars")
                 collapsed_data[dataset] = \
-                    collocated_data[dataset][np.unique(collocations)]
-            else:
-                # We do not need the original and collocation indices from the
-                # dataset that will be collapsed because they will soon become
-                # useless. Moreover, they could have a different dimension
-                # length than the other variables and lead to errors in the
-                # selecting process.
+                    data[dataset].collapse(
+                        bins, collapser=collapser,
+                    )
 
-                del collocated_data[dataset]["__original_indices"]
-                del collocated_data[dataset][COLLOCATION_FIELD]
+            collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
 
-                bins = collocations.bin(reference_bins)
+    # Set the collapsed flag:
+    collapsed_data.attrs["COLLAPSED"] = 1
 
-                # We ignore some warnings rather than fixing them
-                # TODO: Maybe fix them?
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore",
-                        message="invalid value encountered in double_scalars")
-                    collapsed_data[dataset] = \
-                        collocated_data[dataset].collapse(
-                            bins, collapser=collapser,
-                        )
-
-                collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
-
-        # Set the collapsed flag:
-        collapsed_data.attrs["COLLAPSED"] = 1
-
-        # Overwrite the content of the old file:
-        return collapsed_data
-
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Transform a Dataset into a CollocatedDataset
-
-        Args:
-            dataset: A Dataset object.
-
-        Returns:
-            A CollocatedDataset object.
-        """
-        obj = cls()
-        obj.__dict__.update(dataset.__dict__)
-        return obj
+    # Overwrite the content of the old file:
+    return collapsed_data
 
 
 def _to_kilometers(distance):
@@ -680,7 +589,7 @@ def collocate_datasets(
         points are collocated with each other by giving their indices.
 
     Args:
-        datasets: A list of Dataset or CollocatedDataset objects.
+        datasets: A list of Dataset objects.
         start: Start date either as datetime object or as string
             ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
             Hours, minutes and seconds are optional. If no date is given, the
@@ -688,13 +597,13 @@ def collocate_datasets(
         end: End date. Same format as "start". If no date is given, the
             *9999-12-31* wil be taken.
         output: Either a path as string containing placeholders or a
-            Dataset-like object.
+            Dataset object.
         verbose: If true, it prints logging messages.
         **collocate_args: Additional keyword arguments that are allowed for
             :func:`collocate` except *arrays*.
 
     Returns:
-        A :class:`CollocatedDataset` object holding the collocated data.
+        A :class:`Dataset` object holding the collocated data.
 
     Examples:
 
@@ -711,15 +620,10 @@ def collocate_datasets(
     # Make sure that our output dataset is a CollocatedDataset
     if isinstance(output, str):
         name = "-".join([ds.name for ds in datasets])
-        output = CollocatedDataset(path=output, name=name)
-    elif isinstance(output, CollocatedDataset):
-        # everything ok
-        pass
-    elif isinstance(output, Dataset):
-        output = CollocatedDataset.from_dataset(output)
-    else:
-        raise ValueError("The parameter 'output' must be a string, Dataset"
-                         " or CollocatedDataset object!")
+        output = Dataset(path=output, name=name)
+    elif not isinstance(output, Dataset):
+        raise ValueError("The parameter 'output' must be a string or Dataset "
+                         "object!")
 
     # Set the defaults for start and end
     start = datetime.min if start is None else to_datetime(start)
