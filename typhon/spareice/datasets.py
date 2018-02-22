@@ -235,8 +235,9 @@ class Dataset:
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
-            worker_type=None, read_args=None, write_args=None,
+            worker_type=None,read_args=None, write_args=None,
             concat_args=None, merge_args=None, compress=True, decompress=True,
+            temp_dir=None,
     ):
         """Initializes a dataset object.
 
@@ -292,9 +293,10 @@ class Dataset:
                 9999 will be used as a default time coverage.
             exclude: A list of time periods (tuples of two timestamps) that
                 will be excluded when searching for files of this dataset.
-            placeholder: A dictionary with pairs of placeholder name matching
-                regular expression. These are user-defined placeholders, the
-                standard temporal placeholders do not have to be defined.
+            placeholder: A dictionary with pairs of placeholder name and a
+                regular expression matching its content. These are user-defined
+                placeholders, the standard temporal placeholders do not have to
+                be defined.
             max_threads: Maximal number of threads that will be used for
                 parallelising some methods (e.g. writing in background). This
                 sets also the default for
@@ -307,6 +309,16 @@ class Dataset:
             worker_type: The type of the workers that will be used to
                 parallelise some methods. Can be *process* (default) or
                 *thread*.
+            read_args: Additional keyword arguments in a dictionary that should
+                always be passed to :meth:`read`.
+            write_args: Additional keyword arguments in a dictionary that
+                should always be passed to :meth:`write`.
+            merge_args: Will be deprecated soon.
+            concat_args: Will be deprecated soon.
+            temp_dir: You can set here your own temporary directory that this
+                Dataset object should use for compressing and decompressing
+                files. Per default it uses the tempdir given by
+                `tempfile.gettempdir` (see tempfile_ doc).
             compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 dataset files will be compressed after writing them to disk.
@@ -315,14 +327,15 @@ class Dataset:
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), dataset files
                 will be decompressed before reading them. Default value is
                 true.
-            read_args: Additional keyword arguments in a dictionary that should
-                always be passed to :meth:`read`.
-            write_args: Additional keyword arguments in a dictionary that
-                should always be passed to :meth:`write`.
-            merge_args:
-            concat_args:
 
-        Allowed temporal placeholders in the *path* argument are:
+        .. _tempfile https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir
+
+        You can use regular expressions or placeholders in :param:`path` to
+        generalize the files path. Placeholders are going to be captured and
+        returned by file-finding methods such as :meth:`find`. Temporal
+        placeholders will be converted to datetime objects and represent a
+        file's time coverage. Allowed temporal placeholders in the
+        :param:`path` argument are:
 
         +-------------+------------------------------------------+------------+
         | Placeholder | Description                              | Example    |
