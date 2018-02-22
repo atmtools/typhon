@@ -71,7 +71,7 @@ def compress(filename, fmt=None,):
 
     with tempfile.NamedTemporaryFile() as tfile:
         yield tfile.name
-        compress_as(tfile.name, fmt, filename, True)
+        compress_as(tfile.name, fmt, filename, keep=True)
 
 
 def compress_as(filename, fmt, target=None, keep=True):
@@ -107,7 +107,6 @@ def compress_as(filename, fmt, target=None, keep=True):
     target_basename, extension = os.path.splitext(target_filename)
     if extension.endswith(fmt):
         target_filename = target_basename
-
 
     # Read datafile in 100 MiB chunks for good performance/memory usage
     chunksize = 100 * 1024 * 1024
@@ -202,4 +201,19 @@ def get_compressor(fmt):
 
 
 def is_compression_format(fmt):
+    """Checks whether *fmt* is a compression format.
+
+    Compression formats are:
+
+    * *zip*: Uses the standard zip library.
+    * *bz2*: Uses the bz2 library.
+    * *gz*: Uses the GNU zip library.
+    * *xz*: Uses the lzma library.
+
+    Args:
+        fmt: Format abbreviation (normally filename extension).
+
+    Returns:
+        True if *fmt* is a compression format.
+    """
     return fmt in _known_compressions
