@@ -23,6 +23,7 @@ from typhon.spareice.array import Array, GroupedArrays
 from typhon.spareice.datasets import Dataset, DataSlider
 from typhon.utils import split_units
 from typhon.utils.time import to_datetime, to_timedelta
+import xarray as xr
 
 from .algorithms import BallTree, BruteForce
 
@@ -329,8 +330,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
     Collocations are two or more data points that are located close to each
     other in space and/or time.
 
-    A data array must be dictionary-like object (such as xarray.Dataset or
-    GroupedArrays) providing the fields *time*, *lat*, *lon*. Its values must
+    A data array must be a dictionary, a xarray.Dataset or a GroupedArrays
+    object with the keys *time*, *lat*, *lon*. Its values must
     be 1-dimensional numpy.array-like objects and share the same length. The
     field *time* must have the data type *numpy.datetime64*, *lat* must be
     latitudes between *-90* (south) and *90* (north) and *lon* must be
@@ -340,20 +341,26 @@ def collocate(arrays, max_interval=None, max_distance=None,
     Args:
         arrays: A list of data arrays that fulfill the specifications from
             above. So far, only collocating two arrays is implemented.
-        max_interval: The maximum interval of time between two data points
-            in seconds. If this is None, the data will be searched for spatial
-            collocations only.
-        max_distance: The maximum distance between two data points in
-            kilometers to meet the collocation criteria. If this is None,
-            the data will be searched for temporal collocations only. Either
-            *max_interval* or *max_distance* must be given.
+        max_interval: Either a number as a time interval in seconds, a string
+            containing a time with a unit (e.g. *100 minutes*) or a timedelta
+            object. This is the maximum time interval between two data points
+            If this is None, the data will be searched for spatial collocations
+            only.
+        max_distance: Either a number as a length in kilometers or a string
+            containing a length with a unit (e.g. *100 meters*). This is the
+            maximum distance between two data points in to meet the collocation
+            criteria. If this is None, the data will be searched for temporal
+            collocations only. Either *max_interval* or *max_distance* must be
+            given.
         algorithm: Defines which algorithm should be used to find the
             collocations. Must be either a Finder object (a subclass from
             :class:`~typhon.spareice.collocations.algorithms.Algorithm`) or
             a string with the name of an algorithm. Default is the
             *BallTree* algorithm. See below for a table of available
             algorithms.
-        threads:
+        threads: Finding collocations can be parallelised in threads. Give here
+            the maximum number of threads that you want to use. This does not
+            work so far.
 
     Returns:
         A 2xN numpy array where N is the number of found collocations. The
@@ -390,7 +397,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
             import numpy as np
             from typhon.spareice import collocate
 
-            # Create the data
+            # Create the data. primary and secondary can also be
+            # xarray.Dataset or a GroupedArray objects:
             primary = {
                 "time": np.arange(
                     "2018-01-01", "2018-01-02", dtype="datetime64[h]"
@@ -441,6 +449,12 @@ def collocate(arrays, max_interval=None, max_distance=None,
 
     threads = 2 if threads is None else threads
 
+    for i, array in enumerate(arrays):
+        if isinstance(array, dict):
+            arrays[i] = GroupedArrays.from_dict(array)
+        elif isinstance(array, xr.Dataset):
+            arrays[i] = GroupedArrays.from_xarray(array)
+
     # If the time matters (i.e. max_interval is not None), we split the data
     # into temporal bins. This produces an overhead that is only negligible if
     # we have a lot of data:
@@ -465,8 +479,6 @@ def collocate(arrays, max_interval=None, max_distance=None,
         start, end, *time_indices = common_time
 
         # Select the relevant data:
-        # TODO: We should convert the data arrays first to an GroupedArrays or
-        # TODO: xarray explicitly
         arrays[0] = arrays[0][time_indices[0]]
         arrays[1] = arrays[1][time_indices[1]]
 
@@ -659,20 +671,22 @@ def collocate_datasets(
 
     Each collocation output file provides these standard fields:
 
-    *dataset_name/lat* - Latitudes of the collocations.
-    *dataset_name/lon* - Longitude of the collocations.
-    *dataset_name/time* - Timestamp of the collocations.
-    *dataset_name/__original_indices* - Indices of the collocation data in
+    * *dataset_name/lat* - Latitudes of the collocations.
+    * *dataset_name/lon* - Longitude of the collocations.
+    * *dataset_name/time* - Timestamp of the collocations.
+    * *dataset_name/__original_indices* - Indices of the collocation data in
         the original files.
-    *dataset_name/__collocations* - Tells you which data points collocate
-        with each other by giving their indices.
-
-    TODO: Revise and extend documentation.
+    * *__collocations/{primary}-{secondary}/pairs* - Tells you which data
+        points are collocated with each other by giving their indices.
 
     Args:
         datasets: A list of Dataset or CollocatedDataset objects.
-        start:
-        end:
+        start: Start date either as datetime object or as string
+            ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+            Hours, minutes and seconds are optional. If no date is given, the
+            *0000-01-01* wil be taken.
+        end: End date. Same format as "start". If no date is given, the
+            *9999-12-31* wil be taken.
         output: Either a path as string containing placeholders or a
             Dataset-like object.
         verbose: If true, it prints logging messages.
@@ -686,7 +700,7 @@ def collocate_datasets(
 
     .. :code-block:: python
 
-        # TODO
+        # TODO Add examples
     """
 
     if len(datasets) != 2:
@@ -707,8 +721,16 @@ def collocate_datasets(
         raise ValueError("The parameter 'output' must be a string, Dataset"
                          " or CollocatedDataset object!")
 
+    # Set the defaults for start and end
     start = datetime.min if start is None else to_datetime(start)
     end = datetime.max if end is None else to_datetime(end)
+
+    # Check the max_interval argument because we need it later
+    max_interval = collocate_args.get("max_interval", None)
+    if max_interval is None:
+        raise ValueError("Collocating datasets without max_interval is"
+                         " not yet implemented!")
+    max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
     # Use a timer for profiling.
     timer = time.time()
@@ -724,6 +746,10 @@ def collocate_datasets(
     if verbose:
         print("Retrieve time coverages from files...")
 
+    # We may have collocations that overlap multiple files. Hence, we save in
+    # this cache always the last max_interval minutes from each dataset
+    cache = {}
+
     for files, data in DataSlider(start, end, *datasets):
         primary_start, primary_end = data[primary.name].get_range("time")
 
@@ -733,11 +759,17 @@ def collocate_datasets(
                 min([primary_end, data[secondary.name]["time"].max().item(0)]),
             )
 
-        # Find the collocations in those data arrays:
-        collocations = collocate(
-            [data[primary.name], data[secondary.name]],
-            **collocate_args,
-        )
+        # Data from this iteration might be collocated with data from previous
+        # iterations in the cache:
+        if cache:
+            collocations = _collocate_include_cache(
+                primary, secondary, data, cache, max_interval, collocate_args
+            )
+        else:
+            collocations = collocate(
+                [data[primary.name], data[secondary.name]],
+                **collocate_args,
+            )
 
         if not collocations.any():
             if verbose:
@@ -760,6 +792,12 @@ def collocate_datasets(
         total_collocations[0] += n_collocations[0]
         total_collocations[1] += n_collocations[1]
 
+        # Cache the last max_interval time period of each dataset:
+        for name, dataset_data in data.items():
+            interval_to_cache = dataset_data["time"] >= \
+                dataset_data["time"].max().item(0) - max_interval
+            cache[name]: dataset_data[interval_to_cache]
+
     if verbose:
         print("-" * 79)
         print(
@@ -769,6 +807,36 @@ def collocate_datasets(
         )
 
     return output
+
+
+def _collocate_include_cache(
+        primary, secondary, data, cache, max_interval, collocate_args):
+    # We have to search for collocations twice. At first, we do a
+    # cross-collocation with the cached content from previous iterations:
+    check_with_cache = \
+        data[secondary.name]["time"] <= \
+        data[secondary.name]["time"].min().item(0) + max_interval
+    pri_cache_sec_collocations = collocate(
+        [cache[primary.name], data[secondary.name][check_with_cache]],
+        **collocate_args,
+    )
+    check_with_cache = \
+        data[primary.name]["time"] <= \
+        data[primary.name]["time"].min().item(0) + max_interval
+    pri_sec_cache_collocations = collocate(
+        [data[primary.name][check_with_cache], cache[secondary.name]],
+        **collocate_args,
+    )
+
+    # and afterwards we collocate the new data:
+    collocations = collocate(
+        [data[primary.name], data[secondary.name]],
+        **collocate_args,
+    )
+
+    # TODO: combine all collocations
+
+    return collocations
 
 
 def _collocating_status(primary, secondary, timer, start, end, current_end):
