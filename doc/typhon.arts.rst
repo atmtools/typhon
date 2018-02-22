@@ -89,6 +89,7 @@ arts.scattering
    :toctree: generated
 
    SingleScatteringData
+   SpectralSingleScatteringData
    ScatteringMetaData
 
 arts.sensor
