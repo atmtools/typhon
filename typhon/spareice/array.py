@@ -893,7 +893,7 @@ class GroupedArrays:
         """
 
         array_dict = cls()
-        for var in xarray_object:
+        for var in xarray_object.variables:
             array_dict[var] = Array.from_xarray(xarray_object[var])
 
         array_dict.attrs.update(**xarray_object.attrs)
