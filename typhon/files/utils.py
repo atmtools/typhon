@@ -104,7 +104,10 @@ def compress_as(filename, fmt, target=None, keep=True):
 
     # The filename inside the zipped archive
     target_filename = os.path.basename(target)
-    target_filename = target_filename.strip("."+fmt)
+    target_basename, extension = os.path.splitext(target_filename)
+    if extension.endswith(fmt):
+        target_filename = target_basename
+
 
     # Read datafile in 100 MiB chunks for good performance/memory usage
     chunksize = 100 * 1024 * 1024
@@ -178,10 +181,9 @@ def decompress(filename, tmpdir=None):
         compfile = get_compressor(fmt)
         try:
             if fmt == 'zip':
-                with compfile(filename, 'r') as cfile:
-                    shutil.copyfileobj(cfile.open(filebase, 'r'),
-                                       tmpfile,
-                                       chunksize)
+                shutil.copyfileobj(compfile(filename, 'r').open(filebase, 'r'),
+                                   tmpfile,
+                                   chunksize)
             else:
                 shutil.copyfileobj(compfile(filename, 'r'),
                                    tmpfile,
