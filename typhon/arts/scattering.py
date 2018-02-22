@@ -484,6 +484,375 @@ class SingleScatteringData:
             raise RuntimeError("Last value of za_grid must be 180.")
 
 
+class SpectralSingleScatteringData:
+    """The class representing the arts SpectralSingleScatteringData class.
+
+    FIXME: Adjust doc to spectral
+    The data members of this object are identical to the class of the same name
+    in ARTS; it includes all the spectralsingle scattering properties required for
+    polarized radiative transfer calculations: the extinction matrix, the phase
+    matrix, and the absorption coefficient vector.  The angular, frequency, and
+    temperature grids for which these are defined are also included.  Another
+    data member - *ptype*, describes the orientational symmetry of the particle
+    ensemble, which determines the format of the single scattering properties.
+    The data structure of the ARTS SingleScatteringData class is described in
+    the ARTS User Guide.
+
+    The methods in the SingleScatteringData class enable the calculation of the
+    single scattering properties, and the output of the SingleScatteringData
+    structure in the ARTS XML format (see example file).  The low-level
+    calculations are performed in arts_scat.
+
+    """
+    defaults = {'ptype': 'totally_random',
+                'version': 3,
+                # as defined in optproperties.h
+                'description': 'SpectralSingleScatteringData created with Typhon.',
+                'T_grid': np.array([250]),
+                }
+
+    def __init__(self):
+        self._ptype = None
+        self.version = None
+        self.description = None
+        self.f_grid = None
+        self.T_grid = None
+        self.coeff_inc = None
+        self.coeff_sca = None
+        self.abs_vec_data = None
+        self.ext_mat_data = None
+        self.pha_mat_data = None
+        self.forward_peak_data = None
+        self.backward_peak_data = None
+
+    def __eq__(self, other):
+        """Test the equality of SpectralSingleScatteringData."""
+
+        def compare_ndarray(array1, array2, atol):
+            if array1 is not None and array2 is not None:
+                if not np.allclose(array1, array2, atol=atol):
+                    return False
+            elif array1 is not array2:
+                return False
+            return True
+
+        if isinstance(other, self.__class__):
+            if self.ptype != other.ptype:
+                return False
+
+            if self.version != other.version:
+                return False
+
+            for member in ('f_grid', 'T_grid', 'coeff_inc', 'coeff_sca'):
+                if not compare_ndarray(getattr(self, member),
+                                       getattr(other, member), atol=1e-6):
+                    return False
+
+            for member in ('abs_vec_data', 'ext_mat_data', 'pha_mat_data',
+                           'forward_peak_data', 'backward_peak_data'):
+                if not compare_ndarray(getattr(self, member),
+                                       getattr(other, member), atol=1e-12):
+                    return False
+
+            return True
+        return NotImplemented
+
+    def __neq__(self, other):
+        """Test the non-equality of SpectralSingleScatteringData."""
+        if isinstance(other, self.__class__):
+            return not self.__eq__(other)
+        return NotImplemented
+
+    @classmethod
+    def from_data(cls, params=None, **kwargs):
+        """ Constructor
+
+        Parameters
+        ----------
+
+        ptype : string
+            As for ARTS; see Arts User Guide
+
+        f_grid : 1-D np.array
+            np.array for frequency grid [Hz]
+
+        T_grid : 1-D np.array
+            np.array for temperature grid [K]
+
+        coeff_inc : 2-D np.array
+            np.array for zenith-angle grid [degree]
+
+        coeff_sca : 2-D np.array
+            np.array for azimuth-angle grid [degree]
+
+        Some inputs have default values, see SpectralSingleScatteringData.defaults.
+
+        """
+        obj = cls()
+
+        # enable keyword arguments
+        if kwargs and not params:
+            params = kwargs
+
+        params = dict_combine_with_default(params, obj.__class__.defaults)
+
+        # check parameters
+        # make sure grids are np np.arrays
+        for grid in ['f', 'T']:
+            params[grid + '_grid'] = np.array(params[grid + '_grid'])
+
+        if params['aspect_ratio'] == 1:
+            raise ValueError(
+                "'aspect_ratio' can not be set to exactly 1 due to numerical "
+                "difficulties in the T-matrix code. use 1.000001 or 0.999999 "
+                "instead.")
+
+        if "description" in params:
+            obj.description = params['description']
+        else:
+            obj.description = (
+                obj.__class__.defaults['description'] +
+                "module, which uses the T-matrix code of Mishchenko to\n"
+                "calculate single scattering properties. The parameters \n"
+                "used to create this file are shown below\n" + str(params))
+            for k, v in params.items():
+                setattr(obj, k, v)
+
+    @property
+    def ptype(self):
+        """str: Particle type"""
+
+        return self._ptype
+
+    @ptype.setter
+    def ptype(self, ptype):
+        if isinstance(ptype, int):
+            if self.version is None or self.version == 1:
+                if ptype not in _old_ptype_mapping.keys():
+                    raise RuntimeError('Invalid ptype {}'.format(ptype))
+                ptype = _old_ptype_mapping[ptype]
+                self.version = 2
+            else:
+                raise RuntimeError(
+                    'Integer ptype not allowed for SSD version 2 and later')
+        else:
+            if ptype not in _valid_ptypes[self.version]:
+                raise RuntimeError('Invalid ptype {}'.format(ptype))
+
+        self._ptype = ptype
+
+    @property
+    def version(self):
+        """str: Particle type"""
+
+        return self._version
+
+    @version.setter
+    def version(self, v):
+        if v is not None:
+            if not isinstance(v, int):
+                raise TypeError('Version number must be type int')
+            if v < 1 or v > 3:
+                raise RuntimeError(
+                    'Version number must be in the range from 1 to 3')
+
+        self._version = v
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a SpectralSingleScatteringData object from an xml.ElementTree.Element.
+        """
+
+        obj = cls()
+        if 'version' in xmlelement.attrib.keys():
+            obj.version = int(xmlelement.attrib['version'])
+
+        if obj.version is None or obj.version == 1:
+            obj.version = 2
+            obj.ptype = _valid_ptypes[2][_valid_ptypes[1].index(int(xmlelement[0].value()))]
+        else:
+            obj.ptype = xmlelement[0].value()
+
+        # Non-azimuthally random data can be directly converted to version 3
+        if obj.version == 2 and obj.ptype != 'horizontally_aligned':
+            obj.version = 3
+            obj.ptype = _valid_ptypes[3][_valid_ptypes[2].index(obj.ptype)]
+
+        if obj.ptype not in _valid_ptypes[obj.version]:
+            raise RuntimeError("Invalid ptype: {}".format(obj.ptype))
+
+        obj.description = xmlelement[1].value()
+        obj.f_grid = xmlelement[2].value()
+        obj.T_grid = xmlelement[3].value()
+        obj.coeff_inc = xmlelement[4].value()
+        obj.coeff_sca = xmlelement[5].value()
+        obj.pha_mat_data = xmlelement[6].value()
+        obj.ext_mat_data = xmlelement[7].value()
+        obj.abs_vec_data = xmlelement[8].value()
+        obj.forward_peak_data = xmlelement[9].value()
+        obj.backward_peak_data = xmlelement[10].value()
+        obj.checksize()
+
+        return obj
+
+    def to_atmlab_dict(self):
+        """Returns a copy of the SSSD as a dictionary.
+
+        Returns a dictionary compatible with an atmlab structure.
+
+        Returns:
+            Dictionary containing the grids and data.
+        """
+
+        d = {'ptype': self.ptype,
+             'version': self.version,
+             'description': self.description,
+             'f_grid': self.f_grid,
+             'T_grid': self.T_grid,
+             'coeff_inc': self.coeff_inc,
+             'coeff_sca': self.coeff_sca,
+             'pha_mat_data': self.pha_mat_data,
+             'ext_mat_data': self.ext_mat_data,
+             'abs_vec_data': self.abs_vec_data,
+             'forward_peak_data': self.forward_peak_data,
+             'backward_peak_data': self.backward_peak_data,
+             }
+
+        return d
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a SingleScatterinData object to an ARTS XML file.
+        """
+        self.checksize()
+        if self.version is None or self.version < 2:
+            raise RuntimeError('SpectralSingleScatteringData version not supported.')
+        if attr is None:
+            attr = {}
+        attr['version'] = self.version
+        xmlwriter.open_tag("SpectralSingleScatteringData", attr)
+        xmlwriter.write_xml(self.ptype)
+        xmlwriter.write_xml(self.description)
+        xmlwriter.write_xml(self.f_grid)
+        xmlwriter.write_xml(self.T_grid)
+        xmlwriter.write_xml(self.coeff_inc)
+        xmlwriter.write_xml(self.coeff_sca)
+        xmlwriter.write_xml(self.pha_mat_data)
+        xmlwriter.write_xml(self.ext_mat_data)
+        xmlwriter.write_xml(self.abs_vec_data)
+        xmlwriter.write_xml(self.forward_peak_data)
+        xmlwriter.write_xml(self.backward_peak_data)
+        xmlwriter.close_tag()
+
+    def __repr__(self):
+        S = StringIO()
+        S.write("<SpectralSingleScatteringData ")
+        S.write("ptype={} ".format(self.ptype))
+        for nm in ("f_grid", "T_grid", "coeff_inc", "coeff_sca"):
+            g = getattr(self, nm)
+            S.write(" ")
+            if g.size > 1:
+                S.write("%s=%4e..%4e" % (nm, g.min(), g.max()))
+            elif g.size == 1:
+                S.write("%s=%4e" % (nm, float(g.squeeze())))
+            else:
+                S.write("%s=[]" % nm)
+        S.write(">")
+
+        return S.getvalue()
+
+    def __getitem__(self, v):
+        """Get subset of spectral-single-scattering-data
+
+        Must np.take four elements (f, T, za, aa).
+        Only implemented for randomly oriented particles.
+        """
+
+        if self.ptype != PARTICLE_TYPE_TOTALLY_RANDOM:
+            raise RuntimeError("Slicing implemented only for"
+                               "ptype = %d. Found ptype = %d" %
+                               (PARTICLE_TYPE_TOTALLY_RANDOM, self.ptype))
+        v2 = list(v)
+        for i, el in enumerate(v):
+            # to preserve the rank of the data, [n] -> [n:n+1]
+            if isinstance(el, numbers.Integral):
+                v2[i] = slice(v[i], v[i] + 1, 1)
+        f, T, clm_i, clm_s = v2
+        # make a shallow copy (view of the same data)
+        c = copy.copy(self)
+        c.f_grid = c.f_grid[f]
+        c.T_grid = c.T_grid[T]
+        c.coeff_inc = c.coeff_inc[clm_i]
+        c.coeff_sca = c.coeff_sca[clm_s]
+        c.ext_mat_data = c.ext_mat_data[f, T, :, :, :]
+        c.pha_mat_data = c.pha_mat_data[f, T, clm_s, :, :]
+        c.abs_vec_data = c.abs_vec_data[f, T, :, :, :]
+        c.checksize()
+        return c
+
+    def checksize(self):
+        """Verifies size is consistent.
+
+        Raises:
+            RuntimeError
+
+        """
+        if not ((self.f_grid.size or 1, self.T_grid.size or 1) ==
+                self.ext_mat_data.shape[:2] ==
+                self.pha_mat_data.shape[:2] ==
+                self.abs_vec_data.shape[:2] and
+                (self.coeff_sca[0,:].size or 1, self.coeff_inc[0,:].size or 1) ==
+                self.pha_mat_data.shape[2:4]):
+            raise RuntimeError(
+                "Inconsistent sizes in SingleScatteringData.\n"
+                "f_grid: %s, T_grid: %s, coeff_inc: %s, coeff_sca: %s, "
+                "ext_mat: %s, pha_mat: %s, abs_vec: %s" %
+                (self.f_grid.size or 1, self.T_grid.size or 1,
+                 self.coeff_sca[0,:].size or 1, self.coeff_inc[0,:].size or 1,
+                 self.ext_mat_data.shape, self.pha_mat_data.shape,
+                 self.abs_vec_data.shape))
+
+    def assp2backcoef(self):
+        """The function returns the radar backscattering coeffcient. This is
+        the phase function times 4pi, following the standard definition in the
+        radar community.
+
+        Returns:
+            Backscattering coefficients, one value for each frequency and
+            temperature in S. [m2]
+
+        """
+        return NotImplemented
+
+    def assp2g(self):
+        """For a normalised phase function (p), g equals the 4pi integral of
+        p*cos(th), where th is the scattering angle. For pure isotropic
+        scattering g = 0, while pure forward scattering has g=1.
+
+        Warning, this function does not handle the extreme cases of
+        delta-function type of forward or backward scattering lobes. A g of
+        zero is returned for these cases.
+
+        Returns:
+            Backscattering coefficients, one value for each frequency and
+            temperature in S. [m2]
+
+        """
+        return NotImplemented
+
+    def checkassp(self):
+        """Verfies properties of SSP.
+
+        Raises:
+            PyARTSError: If ptype is not macroscopically isotropic, or if first
+                and last value of za_grid does not equal exactly 0 and 180
+                respectively.
+        """
+
+        if self.ptype != "macroscopically_isotropic":
+            raise RuntimeError(
+                "So far just complete random orientation is handled.")
+
+
 class ScatteringMetaData:
     """Represents a ScatteringMetaData object.
 
