@@ -1,21 +1,16 @@
-
 Find collocations with typhon
 =============================
 
 .. Warning::
    This tutorial is still under development and contains invalid code.
 
-Before we start, we configure this notebook so that it shows our
-matplotlib plots directly.
-
-.. code-block:: python
-
-    %matplotlib inline
-    %load_ext autoreload
-    %autoreload 2
-    
-    import numpy as np
-    import matplotlib.pyplot as plt
+.. Hint::
+   If you want to run the code from this tutorial on your machine as well,
+   download
+   :download:`spareice_tutorials.zip<_downloads/spareice_tutorials.zip>` and
+   unzip it. You can find the code examples for this tutorial in the jupyter
+   notebook file *collocations.ipynb*. You will need the jupyter_ engine for
+   this.
 
 Collocations between two data arrays
 ------------------------------------
@@ -193,10 +188,6 @@ Now, we can search for collocations between *a\_dataset* and
 
     Find collocations between SatelliteA and SatelliteB from 2018-01-01 00:00:00 to 2018-01-02 00:00:00
     Retrieve time coverages from files...
-
-
-::
-
 
     ---------------------------------------------------------------------------
 
