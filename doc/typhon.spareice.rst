@@ -76,8 +76,8 @@ File handlers for common formats
    NetCDF4
    Plotter
 
-File handlers for satellite files
-+++++++++++++++++++++++++++++++++
+File handlers for satellite products
+++++++++++++++++++++++++++++++++++++
 
 .. automodule:: typhon.spareice.handlers.cloudsat
 
@@ -88,6 +88,15 @@ File handlers for satellite files
 
    CloudSat
 
+.. automodule:: typhon.spareice.handlers.hoaps
+
+.. currentmodule:: typhon.spareice.handlers.hoaps
+
+.. autosummary::
+   :toctree: generated
+
+   HOAPS
+
 .. automodule:: typhon.spareice.handlers.tovs
 
 .. currentmodule:: typhon.spareice.handlers.tovs
@@ -96,3 +105,15 @@ File handlers for satellite files
    :toctree: generated
 
    MHSAAPP
+
+File handlers for other products
+++++++++++++++++++++++++++++++++
+
+.. automodule:: typhon.spareice.handlers.ocean_rain
+
+.. currentmodule:: typhon.spareice.handlers.ocean_rain
+
+.. autosummary::
+   :toctree: generated
+
+   OceanRAIN
