@@ -61,21 +61,26 @@ class NotCollapsedError(Exception):
 
 
 class CollocatedDataset(Dataset):
-    """Still under development.
+    """Dataset that contains collocated data
 
-    A dataset that stores collocations that were found by :class:`Collocator`
-    amongst different datasets with geographical data.
+    A dataset that stores collocations that were found by
+    :func:`collocate_datasets` amongst different datasets with geographical
+    data.
     """
 
-    def __init__(self, *args, primary=None, **kwargs):
-        """Opens existing files with collocated data as a CollocatedDataset
-        object.
+    def __init__(self, *args, primary=None, align_mode=None, **kwargs):
+        """Initialize a CollocatedDataset object
 
         If you have already collocated some datasets, you can open the stored
         collocations with this command.
 
         Args:
-            primary: Name of the primary group.
+            reference: Name of the primary group.
+            align_mode: One needs collocations normally aligned before
+                processing them further. That means, if multiple points from
+                one dataset were found for one single point of the other
+                dataset, one needs either to collapse or expand them. Define whether the primary should be expanded or the
+                secondaries should be collapsed.
             *args: Same positional arguments that the
                 :class:`typhon.spareice.datasets.Dataset` base class accepts.
             **kwargs: Same key word arguments that the
@@ -138,7 +143,7 @@ class CollocatedDataset(Dataset):
             }, on_content=True, output=self
         )
 
-    def collapse(self, start, end, output, reference,
+    def collapse(self, reference, start=None, end=None, output=None,
                  collapser=None, include_stats=None, **mapping_args):
         """Collapses all multiple collocation points (collocations that refer
         to the same point from another dataset) to a single data point.
@@ -172,32 +177,6 @@ class CollocatedDataset(Dataset):
         Examples:
 
         """
-
-        # Exclude all bins where the inhomogeneity (variation) is too high
-        # passed = np.ones_like(bins).astype("bool")
-        # if isinstance(variation_filter, tuple):
-        #     if len(variation_filter) >= 2:
-        #         if len(self[variation_filter[0]].shape) > 1:
-        #             raise ValueError(
-        #                 "The variation filter can only be used for "
-        #                 "1-dimensional data! I.e. the field '{}' must be "
-        #                 "1-dimensional!".format(variation_filter[0])
-        #             )
-        #
-        #         # Bin only one field for testing of inhomogeneities:
-        #         binned_data = self[variation_filter[0]].bin(bins)
-        #
-        #         # The user can define a different variation function (
-        #         # default is the standard deviation).
-        #         if len(variation_filter) == 2:
-        #             variation_values = variation(binned_data, 1)
-        #         else:
-        #             variation_values = variation_filter[2](binned_data, 1)
-        #         passed = variation_values < variation_filter[1]
-        #     else:
-        #         raise ValueError("The inhomogeneity filter must be a tuple "
-        #                          "of a field name, a threshold and (optional)"
-        #                          "a variation function.")
 
         if not isinstance(output, Dataset):
             raise ValueError("The argument output must be a Dataset object!")
@@ -922,7 +901,7 @@ def _store_collocations(
 
     # Prepare the name for the output file:
     attributes = {
-        p: v for file in files for p, v in file.attrs
+        p: v for file in files.values() for p, v in file[0].attr.items()
     }
     filename = output.generate_filename(time_coverage, fill=attributes)
 
