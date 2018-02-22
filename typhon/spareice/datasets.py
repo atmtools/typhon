@@ -1621,7 +1621,7 @@ class Dataset:
 
     def map(
             self, start=None, end=None, files=None, func=None, args=None,
-            kwargs=None, file_arg_keys=None, on_content=False, read_args=None,
+            kwargs=None, on_content=False, pass_info=False, read_args=None,
             output=None, max_workers=None, worker_type=None,
             worker_initializer=None, worker_initargs=None, return_info=False,
             **find_args
@@ -1653,18 +1653,14 @@ class Dataset:
             args: A list/tuple with positional arguments that should be passed
                 to *func*. It will be extended with the file arguments, i.e.
                 a FileInfo object if *on_content* is false or - if *on_content*
-                is true - the read content of a file and its corresponding
-                FileInfo object. If you want to pass the file arguments rather
-                as key word arguments, you can use the option *file_arg_keys*.
+                and *pass_info* are true - the read content of a file and its
+                corresponding FileInfo object.
             kwargs: A dictionary with keyword arguments that should be passed
                 to *func*.
-            file_arg_keys: Use this if you want to pass the file arguments as
-                key word arguments. If *on_content* is false, this is the key
-                name of the file info object. If *on_content* is true, this is
-                a tuple of the key name of the file info object and the key
-                name of the file content object.
             on_content: If true, the file will be read before *func* will be
                 applied. The content will then be passed to *func*.
+            pass_info: If *on_content* is true, this decides whether a FileInfo
+                object should be passed to *func*. Default is false.
             read_args: Additional keyword arguments that will be passed
                 to the reading function (see Dataset.read() for more
                 information). Will be ignored if *on_content* is False.
@@ -1732,7 +1728,7 @@ class Dataset:
 
             .. code-block:: python
 
-                def calc_statistics(arg1, content, file_info, kwarg1=None):
+                def calc_statistics(arg1, content, kwarg1=None):
                     # return the mean and maximum value
                     return content["data"].mean(), content["data"].max()
 
@@ -1744,8 +1740,8 @@ class Dataset:
         """
 
         pool, func_args_queue = self._configure_map_pool_and_worker_args(
-            start, end, files, func, args, kwargs, file_arg_keys,
-            on_content, read_args, output,
+            start, end, files, func, args, kwargs,
+            on_content, pass_info, read_args, output,
             max_workers, worker_type, worker_initializer, worker_initargs,
             return_info, **find_args
         )
@@ -1795,8 +1791,8 @@ class Dataset:
 
     def _configure_map_pool_and_worker_args(
             self, start=None, end=None, files=None, func=None, args=None,
-            kwargs=None, file_arg_keys=None,
-            on_content=False, read_args=None, output=None,
+            kwargs=None, on_content=False, pass_info=None, read_args=None,
+            output=None,
             max_workers=None, worker_type=None, worker_initializer=None,
             worker_initargs=None, return_info=False, **find_args
     ):
@@ -1846,7 +1842,7 @@ class Dataset:
             files = self.find(start, end, **find_args)
 
         function_arguments = (
-            (self, file, func, args, kwargs, file_arg_keys, output,
+            (self, file, func, args, kwargs, pass_info, output,
              on_content, read_args, return_info)
             for file in files
         )
@@ -1868,12 +1864,11 @@ class Dataset:
             *kwargs*. This arguments have been extended by file info (and file
             content).
         """
-        dataset, file_info, func, args, kwargs, file_arg_keys, output, \
+        dataset, file_info, func, args, kwargs, pass_info, output, \
             on_content, read_args, return_info = all_args
 
         args = [] if args is None else list(args)
 
-        timer = time()
         if on_content:
             # file_info could be a bundle of files
             if isinstance(file_info, FileInfo):
@@ -1881,19 +1876,10 @@ class Dataset:
             else:
                 file_content = \
                     dataset.collect(files=file_info, read_args=read_args)
-            if file_arg_keys is None:
-                args.append(file_content)
-            else:
-                kwargs.update(**{
-                    file_arg_keys[1]: file_content,
-                })
+            args.append(file_content)
 
-        if file_arg_keys is None:
+        if not on_content or pass_info:
             args.append(file_info)
-        else:
-            kwargs.update(**{
-                file_arg_keys[0]: file_info,
-            })
 
         # Call the function:
         return_value = func(*args, **kwargs)
