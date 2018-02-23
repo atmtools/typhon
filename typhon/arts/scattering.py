@@ -519,11 +519,16 @@ class SpectralSingleScatteringData:
         self.T_grid = None
         self.coeff_inc = None
         self.coeff_sca = None
-        self.abs_vec_data = None
-        self.ext_mat_data = None
-        self.pha_mat_data = None
-        self.forward_peak_data = None
-        self.backward_peak_data = None
+        self.abs_vec_data_real = None
+        self.abs_vec_data_imag = None
+        self.ext_mat_data_real = None
+        self.ext_mat_data_imag = None
+        self.pha_mat_data_real = None
+        self.pha_mat_data_imag = None
+        self.forward_peak_data_real = None
+        self.forward_peak_data_imag = None
+        self.backward_peak_data_real = None
+        self.backward_peak_data_imag = None
 
     def __eq__(self, other):
         """Test the equality of SpectralSingleScatteringData."""
@@ -548,8 +553,9 @@ class SpectralSingleScatteringData:
                                        getattr(other, member), atol=1e-6):
                     return False
 
-            for member in ('abs_vec_data', 'ext_mat_data', 'pha_mat_data',
-                           'forward_peak_data', 'backward_peak_data'):
+            for member in ('abs_vec_data_real', 'abs_vec_data_imag', 'ext_mat_data_real',
+                           'ext_mat_data_imag', 'pha_mat_data_real', 'pha_mat_data_imag',
+                           'forward_peak_data_real', 'backward_peak_data_imag'):
                 if not compare_ndarray(getattr(self, member),
                                        getattr(other, member), atol=1e-12):
                     return False
@@ -686,11 +692,16 @@ class SpectralSingleScatteringData:
         obj.T_grid = xmlelement[3].value()
         obj.coeff_inc = xmlelement[4].value()
         obj.coeff_sca = xmlelement[5].value()
-        obj.pha_mat_data = xmlelement[6].value()
-        obj.ext_mat_data = xmlelement[7].value()
-        obj.abs_vec_data = xmlelement[8].value()
-        obj.forward_peak_data = xmlelement[9].value()
-        obj.backward_peak_data = xmlelement[10].value()
+        obj.pha_mat_data_real = xmlelement[6].value()
+        obj.pha_mat_data_imag = xmlelement[7].value()
+        obj.ext_mat_data_real = xmlelement[8].value()
+        obj.ext_mat_data_imag = xmlelement[9].value()
+        obj.abs_vec_data_real = xmlelement[10].value()
+        obj.abs_vec_data_imag = xmlelement[11].value()
+        obj.forward_peak_data_real = xmlelement[12].value()
+        obj.forward_peak_data_imag = xmlelement[13].value()
+        obj.backward_peak_data_real = xmlelement[14].value()
+        obj.backward_peak_data_imag = xmlelement[15].value()
         obj.checksize()
 
         return obj
@@ -711,11 +722,16 @@ class SpectralSingleScatteringData:
              'T_grid': self.T_grid,
              'coeff_inc': self.coeff_inc,
              'coeff_sca': self.coeff_sca,
-             'pha_mat_data': self.pha_mat_data,
-             'ext_mat_data': self.ext_mat_data,
-             'abs_vec_data': self.abs_vec_data,
-             'forward_peak_data': self.forward_peak_data,
-             'backward_peak_data': self.backward_peak_data,
+             'pha_mat_data_real': self.pha_mat_data_real,
+             'pha_mat_data_imag': self.pha_mat_data_imag,
+             'ext_mat_data_real': self.ext_mat_data_real,
+             'ext_mat_data_imag': self.ext_mat_data_imag,
+             'abs_vec_data_real': self.abs_vec_data_real,
+             'abs_vec_data_imag': self.abs_vec_data_imag,
+             'forward_peak_data_real': self.forward_peak_data_real,
+             'forward_peak_data_imag': self.forward_peak_data_imag,
+             'backward_peak_data_real': self.backward_peak_data_real,
+             'backward_peak_data_imag': self.backward_peak_data_imag,
              }
 
         return d
@@ -736,11 +752,16 @@ class SpectralSingleScatteringData:
         xmlwriter.write_xml(self.T_grid)
         xmlwriter.write_xml(self.coeff_inc)
         xmlwriter.write_xml(self.coeff_sca)
-        xmlwriter.write_xml(self.pha_mat_data)
-        xmlwriter.write_xml(self.ext_mat_data)
-        xmlwriter.write_xml(self.abs_vec_data)
-        xmlwriter.write_xml(self.forward_peak_data)
-        xmlwriter.write_xml(self.backward_peak_data)
+        xmlwriter.write_xml(self.pha_mat_data_real)
+        xmlwriter.write_xml(self.pha_mat_data_imag)
+        xmlwriter.write_xml(self.ext_mat_data_real)
+        xmlwriter.write_xml(self.ext_mat_data_imag)
+        xmlwriter.write_xml(self.abs_vec_data_real)
+        xmlwriter.write_xml(self.abs_vec_data_imag)
+        xmlwriter.write_xml(self.forward_peak_data_real)
+        xmlwriter.write_xml(self.forward_peak_data_imag)
+        xmlwriter.write_xml(self.backward_peak_data_real)
+        xmlwriter.write_xml(self.backward_peak_data_imag)
         xmlwriter.close_tag()
 
     def __repr__(self):
@@ -783,9 +804,16 @@ class SpectralSingleScatteringData:
         c.T_grid = c.T_grid[T]
         c.coeff_inc = c.coeff_inc[clm_i]
         c.coeff_sca = c.coeff_sca[clm_s]
-        c.ext_mat_data = c.ext_mat_data[f, T, :, :, :]
-        c.pha_mat_data = c.pha_mat_data[f, T, clm_s, :, :]
-        c.abs_vec_data = c.abs_vec_data[f, T, :, :, :]
+        c.ext_mat_data_real = c.ext_mat_data_real[f, T, :, :]
+        c.pha_mat_data_real = c.pha_mat_data_real[f, T, clm_s, :, :]
+        c.abs_vec_data_real = c.abs_vec_data_real[f, T, :, :]
+        c.backward_peak_data_real = c.backward_peak_data_real[f, T, :, :]
+        c.forward_peak_data_real = c.forward_peak_data_real[f, T, :, :]
+        c.ext_mat_data_imag = c.ext_mat_data_imag[f, T, :, :]
+        c.pha_mat_data_imag = c.pha_mat_data_imag[f, T, clm_s, :, :]
+        c.abs_vec_data_imag = c.abs_vec_data_imag[f, T, :, :]
+        c.backward_peak_data_imag = c.backward_peak_data_imag[f, T, :, :]
+        c.forward_peak_data_imag = c.forward_peak_data_imag[f, T, :, :]
         c.checksize()
         return c
 
@@ -796,20 +824,21 @@ class SpectralSingleScatteringData:
             RuntimeError
 
         """
+        # FIXME: Check only the real values??
         if not ((self.f_grid.size or 1, self.T_grid.size or 1) ==
-                self.ext_mat_data.shape[:2] ==
-                self.pha_mat_data.shape[:2] ==
-                self.abs_vec_data.shape[:2] and
+                self.ext_mat_data_real.shape[:2] ==
+                self.pha_mat_data_real.shape[:2] ==
+                self.abs_vec_data_real.shape[:2] and
                 (self.coeff_sca[0,:].size or 1, self.coeff_inc[0,:].size or 1) ==
-                self.pha_mat_data.shape[2:4]):
+                self.pha_mat_data_real.shape[2:4]):
             raise RuntimeError(
                 "Inconsistent sizes in SingleScatteringData.\n"
                 "f_grid: %s, T_grid: %s, coeff_inc: %s, coeff_sca: %s, "
                 "ext_mat: %s, pha_mat: %s, abs_vec: %s" %
                 (self.f_grid.size or 1, self.T_grid.size or 1,
                  self.coeff_sca[0,:].size or 1, self.coeff_inc[0,:].size or 1,
-                 self.ext_mat_data.shape, self.pha_mat_data.shape,
-                 self.abs_vec_data.shape))
+                 self.ext_mat_data_real.shape, self.pha_mat_data_real.shape,
+                 self.abs_vec_data_real.shape))
 
     def assp2backcoef(self):
         """The function returns the radar backscattering coeffcient. This is
