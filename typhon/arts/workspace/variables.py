@@ -22,6 +22,7 @@ import tempfile
 from typhon.arts.workspace.api import arts_api
 from typhon.arts.workspace.agendas import Agenda
 from typhon.arts.xml import load, save
+from typhon.arts.xml.names import tensor_names
 
 class WorkspaceVariable:
     """
@@ -112,14 +113,37 @@ class WorkspaceVariable:
         elif type(value) == np.ndarray and value.ndim == 6:
             return group_ids["Tensor6"]
         elif type(value) == list:
-            try:
-                t = type(value[0])
-            except:
+            group_name = ""
+            nested_value = value
+            while type(nested_value) == list and len(nested_value) > 0:
+                nested_value = nested_value[0]
+                group_name += "ArrayOf"
+            if type(nested_value) == list and len(nested_value) == 0:
                 raise ValueError("Empty lists are currently not handled.")
-            if t == str:
-                return group_ids["ArrayOfString"]
-            if t == int:
-                return group_ids["ArrayOfIndex"]
+            else:
+                t = type(nested_value)
+                if t == str:
+                    group_name += "String"
+                    return group_ids[group_name]
+                elif t == int:
+                    group_name += "Index"
+                    return group_ids[group_name]
+                elif (t == np.float) or (t == np.float32) or (t == np.float64)  \
+                     or (t == np.float128):
+                    raise ValueError("Vectors, Matrices or Tensors should be"   \
+                                     + " passed as numpy.ndarray and not as"    \
+                                     " lists.")
+                elif hasattr(nested_value, 'write_xml') \
+                     and t.__name__ in group_names:
+
+                    group_name += t.__name__
+                    return group_ids[group_name]
+                elif isinstance(nested_value, np.ndarray):
+                    group_name += tensor_names[len(nested_value.shape) - 1]
+                    return group_ids[group_name]
+                else:
+                    raise ValueError("Nested array with internal type " +       \
+                                     str(t) + " not supported.")
         elif hasattr(value, 'write_xml') and type(value).__name__ in group_names:
             return group_ids[type(value).__name__]
         else:
