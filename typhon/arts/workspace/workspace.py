@@ -293,7 +293,8 @@ class Workspace:
 
         if not t.group_id == v.group_id:
             raise Exception("Incompatible groups: Workspace variable " + name +
-                            " and value " + str(value))
+                            " of group " + group_names[v.group_id] + " and value " + str(value)
+                            + " of group " + group_names[t.group_id] + ".")
 
         self.Copy(v, t)
 
