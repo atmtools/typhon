@@ -241,6 +241,10 @@ class WorkspaceMethod:
             if len(sg_indices) > 1:
                 raise Exception("Could not uniquely resolve super-generic overload.")
 
+            if len(sg_indices) == 0:
+                raise Exception("Could not find super-generic overload matching"
+                                + " the given groups.")
+
             sg_index = sg_indices.pop()
             m_id = self.m_ids[sg_index]
 
