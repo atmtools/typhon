@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 import os
+import typhon
 
 try:
     from typhon.arts.workspace import Workspace, arts_agenda
@@ -13,6 +14,7 @@ else:
 from typhon.arts.catalogues import Sparse
 
 
+
 def agenda(ws):
     ws.Print(ws.y, 0)
 
@@ -21,7 +23,8 @@ def agenda(ws):
 class TestWorkspace:
     def setup_method(self):
         """This ensures a new Workspace for every test."""
-        self.ws = Workspace()
+        self.dir = os.path.dirname(os.path.realpath(__file__))
+        self.ws  = Workspace()
 
     def test_index_transfer(self):
         self.ws.IndexCreate("index_variable")
@@ -34,6 +37,13 @@ class TestWorkspace:
         i = [np.random.randint(0, 100) for j in range(10)]
         self.ws.array_of_index_variable = i
         assert self.ws.array_of_index_variable.value == i
+
+    def test_array_of_vector_transfer(self):
+        self.ws.ArrayOfVectorCreate("array_of_vector_variable")
+        aov = typhon.arts.xml.load(os.path.join(self.dir,
+                                                "xml/reference/arrayofvector.xml"))
+        self.ws.array_of_vector_variable = aov
+        assert self.ws.array_of_vector_variable.value == aov
 
     def test_string_transfer(self):
         self.ws.StringCreate("string_variable")
@@ -100,3 +110,9 @@ class TestWorkspace:
         self.ws.execute_controlfile("controlfile.arts")
 
         os.remove(os.path.join(test_dir, "vector.xml"))
+
+    def test_supergeneric_overload_failure(self):
+        with pytest.raises(Exception):
+            self.ws.NumericCreate("numeric_wsv")
+            self.ws.StringCreate("string_wsv")
+            self.ws.Copy(self.ws.string_wsv, self.ws.numeric_wsv)
