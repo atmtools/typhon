@@ -425,3 +425,6 @@ for p in arts_include_path:
 
 for p in arts_data_path:
     data_path_push(p)
+
+include_path_push(os.getcwd())
+data_path_push(os.getcwd())
