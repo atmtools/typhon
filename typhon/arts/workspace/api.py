@@ -278,7 +278,7 @@ def variable_value_factory(value):
 ################################################################################
 
 # Create ArtsWorkspace and return handle.
-arts_api.create_workspace.argtypes = None
+arts_api.create_workspace.argtypes = [c.c_long, c.c_long]
 arts_api.create_workspace.restype  = c.c_void_p
 
 # Destroy ArtsWorkspace instance from handle.
