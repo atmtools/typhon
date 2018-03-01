@@ -26,7 +26,7 @@ else:
 
 
 @contextmanager
-def compress(filename, fmt=None,):
+def compress(filename, fmt=None, tmpdir=None):
     """Compress a file after writing to it.
 
     Supported compression formats are: gzip, bzip2, zip, and lzma (Python
@@ -51,6 +51,9 @@ def compress(filename, fmt=None,):
             * *bz2*: Uses the bz2 library.
             * *gz*: Uses the GNU zip library.
             * *xz*: Uses the lzma format.
+        tmpdir (str): Path to directory for temporary storage of the
+            uncompressed file. The directory must exist. The default is the
+            temporary dir of the system.
 
     Yields:
         Generator containing the path to the temporary file.
@@ -69,7 +72,7 @@ def compress(filename, fmt=None,):
         yield filename
         return
 
-    with tempfile.NamedTemporaryFile() as tfile:
+    with tempfile.NamedTemporaryFile(dir=tmpdir) as tfile:
         yield tfile.name
         compress_as(tfile.name, fmt, filename, keep=True)
 
@@ -165,16 +168,13 @@ def decompress(filename, tmpdir=None):
         >>>     f = netCDF4.Dataset(file)
         >>>     #...
     """
-    if tmpdir is None:
-        tmpdir = tempfile.gettempdir()
 
     filebase, fileext = os.path.splitext(filename)
     filebase = os.path.basename(filebase)
     fmt = fileext.lstrip(".")
 
     if is_compression_format(fmt):
-        tmpfile = tempfile.NamedTemporaryFile(prefix=os.path.join(tmpdir, ''),
-                                              delete=False)
+        tmpfile = tempfile.NamedTemporaryFile(dir=tmpdir, delete=False)
         # Read datafile in 100 MiB chunks for good performance/memory usage
         chunksize = 100 * 1024 * 1024
         compfile = get_compressor(fmt)
