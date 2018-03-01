@@ -516,6 +516,17 @@ class GroupedArrays:
 
         return False
 
+    def __len__(self):
+        length = 0
+        for var, data in self.items(deep=True):
+            if "__different_first_dimension__" in data.attrs:
+                # back up length
+                length = data.shape[0]
+            else:
+                return data.shape[0]
+
+        return length
+
     def __setitem__(self, key, value):
         var, rest = self.parse(key)
 
@@ -1268,6 +1279,30 @@ class GroupedArrays:
         indices = np.argsort(self[field])
 
         return self[indices]
+
+    def split(self, ratio, shuffle=False):
+        """Split this object into two parts along the main dimension
+
+        Args:
+            ratio: The size of the first part as ratio of the whole size.
+            shuffle: Shuffle the array before split into two parts.
+
+        Returns:
+            Two GroupedArrays objects
+        """
+        size = len(self)
+        size_first = int(size * ratio)
+
+        if not shuffle:
+            return self[:size_first], self[size_first:]
+
+        first = np.ones(size, dtype=bool)
+        first[size_first:] = False
+
+        # Shuffle the indices
+        np.random.shuffle(first)
+
+        return self[first], self[~first]
 
     def to_csv(self, filename, **csv_args):
         """Store an GroupedArrays object to a CSV file.
