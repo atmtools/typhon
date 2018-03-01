@@ -12,13 +12,13 @@ from typhon.spareice.array import Array
 from typhon.utils.time import to_timedelta
 
 __all__ = [
-        "Finder",
+        "CollocationsFinder",
         "BallTree",
         "BruteForce",
     ]
 
 
-class Finder(metaclass=abc.ABCMeta):
+class CollocationsFinder(metaclass=abc.ABCMeta):
     # Multiple threads in Python only speed things up when the code releases
     # the GIL. This flag can be used to indicate that this finder algorithm
     # should be used in multiple threads because it can handle such GIL issues.
@@ -61,7 +61,7 @@ class Finder(metaclass=abc.ABCMeta):
         pass
 
 
-class BallTree(Finder):
+class BallTree(CollocationsFinder):
     def __init__(self, leaf_size=None):
         super(BallTree, self).__init__()
 
@@ -96,13 +96,13 @@ class BallTree(Finder):
         else:
             # We try to find collocations by building one 3-d Ball tree
             # (see https://en.wikipedia.org/wiki/K-d_tree) and searching for
-            # the nearest neighbours. Since a k-d tree cannot handle latitude /
+            # the nearest neighbours. Since a ball tree cannot handle latitude/
             # longitude data, we have to convert them to 3D-cartesian
             # coordinates. This introduces an error of the distance calculation
             # since it is now the distance in a 3D euclidean space and not the
-            # distance along the sphere any longer. When having two points with
-            # a distance of 5 degrees in longitude, the error is smaller than
-            # 177 meters.
+            # distance along the sphere any longer. However, when having two
+            # points with a distance of 5 degrees in longitude, the error is
+            # smaller than 177 meters.
             cart_points = geocentric2cart(
                 6371000.0, # typhon.constants.earth_radius,
                 primary_data["lat"],
@@ -149,7 +149,7 @@ class BallTree(Finder):
 
         # No collocations were found.
         if not pairs.any():
-            return pairs
+            return np.array([[], []])
 
         # Check here for temporal collocations:
         if max_distance is not None and max_interval is not None:
@@ -167,7 +167,7 @@ class BallTree(Finder):
         return pairs
 
 
-class BruteForce(Finder):
+class BruteForce(CollocationsFinder):
     def __init__(self):
         super(BruteForce, self).__init__()
 
