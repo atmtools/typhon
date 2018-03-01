@@ -33,7 +33,8 @@ spareice.collocations
 
    collocate
    collocate_datasets
-   CollocatedDataset
+   collapse
+   expand
 
 spareice.datasets
 =================
