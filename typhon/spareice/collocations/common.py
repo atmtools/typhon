@@ -2,7 +2,7 @@
 This module contains classes to find collocations between datasets. They are
 inspired by the CollocatedDataset classes in atmlab implemented by Gerrit Holl.
 
-TODO: I would like to have this package as typhon.collocations.
+TODO: Move this package to typhon.collocations.
 
 Created by John Mrziglod, June 2017
 """
@@ -31,6 +31,7 @@ __all__ = [
     "collapse",
     "collocate",
     "collocate_datasets",
+    "expand",
 ]
 
 # Finder algorithms for collocations:
@@ -92,7 +93,10 @@ UNITS_CONVERSION_FACTORS = [
 
 
 def collapse(data, reference=None, collapser=None, include_stats=None, ):
-    """Collapses all multiple collocation points to a single data point.
+    """Collapses all multiple collocation points to a single data point
+
+    Warnings:
+        Does not work yet!
 
     During searching for collocations, one might find multiple collocation
     points from one dataset for one single point of the other dataset. For
@@ -121,6 +125,8 @@ def collapse(data, reference=None, collapser=None, include_stats=None, ):
 
             # TODO: Add examples
     """
+
+    raise NotImplementedError("Not yet implemented!")
 
     # Get the bin indices by the main dataset to which all other
     # shall be collapsed:
@@ -203,6 +209,30 @@ def collapse(data, reference=None, collapser=None, include_stats=None, ):
     return collapsed_data
 
 
+def expand(data):
+    """Repeat each data point to its multiple collocation points
+
+    Warnings:
+        Does not work yet!
+
+    This is the inverse function of :func:`collapse`.
+
+    Args:
+        data:
+
+    Returns:
+
+    """
+
+    raise NotImplementedError("Not yet implemented!")
+    expanded_data = GroupedArrays()
+    for group_name in data.groups():
+        if group_name.startswith("__"):
+            continue
+
+        #indices = data["__collocations"][]
+        expanded_data[group_name] = data[group_name][indices]
+
 def _to_kilometers(distance):
     """Convert different length units to kilometers
 
@@ -262,9 +292,9 @@ def collocate(arrays, max_interval=None, max_distance=None,
             collocations only. Either *max_interval* or *max_distance* must be
             given.
         algorithm: Defines which algorithm should be used to find the
-            collocations. Must be either a Finder object (a subclass from
-            :class:`~typhon.spareice.collocations.algorithms.Algorithm`) or
-            a string with the name of an algorithm. Default is the
+            collocations. Must be either an object that inherits from
+            :class:`~typhon.spareice.collocations.algorithms.CollocationsFinder`
+            or a string with the name of an algorithm. Default is the
             *BallTree* algorithm. See below for a table of available
             algorithms.
         threads: Finding collocations can be parallelised in threads. Give here
@@ -279,7 +309,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
     How the collocations are going to be found is specified by the used
     algorithm. The following algorithms are possible (you can use your
     own algorithm by subclassing the
-    :class:`~typhon.spareice.collocations.algorithms.Algorithm` class):
+    :class:`~typhon.spareice.collocations.algorithms.CollocationsFinder`
+    class):
 
     +--------------+------------------------------------------------------+
     | Algorithm    | Description                                          |
@@ -326,7 +357,7 @@ def collocate(arrays, max_interval=None, max_distance=None,
             # Find collocations with a maximum distance of 300 kilometers and
             # a maximum interval of 1 hour
             indices = collocate(
-                [primary, secondary], max_distance=300, max_interval="1 hour")
+                [primary, secondary], max_distance="300km", max_interval="1h")
 
             print(indices)  # prints [[4], [4]]
 
@@ -382,6 +413,7 @@ def collocate(arrays, max_interval=None, max_distance=None,
         )
 
         if common_time is None:
+            print("Return empty!")
             # There was no common time window found
             return np.array([[], []])
 
@@ -663,17 +695,28 @@ def collocate_datasets(
                 min([primary_end, data[secondary.name]["time"].max().item(0)]),
             )
 
-        # Data from this iteration might be collocated with data from previous
-        # iterations in the cache:
+        print("Before:", data["SatelliteA"]["time"].shape, data["SatelliteB"]["time"].shape)
         if cache:
+            # Data from this iteration might be collocated with data from
+            # previous iterations in the cache. Hence, include the cache for
+            # the collocation search and add it to data:
             collocations = _collocate_include_cache(
-                primary, secondary, data, cache, max_interval, collocate_args
+                data, cache, primary, secondary, max_interval, collocate_args
             )
         else:
             collocations = collocate(
                 [data[primary.name], data[secondary.name]],
                 **collocate_args,
             )
+
+        print("After:", data["SatelliteA"]["time"].shape, data["SatelliteB"]["time"].shape)
+
+        # Cache the last max_interval time period of each dataset:
+        for name, dataset_data in data.items():
+            interval_to_cache = dataset_data["time"] >= \
+                                dataset_data["time"].max().item(
+                                    0) - max_interval
+            cache[name] = dataset_data[interval_to_cache]
 
         if not collocations.any():
             if verbose:
@@ -696,12 +739,6 @@ def collocate_datasets(
         total_collocations[0] += n_collocations[0]
         total_collocations[1] += n_collocations[1]
 
-        # Cache the last max_interval time period of each dataset:
-        for name, dataset_data in data.items():
-            interval_to_cache = dataset_data["time"] >= \
-                dataset_data["time"].max().item(0) - max_interval
-            cache[name]: dataset_data[interval_to_cache]
-
     if verbose:
         print("-" * 79)
         print(
@@ -713,8 +750,8 @@ def collocate_datasets(
     return output
 
 
-def _collocate_include_cache(
-        primary, secondary, data, cache, max_interval, collocate_args):
+def _collocate_include_cache(data, cache, primary, secondary,
+                             max_interval, collocate_args):
     # We have to search for collocations twice. At first, we do a
     # cross-collocation with the cached content from previous iterations:
     check_with_cache = \
@@ -738,9 +775,32 @@ def _collocate_include_cache(
         **collocate_args,
     )
 
-    # TODO: combine all collocations
+    if not pri_cache_sec_collocations.any() and not\
+            pri_sec_cache_collocations.any():
+        return collocations
 
-    return collocations
+    # Add the cached data to all_data if we found something
+    data[primary.name] = GroupedArrays.concat(
+        [cache[primary.name], data[primary.name]])
+    data[secondary.name] = GroupedArrays.concat(
+        [cache[secondary.name], data[secondary.name]])
+
+    print("Before:", collocations)
+
+    # We have to shift the collocation indices because we added data at the
+    # front
+    collocations[0] += cache[primary.name]["time"].shape[0]
+    collocations[1] += cache[secondary.name]["time"].shape[0]
+
+    print("After:", collocations)
+
+    return np.hstack([
+        pri_cache_sec_collocations,
+        pri_sec_cache_collocations,
+        collocations,
+    ]).astype(int)
+
+
 
 
 def _collocating_status(primary, secondary, timer, start, end, current_end):
@@ -846,14 +906,14 @@ def _store_collocations(
         pairs.append(collocation_indices)
 
         data = dataset_data[original_indices]
-        data["__original_indices"] = Array(
+        data["__indices"] = Array(
             original_indices, dims=["time_id", ],
             attrs={
                 "long_name": "Index in the original file",
             }
         )
 
-        if "__original_files" not in data:
+        if "__original_files" not in data.attrs:
             # Set where the data came from:
             data.attrs["__original_files"] = \
                 ";".join(file.path for file in files[datasets[i].name])
@@ -861,11 +921,7 @@ def _store_collocations(
 
     metadata["pairs"] = pairs
 
-    # Use only the times of the primary dataset as start and end time (makes it
-    # easier to find corresponding files later):
-    time_coverage = output_data[datasets[0].name].get_range(
-        "time",
-    )
+    time_coverage = output_data.get_range("time", deep=True)
     output_data.attrs["start_time"] = \
         time_coverage[0].strftime("%Y-%m-%dT%H:%M:%S.%f")
     output_data.attrs["end_time"] = \
