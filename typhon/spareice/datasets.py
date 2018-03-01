@@ -442,6 +442,7 @@ class Dataset:
 
         self.compress = compress
         self.decompress = decompress
+        self.temp_dir = temp_dir
 
         self._time_coverage = None
         self.time_coverage = time_coverage
@@ -554,7 +555,7 @@ class Dataset:
         return str(self)
 
     def __str__(self):
-        dtype = "Single-File" if self.single_file else "Multi-File"
+        dtype = "Single-File" if self.single_file else "Multi-Files"
 
         info = "Name:\t" + self.name
         info += "\nType:\t" + dtype
@@ -1468,7 +1469,8 @@ class Dataset:
 
         # Using the handler for getting more information
         if retrieve_via in ("handler", "both"):
-            with typhon.files.decompress(info.path) as decompressed_path:
+            with typhon.files.decompress(info.path, tmpdir=self.temp_dir) as \
+                    decompressed_path:
                 decompressed_file = info.copy()
                 decompressed_file.path = decompressed_path
                 handler_info = self.handler.get_info(decompressed_file)
@@ -1569,7 +1571,7 @@ class Dataset:
             del self._link[name_or_dataset]
 
     def link(self, other_dataset, linker=None):
-        """Link this dataset with another
+        """Link this dataset with another Dataset
 
         If one file is read from this dataset, its corresponding file from
         `other_dataset` will be read, too. Their content will then be merged by
@@ -2360,9 +2362,9 @@ class Dataset:
 
         read_args = {**self.read_args, **read_args}
 
-        if self._path_extension not in self.handler.handle_compression_formats\
-                and self.decompress:
-            with typhon.files.decompress(file_info.path) as decompressed_path:
+        if self.decompress:
+            with typhon.files.decompress(file_info.path, tmpdir=self.temp_dir)\
+                    as decompressed_path:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
                 data = self.handler.read(decompressed_file, **read_args)
@@ -2519,6 +2521,12 @@ class Dataset:
             data: An object that can be stored by the used file handler class.
             file_info: A string, path-alike object or a
                 :class:`~typhon.spareice.handlers.common.FileInfo` object.
+            times: If *file_info* is not given, this can be used to generate
+                the filename. Look at :meth:`generate_filename` for more
+                information.
+            fill: If *file_info* is not given, this can be used to generate
+                the filename. Look at :meth:`generate_filename` for more
+                information.
             in_background: If true (default), this runs the writing process in
                 a background thread so it does not pause the main process.
             **write_args: Additional key word arguments for the *write* method
@@ -2600,7 +2608,8 @@ class Dataset:
         os.makedirs(os.path.dirname(file_info), exist_ok=True)
 
         if self.compress:
-            with typhon.files.compress(file_info.path) as compressed_path:
+            with typhon.files.compress(file_info.path, tmpdir=self.temp_dir) \
+                    as compressed_path:
                 compressed_file = file_info.copy()
                 compressed_file.path = compressed_path
                 self.handler.write(data, compressed_file, **write_args)
@@ -2669,6 +2678,13 @@ class DataSlider:
             self.start, self.end, return_info=True
         )
         for primary_file, primary_data in primary_files:
+            # Add the file start and end times:
+            length = primary_data["time"].shape[0]
+            primary_data["__file_start"] = \
+                np.repeat(primary_file.times[0], length)
+            primary_data["__file_end"] = \
+                np.repeat(primary_file.times[1], length)
+
             # We add the primary data later:
             all_data = {primary.name: primary_data}
             all_files = {primary.name: [primary_file]}
@@ -2719,10 +2735,17 @@ class DataSlider:
                     *times, return_info=True, concat=False,
                 )
 
+                # Add the file start and end time to each element:
+                for index, file in enumerate(secondary_files):
+                    length = secondary_data[index]["time"].shape[0]
+                    secondary_data[index]["__file_start"] = \
+                        np.repeat(file.times[0], length)
+                    secondary_data[index]["__file_end"] = \
+                        np.repeat(file.times[1], length)
+
                 if temp_data is not None:
                     secondary_data.insert(0, temp_data)
 
-                # TODO: Add a file identifier to each element
                 temp_data = GroupedArrays.concat(secondary_data)
 
                 # TODO: Add also the cached files if they contributed
