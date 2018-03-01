@@ -99,15 +99,8 @@ class FileHandler:
     """
 
     # Flag whether this file handler supports reading from multiple files at
-    # once.
+    # once. This is deprecated...
     multifile_reader_support = False
-
-    # If the file handler can handle compressed files, you can set this to a
-    # list of formats otherwise the Dataset class decompress them first. The
-    # formats are defined in typhon.files. For example, if zipped files can be
-    # handled, set this to:
-    # handle_compression_formats = ["zip", ]
-    handle_compression_formats = []
 
     def __init__(
             self, reader=None, info=None, writer=None, data_merger=None,
