@@ -22,7 +22,7 @@ from typhon.math import stats as tpstats
 
 
 __all__ = [
-    'fractional_error',
+    'binned_statistic',
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
@@ -37,28 +37,21 @@ __all__ = [
 ]
 
 
-def fractional_error(
-            estimate, reference, bins=20, log=False, ax=None, ptype=None,
-            pargs=None, **kwargs
+def binned_statistic(
+            x, y, bins=20, ax=None, ptype=None, pargs=None, **kwargs
         ):
-    """Bin the data, calculate the fractional error and plot their statistics
+    """Bin the data and plot their statistics
 
-    The fractional error is calculated with this formula:
-
-    .. math::
-        FE := \exp \bigl| \ln \frac{estimate}{reference} \bigl| - 1
-
-    Per default, this calculates the median fractional error for each bin. If
-    you need another statistic (e.g. mean or std) use the keyword `statistic`.
+    Per default, this calculates the median for each bin. If you need another
+    statistic (e.g. mean or std) use the keyword `statistic`.
 
     Args:
-        estimate: The estimated data that may contain errors.
-        reference: The real / true data that is used as reference.
+        x: The values which should be binned and plotted on the x-axis.
+        y: The values on which the statistics should be applied.
         bins: Number of bins. Default is 20.
-        log: If true, it uses log10 bins. This is the default.
-        ax:
-        ptype:
-        pargs:
+        ax (AxesSubplot, optional): Axes to plot in.
+        ptype: Plot type. Can be *scatter* or *boxplot*.
+        pargs: Plotting keyword arguments that are allowed for *ptype*.
         **kwargs: Additional key word arguments for
             `scipy.stats.binned_statistic`.
 
@@ -72,12 +65,6 @@ def fractional_error(
     if pargs is None:
         pargs = {}
 
-    # The fractional error in percent
-    fe = (np.abs(np.exp(np.log(estimate / reference))) - 1) * 100.
-
-    if log:
-        reference = np.log10(reference)
-
     if ptype is None or ptype == "scatter":
         default = {
             "statistic": "median",
@@ -85,19 +72,19 @@ def fractional_error(
             **kwargs,
         }
 
-        mfe, bin_edges, bin_ind = stats.binned_statistic(
-            reference, values=fe, **default
+        statistics, bin_edges, bin_ind = stats.binned_statistic(
+            x, values=y, **default
         )
         bin_width = (bin_edges[1] - bin_edges[0])
         bin_centers = bin_edges[1:] - bin_width / 2
 
-        plot = ax.scatter(bin_centers, mfe, **pargs)
+        plot = ax.scatter(bin_centers, statistics, **pargs)
     elif ptype == "boxplot":
-        bin_lefts = np.linspace(reference.min(), reference.max(), bins)
-        bins_indices = np.digitize(reference, bin_lefts)
+        bin_lefts = np.linspace(x.min(), x.max(), bins)
+        bins_indices = np.digitize(x, bin_lefts)
 
         plot = ax.boxplot(
-            [fe[bins_indices == i] for i in range(bins)],
+            [y[bins_indices == i] for i in range(bins)],
             **pargs
         )
 
@@ -106,8 +93,6 @@ def fractional_error(
         ax.set_xticklabels([f"{center:.1f}" for center in bin_centers])
     else:
         raise ValueError(f"Unknown plot type {ptype}!")
-
-    ax.set_ylabel("fractional error [%]")
 
     return ax, plot
 
