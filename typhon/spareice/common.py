@@ -6,15 +6,26 @@ except ImportError:
 
 import numpy as np
 from scipy import stats
-from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.svm import SVR
 from typhon.spareice.array import GroupedArrays
 from typhon.spareice.datasets import Dataset, DataSlider
+import xarray as xr
 
 __all__ = [
     'Retriever',
 ]
+
+
+class NotTrainedError(Exception):
+    """Should be raised if someone runs a non-trained retriever
+    """
+    def __init__(self, *args):
+        message = "You must train this retriever before running it!"
+        Exception.__init__(self, message, *args)
 
 
 class Retriever:
@@ -24,15 +35,16 @@ class Retriever:
 
     def __init__(
             self, parameter=None, parameters_file=None, estimator=None,
-            trainer=None, scaler=None):
+            trainer=None, ):
         """Initialize a Retriever object
 
         Args:
             parameter: A dictionary with training parameters.
             parameters_file: Name of file with previously stored training
                 parameters.
-            estimator: Object that will be used for producing the
-                retrieval.
+            estimator: Object that will be used for predicting the
+                retrieval. This object can be a sklearn Estimator or Pipeline
+                object.
             trainer: Object that will be used to train and to find the best
                 retrieval estimator. Default is a GridSearchCV with a
                 MLPRegressor.
@@ -52,53 +64,90 @@ class Retriever:
         # The trainer and/or model for this retriever:
         self.estimator = estimator
         self.trainer = trainer
-        self.scaler = scaler
 
         if parameters_file is not None:
             self.load_parameters(parameters_file)
 
-    @staticmethod
-    def _default_estimator():
-        return MLPRegressor(
-            max_iter=2000,
-        )
+    def _convert_data(self, data):
+        # We are running SPARE-ICE only with GroupedArrays:
+        if isinstance(data, dict):
+            return GroupedArrays.from_dict(data)
+        elif isinstance(data, xr.Dataset):
+            return GroupedArrays.from_xarray(data)
+        elif isinstance(data, GroupedArrays):
+            return data
+
+        raise ValueError(f"Unknown data type {type(data)}!")
 
     @staticmethod
-    def _default_scaler():
-        return MinMaxScaler(
-            feature_range=[0, 1]
+    def _default_estimator(estimator):
+        """Return the default estimator"""
+
+        # Estimators are normally objects that have a fit and predict method
+        # (e.g. MLPRegressor from sklearn). To make their training easier we
+        # scale the input data in advance. With Pipeline objects from sklearn
+        # we can combine such steps easily since they pretend to be estimator
+        # objects as well.
+        if estimator is None or estimator.lower() == "nn":
+            estimator = MLPRegressor(max_iter=2000)
+        elif estimator.lower() == "svr":
+            estimator = SVR(kernel="rbf")
+        else:
+            raise ValueError(f"Unknown estimator type: {estimator}!")
+
+        return make_pipeline(
+            # SVM or NN work better if we have scaled the data in the first
+            # place. MinMaxScaler is the simplest one. RobustScaler or
+            # StandardScaler could be an alternative.
+            MinMaxScaler(feature_range=[0, 1]),
+            # The "real" estimator:
+            estimator,
         )
 
-    def _default_trainer(self,):
-        # To optimize the results, we try different hyper parameters by
-        # using the default tuner
-        hidden_layer_sizes = [
-            (15, 10, 5,), (15, 10, 3,), (15, 5), (15, 10), (15, 3),
-        ]
-        common = {
-            'activation': ['relu', 'tanh'],
-            'hidden_layer_sizes': hidden_layer_sizes,
-            'random_state': [0, 1, 2, 4, 5, 9],
-            #'alpha': 10.0 ** -np.arange(1, 7),
-        }
-        hyper_parameter = [
-            {   # Hyper parameter for lbfgs solver
-                'solver': ['lbfgs'],
-                **common
-            },
-            # {  # Hyper parameter for adam solver
-            #     'solver': ['adam'],
-            #     'batch_size': [200, 1000],
-            #     'beta_1': [0.95, 0.99],
-            #     'beta_2': [0.95, 0.99],
-            #     **common
-            # },
-        ]
-
-        if self.estimator is None:
-            estimator = self._default_estimator()
+    def _default_trainer(self):
+        """Return the default trainer for the current estimator
+        """
+        if self.estimator is None or isinstance(self.estimator, str):
+            estimator = self._default_estimator(self.estimator)
         else:
             estimator = self.estimator
+
+        # To optimize the results, we try different hyper parameters by
+        # using a grid search
+        if isinstance(self.estimator.steps[-1][1], MLPRegressor):
+            # Hyper parameter for Neural Network
+            hidden_layer_sizes = [
+                (15, 10, 3,), (15, 5, 3, 5), (15, 10), (15, 3),
+            ]
+            common = {
+                'activation': ['relu',],
+                'hidden_layer_sizes': hidden_layer_sizes,
+                'random_state': [0, 1, 2, 4, 5, 9],
+                #'alpha': 10.0 ** -np.arange(1, 7),
+            }
+            hyper_parameter = [
+                {   # Hyper parameter for lbfgs solver
+                    'solver': ['lbfgs'],
+                    **common
+                },
+                # {  # Hyper parameter for adam solver
+                #     'solver': ['adam'],
+                #     'batch_size': [200, 1000],
+                #     'beta_1': [0.95, 0.99],
+                #     'beta_2': [0.95, 0.99],
+                #     **common
+                # },
+            ]
+        elif isinstance(self.estimator.steps[-1][1], SVR):
+            # Hyper parameter for Support Vector Machine
+            hyper_parameter = {
+                "svr__gamma": 10.**np.arange(-3, 2),
+                "svr__C": 10. ** np.arange(-3, 2),
+            }
+        else:
+            raise ValueError(
+                f"No default trainer for {estimator} implemented! Define one "
+                f"by yourself via __init__(*args, ?trainer?).")
 
         return GridSearchCV(
             estimator, hyper_parameter, n_jobs=10,
@@ -125,19 +174,14 @@ class Retriever:
             raise ValueError("No object trained!")
 
         json = {
-            "params": model.get_params(deep=True)
-        }
-        json["coefs"] = {
-            name: getattr(model, name)
-            for name in model.__dir__()
-            if not name.startswith("__") and name.endswith("_")
+            "params": model.get_params(deep=True),
+            "coefs": {
+                name: getattr(model, name)
+                for name in model.__dir__()
+                if not name.startswith("__") and name.endswith("_")
+            }
         }
         return json
-        # return {
-        #     name: #[layer.tolist() for layer in attr]
-        #     if hasattr(attr, "tolist") else attr
-        #     for name, attr in attrs.items()
-        # }
 
     @staticmethod
     def _set_sklearn_coefs(sklearn_obj, coefs):
@@ -176,49 +220,24 @@ class Retriever:
             if scaler is None:
                 raise ValueError("Found no coefficients for scaler!")
 
-            # The data must be scaled before passed to the regressor. Always
-            # the same scaling must be applied.
+
             self.scaler = self._create_model(
                 MinMaxScaler, scaler["params"], scaler["coefs"],
             )
 
             self.parameter.update(parameter)
 
-    @staticmethod
-    def calc_mfe(retrieved, real):
-        """Calculate the median fraction error
-
-        Args:
-            retrieved: The retrieved data.
-            real: The real data that should have been retrieved.
-
-        Returns:
-            Median fraction error and bin edges
-        """
-        fe = np.abs(np.exp(np.log(retrieved / real))) - 1
-        mfe, bin_edges, _ = stats.binned_statistic(
-            np.log10(real),
-            values=fe, statistic="median", bins=20
-        )
-        return mfe, bin_edges
-
-    def predict(self, data_matrix, scale=True):
-        if scale:
-            # Scale the input data:
-            data_matrix = self.scaler.transform(data_matrix)
-
-        # Retrieve the data from the neural network.
-        return self.estimator.predict(data_matrix)
-
-    def run(self, sources, inputs, extra_fields=None, cleaner=None):
+    def run(self, data, inputs=None, extra_fields=None, cleaner=None):
         """Predict the target values for data coming from arrays
 
         Args:
-            sources: Sources where the data come from. Must be a dict of
-                dict-like objects (such as xarray.Dataset) with numpy arrays.
+            data: Source where the data come from. Can be a dictionary of
+                numpy arrays, a xarray.Dataset or a GroupedArrays object.
             inputs: A dictionary of input field names. The keys must be the
                 same labels as used in :meth:`train`. The values are the field
-                names in the original data coming from *sources*.
+                names in the original data coming from *data*. If not given,
+                the same input field names are taken as during training with
+                :meth:`train` (or were loaded from a parameter file).
             extra_fields: Extra fields that should be copied to output. If you
                 want to save the output to a Dataset, this must contain a
                 *time* field.
@@ -237,19 +256,15 @@ class Retriever:
             # TODO
         """
 
-        if not isinstance(sources, dict):
-            raise ValueError("Only a dictionary of arrays is allowed!")
+        if self.estimator is None:
+            raise NotTrainedError()
 
-        # We running SPARE-ICE only on arrays:
-        data = GroupedArrays.from_dict(sources)
+        data = self._convert_data(data)
 
         if callable(cleaner):
             data = data[cleaner(data)]
 
-        input_data = np.asmatrix([
-            data[field]
-            for _, field in sorted(inputs.items())
-        ]).T
+        input_data = self._get_inputs(data, inputs)
 
         # Skip to small datasets
         if not input_data.any():
@@ -257,7 +272,7 @@ class Retriever:
             return None
 
         # Retrieve the data from the neural network:
-        output_data = self.predict(input_data)
+        output_data = self.estimator.predict(input_data)
 
         if len(self.parameter["targets"]) == 1:
             retrieved_data = GroupedArrays()
@@ -275,12 +290,12 @@ class Retriever:
 
         return retrieved_data
 
-    def run_datasets(self, sources, start=None, end=None, output=None,
+    def run_datasets(self, datasets, start=None, end=None, output=None,
                      inputs=None, extra_fields=None, cleaner=None):
         """Predict the target values for data coming from datasets
 
         Args:
-            sources: List of Dataset objects.
+            datasets: List of Dataset objects.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
@@ -290,7 +305,7 @@ class Retriever:
                 be returned as one object.
             inputs: A dictionary of input field names. The keys must be the
                 same labels as used in :meth:`train`. The values are the field
-                names in the original data coming from *sources*.
+                names in the original data coming from *datasets*.
             extra_fields: Extra fields that should be copied to output. If you
                 want to save the output to a Dataset, this must contain a
                 *time* field.
@@ -303,6 +318,9 @@ class Retriever:
             data.
         """
 
+        if self.estimator is None:
+            raise NotTrainedError()
+
         if output is None or isinstance(output, Dataset):
             pass
         elif isinstance(output, str):
@@ -313,8 +331,8 @@ class Retriever:
 
         results = []
 
-        # Slide through all input sources and apply the regression on them
-        for files, data in DataSlider(start, end, *sources):
+        # Slide through all input data and apply the regression on them
+        for files, data in DataSlider(start, end, *datasets):
             retrieved_data = self.run(data, inputs, extra_fields, cleaner)
 
             if retrieved_data is None:
@@ -339,11 +357,12 @@ class Retriever:
         """ Saves the training parameters as a JSON file.
 
         Training parameters are:
-            - weights of the neural networks (classifier and regressor)
-            - names of the input, output, and target fields
+            * configuration of the used estimator
+            * configuration of the used scaler
+            * names of the input, output, and target fields
 
         Args:
-            filename: The name of file where to store the training
+            filename: The name of the file where to store the training
                 parameters.
 
         Returns:
@@ -358,51 +377,75 @@ class Retriever:
         with open(filename, 'w') as outfile:
             json_tricks.dump(parameter, outfile)
 
-    def score(self, inputs, targets, metric=None,):
-        return self.trainer.score(inputs, targets)
+    def score(self, data, inputs=None, targets=None, metric=None):
+        """
 
-    def train(self, sources, inputs, targets, cleaner=None, test_size=None,
-              verbose=0):
+        Args:
+            data:
+            inputs:
+            targets:
+            metric
+
+        Returns:
+            The metric score as a number
+        """
+        if self.estimator is None:
+            raise NotTrainedError()
+
+        data = self._convert_data(data)
+
+        input_data = self._get_inputs(data, inputs)
+        target_data = self._get_targets(data, targets)
+
+        return self.estimator.score(input_data, target_data)
+
+    def train(self, data, inputs, targets, cleaner=None, verbose=0):
         """Train this retriever with data from arrays
 
         Args:
-            sources: Sources where the data come from. Must be a dictionary of
+            data: Sources where the data come from. Must be a dictionary of
                 dict-like objects (such as xarray.Dataset) with numpy arrays.
             inputs: A dictionary of input field names. The keys are labels of
                 the input fields. The values are the field names in the
-                original data coming from *sources*.
+                original data coming from *data*.
             targets: A dictionary of target field names. The keys are labels of
                 the target fields. The values are the field names in the
-                original data coming from *sources*.
+                original data coming from *data*.
             cleaner: A filter function that can be used to clean the training
                 data.
-            test_size: Fraction of the data should be used for testing not
-                training.
             verbose: Level of verbosity (=number of debug messages). Default is
                 0.
 
         Returns:
-            The data from *sources* split into training input, testing input,
+            The data from *data* split into training input, testing input,
             training target and testing target.
         """
+
+        if not isinstance(inputs, dict):
+            raise ValueError("inputs must be a dictionary of field names")
+        if not isinstance(targets, dict):
+            raise ValueError("targets must be a dictionary of field names")
+
+        data = self._convert_data(data)
 
         if self.trainer is None:
             self.trainer = self._default_trainer()
 
         # The input and target labels will be saved because they can be used in
-        # run as well.
+        # other methods as well.
         self.parameter["inputs"] = inputs
         self.parameter["targets"] = targets
 
-        if isinstance(sources, dict):
-            data = GroupedArrays.from_dict(sources)
-        else:
-            raise ValueError("Only a dictionary of arrays is allowed!")
+        # Apply the cleaner if there is one
+        if callable(cleaner):
+            data = data[cleaner(data)]
 
-        train_input, test_input, train_target, test_target = \
-            self._prepare_training_data(
-                data, inputs, targets, cleaner, test_size
-            )
+        train_input = self._get_inputs(data, inputs, fit_scaler=True)
+        train_target = self._get_targets(data, targets)
+
+        # Skip too small datasets
+        if train_input.shape[0] < 2 or train_target.shape[0] < 2:
+            raise ValueError("Not enough data for training!")
 
         # Unleash the trainer
         self.trainer.verbose = verbose
@@ -411,37 +454,38 @@ class Retriever:
         # Use the best estimator from now on:
         self.estimator = self.trainer.best_estimator_
 
-        if verbose:
-            print()
+        return self.trainer.score(train_input, train_target)
 
-        return (
-            train_input, test_input, train_target, test_target
-        )
+    def _get_inputs(self, data, fields, fit_scaler=False):
 
-    def _prepare_training_data(
-            self, data, inputs, targets, cleaner, test_size):
-        # Apply the cleaner if there is one
-        if callable(cleaner):
-            data = data[cleaner(data)]
+        if fields is None:
+            fields = self.parameter["inputs"]
 
-        # Prepare the input and target data:
+        # Prepare the input data (we need the original order):
         input_data = np.asmatrix([
             data[field]
-            for _, field in sorted(inputs.items())
+            for _, field in sorted(fields.items())
         ]).T
-        target_data = np.asmatrix([
-            data[field]
-            for _, field in sorted(targets.items())
-        ]).T
-
-        # Skip too small datasets
-        if input_data.shape[0] < 2 or target_data.shape[0] < 2:
-            raise ValueError("Not enough data for training!")
 
         # We apply a scaler on the data.
-        self.scaler = self._default_scaler()
-        input_data = self.scaler.fit_transform(input_data)
+        if fit_scaler:
+            self.scaler = self._default_scaler()
+            input_data = self.scaler.fit_transform(input_data)
+        else:
+            input_data = self.scaler.transform(input_data)
 
-        return train_test_split(input_data, target_data, test_size=test_size,
-                                shuffle=True)
+        return input_data
+
+    def _get_targets(self, data, fields):
+
+        if fields is None:
+            fields = self.parameter["targets"]
+
+        # Prepare the target data:
+        target_data = np.asmatrix([
+            data[field]
+            for _, field in sorted(fields.items())
+        ]).T
+
+        return target_data
 
