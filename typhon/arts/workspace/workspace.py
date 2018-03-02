@@ -166,20 +166,26 @@ class Workspace:
 
 
     """
-    def __init__(self):
+    def __init__(self, verbosity=1, agenda_verbosity=0):
         """
         The init function just creates an instance of the ArtsWorkspace class of the
         C API and sets the ptr attributed to the returned handle.
 
         It also adds all workspace methods as attributes to the object.
+
+        Parameters:
+            verbosity (int): Verbosity level (0-3), 1 by default
+            agenda_verbosity (int): Verbosity level for agendas (0-3),
+                                    0 by default
         """
 
         self.__dict__["_vars"] = dict()
-        self.ptr     = arts_api.create_workspace()
+        self.ptr = arts_api.create_workspace(verbosity, agenda_verbosity)
         self.workspace_size = arts_api.get_number_of_variables()
         for name in workspace_methods:
             m = workspace_methods[name]
             setattr(self, m.name, WSMCall(self, m))
+        self.verbosityInit()
 
     def __del__(self):
         """

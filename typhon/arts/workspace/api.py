@@ -32,7 +32,7 @@ from typhon.environment import environ
 
 arts_minimum_major    = 2
 arts_minimum_minor    = 3
-arts_minimum_revision = 898
+arts_minimum_revision = 973
 
 ################################################################################
 # Load ARTS C API
@@ -278,7 +278,7 @@ def variable_value_factory(value):
 ################################################################################
 
 # Create ArtsWorkspace and return handle.
-arts_api.create_workspace.argtypes = None
+arts_api.create_workspace.argtypes = [c.c_long, c.c_long]
 arts_api.create_workspace.restype  = c.c_void_p
 
 # Destroy ArtsWorkspace instance from handle.
