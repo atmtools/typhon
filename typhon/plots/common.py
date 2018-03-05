@@ -241,14 +241,20 @@ def sorted_legend_handles_labels(ax=None, key=None, reverse=True):
 
     Parameters:
         ax: Matplotlib axis.
-        key (Callable): Function that takes :class:`Line2D` object, e.g.
-            >>> sorted_legend_handles_labels(
-            ...     key=lambda line: numpy.max(line.get_ydata()))
+        key (Callable): Function that takes :class:`~matplotlib.lines.Line2D`
+                        object. See example below.
         reverse (bool): Default: True
 
     Returns:
         Tuple(handles, labels): Sorted legend handles and labels
 
+    Example:
+        >>> # Sort by maximum y value
+        >>> ax.legend(*sorted_legend_handles_labels())
+
+        >>> # Sort by minimum y value
+        >>> ax.legend(*sorted_legend_handles_labels(
+        ...           key=lambda line: numpy.min(line.get_ydata())))
     """
     if ax is None:
         ax = plt.gca()
