@@ -175,6 +175,17 @@ class TestGriddedFieldUsage:
         with pytest.raises(TypeError):
             gf1.get(0)
 
+    def test_set(self):
+        """Test the set method for named fields."""
+        gf1 = griddedfield.GriddedField1(
+            grids=[['zero', 'one']],
+            data=np.array([0, 0]),
+        )
+
+        gf1.set('one', 1)
+
+        assert gf1.data[1] == np.array([1])
+
 
 class TestGriddedFieldLoad:
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")

@@ -391,10 +391,11 @@ class GriddedField(object):
         return self
 
     def get(self, key, default=None, keep_dims=True):
-        """Return field with given name.
+        """Return data from field with given fieldname.
 
         Notes:
-              This method only works, if the first grid is an "ArrayOfString".
+              This method only works, if the first grid
+              is an :arts:`ArrayOfString`.
 
         Parameters:
               key (str): Name of the field to extract.
@@ -421,6 +422,23 @@ class GriddedField(object):
 
         # Squeeze empty dimensions, if ``keep_dims`` is ``False``.
         return field if keep_dims else field.squeeze()
+
+    def set(self, key, data):
+        """Assign data to field with given fieldname.
+
+        Notes:
+              This method only works, if the first grid
+              is an :arts:`ArrayOfString`.
+
+        Parameters:
+              key (str): Name of the field to extract.
+              data (ndarray): Data array.
+        """
+        if not get_arts_typename(self.grids[0]) == 'ArrayOfString':
+            raise TypeError(
+                'Method only works, if the first grid is an "ArrayOfString"')
+
+        self.data[[self.grids[0].index(key)]] = data
 
     def to_dict(self):
         """Convert GriddedField to dictionary.
