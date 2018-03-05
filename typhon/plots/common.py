@@ -7,11 +7,9 @@ import itertools
 import os
 import string
 
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 from typhon import constants
-
 
 __all__ = [
     'center_colorbar',
@@ -21,6 +19,7 @@ __all__ = [
     'get_subplot_arrangement',
     'label_axes',
     'supcolorbar',
+    'sorted_legend_handles_labels',
 ]
 
 
@@ -233,3 +232,35 @@ def supcolorbar(mappable, fig=None, right=0.8, rect=(0.85, 0.15, 0.05, 0.7),
     cbar_ax = fig.add_axes(rect)
 
     return fig.colorbar(mappable, cax=cbar_ax, **kwargs)
+
+
+def sorted_legend_handles_labels(ax=None, key=None, reverse=True):
+    """Sort legend labels and handles.
+
+    Returns legend handles and labels in descending order of y data peak values.
+
+    Parameters:
+        ax: Matplotlib axis.
+        key (Callable): Function that takes :class:`Line2D` object, e.g.
+            >>> sorted_legend_handles_labels(
+            ...     key=lambda line: numpy.max(line.get_ydata()))
+        reverse (bool): Default: True
+
+    Returns:
+        Tuple(handles, labels): Sorted legend handles and labels
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    if key is None:
+        def key(line):
+            return np.max(line.get_ydata())
+
+    # Sort legend entries by their cross section peak values
+    return zip(*((h, l) for _, h, l in
+                 sorted(
+                     zip([key(h) for h in
+                          ax.get_legend_handles_labels()[0]],
+                         *ax.get_legend_handles_labels()),
+                     reverse=reverse)))
