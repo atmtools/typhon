@@ -33,6 +33,7 @@ plots
    profile_p_log
    profile_z
    scatter_density_plot_matrix
+   sorted_legend_handles_labels
    styles
    supcolorbar
 
