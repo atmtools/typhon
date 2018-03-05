@@ -237,7 +237,8 @@ def supcolorbar(mappable, fig=None, right=0.8, rect=(0.85, 0.15, 0.05, 0.7),
 def sorted_legend_handles_labels(ax=None, key=None, reverse=True):
     """Sort legend labels and handles.
 
-    Returns legend handles and labels in descending order of y data peak values.
+    Returns legend handles and labels in descending order of y data peak
+    values.
 
     Parameters:
         ax: Matplotlib axis.
@@ -254,7 +255,7 @@ def sorted_legend_handles_labels(ax=None, key=None, reverse=True):
 
         >>> # Sort by minimum y value
         >>> ax.legend(*sorted_legend_handles_labels(
-        ...           key=lambda line: numpy.min(line.get_ydata())))
+        ...           key=lambda line: np.min(line.get_ydata())))
     """
     if ax is None:
         ax = plt.gca()
