@@ -8,8 +8,8 @@ import pytest
 from typhon import arts
 
 
-class TestPlots:
-    """Testing the plot functions."""
+class TestARTS:
+    """Testing the ARTS utility functions."""
     @pytest.mark.skipif(not shutil.which('arts'), reason='arts not in PATH')
     def test_run_arts(self):
         """Test ARTS system call.
