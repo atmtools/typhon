@@ -175,6 +175,32 @@ class TestGriddedFieldUsage:
         with pytest.raises(TypeError):
             gf1.get(0)
 
+    def test_scaling(self):
+        """Test the scaling of data in named fields."""
+        gf1 = griddedfield.GriddedField1(
+            grids=[['first_field', 'second_field']],
+            data=np.array([1., 1.]),
+        )
+
+        gf1.scale('second_field', 0.1)
+
+        # Check if values if *only* values of the second fields are scaled.
+        assert gf1.data[0] == np.array([1])
+        assert gf1.data[1] == np.array([0.1])
+
+    def test_integer_scaling(self):
+        """Test the scaling of integer data in named fields."""
+        gf1 = griddedfield.GriddedField1(
+            grids=[['first_field', 'second_field']],
+            data=np.array([1, 1]),
+        )
+
+        gf1.scale('second_field', 0.1)
+
+        # Check if values if *only* values of the second fields are scaled.
+        assert gf1.data[0] == np.array([1])
+        assert gf1.data[1] == np.array([0.1])
+
     def test_set(self):
         """Test the set method for named fields."""
         gf1 = griddedfield.GriddedField1(
