@@ -8,8 +8,6 @@ arts
 .. autosummary::
    :toctree: generated
 
-   atm_fields_compact_get
-   atm_fields_compact_update
    run_arts
 
 arts.catalogues

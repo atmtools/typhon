@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import copy
+import numbers
 
 import numpy as np
 from scipy import interpolate
@@ -391,10 +392,11 @@ class GriddedField(object):
         return self
 
     def get(self, key, default=None, keep_dims=True):
-        """Return field with given name.
+        """Return data from field with given fieldname.
 
         Notes:
-              This method only works, if the first grid is an "ArrayOfString".
+              This method only works, if the first grid
+              is an :arts:`ArrayOfString`.
 
         Parameters:
               key (str): Name of the field to extract.
@@ -421,6 +423,45 @@ class GriddedField(object):
 
         # Squeeze empty dimensions, if ``keep_dims`` is ``False``.
         return field if keep_dims else field.squeeze()
+
+    def set(self, key, data):
+        """Assign data to field with given fieldname.
+
+        Notes:
+              This method only works, if the first grid
+              is an :arts:`ArrayOfString`.
+
+        Parameters:
+              key (str): Name of the field to extract.
+              data (ndarray): Data array.
+        """
+        if not get_arts_typename(self.grids[0]) == 'ArrayOfString':
+            raise TypeError(
+                'Method only works, if the first grid is an "ArrayOfString"')
+
+        self.data[[self.grids[0].index(key)]] = data
+
+    def scale(self, key, factor, dtype=float):
+        """Scale data stored in field with given fieldname.
+
+        Notes:
+              This method only works, if the first grid
+              is an :arts:`ArrayOfString`.
+
+        Parameters:
+              key (str): Name of the field to scale.
+              data (float or ndarray): Scale factor.
+              dtype (type): Data type used for typecasting. If the original
+                dtype of ``GriddedField.data`` is ``int``, the data array
+                gets typecasted to prevent messy behaviour when assigning
+                scaled values.
+        """
+        if issubclass(self.data.dtype.type, numbers.Integral):
+            # Typecast integer data arrays to prevent unwanted typecast when
+            # assigning scaled (float) variables back to the (integer) ndarray.
+            self.data = self.data.astype(dtype)
+
+        self.set(key, self.get(key) * factor)
 
     def to_dict(self):
         """Convert GriddedField to dictionary.
