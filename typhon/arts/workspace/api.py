@@ -50,7 +50,7 @@ try:
 except:
     raise EnvironmentError("Could not find ARTS API in your ARTS build path. "
                            "Did you install it?" + os.linesep +
-                           "Typhon requires ARTS version "
+                           "Typhon requires at least ARTS version "
                            f"{arts_minimum_major}.{arts_minimum_minor}."
                            f"{arts_minimum_revision}")
 
