@@ -2,7 +2,6 @@ import abc
 import logging
 import time
 
-
 import numpy as np
 from scipy.spatial import distance_matrix
 from sklearn.neighbors import BallTree as SklearnBallTree
@@ -62,10 +61,30 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
 
 
 class BallTree(CollocationsFinder):
-    def __init__(self, leaf_size=None):
+    def __init__(self, leaf_size=None, tunnel_limit=None):
+        """Initialize a CollocationsFinder with a BallTree algorithm
+
+        Args:
+            leaf_size: Number of points at which to switch to brute-force.
+                Default is 16. Look here for more details:
+                http://scikit-learn.org/stable/modules/generated/sklearn.neighbors.BallTree.html
+            tunnel_limit: Maximum distance in kilometers at which to switch
+                from tunnel to haversine distance metric. Per default this
+                algorithm uses the tunnel metric, which simply transform all
+                latitudes and longitudes to 3D-cartesian space and calculate
+                their euclidean distance. This produces an error that grows
+                with larger distances. When searching for distances exceeding
+                this limit (`max_distance` is greater than this parameter), the
+                haversine metric is used, which is more accurate but takes more
+                time. Default is 1000 kilometers.
+        """
         super(BallTree, self).__init__()
 
         self.leaf_size = 16 if leaf_size is None else leaf_size
+        if tunnel_limit is None:
+            self.tunnel_limit = 1000
+        else:
+            self.tunnel_limit = tunnel_limit
 
     def find_collocations(
         self, primary_data, secondary_data, max_interval, max_distance,
@@ -74,6 +93,14 @@ class BallTree(CollocationsFinder):
 
         if max_interval is not None:
             max_interval = to_timedelta(max_interval)
+
+        # We can use different metrics for the BallTree. The default euclidean
+        # metric is the fastest but produces a big error for large distances.
+        # We have to convert also all data to 3D-cartesian coordinates.
+        # The users can define a spatial limit for the euclidean metric. If
+        # they set a maximum distance greater than this limit, the haversine
+        # metric will be used, which is more correct.
+        ball_tree_kwargs = {}
 
         if max_distance is None:
             # Search for temporal collocations only
@@ -93,18 +120,38 @@ class BallTree(CollocationsFinder):
             )
 
             max_radius = max_interval.total_seconds()
+        elif self.tunnel_limit is not None \
+                and max_distance > self.tunnel_limit:
+            # Use the more expensive and accurate haversine metric
+            ball_tree_kwargs["metric"] = "haversine"
+
+            # We need the latitudes and longitudes in radians:
+            primary_points = np.radians(
+                np.column_stack([primary_data["lat"], primary_data["lon"]])
+            )
+            secondary_points = np.radians(
+                np.column_stack([secondary_data["lat"], secondary_data["lon"]])
+            )
+
+            # The parameter max_distance is in kilometers, so we have to
+            # convert it to meters. The calculated distances by the haversine
+            # metrics are on an unity sphere:
+            max_radius = max_distance * 1000 / typhon.constants.earth_radius
         else:
+            # Use the default and cheap tunnel metric
+
             # We try to find collocations by building one 3-d Ball tree
             # (see https://en.wikipedia.org/wiki/K-d_tree) and searching for
             # the nearest neighbours. Since a ball tree cannot handle latitude/
             # longitude data, we have to convert them to 3D-cartesian
             # coordinates. This introduces an error of the distance calculation
-            # since it is now the distance in a 3D euclidean space and not the
+            # since it is now the distance through a tunnel and not the
             # distance along the sphere any longer. However, when having two
-            # points with a distance of 5 degrees in longitude, the error is
-            # smaller than 177 meters.
+            # points with a distance of 10 degrees in longitude (ca. 1113 km)
+            # at the equator, the error is roughly 1.5 kilometers. So it is
+            # okay for small distances.
             cart_points = geocentric2cart(
-                6371000.0, # typhon.constants.earth_radius,
+                typhon.constants.earth_radius,
                 primary_data["lat"],
                 primary_data["lon"]
             )
@@ -112,7 +159,7 @@ class BallTree(CollocationsFinder):
 
             # We need to convert the secondary data as well:
             cart_points = geocentric2cart(
-                6371000.0, # typhon.constants.earth_radius,
+                typhon.constants.earth_radius,
                 secondary_data["lat"],
                 secondary_data["lon"]
             )
@@ -120,14 +167,16 @@ class BallTree(CollocationsFinder):
 
             # The parameter max_distance is in kilometers, so we have to
             # convert it to meters.
-            max_radius = max_distance*1000
+            max_radius = max_distance * 1000
 
         # It is more efficient to build the tree with the largest data corpus:
         tree_with_primary = primary_points.size > secondary_points.size
 
         # Search for all collocations
         if tree_with_primary:
-            tree = SklearnBallTree(primary_points, leaf_size=self.leaf_size)
+            tree = SklearnBallTree(
+                primary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            )
             results = tree.query_radius(secondary_points, r=max_radius)
 
             # Build the list of the collocation pairs:
@@ -137,7 +186,9 @@ class BallTree(CollocationsFinder):
                 for primary_index in primary_indices
             ]).T
         else:
-            tree = SklearnBallTree(secondary_points, leaf_size=self.leaf_size)
+            tree = SklearnBallTree(
+                secondary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            )
             results = tree.query_radius(primary_points, r=max_radius)
 
             # Build the list of the collocation pairs:
