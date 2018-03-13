@@ -1,9 +1,11 @@
+import copy
 import datetime
 from os.path import dirname, join
 
 import numpy as np
+from typhon.spareice import GroupedArrays
 from typhon.spareice.datasets import Dataset, DatasetManager
-from typhon.spareice.handlers import FileHandler, FileInfo, NetCDF4
+from typhon.spareice.handlers import FileHandler, FileInfo
 
 
 class TestDataset:
@@ -22,11 +24,9 @@ class TestDataset:
             join(
                 self.refdir,
                 "tutorial_datasets/{satellite}/{year}/{month}/{day}/{hour}"
-                "{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
-                ".{compression}"  # noqa
+                "{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
             ),
             name="tutorial",
-            handler=NetCDF4(),
         )
 
         self.datasets += Dataset(
@@ -113,56 +113,92 @@ class TestDataset:
                 self.refdir,
                 "tutorial_datasets/{satellite}/*/*/*/*.nc.gz"
             ),
+            placeholder={"satellite": 'SatelliteA'},
         )
+
+        self._print_files(list(files))
 
         # Sort this after paths rather than times (because the times are all
         # equal)
         check = list(sorted([
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/02/180000-000000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/02/000000-060000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/02/120000-180000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/02/060000-120000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/01/180000-000000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/01/000000-060000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/01/120000-180000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/01/060000-120000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
-            FileInfo(join(self.refdir,
-                          'tutorial_datasets/SatelliteB/2018/01/03/000000-060000.nc.gz'),  # noqa
-                     [datetime.datetime(1, 1, 1, 0, 0),
-                      datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                     {'satellite': 'SatelliteB'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/03/000000-040000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/200000-000000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/120000-160000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/080000-120000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/160000-200000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/040000-080000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/02/000000-040000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/200000-000000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/120000-160000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/080000-120000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/160000-200000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/040000-080000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteA/2018/01/01/000000-040000.nc.gz'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
         ], key=lambda x: x.path))
 
         assert list(sorted(files, key=lambda x: x.path)) == check
@@ -177,21 +213,21 @@ class TestDataset:
         filters = {"satellite": "SatelliteB"}
         result = datasets["tutorial"]["2018-01-01 03:00", filters]
 
+        print(repr(result["time"].astype("M8[s]")))
+
         check = np.array(
-          ['2018-01-01T00:00:00', '2018-01-01T00:09:13', '2018-01-01T00:18:27',
-           '2018-01-01T00:27:41', '2018-01-01T00:36:55', '2018-01-01T00:46:09',
-           '2018-01-01T00:55:23', '2018-01-01T01:04:36', '2018-01-01T01:13:50',
-           '2018-01-01T01:23:04', '2018-01-01T01:32:18', '2018-01-01T01:41:32',
-           '2018-01-01T01:50:46', '2018-01-01T01:59:59', '2018-01-01T02:09:13',
-           '2018-01-01T02:18:27', '2018-01-01T02:27:41', '2018-01-01T02:36:55',
-           '2018-01-01T02:46:09', '2018-01-01T02:55:23', '2018-01-01T03:04:36',
-           '2018-01-01T03:13:50', '2018-01-01T03:23:04', '2018-01-01T03:32:18',
-           '2018-01-01T03:41:32', '2018-01-01T03:50:46', '2018-01-01T03:59:59',
-           '2018-01-01T04:09:13', '2018-01-01T04:18:27', '2018-01-01T04:27:41',
-           '2018-01-01T04:36:55', '2018-01-01T04:46:09', '2018-01-01T04:55:23',
-           '2018-01-01T05:04:36', '2018-01-01T05:13:50', '2018-01-01T05:23:04',
-           '2018-01-01T05:32:18', '2018-01-01T05:41:32', '2018-01-01T05:50:46',
-           '2018-01-01T05:59:59'], dtype="M8[s]")
+            ['2018-01-01T00:00:00', '2018-01-01T00:20:00',
+               '2018-01-01T00:40:00',
+               '2018-01-01T01:00:00', '2018-01-01T01:20:00',
+               '2018-01-01T01:40:00',
+               '2018-01-01T02:00:00', '2018-01-01T02:20:00',
+               '2018-01-01T02:40:00',
+               '2018-01-01T03:00:00', '2018-01-01T03:20:00',
+               '2018-01-01T03:40:00',
+               '2018-01-01T04:00:00', '2018-01-01T04:20:00',
+               '2018-01-01T04:40:00'
+             ], dtype='datetime64[s]'
+        )
 
         assert np.allclose(
             result["time"].astype("M8[s]").astype("int"),
@@ -214,20 +250,21 @@ class TestDataset:
             ))
         assert not empty
 
-        # Find the closest file to 2018-01-01
+        # Find the closest file to 2018-01-01, limited to SatelliteB
+        # temporarily:
         found_file = datasets["tutorial"].find_closest(
             "2018-01-01 03:00", filters={
                 "!satellite": ("SatelliteA", "SatelliteC")
             }
         )
 
-        # Limit this to SatelliteB
-        refdir = join(self.refdir, "tutorial_datasets/SatelliteB")
+        #print("closest check", self._repr_file_info(found_file))
 
         check = FileInfo(
-            join(refdir, '2018/01/01/000000-060000.nc.gz'),
+            join(self.refdir,
+                 'tutorial_datasets/SatelliteB/2018/01/01/000000-050000.nc.gz'),  # noqa
             [datetime.datetime(2018, 1, 1, 0, 0),
-             datetime.datetime(2018, 1, 1, 6, 0)], {})
+             datetime.datetime(2018, 1, 1, 5, 0)], {'satellite': 'SatelliteB'})
 
         assert found_file == check
 
@@ -242,24 +279,40 @@ class TestDataset:
                 "2018-01-01", "2018-01-02",
             ))
 
-        check = [
-            FileInfo(join(refdir,
-                          '2018/01/01/000000-060000.nc.gz'),
-                     [datetime.datetime(2018, 1, 1, 0, 0),
-                      datetime.datetime(2018, 1, 1, 6, 0)], {}),
-            FileInfo(join(refdir,
-                          '2018/01/01/060000-120000.nc.gz'),
-                     [datetime.datetime(2018, 1, 1, 6, 0),
-                      datetime.datetime(2018, 1, 1, 12, 0)], {}),
-            FileInfo(join(refdir,
-                          '2018/01/01/120000-180000.nc.gz'),
-                     [datetime.datetime(2018, 1, 1, 12, 0),
-                      datetime.datetime(2018, 1, 1, 18, 0)], {}),
-            FileInfo(join(refdir,
-                          '2018/01/01/180000-000000.nc.gz'),
-                     [datetime.datetime(2018, 1, 1, 18, 0),
-                      datetime.datetime(2018, 1, 2, 0, 0)], {}),
+        #print("four files:")
+        # self._print_files(found_files)
 
+        check = [
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteB/2018/01/01/000000-050000.nc.gz'),  # noqa
+                [datetime.datetime(2018, 1, 1, 0, 0),
+                 datetime.datetime(2018, 1, 1, 5, 0)],
+                {'satellite': 'SatelliteB'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteB/2018/01/01/050000-100000.nc.gz'),  # noqa
+                [datetime.datetime(2018, 1, 1, 5, 0),
+                 datetime.datetime(2018, 1, 1, 10, 0)],
+                {'satellite': 'SatelliteB'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteB/2018/01/01/100000-150000.nc.gz'),  # noqa
+                [datetime.datetime(2018, 1, 1, 10, 0),
+                 datetime.datetime(2018, 1, 1, 15, 0)],
+                {'satellite': 'SatelliteB'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteB/2018/01/01/150000-200000.nc.gz'),  # noqa
+                [datetime.datetime(2018, 1, 1, 15, 0),
+                 datetime.datetime(2018, 1, 1, 20, 0)],
+                {'satellite': 'SatelliteB'}),
+            FileInfo(
+                join(self.refdir,
+                     'tutorial_datasets/SatelliteB/2018/01/01/200000-010000.nc.gz'),
+                [datetime.datetime(2018, 1, 1, 20, 0),
+                 datetime.datetime(2018, 1, 2, 1, 0)],
+                {'satellite': 'SatelliteB'}),
         ]
 
         assert found_files == check
@@ -270,26 +323,43 @@ class TestDataset:
                 "2018-01-01", "2018-01-02", bundle="12h",
             ))
 
+        # print("Bundle 12h:")
+        # self._print_files(found_files)
+
         check = [
             [
-                FileInfo(join(refdir,
-                              '2018/01/01/000000-060000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 0, 0),
-                          datetime.datetime(2018, 1, 1, 6, 0)], {}),
-                FileInfo(join(refdir,
-                              '2018/01/01/060000-120000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 6, 0),
-                          datetime.datetime(2018, 1, 1, 12, 0)], {}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/000000-050000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 0, 0),
+                     datetime.datetime(2018, 1, 1, 5, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/050000-100000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 5, 0),
+                     datetime.datetime(2018, 1, 1, 10, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/100000-150000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 10, 0),
+                     datetime.datetime(2018, 1, 1, 15, 0)],
+                    {'satellite': 'SatelliteB'}),
             ],
             [
-                FileInfo(join(refdir,
-                              '2018/01/01/120000-180000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 12, 0),
-                          datetime.datetime(2018, 1, 1, 18, 0)], {}),
-                FileInfo(join(refdir,
-                              '2018/01/01/180000-000000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 18, 0),
-                          datetime.datetime(2018, 1, 2, 0, 0)], {}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/150000-200000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 15, 0),
+                     datetime.datetime(2018, 1, 1, 20, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/200000-010000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 20, 0),
+                     datetime.datetime(2018, 1, 2, 1, 0)],
+                    {'satellite': 'SatelliteB'}),
             ],
         ]
 
@@ -301,26 +371,43 @@ class TestDataset:
                 "2018-01-01", "2018-01-02", bundle=3,
             ))
 
+        # print("Bundle 3:")
+        # self._print_files(found_files)
+
         check = [
             [
-                FileInfo(join(refdir,
-                              '2018/01/01/000000-060000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 0, 0),
-                          datetime.datetime(2018, 1, 1, 6, 0)], {}),
-                FileInfo(join(refdir,
-                              '2018/01/01/060000-120000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 6, 0),
-                          datetime.datetime(2018, 1, 1, 12, 0)], {}),
-                FileInfo(join(refdir,
-                              '2018/01/01/120000-180000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 12, 0),
-                          datetime.datetime(2018, 1, 1, 18, 0)], {}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/000000-050000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 0, 0),
+                     datetime.datetime(2018, 1, 1, 5, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/050000-100000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 5, 0),
+                     datetime.datetime(2018, 1, 1, 10, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/100000-150000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 10, 0),
+                     datetime.datetime(2018, 1, 1, 15, 0)],
+                    {'satellite': 'SatelliteB'}),
             ],
             [
-                FileInfo(join(refdir,
-                              '2018/01/01/180000-000000.nc.gz'),
-                         [datetime.datetime(2018, 1, 1, 18, 0),
-                          datetime.datetime(2018, 1, 2, 0, 0)], {}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/150000-200000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 15, 0),
+                     datetime.datetime(2018, 1, 1, 20, 0)],
+                    {'satellite': 'SatelliteB'}),
+                FileInfo(
+                    join(self.refdir,
+                         'tutorial_datasets/SatelliteB/2018/01/01/200000-010000.nc.gz'),  # noqa
+                    [datetime.datetime(2018, 1, 1, 20, 0),
+                     datetime.datetime(2018, 1, 2, 1, 0)],
+                    {'satellite': 'SatelliteB'}),
             ],
         ]
 
@@ -332,7 +419,9 @@ class TestDataset:
                 datasets["tutorial"],
                 "2018-01-01", "2018-01-03", func=TestDataset._tutorial_map
             ))
-            check = ['gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz', 'gz']
+            check = ['SatelliteB', 'SatelliteB', 'SatelliteB', 'SatelliteB',
+                     'SatelliteB', 'SatelliteB', 'SatelliteB', 'SatelliteB',
+                     'SatelliteB', 'SatelliteB']
             assert results == check
 
             # Check map method on content
@@ -342,14 +431,16 @@ class TestDataset:
                 func=TestDataset._tutorial_map_content, on_content=True,
             ))
             check = [
-                0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
-                0.25007269785924874, 0.25007269785924874, 0.25007269785924874,
-                0.25007269785924874, 0.25007269785924874]
+                111.66135091826585, 24.349719889475622, -98.44396033014262,
+                -75.61939712708426, 59.89979017827579, 106.83524102009763,
+                -4.1088372856241016, -108.66541799333736, -51.83857552525478,
+                65.91225214963012
+            ]
             assert np.allclose(results, check)
 
     @staticmethod
     def _tutorial_map(file_info):
-        return file_info.attr["compression"]
+        return file_info.attr["satellite"]
 
     @staticmethod
     def _tutorial_map_content(data,):
@@ -364,13 +455,14 @@ class TestDataset:
         )
         found_file = datasets["tutorial"].find_closest("2018-01-03")
 
+        print(self._repr_file_info(found_file))
+
         check = FileInfo(
             join(self.refdir,
-                 'tutorial_datasets/SatelliteA/2018/01/02/210000-020000.nc.zip'
-                 ),
-            [datetime.datetime(2018, 1, 2, 21, 0),
-             datetime.datetime(2018, 1, 3, 2, 0)],
-             {'satellite': 'SatelliteA', 'compression': 'zip'}
+                 'tutorial_datasets/SatelliteA/2018/01/03/000000-040000.nc.gz'),  # noqa
+            [datetime.datetime(2018, 1, 3, 0, 0),
+             datetime.datetime(2018, 1, 3, 4, 0)],
+            {'satellite': 'SatelliteA'}
         )
 
         assert found_file == check
@@ -580,6 +672,42 @@ class TestDataset:
         ]
         assert files == check
 
+    def test_align(self):
+        """Test the align method.
+        """
+        # Find an adequate test
+        return
+
+        datasets = self.init_datasets()
+
+        start, end = "2018-01-01", "2018-01-02"
+        a_dataset = datasets["tutorial"].copy()
+        a_dataset.name = "SatelliteA"
+        a_dataset.set_placeholders(satellite="SatelliteA")
+        a_reference = a_dataset.collect(start, end)
+        b_dataset = datasets["tutorial"].copy()
+        b_dataset.name = "SatelliteB"
+        b_dataset.set_placeholders(satellite="SatelliteB")
+        b_reference = b_dataset.collect(start, end)
+
+        all_data = {}
+        for files, data in a_dataset.align(start, end, [b_dataset]):
+            for dataset in data:
+                if dataset in all_data:
+                    all_data[dataset] = GroupedArrays.concat(
+                        [all_data[dataset], *data[dataset]]
+                    )
+                else:
+                    all_data[dataset] = GroupedArrays.concat(
+                        data[dataset]
+                    )
+
+        a_retrieved = all_data["SatelliteA"]
+        b_retrieved = all_data["SatelliteB"]
+
+        assert a_reference == a_retrieved
+        assert b_reference == b_retrieved
+
     def _print_files(self, files, comma=False):
         print("[")
         for file in files:
@@ -596,7 +724,7 @@ class TestDataset:
     def _repr_file_info(self, file_info):
 
         path = "join(self.refdir, '%s')" % (
-            file_info.path[82:]
+            file_info.path[len(self.refdir)+1:]
         )
 
         return "FileInfo(\n\t{}, \t{}, \t{}),".format(
