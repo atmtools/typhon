@@ -425,12 +425,36 @@ class GroupedArrays:
 
         return False
 
-    def __iter__(self):
-        self._iter_vars = self.vars(deep=True)
-        return self
+    def __eq__(self, other):
+        # Checks only for the variables (not for attributes or dimension names)
+        vars_self = list(sorted(self.vars(deep=True)))
+        vars_other = list(sorted(other.vars(deep=True)))
 
-    def __next__(self):
-        return next(self._iter_vars)
+        if vars_self != vars_other:
+            return False
+
+        for i, var_self in enumerate(vars_self):
+            self_data = self[var_self]
+            other_data = other[vars_other[i]]
+            try:
+                if not np.allclose(self_data, other_data, equal_nan=True):
+                    print(var_self, vars_other[i])
+                    return False
+            except ValueError as err:
+                # Arrays have different shapes
+                print(var_self, vars_other[i])
+                return False
+            except TypeError as err:
+                # Arrays' type might be datetime
+                if self_data.shape != other_data.shape \
+                        or not (self_data == other_data).all():
+                    print(var_self, vars_other[i])
+                    return False
+
+        return True
+
+    def __iter__(self):
+        return self.vars(deep=True)
 
     def __delitem__(self, key):
         var, rest = self.parse(key)
@@ -731,6 +755,9 @@ class GroupedArrays:
             if coord in self[var].dims
         ]
         return list(set(coords))
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     def drop(self, fields, inplace=True):
         """Remove fields from the object.
