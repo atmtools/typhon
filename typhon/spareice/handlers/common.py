@@ -291,6 +291,10 @@ class FileInfo(os.PathLike):
     def __fspath__(self):
         return self.path
 
+    def __hash__(self):
+        # With this we can use this FileInfo object also in a dictionary
+        return hash(self.path)
+
     def __repr__(self):
         if self.attr:
             attr_string = "\n  Attributes:"
