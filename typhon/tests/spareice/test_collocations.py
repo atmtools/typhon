@@ -1,4 +1,6 @@
+from datetime import datetime
 from os.path import dirname, join
+import tempfile
 
 import numpy as np
 from typhon.spareice import collocate, collocate_datasets
@@ -7,7 +9,7 @@ import xarray as xr
 
 
 class TestCollocations:
-    """Testing the dataset methods."""
+    """Testing the collocation functions."""
 
     datasets = None
     refdir = join(dirname(__file__), 'reference')
@@ -74,5 +76,80 @@ class TestCollocations:
         ).tolist() == check_spatial
 
     def test_collocate_datasets(self):
-        # TODO: Implement test for collocate_datasets
         return
+
+        # Collect the data from all datasets and collocate them by once, should
+        # give the same results when using collocate_datasets.
+        a_dataset = Dataset(
+            join(
+                self.refdir,
+                "tutorial_datasets/SatelliteA/{year}/{month}/{day}/{hour}"
+                "{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+            ),
+            name="SatelliteA",
+        )
+        b_dataset = Dataset(
+            join(
+                self.refdir,
+                "tutorial_datasets/SatelliteB/{year}/{month}/{day}/{hour}"
+                "{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+            ),
+            name="SatelliteB",
+        )
+
+        # collocate_datasets creates new files that we do not want to keep.
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # Create the output dataset:
+            ab_collocations = Dataset(
+                path=join(
+                    tmpdirname,
+                    "{year}/{month}/{day}/{hour}{minute}{second}-"
+                    "{end_hour}{end_minute}{end_second}.nc"
+                )
+            )
+
+            self._test_collocate_datasets(
+                a_dataset, b_dataset, ab_collocations
+            )
+
+    @staticmethod
+    def _test_collocate_datasets(a_dataset, b_dataset, ab_collocations):
+
+        start, end = "2018-01-01", datetime(2018, 1, 2)
+
+        # Collected and collocated all at once:
+        a_data_all = a_dataset.collect(start, end)
+        b_data_all = b_dataset.collect(start, end)
+        pairs = collocate([a_data_all, b_data_all], max_interval="4h",
+                          max_distance="300km")
+        a_reference = a_data_all[pairs[0]]
+        b_reference = b_data_all[pairs[1]]
+
+        # Using collocate_datasets
+        collocate_datasets(
+            [a_dataset, b_dataset], start=start, end=end,
+            output=ab_collocations, max_interval="4h", max_distance="300km"
+        )
+
+        a_retrieved, b_retrieved = None, None
+        for data in ab_collocations.icollect(start, end):
+            pairs = data["__collocations/SatelliteA.SatelliteB/pairs"]
+
+            del data["SatelliteA/__file_start"]
+            del data["SatelliteA/__file_end"]
+            del data["SatelliteA/__indices"]
+            del data["SatelliteB/__file_start"]
+            del data["SatelliteB/__file_end"]
+            del data["SatelliteB/__indices"]
+
+            if a_retrieved is None:
+                a_retrieved = data["SatelliteA"][pairs[0]]
+                b_retrieved = data["SatelliteB"][pairs[1]]
+            else:
+                a_retrieved = GroupedArrays.concat(
+                    [a_retrieved, data["SatelliteA"][pairs[0]]])
+                b_retrieved = GroupedArrays.concat(
+                    [b_retrieved, data["SatelliteB"][pairs[1]]])
+
+        assert a_reference == a_retrieved
+        assert b_reference == b_retrieved
