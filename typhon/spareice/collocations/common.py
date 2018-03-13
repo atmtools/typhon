@@ -20,7 +20,7 @@ import pandas as pd
 import scipy.stats
 from typhon.math import cantor_pairing
 from typhon.spareice.array import Array, GroupedArrays
-from typhon.spareice.datasets import Dataset, DataSlider
+from typhon.spareice.datasets import Dataset
 from typhon.utils import split_units
 from typhon.utils.time import to_datetime, to_timedelta
 import xarray as xr
@@ -232,6 +232,7 @@ def expand(data):
 
         #indices = data["__collocations"][]
         expanded_data[group_name] = data[group_name][indices]
+
 
 def _to_kilometers(distance):
     """Convert different length units to kilometers
@@ -682,41 +683,38 @@ def collocate_datasets(
     if verbose:
         print("Retrieve time coverages from files...")
 
-    # We may have collocations that overlap multiple files. Hence, we save in
-    # this cache always the last max_interval minutes from each dataset
-    cache = {}
+    # Get all primary and secondary data that overlaps with each other
+    for files, data in primary.align(start, end, [secondary], max_interval):
+        # This should make it easier to retrieve the original file in
+        # post-processing:
+        data = _add_file_identifiers(datasets, files, data)
 
-    for files, data in DataSlider(start, end, *datasets):
-        primary_start, primary_end = data[primary.name].get_range("time")
+        # Concatenate the data:
+        data[primary.name] = GroupedArrays.concat(data[primary.name])
+        data[secondary.name] = GroupedArrays.concat(data[secondary.name])
 
         if verbose:
-            _collocating_status(
-                primary, secondary, timer, start, end,
-                min([primary_end, data[secondary.name]["time"].max().item(0)]),
+            _print_collocating_status(timer, start, end,
+                                      *data[primary.name].get_range("time"))
+
+        # We do not have to collocate everything, just the common time period
+        # expanded by max_interval and limited by the global start and end
+        # parameter:
+        primary_period, secondary_period = \
+            _get_search_periods(
+                start, end,
+                data[primary.name]["time"],
+                data[secondary.name]["time"],
+                max_interval
             )
 
-        print("Before:", data["SatelliteA"]["time"].shape, data["SatelliteB"]["time"].shape)
-        if cache:
-            # Data from this iteration might be collocated with data from
-            # previous iterations in the cache. Hence, include the cache for
-            # the collocation search and add it to data:
-            collocations = _collocate_include_cache(
-                data, cache, primary, secondary, max_interval, collocate_args
-            )
-        else:
-            collocations = collocate(
-                [data[primary.name], data[secondary.name]],
-                **collocate_args,
-            )
+        data[primary.name] = data[primary.name][primary_period]
+        data[secondary.name] = data[secondary.name][secondary_period]
 
-        print("After:", data["SatelliteA"]["time"].shape, data["SatelliteB"]["time"].shape)
-
-        # Cache the last max_interval time period of each dataset:
-        for name, dataset_data in data.items():
-            interval_to_cache = dataset_data["time"] >= \
-                                dataset_data["time"].max().item(
-                                    0) - max_interval
-            cache[name] = dataset_data[interval_to_cache]
+        collocations = collocate(
+            [data[primary.name], data[secondary.name]],
+            **collocate_args,
+        )
 
         if not collocations.any():
             if verbose:
@@ -732,7 +730,7 @@ def collocate_datasets(
         if verbose:
             print(
                 f"Store {n_collocations[0]} ({datasets[0].name}) and "
-                f"{n_collocations[1]} ({datasets[1].name}) collocations in\n"
+                f"{n_collocations[1]} ({datasets[1].name}) collocations to\n"
                 f"{filename}"
             )
 
@@ -750,80 +748,124 @@ def collocate_datasets(
     return output
 
 
+def _add_file_identifiers(datasets, files, data):
+    """Add file identifier (start and end time) to each data point
+    """
+    for dataset in datasets:
+        ds_name = dataset.name
+        # Add the file start and end time to each element:
+        for index, file in enumerate(files[ds_name]):
+            length = data[ds_name][index]["time"].shape[0]
+            data[ds_name][index]["__file_start"] = \
+                np.repeat(file.times[0], length).astype("M8[s]")
+            data[ds_name][index]["__file_end"] = \
+                np.repeat(file.times[1], length).astype("M8[s]")
+
+    return data
+
+
+def _get_search_periods(
+        global_start, global_end, primary, secondary, max_interval):
+    """Returns the search periods for the primary and secondary data
+    """
+    start = max(global_start, primary.min().item(0) - max_interval)
+    end = min(global_end, primary.max().item(0) + max_interval)
+
+    primary_period = (start <= primary) & (primary <= end)
+    secondary_period = (start <= secondary) & (secondary <= end)
+
+    return primary_period, secondary_period
+
+
 def _collocate_include_cache(data, cache, primary, secondary,
                              max_interval, collocate_args):
-    # We have to search for collocations twice. At first, we do a
-    # cross-collocation with the cached content from previous iterations:
-    check_with_cache = \
-        data[secondary.name]["time"] <= \
-        data[secondary.name]["time"].min().item(0) + max_interval
-    pri_cache_sec_collocations = collocate(
-        [cache[primary.name], data[secondary.name][check_with_cache]],
-        **collocate_args,
-    )
-    check_with_cache = \
-        data[primary.name]["time"] <= \
-        data[primary.name]["time"].min().item(0) + max_interval
-    pri_sec_cache_collocations = collocate(
-        [data[primary.name][check_with_cache], cache[secondary.name]],
-        **collocate_args,
-    )
 
-    # and afterwards we collocate the new data:
-    collocations = collocate(
+    """Search for collocations including the cached data from previous files"""
+    # At first, let's collocate the current primary and secondary data:
+    current_collocations = collocate(
         [data[primary.name], data[secondary.name]],
         **collocate_args,
     )
+    print("Current collocations:", current_collocations)
 
-    if not pri_cache_sec_collocations.any() and not\
-            pri_sec_cache_collocations.any():
-        return collocations
+    # Data from the current files may also collocate with the data from
+    # previous files. That is the reason why we parts of them before. Now, we
+    # have to check for those cross-collocations. I call it cross-collocation
+    # because it looks this:
+    #
+    # [   CACHED PRIMARY DATA \ / CURRENT PRIMARY DATA   ]
+    # [         -max_interval  X +max_interval ] ...
+    # [ CACHED SECONDARY FILE / \ CURRENT SECONDARY DATA ]
 
-    # Add the cached data to all_data if we found something
+    # The cached primary data may collocate with the first part of the current
+    # secondary file:
+    check_with_cache = \
+        data[secondary.name]["time"] <= \
+        data[secondary.name]["time"].min().item(0) + max_interval
+    cached_primary_with_secondary = collocate(
+        [cache[primary.name], data[secondary.name][check_with_cache]],
+        **collocate_args,
+    )
+    print("1. cross-collocations:", cached_primary_with_secondary)
+
+    # We must do the same with the cached secondary file and the first part of
+    # the current primary file:
+    check_with_cache = \
+        data[primary.name]["time"] <= \
+        data[primary.name]["time"].min().item(0) + max_interval
+    primary_with_cached_secondary = collocate(
+        [data[primary.name][check_with_cache], cache[secondary.name]],
+        **collocate_args,
+    )
+    print("2. cross-collocations:", primary_with_cached_secondary)
+
+    if not cached_primary_with_secondary.any() and not \
+            primary_with_cached_secondary.any():
+        print("Found no cross-collocations!")
+        return current_collocations
+
+    # Add the cached data to all_data
     data[primary.name] = GroupedArrays.concat(
         [cache[primary.name], data[primary.name]])
     data[secondary.name] = GroupedArrays.concat(
         [cache[secondary.name], data[secondary.name]])
 
-    print("Before:", collocations)
+    # Since we added the cached data at the front to the current data, we have
+    # to shift the indices from almost all collocations:
+    cached_primary_with_secondary[1] += cache[secondary.name]["time"].size
+    primary_with_cached_secondary[0] += cache[primary.name]["time"].size
+    current_collocations[0] += cache[primary.name]["time"].size
+    current_collocations[1] += cache[secondary.name]["time"].size
 
-    # We have to shift the collocation indices because we added data at the
-    # front
-    collocations[0] += cache[primary.name]["time"].shape[0]
-    collocations[1] += cache[secondary.name]["time"].shape[0]
-
-    print("After:", collocations)
+    print("Corrected current:", current_collocations)
+    print("1. corrected cross:", cached_primary_with_secondary)
+    print("2. corrected cross:", primary_with_cached_secondary)
 
     return np.hstack([
-        pri_cache_sec_collocations,
-        pri_sec_cache_collocations,
-        collocations,
+        cached_primary_with_secondary,
+        primary_with_cached_secondary,
+        current_collocations,
     ]).astype(int)
 
 
-
-
-def _collocating_status(primary, secondary, timer, start, end, current_end):
+def _print_collocating_status(timer, start, end, current_start, current_end):
     print("-" * 79)
+    print(f"Collocating from {current_start} to {current_end}")
 
     if start == datetime.min and end == datetime.max:
-        print(
-            f"Collocating {primary.name} to {secondary.name}: "
-            f"processing {current_end}"
-        )
-    else:
-        current = (current_end - start).total_seconds()
-        progress = current / (end - start).total_seconds()
+        return
 
-        elapsed_time = time.time() - timer
-        expected_time = timedelta(
-            seconds=int(elapsed_time * (1 / progress - 1))
-        )
+    current = (current_end - start).total_seconds()
+    progress = current / (end - start).total_seconds()
 
-        print(
-            f"Collocating {primary.name} to {secondary.name}: "
-            f"{100*progress:.0f}% done ({expected_time} hours remaining)"
-        )
+    elapsed_time = time.time() - timer
+    expected_time = timedelta(
+        seconds=int(elapsed_time * (1 / progress - 1))
+    )
+
+    print(
+        f"Progress: {100*progress:.0f}% done ({expected_time} hours remaining)"
+    )
 
 
 def _store_collocations(
@@ -913,10 +955,10 @@ def _store_collocations(
             }
         )
 
-        if "__original_files" not in data.attrs:
-            # Set where the data came from:
-            data.attrs["__original_files"] = \
-                ";".join(file.path for file in files[datasets[i].name])
+        # if "__original_files" not in data.attrs:
+        #     # Set where the data came from:
+        #     data.attrs["__original_files"] = \
+        #         ";".join(file.path for file in files[datasets[i].name])
         output_data[datasets[i].name] = data
 
     metadata["pairs"] = pairs
@@ -931,7 +973,7 @@ def _store_collocations(
     attributes = {
         p: v for file in files.values() for p, v in file[0].attr.items()
     }
-    filename = output.generate_filename(time_coverage, fill=attributes)
+    filename = output.get_filename(time_coverage, fill=attributes)
 
     # Write the data to the file.
     output.write(output_data, filename)
