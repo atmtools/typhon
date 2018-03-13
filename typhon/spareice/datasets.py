@@ -9,7 +9,7 @@ Created by John Mrziglod, June 2017
 
 import atexit
 from collections import defaultdict, Iterable, OrderedDict
-import copy
+from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
 import glob
@@ -199,9 +199,6 @@ class Dataset:
         "end_millisecond": "\d{3}",
     }
 
-    # Placeholders that can be changed by the user:
-    _user_placeholder = {}
-
     _temporal_resolution = OrderedDict({
         # time placeholder: [pandas frequency, resolution rank]
         "year": timedelta(days=366),
@@ -220,6 +217,15 @@ class Dataset:
 
     # Default handler
     default_handler = {
+        "nc": NetCDF4(),
+        "h5": NetCDF4(),
+        "txt": CSV(),
+        "csv": CSV(),
+        "asc": CSV(),
+    }
+
+    # Default handler
+    default_concatenator = {
         "nc": NetCDF4(),
         "h5": NetCDF4(),
         "txt": CSV(),
@@ -384,13 +390,16 @@ class Dataset:
             self._time_placeholder
         )
 
+        # Placeholders that can be changed by the user:
+        self._user_placeholder = {}
+
         # The path parameters (will be set and documented in the path setter
         # method):
         self._path = None
         self._path_placeholders = None
         self._end_time_superior = None
         self._path_extension = None
-        self._path_regex = None
+        self._filled_path = None
         self._base_dir = None
         self._sub_dir = ""
         self._sub_dir_chunks = []
@@ -455,7 +464,7 @@ class Dataset:
         if self.info_cache_filename is not None:
             try:
                 # Load the time coverages from a file:
-                self.load_info_cache(self.info_cache_filename)
+                self.load_cache(self.info_cache_filename)
             except Exception as e:
                 raise e
             else:
@@ -465,7 +474,7 @@ class Dataset:
                 # happens if the error occurs during the loading of the time
                 # coverages? We would overwrite the cache with nonsense.
                 # Therefore, we need this code in this else block.
-                atexit.register(Dataset.save_info_cache,
+                atexit.register(Dataset.save_cache,
                                 self, self.info_cache_filename)
 
         # Writing processes can be moved to background threads. But we do want
@@ -562,9 +571,119 @@ class Dataset:
         info += "\nFiles path:\t" + self.path
         return info
 
+    def align(self, start=None, end=None, datasets=None, max_interval=None):
+        """Collect the data from this and corresponding other datasets
+
+        This generator collects each file from this dataset between `start` and
+        `end` and does the same with the corresponding files from other
+        datasets.
+
+        Args:
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional. If not given, it is
+                datetime.min per default.
+            end: End date. Same format as "start". If not given, it is
+                datetime.max per default.
+            datasets: A list of dataset objects.
+            max_interval: A time interval (as string, number or timedelta
+                object) that expands the search time period for secondaries.
+
+        Yields:
+            Two dictionaries where the keys are always the name of the
+            datasets. The values from the first are lists with
+            :class:`FileInfo` objects of the opened files. The values from the
+            second are lists with the content objects.
+        """
+        if datasets is None:
+            raise ValueError("You must give some datasets to align with!")
+
+        start = None if start is None else to_datetime(start)
+        end = None if end is None else to_datetime(end)
+
+        if max_interval is None:
+            max_interval = timedelta(seconds=0)
+        else:
+            max_interval = to_timedelta(max_interval)
+
+        # Cache for the secondaries. We need the OrderedDict to automatically
+        # sort all entries.
+        cache = defaultdict(OrderedDict)
+
+        for file, data in self.icollect(start, end, return_info=True):
+            yielded_files = {self.name: [file]}
+            yielded_data = {self.name: [data]}
+
+            search_times = [
+                max(start, file.times[0]-max_interval),
+                min(end, file.times[1]+max_interval),
+            ]
+
+            found_secondaries = self._load_secondaries(
+                datasets, search_times, yielded_files, yielded_data, cache
+            )
+
+            if not found_secondaries:
+                continue
+
+            yield yielded_files, yielded_data
+
+    @staticmethod
+    def _load_secondaries(datasets, search_times,
+                          yielded_files, yielded_data, cache):
+        """Load secondary data from files or cache to all_data
+        """
+
+        # Get the corresponding secondary data to the current primary data:
+        for dataset in datasets:
+            files = list(dataset.find(*search_times))
+
+            # We need to load only the files that have not been loaded earlier:
+            files_to_load = [
+                file for file in files
+                if file not in cache[dataset]
+            ]
+
+            # We can delete the files from the cache that are not needed any
+            # longer:
+            for cached_file in list(cache[dataset].keys()):
+                if cached_file not in files:
+                    del cache[dataset][cached_file]
+
+            # Tell the python interpreter explicitly to free up memory to
+            # improve performance (see
+            # https://stackoverflow.com/q/1316767/9144990):
+            gc.collect()
+
+            # Load the new files and add them to the cache
+            if files_to_load:
+                data_list = dataset.collect(
+                    files=files_to_load, concat=False,
+                )
+                for i, data in enumerate(data_list):
+                    cache[dataset][files_to_load[i]] = data
+
+            if not cache[dataset]:
+                return False
+
+            # Add the secondary to the dictionaries that will be yielded to the
+            # user
+            yielded_files[dataset.name] = [file for file in cache[dataset]]
+            yielded_data[dataset.name] = [
+                data for data in cache[dataset].values()
+            ]
+
+        return yielded_files, yielded_data
+
     def collect(self, start=None, end=None, files=None, read_args=None,
                 return_info=False, concat=True, concat_args=None, **find_args):
         """Load all files between two dates sorted by their starting time
+
+        Notes
+            This does not constrain the loaded data to the time period given by
+            `start` and `end`. This fully loads all files that contain data in
+            that time period, i.e. it returns also data that may exceed the
+            time period.
 
         This parallelizes the reading of the files by using threads. This
         should give a speed up if the file handler's read function internally
@@ -600,12 +719,14 @@ class Dataset:
 
         .. code-block:: python
 
-            data_list = dataset.collect("2018-01-01", "2018-01-02")
-            # If contents are numpy arrays
-            data = np.hstack(contents)
+            ## Load all files between two dates and concatenate their content.
+            # Note: data may contain timestamps exceeding the given time period
+            data = dataset.collect("2018-01-01", "2018-01-02")
 
-            ## If you only want to concatenate the data, use this magic method:
-            data = np.hstack(dataset["2018-01-01":"2018-01-02"])
+            # The above is equivalent to this magic slicing:
+            data = dataset["2018-01-01":"2018-01-02"]
+
+
 
             ## If you want to iterate through the files in a for loop, e.g.:
             for content in dataset.collect("2018-01-01", "2018-01-02"):
@@ -729,152 +850,17 @@ class Dataset:
                     else:
                         yield data
 
-    def copy(
-            self, start=None, end=None, to=None, convert=None,
-            delete_originals=False,
-    ):
-        """Copy files from this dataset to another location.
+    def copy(self):
+        """Create a so-called deep-copy of this dataset object
 
-        Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            to: Either a Dataset object or the new path of the files containing
-                placeholders (such as {year}, {month}, etc.).
-            convert: If true, the files will be read by the old dataset's file
-                handler and written to their new location by using the new file
-                handler from *to*. Both file handlers must be compatible, i.e.
-                the object that the old file handler's read method returns must
-                handable for the new file handler's write method. You
-                can also set this to a function that converts the return value
-                of the read method into something else before it will be passed
-                to the write method. Default is false, i.e. the file will be
-                simply copied without converting.
-            delete_originals: If true, then all copied original files will be
-                deleted. Be careful, this cannot get undone!
+        Notes
+            This method does not copy any files. If you want to do so, use
+            :meth:`move` with the parameter `copy=True`.
 
         Returns:
-            New Dataset object with the new files.
-
-        Examples:
-
-        .. code-block:: python
-
-            ## Copy all files between two dates to another location
-
-            old_dataset = Dataset(
-                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-            )
-
-            # New dataset with other path
-            new_dataset = Dataset(
-                "new/path/{year}/{doy}/{hour}{minute}{second}.nc",
-            )
-
-            old_dataset.copy(
-                "2017-09-15", "2017-09-23", new_dataset,
-            )
-
-        .. code-block:: python
-
-            ## Copy all files between two dates to another location and convert
-            ## them to a different format
-
-            from typhon.spareice.handlers import CSV, NetCDF4
-
-            old_dataset = Dataset(
-                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                handler=NetCDF4()
-            )
-            new_dataset = Dataset(
-                "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
-                handler=CSV()
-            )
-
-            # Note that this only works if both file handlers are compatible
-            new_dataset = old_dataset.copy(
-                "2017-09-15", "2017-09-23", new_dataset, convert=True
-            )
+            The copied dataset object
         """
-
-        # Convert the path to a Dataset object:
-        if not isinstance(to, Dataset):
-            destination = copy.copy(self)
-            destination.path = to
-        else:
-            destination = to
-
-        if convert is None:
-            convert = False
-
-        if self.single_file:
-            file_info = self.get_info(self.path)
-
-            Dataset._copy_single_file(
-                file_info, self, destination, convert, delete_originals
-            )
-        else:
-            if destination.single_file:
-                raise ValueError(
-                    "Cannot copy files from multi-file to single-file "
-                    "dataset!")
-
-            copy_args = {
-                "dataset": self,
-                "destination": destination,
-                "convert": convert,
-                "delete_original": delete_originals
-            }
-
-            # Copy the files
-            self.map(start, end, Dataset._copy_single_file, kwargs=copy_args)
-
-        return destination
-
-    @staticmethod
-    def _copy_single_file(
-            file_info, dataset, destination, convert, delete_original):
-        """This is a small wrapper function for copying files. It is better to
-        use :meth:`Dataset.copy` directly.
-
-        Args:
-            dataset:
-            file_info: FileInfo object of the file that should be to copied.
-            destination:
-            convert:
-            delete_original:
-
-        Returns:
-            None
-        """
-
-        # Generate the new file name
-        new_filename = destination.generate_filename(
-            file_info.times, fill=file_info.attr)
-
-        # Shall we simply copy or even convert the files?
-        if convert:
-            # Read the file with the current file handler
-            data = dataset.read(file_info)
-
-            # Maybe the user has given us a converting function?
-            if callable(convert):
-                data = convert(data)
-
-            # Store the data of the file with the new file handler
-            destination.write(data, new_filename)
-
-            if delete_original:
-                os.remove(file_info.path)
-        else:
-            # Create the new directory if necessary.
-            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
-
-            if delete_original:
-                shutil.move(file_info.path, new_filename)
-            else:
-                shutil.copy(file_info.path, new_filename)
+        return deepcopy(self)
 
     @property
     def exclude(self):
@@ -931,7 +917,7 @@ class Dataset:
         # we need the error catching:
         try:
             # Maybe there is a file with exact this timestamp?
-            path = self.generate_filename(timestamp,)
+            path = self.get_filename(timestamp, )
             if os.path.isfile(path):
                 return self.get_info(path)
         except (UnknownPlaceholderError, UnfilledPlaceholderError):
@@ -1069,7 +1055,7 @@ class Dataset:
         # Filter handling:
         if filters is None:
             # We can apply the standard path regex:
-            regex = self._path_regex
+            regex = re.compile(self._filled_path)
             white_list = {}
             black_list = {}
         else:
@@ -1080,9 +1066,10 @@ class Dataset:
             )
 
             # The new regex for all files:
-            regex = self._fill_placeholders_with_regexes(
+            regex = self._fill_placeholders(
                 self.path,
-                extra_placeholder=white_list
+                extra_placeholder=white_list,
+                compile=True,
             )
 
             def convert(value):
@@ -1182,8 +1169,8 @@ class Dataset:
             )
 
             # compile the regex for this sub directory:
-            regex = self._fill_placeholders_with_regexes(
-                subdir_chunk, extra_placeholder=white_list,
+            regex = self._fill_placeholders(
+                subdir_chunk, extra_placeholder=white_list, compile=True
             )
             search_dirs = [
                 (new_dir, attr)
@@ -1322,9 +1309,9 @@ class Dataset:
             raise ValueError(
                 "The parameter bundle must be a integer or string!")
 
-    def generate_filename(
+    def get_filename(
             self, times, template=None, fill=None):
-        """ Generate the full path and name of a file for a time period.
+        """Generate the full path and name of a file for a time period
 
         Use :meth:`parse_filename` if you want retrieve information from the
         filename instead.
@@ -1334,7 +1321,7 @@ class Dataset:
                 and end time or simply one datetime object (for discrete
                 files).
             template: A string with format placeholders such as {year} or
-                {day}. If not given, the template in *Dataset.path* is used.
+                {day}. If not given, the template in `Dataset.path` is used.
             fill: A dictionary with fillings for user-defined placeholder.
 
         Returns:
@@ -1344,13 +1331,13 @@ class Dataset:
 
         .. code-block:: python
 
-            dataset.generate_filename(
+            dataset.get_filename(
                 datetime(2016, 1, 1),
                 "{year2}/{month}/{day}.dat",
             )
             # Returns "16/01/01.dat"
 
-            dataset.generate_filename(
+            dataset.get_filename(
                 ("2016-01-01", "2016-12-31"),
                 "{year}{month}{day}-{end_year}{end_month}{end_day}.dat",
             )
@@ -1504,8 +1491,8 @@ class Dataset:
 
     def _concat_data(self, objects, **kwargs):
 
-        if self.handler.data_merger is not None:
-            func = self.handler.data_merger
+        if self.handler.data_concatenator is not None:
+            func = self.handler.data_concatenator
         elif isinstance(objects[0], GroupedArrays):
             func = type(objects[0]).concat
         elif isinstance(objects[0], (xr.Dataset, xr.DataArray)):
@@ -1513,9 +1500,10 @@ class Dataset:
         elif isinstance(objects[0], pd.DataFrame):
             func = pd.concat
         else:
+            print(GroupedArrays)
             raise ValueError(
                 f"No concatenating function is specified for "
-                f"{type(objects[0])}! You set one via your file handler's "
+                f"{type(objects[0])}! You can set one via your file handler's "
                 f"data_concatenator parameter."
             )
 
@@ -1587,7 +1575,7 @@ class Dataset:
                 :class:`~typhon.spareice.handlers.common.FileInfo` object as
                 parameters. It must return a FileInfo of the corresponding
                 file. If none is given,
-                :meth:`~typhon.spareice.datasets.Dataset.generate_filename`
+                :meth:`~typhon.spareice.datasets.Dataset.get_filename`
                 will be used as default.
 
         Returns:
@@ -1599,8 +1587,8 @@ class Dataset:
             "linker": linker,
         }
 
-    def load_info_cache(self, filename):
-        """ Loads the information cache from a file.
+    def load_cache(self, filename):
+        """Load the information cache from a JSON file
 
         Returns:
             None
@@ -1809,7 +1797,7 @@ class Dataset:
         # Convert the path to a Dataset object:
         if isinstance(output, str):
             output_path = output
-            output = copy.copy(self)
+            output = self.copy()
             output.path = output_path
 
         if worker_type is None:
@@ -1906,20 +1894,168 @@ class Dataset:
 
         # file_info could be a bundle of files
         if isinstance(file_info, FileInfo):
-            new_filename = output.generate_filename(
+            new_filename = output.get_filename(
                 file_info.times, fill=file_info.attr
             )
         else:
             start_times, end_times = zip(
                 *(file.times for file in file_info)
             )
-            new_filename = output.generate_filename(
+            new_filename = output.get_filename(
                 (min(start_times), max(end_times)), fill=file_info[0].attr
             )
 
         output.write(return_value, new_filename, in_background=False)
 
         return _return(file_info, True)
+
+    def move(
+            self, start=None, end=None, to=None, convert=None,
+            copy=True,
+    ):
+        """Copy files from this dataset to another location.
+
+        Args:
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            to: Either a Dataset object or the new path of the files containing
+                placeholders (such as {year}, {month}, etc.).
+            convert: If true, the files will be read by the old dataset's file
+                handler and written to their new location by using the new file
+                handler from *to*. Both file handlers must be compatible, i.e.
+                the object that the old file handler's read method returns must
+                handable for the new file handler's write method. You
+                can also set this to a function that converts the return value
+                of the read method into something else before it will be passed
+                to the write method. Default is false, i.e. the file will be
+                simply copied without converting.
+            copy: If true, then all files will be copied instead of moved only.
+
+        Returns:
+            New Dataset object with the new files.
+
+        Examples:
+
+        .. code-block:: python
+
+            ## Copy all files between two dates to another location
+
+            old_dataset = Dataset(
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+            )
+
+            # New dataset with other path
+            new_dataset = Dataset(
+                "new/path/{year}/{doy}/{hour}{minute}{second}.nc",
+            )
+
+            old_dataset.move(
+                "2017-09-15", "2017-09-23", new_dataset,
+            )
+
+        .. code-block:: python
+
+            ## Copy all files between two dates to another location and convert
+            ## them to a different format
+
+            from typhon.spareice.handlers import CSV, NetCDF4
+
+            old_dataset = Dataset(
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                handler=NetCDF4()
+            )
+            new_dataset = Dataset(
+                "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
+                handler=CSV()
+            )
+
+            # Note that this only works if both file handlers are compatible
+            new_dataset = old_dataset.move(
+                "2017-09-15", "2017-09-23", new_dataset, convert=True
+            )
+        """
+
+        # Convert the path to a Dataset object:
+        if not isinstance(to, Dataset):
+            destination = self.copy()
+            destination.path = to
+        else:
+            destination = to
+
+        if convert is None:
+            convert = False
+
+        if self.single_file:
+            file_info = self.get_info(self.path)
+
+            Dataset._move_single_file(
+                file_info, self, destination, convert, copy
+            )
+        else:
+            if destination.single_file:
+                raise ValueError(
+                    "Cannot move files from multi-file to single-file "
+                    "dataset!")
+
+            move_args = {
+                "dataset": self,
+                "destination": destination,
+                "convert": convert,
+                "copy": copy
+            }
+
+            # Copy the files
+            self.map(start, end,
+                     func=Dataset._move_single_file, kwargs=move_args)
+
+        return destination
+
+    @staticmethod
+    def _move_single_file(
+            file_info, dataset, destination, convert, copy):
+        """This is a small wrapper function for moving files. It is better to
+        use :meth:`Dataset.move` directly.
+
+        Args:
+            dataset:
+            file_info: FileInfo object of the file that should be to copied.
+            destination:
+            convert:
+            copy:
+
+        Returns:
+            None
+        """
+
+        # Generate the new file name
+        new_filename = destination.get_filename(
+            file_info.times, fill=file_info.attr
+        )
+
+        # Shall we simply move or even convert the files?
+        if convert:
+            # Read the file with the current file handler
+            data = dataset.read(file_info)
+
+            # Maybe the user has given us a converting function?
+            if callable(convert):
+                data = convert(data)
+
+            # Store the data of the file with the new file handler
+            destination.write(data, new_filename)
+
+            if not copy:
+                os.remove(file_info.path)
+        else:
+            # Create the new directory if necessary.
+            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+
+            if copy:
+                shutil.copy(file_info.path, new_filename)
+            else:
+                shutil.move(file_info.path, new_filename)
 
     @property
     def name(self):
@@ -2062,10 +2198,10 @@ class Dataset:
         """
 
         if template is None:
-            regex = self._path_regex
+            regex = re.compile(self._filled_path)
         else:
             if isinstance(template, str):
-                regex = self._fill_placeholders_with_regexes(template)
+                regex = self._fill_placeholders(template, compile=True)
             else:
                 regex = template
 
@@ -2245,13 +2381,13 @@ class Dataset:
 
         return placeholder, Dataset._temporal_resolution[placeholder]
 
-    def _fill_placeholders_with_regexes(self, path, extra_placeholder=None):
+    def _fill_placeholders(self, path, extra_placeholder=None, compile=False):
         """Fill all placeholders in a path with its RegExes and compile it.
 
         Args:
             path:
             extra_placeholder:
-
+            compile: Compile as regex before return
         Returns:
 
         """
@@ -2289,13 +2425,16 @@ class Dataset:
                 path = path[:split_index] + changed_part
         try:
             # Prepare the regex for the template, convert it to an exact match:
-            regex = "^" + path.format(**placeholder) + "$"
+            regex_string = "^" + path.format(**placeholder) + "$"
         except KeyError as err:
             raise UnknownPlaceholderError(self.name, err.args[0])
         except ValueError as err:
             raise PlaceholderRegexError(self.name, str(err))
 
-        return re.compile(regex)
+        if compile:
+            return re.compile(regex_string)
+        else:
+            return regex_string
 
     @staticmethod
     def _complete_placeholders_regex(placeholder):
@@ -2378,7 +2517,7 @@ class Dataset:
                 if link["linker"] is None:
                     # Simply try to find the corresponding file by generating a
                     # filename:
-                    other_file = link["target"].generate_filename(
+                    other_file = link["target"].get_filename(
                         times=file_info.times, fill=file_info.attr
                     )
                 else:
@@ -2428,8 +2567,16 @@ class Dataset:
 
         return start_date, end_date
 
-    def save_info_cache(self, filename):
-        """ Saves information cache to a file.
+    def reset_cache(self):
+        """Reset the information cache
+
+        Returns:
+            None
+        """
+        self.info_cache = {}
+
+    def save_cache(self, filename):
+        """Save the information cache to a JSON file
 
         Returns:
             None
@@ -2465,7 +2612,7 @@ class Dataset:
 
         # Update the path regex (uses automatically the user-defined
         # placeholders):
-        self._path_regex = self._fill_placeholders_with_regexes(self.path)
+        self._filled_path = self._fill_placeholders(self.path)
 
     @property
     def time_coverage(self):
@@ -2522,10 +2669,10 @@ class Dataset:
             file_info: A string, path-alike object or a
                 :class:`~typhon.spareice.handlers.common.FileInfo` object.
             times: If *file_info* is not given, this can be used to generate
-                the filename. Look at :meth:`generate_filename` for more
+                the filename. Look at :meth:`get_filename` for more
                 information.
             fill: If *file_info* is not given, this can be used to generate
-                the filename. Look at :meth:`generate_filename` for more
+                the filename. Look at :meth:`get_filename` for more
                 information.
             in_background: If true (default), this runs the writing process in
                 a background thread so it does not pause the main process.
@@ -2558,8 +2705,8 @@ class Dataset:
             # Use this simple expression:
             plots["2018-01-01"] = fig
 
-            # OR use write in combination with generate_filename
-            filename = plots.generate_filename("2018-01-01")
+            # OR use write in combination with get_filename
+            filename = plots.get_filename("2018-01-01")
             plots.write(fig, filename)
 
             # Hint: If saving the plot takes a lot of time but you want to
@@ -2580,7 +2727,7 @@ class Dataset:
                     "Either the argument file_info or times must be given!")
             else:
                 file_info = FileInfo(
-                    self.generate_filename(times, fill=None), times, fill
+                    self.get_filename(times, fill=None), times, fill
                 )
         elif times is not None:
             raise ValueError(
@@ -2644,30 +2791,24 @@ class DataSlider:
         self.end = None if end is None else to_datetime(end)
 
         self._cache = dict()
-        self._current_end = None
-
-        # In this container will only sources be saved that are 'collectable',
-        # i.e. Dataset objects. Static sources as arrays will be directly saved
-        # to the cache.
-        self.datasets = datasets
+        self.datasets = list(datasets)
 
     def __iter__(self):
         return iter(self.move())
 
-    def add(self, source, name=None):
+    def add(self, source):
         """Add a new source to this data slider
 
         Args:
             source: A dict-like array set (e.g. xarray.Dataset) or a Dataset
                 object.
-            name:
 
         Returns:
             None
         """
         if not isinstance(source, Dataset):
             raise ValueError(
-                f"Source of type {type(source)} is not a Dataset-like object!"
+                f"Source of type {type(source)} is not a Dataset object!"
             )
 
         self.datasets.append(source)
@@ -2678,23 +2819,29 @@ class DataSlider:
             self.start, self.end, return_info=True
         )
         for primary_file, primary_data in primary_files:
-            # Add the file start and end times:
-            length = primary_data["time"].shape[0]
-            primary_data["__file_start"] = \
-                np.repeat(primary_file.times[0], length)
-            primary_data["__file_end"] = \
-                np.repeat(primary_file.times[1], length)
+            # # Constrain the primary data to the given start and end dates:
+            # overlaps = (self.start <= primary_data["time"]) & \
+            #                (primary_data["time"] <= self.end)
+            #
+            # primary_data = primary_data[overlaps]
+            #
+            # # Add the file start and end times:
+            # length = primary_data["time"].shape[0]
+            # primary_data["__file_start"] = \
+            #     np.repeat(primary_file.times[0], length).astype("M8[s]")
+            # primary_data["__file_end"] = \
+            #     np.repeat(primary_file.times[1], length).astype("M8[s]")
 
-            # We add the primary data later:
             all_data = {primary.name: primary_data}
             all_files = {primary.name: [primary_file]}
 
+            # Sometimes we sliding only through one dataset:
             if len(self.datasets) == 1:
                 yield all_files, all_data
                 continue
 
-            found_secondaries = self._get_secondaries(
-                all_data, all_files, primary_data, primary_file
+            found_secondaries = self._load_secondaries(
+                all_data, all_files, primary_file.times
             )
 
             if not found_secondaries:
@@ -2702,140 +2849,85 @@ class DataSlider:
 
             yield all_files, all_data
 
-    def _get_secondaries(
-            self, all_data, all_files, primary_data, primary_file, ):
+    def _load_secondaries(self, all_data, all_files, search_times):
+        """Load secondary data from files or cache to all_data
+        """
         primary_start, primary_end = primary_data.get_range("time")
 
-        # Get the corresponding secondary files:
+        # Get the corresponding secondary data to the current primary data:
         for secondary in self.datasets[1:]:
+            search_times = [primary_start, primary_end]
+
+            secondary_data = None
+            cache_end = None
+            if secondary.name in self._cache:
+                # We use the file time coverage because we search for files
+                # that we have not loaded earlier:
+                cache_end = max(
+                    file.times[1] for file in self._cache[secondary.name][0]
+                ) + timedelta(milliseconds=1)
+
+                search_times[0] = max(
+                    search_times[0], cache_end
+                )
+                all_files[secondary.name] = self._cache[secondary.name][0]
+                secondary_data = self._cache[secondary.name][1]
+
             # We might have some secondary data still in the cache, so load
             # only the data for the time that is not already covered:
-            if secondary.name in self._cache:
-                cache_end = \
-                    self._cache[secondary.name][1]["time"].max().item(0)
-                times = [
-                    max(primary_file.times[0], cache_end),
-                    primary_file.times[1]
-                ]
-            else:
-                times = primary_file.times
-
-            if secondary.name in self._cache:
-                all_files[secondary.name] = self._cache[secondary.name][0]
-                temp_data = self._cache[secondary.name][1]
-            else:
-                temp_data = None
-
-            # Check whether we need new data:
-            if times[0] < times[1]:
+            if secondary_data is None or cache_end < search_times[1]:
                 # Actually, we need the data to be concatenated, but we
-                # want to do this by ourselves to keep the track of which
+                # want to do this by ourselves to keep track of which
                 # file the data came from.
-                secondary_files, secondary_data = secondary.collect(
-                    *times, return_info=True, concat=False,
+                secondary_files, new_secondary_data = secondary.collect(
+                    *search_times, return_info=True, concat=False,
                 )
 
                 # Add the file start and end time to each element:
                 for index, file in enumerate(secondary_files):
-                    length = secondary_data[index]["time"].shape[0]
-                    secondary_data[index]["__file_start"] = \
-                        np.repeat(file.times[0], length)
-                    secondary_data[index]["__file_end"] = \
-                        np.repeat(file.times[1], length)
+                    length = new_secondary_data[index]["time"].shape[0]
+                    new_secondary_data[index]["__file_start"] = \
+                        np.repeat(file.times[0], length).astype("M8[s]")
+                    new_secondary_data[index]["__file_end"] = \
+                        np.repeat(file.times[1], length).astype("M8[s]")
 
-                if temp_data is not None:
-                    secondary_data.insert(0, temp_data)
-
-                temp_data = GroupedArrays.concat(secondary_data)
+                if secondary_data is None:
+                    secondary_data = GroupedArrays.concat(new_secondary_data)
+                else:
+                    secondary_data = GroupedArrays.concat(
+                        [secondary_data, *new_secondary_data],
+                    )
 
                 # TODO: Add also the cached files if they contributed
                 all_files[secondary.name] = secondary_files
 
-            # We want to cut the secondary data into two parts. One part does
-            # not overlap with the current primary data but might with future
-            # ones. Hence, it will be cached and might be returned in the next
-            # iteration:
-            beyond = (primary_end < temp_data["time"])
-            self._cache[secondary.name] = [
-                all_files[secondary.name], temp_data[beyond],
-            ]
+            if secondary_data is None:
+                return False
+
+            # We want to cut the secondary data into two parts. One part
+            # does not overlap with the current primary data but might with
+            # future ones. Hence, it will be cached and might be returned
+            # in the next iteration:
+            beyond = (primary_end < secondary_data["time"])
+            if beyond.any():
+                self._cache[secondary.name] = [
+                    all_files[secondary.name], secondary_data[beyond],
+                ]
+            else:
+                self._cache.pop(secondary.name, None)
 
             # The other part overlaps with the primary data and should be
             # returned in this iteration:
-            overlaps = (primary_start <= temp_data["time"]) \
-                & (temp_data["time"] <= primary_end)
+            #print("Primary:", primary_start, primary_end)
+            overlaps = (primary_start <= secondary_data["time"]) \
+                & (secondary_data["time"] <= primary_end)
 
             if not overlaps.any():
                 return False
 
-            all_data[secondary.name] = temp_data[overlaps]
+            all_data[secondary.name] = secondary_data[overlaps]
 
-            return True
-
-    def _fetch_cache_update(self, sources=None):
-        data_dict = {}
-        try:
-            for name in self._fetcher:
-                if (name in self._cache and
-                        self._current_end < self._cache[name]["time"].max()):
-                    continue
-
-                # Fetch the data from the dataset:
-                file, data = next(self._fetcher[name])
-
-                if "__original_file" not in data:
-                    # Set where the file came from:
-                    data.attrs["__original_file"] = file.path
-                data_dict[name] = data
-        except StopIteration:
-            # One source has no data left
-            raise StopIteration
-        except Exception as err:
-            # TODO: We could think of catching errors here, but what would
-            # TODO: we do against a infinite while loop?
-            raise err
-
-        return data_dict
-
-    def _select_common_time(self, data, start, end):
-        """Select only the time window where all time series have data
-        """
-
-        common_start = np.max(
-            [data["time"].min() for data in cache.values()]
-        )
-        common_start = max(common_start, self.start, self._current_end)
-
-        common_end = np.min(
-            [data["time"].max() for data in cache.values()]
-        )
-        common_end = min(common_end, self.end)
-
-        # Return the selection
-        return {
-            name: data[
-                (data["time"] >= common_start)
-                & (data["time"] <= common_end)
-            ]
-            for name, data in cache.items()
-        }, common_end
-
-    def flush(self):
-        """Return the data of all sources at once.
-
-        Returns:
-            A dictionary of array objects (numpy, GroupedArrays, xarray, etc.)
-        """
-        fetched_data = {
-            name: GroupedArrays.concat(source.collect(self.start, self.end))
-            for name, source in self.sources.items()
-        }
-
-        # Reset the current time:
-        self._current_end = datetime.min
-
-        # The static data is already in the cache:
-        return self._select_common_time({**self._cache, **fetched_data})[0]
+        return True
 
 
 class DatasetManager(dict):
