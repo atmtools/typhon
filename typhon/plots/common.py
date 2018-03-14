@@ -96,28 +96,52 @@ def get_subplot_arrangement(n):
             int(np.round(np.sqrt(n))))
 
 
-def styles(name):
-    """Return absolute path to typhon stylesheet.
+class _StyleHandler:
+    """Handle matplotlib stylesheets shipped with typhon.
 
-    Matplotlib stylesheets can be passed via their full path. This function
-    takes a style name and returns the absolute path to the typhon stylesheet.
+    This handler serves several purposes:
+
+        1. Return the absolute path to a typhon stylesheet:
+
+        >>> from typhon.plots import styles
+        >>> styles.get('typhon')
+        '/PATH/typhon/typhon/plots/stylelib/typhon.mplstyle'
+
+        or for backwards compatibility:
+
+        >>> styles('typhon')
+        '/PATH/typhon/typhon/plots/stylelib/typhon.mplstyle'
+
+        2. Use style settings from a typhon stylesheet:
+
+        >>> styles.use('typhon')
 
     Parameters:
         name (str): Style name.
 
     Returns:
         str: Absolute path to stylesheet.
-
-    Example:
-        Use typhon style for matplotlib plots.
-
-        >>> import matplotlib.pyplot as plt
-        >>> plt.style.use(styles('typhon'))
-
     """
-    stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
+    def __init__(self):
+        self.stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
 
-    return os.path.join(stylelib_dir, name + '.mplstyle')
+    def __call__(self, name=None):
+        """Return absolute path to typhon stylesheet."""
+        return self.get(name)
+
+    def get(self, name=None):
+        """Return absolute path to typhon stylesheet."""
+        if name is None:
+            name = 'typhon'
+
+        return os.path.join(self.stylelib_dir, name + '.mplstyle')
+
+    def use(self, name=None):
+        """Use matplotlib style settings from a typhon style specification."""
+        plt.style.use(self.get(name))
+
+
+styles = _StyleHandler()
 
 
 def get_available_styles():

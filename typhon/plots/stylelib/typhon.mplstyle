@@ -32,6 +32,12 @@ axes.formatter.limits : -3, 4 # use scientific notation if log10
 # axes.labelsize : medium # fontsize of the x and y labels
 axes.prop_cycle : cycler(linestyle=['-', '--', '-.']) * cycler(color=['1f77b4', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])
 
+# Hide top and right spines to increase data-ink ratio (Tufte).
+axes.spines.left   : True
+axes.spines.bottom : True
+axes.spines.top    : False
+axes.spines.right  : False
+
 ### TICKS
 # see http://matplotlib.org/api/axis_api.html#matplotlib.axis.Tick
 xtick.labelsize : small # fontsize of the tick labels
