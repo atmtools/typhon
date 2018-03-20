@@ -18,14 +18,14 @@ class RetrievalQuantity:
     """
 
     def __init__(self, maintag=None, subtag=None, subsubtag=None, mode=None,
-                 analytical=None, pertubation=None, grids=None):
+                 analytical=None, perturbation=None, grids=None):
 
         self.maintag = maintag
         self.subtag = subtag
         self.subsubtag = subsubtag
         self.mode = mode
         self.analytical = analytical
-        self.pertubation = pertubation
+        self.perturbation = perturbation
         self.grids = grids
 
     @property
@@ -54,9 +54,9 @@ class RetrievalQuantity:
         return self._analytical
 
     @property
-    def pertubation(self):
-        """Amplitude of the pertubation."""
-        return self._pertubation
+    def perturbation(self):
+        """Amplitude of the perturbation."""
+        return self._perturbation
 
     @property
     def grids(self):
@@ -83,9 +83,9 @@ class RetrievalQuantity:
     def analytical(self, analytical):
         self._analytical = return_if_arts_type(analytical, 'Index')
 
-    @pertubation.setter
-    def pertubation(self, pertubation):
-        self._pertubation = return_if_arts_type(pertubation, 'Numeric')
+    @perturbation.setter
+    def perturbation(self, perturbation):
+        self._perturbation = return_if_arts_type(perturbation, 'Numeric')
 
     @grids.setter
     def grids(self, grids):
@@ -102,7 +102,7 @@ class RetrievalQuantity:
         obj.subsubtag = xmlelement[2].value()
         obj.mode = xmlelement[3].value()
         obj.analytical = xmlelement[4].value()
-        obj.pertubation = xmlelement[5].value()
+        obj.perturbation = xmlelement[5].value()
         obj.grids = xmlelement[6].value()
 
         return obj
@@ -119,6 +119,6 @@ class RetrievalQuantity:
         xmlwriter.write_xml(self.subsubtag, {'name': 'SubSubtag'})
         xmlwriter.write_xml(self.mode, {'name': 'Mode'})
         xmlwriter.write_xml(self.analytical, {'name': 'Analytical'})
-        xmlwriter.write_xml(self.pertubation, {'name': 'Perturbation'})
+        xmlwriter.write_xml(self.perturbation, {'name': 'Perturbation'})
         xmlwriter.write_xml(self.grids, {'name': 'Grids'})
         xmlwriter.close_tag()
