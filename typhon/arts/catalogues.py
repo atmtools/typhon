@@ -290,8 +290,8 @@ class GasAbsLookup:
                  pressuregrid=None,
                  referencevmrprofiles=None,
                  referencetemperatureprofile=None,
-                 temperaturepertubations=None,
-                 nonlinearspeciesvmrpertubations=None,
+                 temperatureperturbations=None,
+                 nonlinearspeciesvmrperturbations=None,
                  absorptioncrosssection=None):
 
         self.speciestags = speciestags
@@ -300,8 +300,8 @@ class GasAbsLookup:
         self.pressuregrid = pressuregrid
         self.referencevmrprofiles = referencevmrprofiles
         self.referencetemperatureprofile = referencetemperatureprofile
-        self.temperaturepertubations = temperaturepertubations
-        self.nonlinearspeciesvmrpertubations = nonlinearspeciesvmrpertubations
+        self.temperatureperturbations = temperatureperturbations
+        self.nonlinearspeciesvmrperturbations = nonlinearspeciesvmrperturbations
         self.absorptioncrosssection = absorptioncrosssection
 
     @property
@@ -335,14 +335,14 @@ class GasAbsLookup:
         return self._referencetemperatureprofile
 
     @property
-    def temperaturepertubations(self):
-        """Vector with temperature pertubations."""
-        return self._temperaturepertubations
+    def temperatureperturbations(self):
+        """Vector with temperature perturbations."""
+        return self._temperatureperturbations
 
     @property
-    def nonlinearspeciesvmrpertubations(self):
-        """Vector with VMR pertubations for nonlinear species."""
-        return self._nonlinearspeciesvmrpertubations
+    def nonlinearspeciesvmrperturbations(self):
+        """Vector with VMR perturbations for nonlinear species."""
+        return self._nonlinearspeciesvmrperturbations
 
     @property
     def absorptioncrosssection(self):
@@ -379,15 +379,15 @@ class GasAbsLookup:
         self._referencetemperatureprofile = return_if_arts_type(
             referencetemperatureprofile, 'Vector')
 
-    @temperaturepertubations.setter
-    def temperaturepertubations(self, temperaturepertubations):
-        self._temperaturepertubations = return_if_arts_type(
-            temperaturepertubations, 'Vector')
+    @temperatureperturbations.setter
+    def temperatureperturbations(self, temperatureperturbations):
+        self._temperatureperturbations = return_if_arts_type(
+            temperatureperturbations, 'Vector')
 
-    @nonlinearspeciesvmrpertubations.setter
-    def nonlinearspeciesvmrpertubations(self, nonlinearspeciesvmrpertubations):
-        self._nonlinearspeciesvmrpertubations = return_if_arts_type(
-            nonlinearspeciesvmrpertubations, 'Vector')
+    @nonlinearspeciesvmrperturbations.setter
+    def nonlinearspeciesvmrperturbations(self, nonlinearspeciesvmrperturbations):
+        self._nonlinearspeciesvmrperturbations = return_if_arts_type(
+            nonlinearspeciesvmrperturbations, 'Vector')
 
     @absorptioncrosssection.setter
     def absorptioncrosssection(self, absorptioncrosssection):
@@ -406,8 +406,8 @@ class GasAbsLookup:
         obj.pressuregrid = xmlelement[3].value()
         obj.referencevmrprofiles = xmlelement[4].value()
         obj.referencetemperatureprofile = xmlelement[5].value()
-        obj.temperaturepertubations = xmlelement[6].value()
-        obj.nonlinearspeciesvmrpertubations = xmlelement[7].value()
+        obj.temperatureperturbations = xmlelement[6].value()
+        obj.nonlinearspeciesvmrperturbations = xmlelement[7].value()
         obj.absorptioncrosssection = xmlelement[8].value()
 
         return obj
@@ -435,10 +435,10 @@ class GasAbsLookup:
                             {'name': 'ReferenceVmrProfiles'})
         xmlwriter.write_xml(self.referencetemperatureprofile,
                             {'name': 'ReferenceTemperatureProfile'})
-        xmlwriter.write_xml(self.temperaturepertubations,
-                            {'name': 'TemperaturePertubations'})
-        xmlwriter.write_xml(self.nonlinearspeciesvmrpertubations,
-                            {'name': 'NonlinearSpeciesVmrPertubations'})
+        xmlwriter.write_xml(self.temperatureperturbations,
+                            {'name': 'TemperaturePerturbations'})
+        xmlwriter.write_xml(self.nonlinearspeciesvmrperturbations,
+                            {'name': 'NonlinearSpeciesVmrPerturbations'})
         xmlwriter.write_xml(self.absorptioncrosssection,
                             {'name': 'AbsorptionsCrossSections'})
         xmlwriter.close_tag()
