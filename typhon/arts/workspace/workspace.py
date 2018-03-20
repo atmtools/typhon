@@ -29,6 +29,7 @@ from typhon.arts.workspace.variables import WorkspaceVariable, group_names, grou
                                             workspace_variables
 from typhon.arts.workspace.agendas   import Agenda
 from typhon.arts.workspace import variables as V
+from typhon.arts.workspace.output import CoutCapture
 
 imports = dict()
 
@@ -185,7 +186,7 @@ class Workspace:
         for name in workspace_methods:
             m = workspace_methods[name]
             setattr(self, m.name, WSMCall(self, m))
-        self.verbosityInit()
+        self.__verbosity_init__()
 
     def __del__(self):
         """
@@ -193,6 +194,23 @@ class Workspace:
         """
         if (arts_api):
             arts_api.destroy_workspace(self.ptr)
+
+    def __verbosity_init__(self):
+        """
+        Executes verbosityInit WSM directly through the ARTS api to suppress
+        output.
+        """
+        wsm = workspace_methods["verbosityInit"]
+        (m_id, args_out, args_in, ts) = wsm._parse_output_input_lists(self, [], {})
+        arg_out_ptr = c.cast((c.c_long * len(args_out))(*args_out),
+                             c.POINTER(c.c_long))
+        arg_in_ptr  = c.cast((c.c_long * len(args_in))(*args_in),
+                            c.POINTER(c.c_long))
+        with CoutCapture(self, silent = True):
+            e_ptr = arts_api.execute_workspace_method(self.ptr, m_id, len(args_out),
+                                                      arg_out_ptr, len(args_in), arg_in_ptr)
+        for t in ts[::-1]:
+            t.erase()
 
     def add_variable(self, var):
         """

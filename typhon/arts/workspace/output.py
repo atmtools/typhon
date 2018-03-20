@@ -34,7 +34,7 @@ class CoutCapture():
     >>>     ws.Print(ws.Verbosity)
 
     """
-    def __init__(self, ws):
+    def __init__(self, ws, silent = False):
         """
         Create CoutCapture for given workspace object.
 
@@ -43,6 +43,7 @@ class CoutCapture():
             captured.
         """
         self.ws = ws
+        self.silent = silent
 
     def __enter__(self):
         if cout_file:
@@ -50,7 +51,7 @@ class CoutCapture():
             cout_file.truncate()
 
     def __exit__(self, type, value, traceback):
-        if cout_file:
+        if cout_file and not self.silent:
             #cout_file.flush()
             cout_file.seek(0, io.SEEK_SET)
             lines = [l.decode("UTF8") for l in cout_file.readlines()]

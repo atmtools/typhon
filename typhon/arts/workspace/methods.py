@@ -358,7 +358,6 @@ class WorkspaceMethod:
         arg_out_ptr = c.cast((c.c_long * len(arts_args_out))(*arts_args_out), c.POINTER(c.c_long))
         arg_in_ptr = c.cast((c.c_long * len(arts_args_in))(*arts_args_in), c.POINTER(c.c_long))
 
-
         with CoutCapture(ws):
             e_ptr = arts_api.execute_workspace_method(ws.ptr, m_id,
                                                       len(arts_args_out),
