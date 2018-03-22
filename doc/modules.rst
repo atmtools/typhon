@@ -104,6 +104,14 @@ Plotting
    typhon.plots
    typhon.plots.cm
 
+Retrieval
+---------
+
+.. toctree::
+   :maxdepth: 2
+
+   typhon.retrieval
+
 Spectroscopy
 ------------
 
