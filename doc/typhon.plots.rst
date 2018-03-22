@@ -32,7 +32,10 @@ plots
    profile_p
    profile_p_log
    profile_z
+   ScalingFormatter
    scatter_density_plot_matrix
+   set_xaxis_formatter
+   set_yaxis_formatter
    sorted_legend_handles_labels
    styles
    supcolorbar

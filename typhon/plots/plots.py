@@ -13,9 +13,10 @@ import numpy as np
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from matplotlib.ticker import LogFormatter, FuncFormatter
+from matplotlib.ticker import FuncFormatter
 from matplotlib.cm import get_cmap
 
+from typhon.plots import formatter
 from typhon.math import stats as tpstats
 
 
@@ -23,8 +24,6 @@ __all__ = [
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
-    'HectoPascalFormatter',
-    'HectoPascalLogFormatter',
     'diff_histogram',
     'profile_p',
     'profile_p_log',
@@ -363,80 +362,6 @@ def scatter_density_plot_matrix(
     return f
 
 
-def HectoPascalFormatter():
-    """Creates hectopascal labels for pascal input.
-    
-    Examples:
-        
-    .. plot::
-        :include-source:
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-        import typhon
-
-    
-        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)
-        x = np.exp(p / p[0])
-
-        fig, ax = plt.subplots()
-        ax.plot(x, p)
-        ax.invert_yaxis()
-        ax.yaxis.set_major_formatter(typhon.plots.HectoPascalFormatter())
-        ax.yaxis.set_minor_formatter(typhon.plots.HectoPascalFormatter())
-        
-        plt.show()
-        
-    See also:
-            :func:`~typhon.plots.HectoPascalLogFormatter`
-                Creates logarithmic hectopascal labels for pascal input.
-    """
-    @FuncFormatter
-    def _HectoPascalFormatter(x, pos):
-        return '{:g}'.format(x / 1e2)
-
-    return _HectoPascalFormatter
-
-
-class HectoPascalLogFormatter(LogFormatter):
-    """Creates logarithmic hectopascal labels for pascal input.
-
-    This class can be used to create axis labels on the hectopascal scale for
-    values plotted in pascals. It is handy in combination with plotting in
-    logscale.
-    
-    Examples:
-        
-    .. plot::
-        :include-source:
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-        import typhon
-
-    
-        p = typhon.math.nlogspace(1000e2, 0.1e2, 50)  # pressue in Pa
-        x = np.exp(p / p[0])
-
-        fig, ax = plt.subplots()
-        ax.semilogy(x, p)
-        ax.invert_yaxis()
-        ax.yaxis.set_major_formatter(typhon.plots.HectoPascalLogFormatter())
-        ax.yaxis.set_minor_formatter(typhon.plots.HectoPascalLogFormatter())
-        
-        plt.show()
-        
-    See also:
-            :func:`~typhon.plots.HectoPascalFormatter`
-                Creates hectopascal labels for pascal input.
-    """
-    # TODO (lkluft): This is an easy hack to preserve the automatic toggling of
-    # minor ticks for log-scales introduced in matplotlib 2.0.
-    # Could be replaced with a decent Formatter subclass in the future.
-    def _num_to_string(self, x, vmin, vmax):
-        return '{:g}'.format(x / 1e2)
-
-
 def profile_p(p, x, ax=None, **kwargs):
     """Plot atmospheric profile against pressure in linear space.
 
@@ -481,8 +406,7 @@ def profile_p(p, x, ax=None, **kwargs):
     ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
 
     # Label and format for yaxis.
-    ax.yaxis.set_major_formatter(HectoPascalFormatter())
-    ax.yaxis.set_minor_formatter(HectoPascalFormatter())
+    formatter.set_yaxis_formatter(formatter.HectoPascalFormatter(), ax=ax)
     if ax.is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 
@@ -534,8 +458,7 @@ def profile_p_log(p, x, ax=None, **kwargs):
     ret = profile_p(p, x, ax=ax, **kwargs)
 
     # Set logarithmic scale.
-    ax.yaxis.set_major_formatter(HectoPascalLogFormatter())
-    ax.yaxis.set_minor_formatter(HectoPascalLogFormatter())
+    formatter.set_yaxis_formatter(formatter.HectoPascalLogFormatter(), ax=ax)
 
     return ret
 
@@ -589,9 +512,8 @@ def profile_z(z, x, ax=None, **kwargs):
     # Actual plot.
     ret = ax.plot(x, z, **kwargs)
 
-    km_formatter = FuncFormatter(lambda n, pos: '{:g}'.format(n / 1000.))
-    ax.yaxis.set_major_formatter(km_formatter)
-    ax.yaxis.set_minor_formatter(km_formatter)
+    formatter.set_yaxis_formatter(formatter.ScalingFormatter('kilo', '{x:g}'),
+                                  ax=ax)
 
     return ret
 
