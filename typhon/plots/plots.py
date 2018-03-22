@@ -406,7 +406,7 @@ def profile_p(p, x, ax=None, **kwargs):
     ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
 
     # Label and format for yaxis.
-    formatter.set_yaxis_formatter(formatter.HectoPascalFormatter())
+    formatter.set_yaxis_formatter(formatter.HectoPascalFormatter(), ax=ax)
     if ax.is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 
@@ -458,7 +458,7 @@ def profile_p_log(p, x, ax=None, **kwargs):
     ret = profile_p(p, x, ax=ax, **kwargs)
 
     # Set logarithmic scale.
-    formatter.set_yaxis_formatter(formatter.HectoPascalLogFormatter())
+    formatter.set_yaxis_formatter(formatter.HectoPascalLogFormatter(), ax=ax)
 
     return ret
 
@@ -512,7 +512,8 @@ def profile_z(z, x, ax=None, **kwargs):
     # Actual plot.
     ret = ax.plot(x, z, **kwargs)
 
-    formatter.set_yaxis_formatter(formatter.ScalingFormatter('kilo', '{x:g}'))
+    formatter.set_yaxis_formatter(formatter.ScalingFormatter('kilo', '{x:g}'),
+                                  ax=ax)
 
     return ret
 
