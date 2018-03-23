@@ -54,6 +54,9 @@ class IntervalTree:
             intervals: A numpy array containing the intervals (list of two
                 numbers).
         """
+        if not isinstance(intervals, np.ndarray):
+            intervals = np.asarray(intervals)
+
         # Check the intervals whether they are valid:
         self.left = np.min(intervals)
         self.right = np.max(intervals)
@@ -173,7 +176,8 @@ class IntervalTree:
         # Check this special case: the query point lies outside of the bounds
         # of this tree:
         if check_extreme \
-                and not IntervalTree.interval_contains((self.left, self.right), point):
+                and not IntervalTree.interval_contains(
+                    (self.left, self.right), point):
             return []
 
         # Let's start with the centered intervals
