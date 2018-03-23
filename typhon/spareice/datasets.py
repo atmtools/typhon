@@ -34,6 +34,7 @@ import typhon.plots
 from typhon.spareice.array import GroupedArrays
 from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
+from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 import xarray as xr
 
@@ -118,6 +119,13 @@ class PlaceholderRegexError(Exception):
         Exception.__init__(
             self, f"The path of '{name}' contains syntax errors: {msg}"
         )
+
+
+class AsyncError(Exception):
+    """Should be raised if the regex of a placeholder is broken.
+    """
+    def __init__(self, msg):
+        Exception.__init__(self, msg)
 
 
 class Dataset:
@@ -296,8 +304,9 @@ class Dataset:
                 time coverage. Set this to a tuple of timestamps (datetime
                 objects or strings). Otherwise the period between year 1 and
                 9999 will be used as a default time coverage.
-            exclude: A list of time periods (tuples of two timestamps) that
-                will be excluded when searching for files of this dataset.
+            exclude: A list of time periods (tuples of two timestamps) or
+                filenames (strings) that will be excluded when searching for
+                files of this dataset.
             placeholder: A dictionary with pairs of placeholder name and a
                 regular expression matching its content. These are user-defined
                 placeholders, the standard temporal placeholders do not have to
@@ -432,8 +441,15 @@ class Dataset:
                 self.info_via = info_via
 
         # A list of time periods that will be excluded when searching files:
-        self._exclude = None
-        self.exclude = exclude
+        self._exclude_times = None
+        self._exclude_files = {}
+        if exclude is not None:
+            self.exclude_files(
+                [file for file in exclude if isinstance(file, str)]
+            )
+            self.exclude_times(
+                [times for times in exclude if isinstance(times, tuple)]
+            )
 
         # The default worker settings for map-like functions
         self.max_threads = 4 if max_threads is None else max_threads
@@ -572,10 +588,10 @@ class Dataset:
             info += "\nUser placeholder:\t" + self._user_placeholder
         return info
 
-    def align(self, start=None, end=None, datasets=None, max_interval=None):
+    def align(self, datasets, start=None, end=None, max_interval=None):
         """Collect the data from this and corresponding other datasets
 
-        Notes:
+        Warnings:
             The name of this method may change in future.
 
         This generator collects each file from this dataset between `start` and
@@ -583,13 +599,14 @@ class Dataset:
         datasets.
 
         Args:
+            datasets: A list of dataset objects. Note: At the moment, only the
+                first dataset will be processed.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If not given, it is
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
-            datasets: A list of dataset objects.
             max_interval: A time interval (as string, number or timedelta
                 object) that expands the search time period for secondaries.
 
@@ -599,88 +616,65 @@ class Dataset:
             :class:`FileInfo` objects of the opened files. The values from the
             second are lists with the content objects.
         """
-        if datasets is None:
-            raise ValueError("You must give some datasets to align with!")
-
         start = None if start is None else to_datetime(start)
         end = None if end is None else to_datetime(end)
 
-        if max_interval is None:
-            max_interval = timedelta(seconds=0)
-        else:
-            max_interval = to_timedelta(max_interval)
+        # Find all overlapping files
+        matches = list(self.find_overlaps(datasets, start, end,
+                                          max_interval=max_interval))
+        primaries, secondaries = zip(*matches)
 
-        # Cache for the secondaries. We need the OrderedDict to automatically
-        # sort all entries.
-        cache = defaultdict(OrderedDict)
+        # We want to put all secondaries in a loading queue. Hence, we need the
+        # list flattened and without duplicates.
+        secondaries = unique(
+            secondary for match in secondaries for secondary in match
+        )
 
-        for file, data in self.icollect(start, end, return_info=True):
-            yielded_files = {self.name: [file]}
-            yielded_data = {self.name: [data]}
+        primary_loader = self.icollect(files=primaries)
+        secondary_loader = datasets[0].icollect(files=secondaries,
+                                                return_info=True)
 
-            search_times = [
-                max(start, file.times[0]-max_interval),
-                min(end, file.times[1]+max_interval),
-            ]
-
-            found_secondaries = self._load_secondaries(
-                datasets, search_times, yielded_files, yielded_data, cache
-            )
-
-            if not found_secondaries:
-                continue
-
-            yield yielded_files, yielded_data
-
-    @staticmethod
-    def _load_secondaries(datasets, search_times,
-                          yielded_files, yielded_data, cache):
-        """Load secondary data from files or cache to all_data
-        """
-
-        # Get the corresponding secondary data to the current primary data:
-        for dataset in datasets:
-            try:
-                files = list(dataset.find(*search_times))
-            except NoFilesError:
-                return False
+        files, data = defaultdict(list), defaultdict(list)
+        for match_id, primary_data in enumerate(primary_loader):
+            files[self.name] = [primaries[match_id]]
+            data[self.name] = [primary_data]
 
             # We need to load only the files that have not been loaded earlier:
-            files_to_load = [
-                file for file in files
-                if file not in cache[dataset]
+            for secondary in matches[match_id][1]:
+                if secondary not in files[datasets[0].name]:
+                    secondary_file, secondary_data = next(secondary_loader)
+                    if secondary != secondary_file:
+                        raise AsyncError(
+                            "Expected different secondary file!\n"
+                            "Does your dataset contain files that are "
+                            "completely overlapping other files?"
+                        )
+                    files[datasets[0].name].append(secondary)
+                    data[datasets[0].name].append(secondary_data)
+
+            # We still have some files cached that we used the last time but we
+            # do not need any longer. Find therefore all, that we need:
+            files_to_keep = [
+                i for i, file in enumerate(files[datasets[0].name])
+                if file in matches[match_id][1]
             ]
 
-            # We can delete the files from the cache that are not needed any
-            # longer:
-            for cached_file in list(cache[dataset].keys()):
-                if cached_file not in files:
-                    del cache[dataset][cached_file]
+            # And delete the others from the cache:
+            files[datasets[0].name][:] = [
+                file for i, file in enumerate(files[datasets[0].name])
+                if i in files_to_keep
+            ]
+            data[datasets[0].name][:] = [
+                data for i, data in enumerate(data[datasets[0].name])
+                if i in files_to_keep
+            ]
 
             # Tell the python interpreter explicitly to free up memory to
             # improve performance (see
             # https://stackoverflow.com/q/1316767/9144990):
             gc.collect()
 
-            # Load the new files and add them to the cache
-            if files_to_load:
-                data_list = dataset.collect(
-                    files=files_to_load, concat=False,
-                )
-                for i, data in enumerate(data_list):
-                    cache[dataset][files_to_load[i]] = data
-
-            if not cache[dataset]:
-                return False
-
-            # Add the secondary to the dictionaries that will be yielded to the
-            # user
-            yielded_files[dataset.name] = [file for file in cache[dataset]]
-            yielded_data[dataset.name] = [
-                data for data in cache[dataset].values()
-            ]
-
-        return yielded_files, yielded_data
+            yield files, data
 
     def collect(self, start=None, end=None, files=None, read_args=None,
                 return_info=False, concat=True, concat_args=None, **find_args):
@@ -869,92 +863,31 @@ class Dataset:
         """
         return deepcopy(self)
 
-    @property
-    def exclude(self):
-        """Gets or sets time periods that will be excluded when searching for
-        files.
-
-        Returns:
-            A IntervalTree object.
-        """
-        return self._exclude
-
-    @exclude.setter
-    def exclude(self, value):
-        if value is None:
-            self._exclude = None
+    def exclude_times(self, periods):
+        if periods is None or not periods:
+            self._exclude_times = None
         else:
-            if isinstance(value, np.ndarray):
-                self._exclude = IntervalTree(value)
-            else:
-                self._exclude = IntervalTree(np.array(value))
+            self._exclude_times = IntervalTree(periods)
 
-    def find_closest(self, timestamp, filters=None):
-        """Finds either the file that covers a timestamp or is the closest to
-        it.
+    def exclude_files(self, filenames):
+        self._exclude_files = set(filenames)
 
-        This method ignores the value of *Dataset.exclude*.
+    def is_excluded(self, file):
+        """Checks whether a file is excluded from this Dataset.
 
         Args:
-            timestamp: date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            filters: The same filter argument that is allowed for
-                :meth:`find`.
+            file: A file info object.
 
         Returns:
-            The FileInfo object of the found file. If no file was found, a
-            NoFilesError is raised.
+            True or False
         """
+        if file.path in self._exclude_files:
+            return True
 
-        # Special case: the whole dataset consists of one file only.
-        if self.single_file:
-            if os.path.isfile(self.path):
-                # We do not have to check the time coverage since there this is
-                # automatically the closest file to the timestamp.
-                return self.path
-            else:
-                raise ValueError(
-                    "The path parameter of '%s' does not contain placeholders"
-                    " and is not a path to an existing file!" % self.name)
+        if self._exclude_times is None:
+            return False
 
-        timestamp = to_datetime(timestamp)
-
-        # We might need some more fillings than given by the user therefore
-        # we need the error catching:
-        try:
-            # Maybe there is a file with exact this timestamp?
-            path = self.get_filename(timestamp, )
-            if os.path.isfile(path):
-                return self.get_info(path)
-        except (UnknownPlaceholderError, UnfilledPlaceholderError):
-            pass
-
-        # We need to find all files that are around the given timestamp. Hence,
-        # we use the sub directory time resolution to specify a time period
-        # within the file should possibly be:
-        if self._sub_dir_time_resolution is None:
-            start = datetime.min
-            end = datetime.max
-        else:
-            start = timestamp - self._sub_dir_time_resolution
-            end = timestamp + self._sub_dir_time_resolution
-
-        files = list(self.find(start, end, sort=False, filters=filters))
-
-        if not files:
-            return None
-
-        times = [file.times for file in files]
-
-        # Either we find a file that covers the certain timestamp:
-        for index, time_coverage in enumerate(times):
-            if IntervalTree.interval_contains(time_coverage, timestamp):
-                return files[index]
-
-        # Or we find the closest file.
-        intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
-        return files[np.argmin(intervals)]
+        return file.times in self._exclude_times
 
     def find(
             self, start=None, end=None, sort=True, bundle=None, filters=None,
@@ -967,7 +900,7 @@ class Dataset:
         going to be found.
 
         While searching this method checks whether the file lies in the time
-        periods given by *Dataset.exclude*.
+        periods given by `exclude` while initializing.
 
         Args:
             start: Start date either as datetime object or as string
@@ -1239,7 +1172,7 @@ class Dataset:
                 # start and end date.
                 if IntervalTree.interval_overlaps(
                         file_info.times, (start, end))\
-                        and not self.is_excluded(file_info.times):
+                        and not self.is_excluded(file_info):
                     yield file_info
 
     @staticmethod
@@ -1309,12 +1242,136 @@ class Dataset:
             yield from (
                 bundle[1].values.tolist()
                 for bundle in time_series.groupby(
-                pd.Grouper(freq=bundle_size))
+                    pd.Grouper(freq=bundle_size))
                 if bundle[1].any()
             )
         else:
             raise ValueError(
                 "The parameter bundle must be a integer or string!")
+
+    def find_closest(self, timestamp, filters=None):
+        """Find the closest file to a timestamp
+
+        Args:
+            timestamp: date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            filters: The same filter argument that is allowed for
+                :meth:`find`.
+
+        Returns:
+            The FileInfo object of the found file. If no file was found, a
+            NoFilesError is raised.
+        """
+
+        # Special case: the whole dataset consists of one file only.
+        if self.single_file:
+            if os.path.isfile(self.path):
+                # We do not have to check the time coverage since there this is
+                # automatically the closest file to the timestamp.
+                return self.path
+            else:
+                raise ValueError(
+                    "The path parameter of '%s' does not contain placeholders"
+                    " and is not a path to an existing file!" % self.name)
+
+        timestamp = to_datetime(timestamp)
+
+        # We might need some more fillings than given by the user therefore
+        # we need the error catching:
+        try:
+            # Maybe there is a file with exact this timestamp?
+            path = self.get_filename(timestamp, )
+            if os.path.isfile(path):
+                return self.get_info(path)
+        except (UnknownPlaceholderError, UnfilledPlaceholderError):
+            pass
+
+        # We need to find all files that are around the given timestamp. Hence,
+        # we use the sub directory time resolution to specify a time period
+        # within the file should possibly be:
+        if self._sub_dir_time_resolution is None:
+            start = datetime.min
+            end = datetime.max
+        else:
+            start = timestamp - self._sub_dir_time_resolution
+            end = timestamp + self._sub_dir_time_resolution
+
+        files = list(self.find(start, end, sort=False, filters=filters))
+
+        if not files:
+            return None
+
+        times = [file.times for file in files]
+
+        # Either we find a file that covers the certain timestamp:
+        for index, time_coverage in enumerate(times):
+            if IntervalTree.interval_contains(time_coverage, timestamp):
+                return files[index]
+
+        # Or we find the closest file.
+        intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
+        return files[np.argmin(intervals)]
+
+    def find_overlaps(
+            self, datasets, start=None, end=None, max_interval=None,
+            filters=None, other_filters=None):
+        """Find files between two datasets that overlap in time.
+
+        Args:
+            datasets: A list of other Dataset objects. Note: at the moment only
+                the first dataset will be processed.
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            max_interval: Maximal time interval in seconds between
+                two overlapping files. Must be an integer or float.
+            filters: The same filter argument that is allowed for
+                :meth:`find`.
+            other_filters: The same filter argument that is allowed for
+                :meth:`find`.
+
+        Yields:
+            A tuple with the names of two files which correspond to each other.
+        """
+        if max_interval is not None:
+            max_interval = to_timedelta(max_interval)
+            start = to_datetime(start) - max_interval
+            end = to_datetime(end) + max_interval
+
+        files1 = list(
+            self.find(start, end, filters=filters)
+        )
+        files2 = list(
+            datasets[0].find(start, end, filters=other_filters)
+        )
+
+        # Convert the times (datetime objects) to seconds (integer)
+        times1 = [
+            [int(file.times[0].timestamp()), int(file.times[1].timestamp())]
+            for file in files1
+        ]
+        times2 = np.asarray([
+            [file.times[0].timestamp(), file.times[1].timestamp()]
+            for file in files2
+        ]).astype('int')
+
+        if max_interval is not None:
+            # Expand the intervals of the secondary dataset to close-in-time
+            # intervals.
+            times2[:, 0] -= int(max_interval.total_seconds())
+            times2[:, 1] += int(max_interval.total_seconds())
+
+        tree = IntervalTree(times2)
+
+        # Search for all overlapping intervals:
+        results = tree.query(times1)
+
+        for i, overlapping_files in enumerate(results):
+            matches = [files2[oi] for oi in sorted(overlapping_files)]
+            if matches:
+                yield files1[i], matches
 
     def get_filename(
             self, times, template=None, fill=None):
@@ -1535,20 +1592,6 @@ class Dataset:
 
         return func(objects, **self.merge_args)
 
-    def is_excluded(self, period):
-        """Checks whether a time interval is excluded from this Dataset.
-
-        Args:
-            period: A tuple of two datetime objects.
-
-        Returns:
-            True or False
-        """
-        if self.exclude is None:
-            return False
-
-        return period in self.exclude
-
     def dislink(self, name_or_dataset):
         """Remove the link between this and another dataset
 
@@ -1736,23 +1779,21 @@ class Dataset:
                 )
         """
 
-        pool, func_args_queue = self._configure_map_pool_and_worker_args(
-            start, end, files, func, args, kwargs,
-            on_content, pass_info, read_args, output,
-            max_workers, worker_type, worker_initializer, worker_initargs,
-            return_info, **find_args
-        )
+        pool_class, pool_args, worker_args = \
+            self._configure_pool_and_worker_args(
+                start, end, files, func, args, kwargs,
+                on_content, pass_info, read_args, output,
+                max_workers, worker_type, worker_initializer, worker_initargs,
+                return_info, **find_args
+            )
 
-        # Process all found files with the arguments:
-        results = pool.map(
-            self._call_map_function, func_args_queue,
-        )
+        with pool_class(**pool_args) as pool:
+            # Process all found files with the arguments:
+            results = pool.map(
+                self._call_map_function, worker_args,
+            )
 
-        # Explicitly delete the pool
-        del pool
-        gc.collect()
-
-        return results
+            return results
 
     def imap(self, *args, **kwargs):
         """Apply a function on all files of this dataset between two dates.
@@ -1772,33 +1813,32 @@ class Dataset:
 
         """
 
-        pool, func_args_queue = self._configure_map_pool_and_worker_args(
-            *args, **kwargs
-        )
+        pool_class, pool_args, worker_args = \
+            self._configure_pool_and_worker_args(*args, **kwargs)
 
-        # Preload the first file
-        print("Create thread pool!")
-        pre_loaded = pool.apply_async(
-            self._call_map_function,
-            args=(next(func_args_queue), ),
-        )
-
-        for i, func_args in enumerate(func_args_queue):
-            yield_this = pre_loaded
+        with pool_class(**pool_args) as pool:
+            # Preload the first file
             pre_loaded = pool.apply_async(
-                self._call_map_function, args=(func_args, )
+                self._call_map_function,
+                args=(next(worker_args), ),
             )
-            yield yield_this.get()
 
-        # Flush the last processed file
-        yield pre_loaded.get()
+            for i, func_args in enumerate(worker_args):
+                yield_this = pre_loaded
+                pre_loaded = pool.apply_async(
+                    self._call_map_function, args=(func_args, )
+                )
+                yield yield_this.get()
 
-    def _configure_map_pool_and_worker_args(
+            # Flush the last processed file
+            yield pre_loaded.get()
+
+    def _configure_pool_and_worker_args(
             self, start=None, end=None, files=None, func=None, args=None,
             kwargs=None, on_content=False, pass_info=None, read_args=None,
-            output=None,
-            max_workers=None, worker_type=None, worker_initializer=None,
-            worker_initargs=None, return_info=False, **find_args
+            output=None, max_workers=None, worker_type=None,
+            worker_initializer=None, worker_initargs=None,
+            return_info=False, **find_args
     ):
         if func is None:
             raise ValueError("The parameter *func* must be given!")
@@ -1817,24 +1857,22 @@ class Dataset:
         if worker_type is None:
             worker_type = self.worker_type
 
-        if max_workers is None:
-            if worker_type == "thread":
-                max_workers = self.max_threads
-            else:
-                max_workers = self.max_processes
-
         if worker_type == "process":
-            pool = ProcessPool(
-                max_workers, initializer=worker_initializer,
-                initargs=worker_initargs,
-            )
+            pool_class = ProcessPool
+            if max_workers is None:
+                max_workers = self.max_processes
         elif worker_type == "thread":
-            pool = ThreadPool(
-                max_workers, initializer=worker_initializer,
-                initargs=worker_initargs,
-            )
+            pool_class = ThreadPool
+            if max_workers is None:
+                max_workers = self.max_threads
         else:
             raise ValueError(f"Unknown worker type '{worker_type}!")
+
+        pool_args = {
+            "processes": max_workers,
+            "initializer": worker_initializer,
+            "initargs": worker_initargs,
+        }
 
         if kwargs is None:
             kwargs = {}
@@ -1845,13 +1883,13 @@ class Dataset:
         if files is None:
             files = self.find(start, end, **find_args)
 
-        function_arguments = (
+        worker_args = (
             (self, file, func, args, kwargs, pass_info, output,
              on_content, read_args, return_info)
             for file in files
         )
 
-        return pool, function_arguments
+        return pool_class, pool_args, worker_args
 
     @staticmethod
     def _call_map_function(all_args):
@@ -2138,63 +2176,6 @@ class Dataset:
             args["day"] = date.day
 
         return args
-
-    def find_overlaps(
-            self, other, start=None, end=None, max_interval=None,
-            filters=None, other_filters=None):
-        """Find files between two datasets that overlap in time.
-
-        Args:
-            other: A Dataset object which holds the other files.
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            max_interval: Maximal time interval in seconds between
-                two overlapping files. Must be an integer or float.
-            filters: The same filter argument that is allowed for
-                :meth:`find`.
-            other_filters: The same filter argument that is allowed for
-                :meth:`find`.
-
-        Yields:
-            A tuple with the names of two files which correspond to each other.
-        """
-        if max_interval is not None:
-            max_interval = to_timedelta(max_interval)
-            start = to_datetime(start) - max_interval
-            end = to_datetime(end) + max_interval
-
-        files1 = list(
-            self.find(start, end, filters=filters)
-        )
-        files2 = list(
-            other.find(start, end, filters=other_filters)
-        )
-
-        # Convert the times (datetime objects) to seconds (integer)
-        times1 = [
-            [int(file.times[0].timestamp()), int(file.times[1].timestamp())]
-            for file in files1
-        ]
-        times2 = np.asarray([
-            [file.times[0].timestamp(), file.times[1].timestamp()]
-            for file in files2
-        ]).astype('int')
-
-        if max_interval is not None:
-            # Expand the intervals of the secondary dataset to close-in-time
-            # intervals.
-            times2[:, 0] -= int(max_interval.total_seconds())
-            times2[:, 1] += int(max_interval.total_seconds())
-
-        tree = IntervalTree(times2)
-
-        # Search for all overlapping intervals:
-        results = tree.query(times1)
-
-        for i, overlapping_files in enumerate(results):
-            yield files1[i], [files2[oi] for oi in sorted(overlapping_files)]
 
     def parse_filename(self, filename, template=None,):
         """Parse the filename with temporal and additional regular expressions.
