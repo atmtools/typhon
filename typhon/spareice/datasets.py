@@ -568,10 +568,15 @@ class Dataset:
         info = "Name:\t" + self.name
         info += "\nType:\t" + dtype
         info += "\nFiles path:\t" + self.path
+        if self._user_placeholder:
+            info += "\nUser placeholder:\t" + self._user_placeholder
         return info
 
     def align(self, start=None, end=None, datasets=None, max_interval=None):
         """Collect the data from this and corresponding other datasets
+
+        Notes:
+            The name of this method may change in future.
 
         This generator collects each file from this dataset between `start` and
         `end` and does the same with the corresponding files from other
@@ -635,7 +640,10 @@ class Dataset:
 
         # Get the corresponding secondary data to the current primary data:
         for dataset in datasets:
-            files = list(dataset.find(*search_times))
+            try:
+                files = list(dataset.find(*search_times))
+            except NoFilesError:
+                return False
 
             # We need to load only the files that have not been loaded earlier:
             files_to_load = [
@@ -1736,9 +1744,15 @@ class Dataset:
         )
 
         # Process all found files with the arguments:
-        return pool.map(
+        results = pool.map(
             self._call_map_function, func_args_queue,
         )
+
+        # Explicitly delete the pool
+        del pool
+        gc.collect()
+
+        return results
 
     def imap(self, *args, **kwargs):
         """Apply a function on all files of this dataset between two dates.
@@ -1763,6 +1777,7 @@ class Dataset:
         )
 
         # Preload the first file
+        print("Create thread pool!")
         pre_loaded = pool.apply_async(
             self._call_map_function,
             args=(next(func_args_queue), ),
@@ -2124,13 +2139,13 @@ class Dataset:
 
         return args
 
-    def overlaps_with(
-            self, other_dataset, start, end, max_interval=None,
+    def find_overlaps(
+            self, other, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
         """Find files between two datasets that overlap in time.
 
         Args:
-            other_dataset: A Dataset object which holds the other files.
+            other: A Dataset object which holds the other files.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
@@ -2154,7 +2169,7 @@ class Dataset:
             self.find(start, end, filters=filters)
         )
         files2 = list(
-            other_dataset.find(start, end, filters=other_filters)
+            other.find(start, end, filters=other_filters)
         )
 
         # Convert the times (datetime objects) to seconds (integer)
