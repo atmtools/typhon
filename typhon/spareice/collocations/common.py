@@ -28,10 +28,10 @@ import xarray as xr
 from .algorithms import BallTree, BruteForce
 
 __all__ = [
-    "collapse",
+    #"collapse",
     "collocate",
     "collocate_datasets",
-    "expand",
+    #"expand",
 ]
 
 # Finder algorithms for collocations:
@@ -52,186 +52,189 @@ UNITS_CONVERSION_FACTORS = [
     [{"ft", "foot", "feet"}, 0.3048e-3],
 ]
 
-# @staticmethod
-# def _add_fields_to_data(data, original_dataset, group, fields):
-#     try:
-#         original_file = data[group].attrs["__original_file"]
-#     except KeyError:
-#         raise KeyError(
-#             "The collocation files does not contain information about "
-#             "their original files.")
-#     original_data = original_dataset.read(original_file)[fields]
-#     original_indices = data[group]["__original_indices"]
-#     data[group] = GroupedArrays.merge(
-#         [data[group], original_data[original_indices]],
-#         overwrite_error=False
-#     )
-#
-#     return data
-#
-# def add_fields(self, start, end, original_dataset, group, fields):
-#     """
-#
-#     Args:
-#         start:
-#         end:
-#         original_dataset:
-#         group
-#         fields:
-#
-#     Returns:
-#         None
-#     """
-#     self.map(
-#         start, end, func=self._add_fields_to_data,
-#         kwargs={
-#             "group": group,
-#             "original_dataset": original_dataset,
-#             "fields": fields,
-#         }, on_content=True, output=self
-#     )
 
+class Collocations:
+    def __init__(self, dataset):
+        self.files = dataset
 
-def collapse(data, reference=None, collapser=None, include_stats=None, ):
-    """Collapses all multiple collocation points to a single data point
-
-    Warnings:
-        Does not work yet!
-
-    During searching for collocations, one might find multiple collocation
-    points from one dataset for one single point of the other dataset. For
-    example, the MHS instrument has a larger footprint than the AVHRR
-    instrument, hence one will find several AVHRR colloocation points for
-    each MHS data point. This method performs a function on the multiple
-    collocation points to merge them to one single point (e.g. the mean
-    function).
-
-    Args:
-        data: Data from collocations.
-        reference: Name of dataset which has the largest footprint. All
-            other datasets will be collapsed to its data points.
-        collapser: Reference to a function that should be applied on each bin
-            (numpy.nanmean is the default).
-        include_stats: Set this to a name of a variable (or list of
-            names) and statistical parameters will be stored about the
-            built data bins of the variable before collapsing. The variable
-            must be one-dimensional.
-
-    Returns:
-        A GroupedArrays object with the collapsed data
-
-    Examples:
-        .. code-block:: python
-
-            # TODO: Add examples
-    """
-
-    raise NotImplementedError("Not yet implemented!")
-
-    # Get the bin indices by the main dataset to which all other
-    # shall be collapsed:
-    reference_bins = list(
-        data[reference][COLLOCATION_FIELD].group().values()
-    )
-
-    collapsed_data = GroupedArrays()
-
-    # Add additional statistics about one binned variable:
-    if include_stats is not None:
-        statistic_functions = {
-            "variation": scipy.stats.variation,
-            "mean": np.nanmean,
-            "number": lambda x, _: x.shape[0],
-            "std": np.nanstd,
-        }
-
-        # Create the bins for the varaible from which you want to have
-        # the statistics:
-        group, _ = GroupedArrays.parse(include_stats)
-        bins = data[group][COLLOCATION_FIELD].bin(
-            reference_bins
+    @staticmethod
+    def _add_fields_to_data(data, original_dataset, group, fields):
+        try:
+            original_file = data[group].attrs["__original_file"]
+        except KeyError:
+            raise KeyError(
+                "The collocation files does not contain information about "
+                "their original files.")
+        original_data = original_dataset.read(original_file)[fields]
+        original_indices = data[group]["__original_indices"]
+        data[group] = GroupedArrays.merge(
+            [data[group], original_data[original_indices]],
+            overwrite_error=False
         )
-        collapsed_data["__statistics"] = \
-            data[include_stats].apply_on_bins(
-                bins, statistic_functions
+
+        return data
+
+    def add_fields(self, start, end, original_dataset, group, fields):
+        """
+
+        Args:
+            start:
+            end:
+            original_dataset:
+            group
+            fields:
+
+        Returns:
+            None
+        """
+        self.files.map(
+            start, end, func=self._add_fields_to_data,
+            kwargs={
+                "group": group,
+                "original_dataset": original_dataset,
+                "fields": fields,
+            }, on_content=True, output=self
+        )
+
+    def collapse(self, reference=None, collapser=None, include_stats=None, ):
+        """Collapses all multiple collocation points to a single data point
+
+        Warnings:
+            Does not work yet!
+
+        During searching for collocations, one might find multiple collocation
+        points from one dataset for one single point of the other dataset. For
+        example, the MHS instrument has a larger footprint than the AVHRR
+        instrument, hence one will find several AVHRR colloocation points for
+        each MHS data point. This method performs a function on the multiple
+        collocation points to merge them to one single point (e.g. the mean
+        function).
+
+        Args:
+            data: Data from collocations.
+            reference: Name of dataset which has the largest footprint. All
+                other datasets will be collapsed to its data points.
+            collapser: Reference to a function that should be applied on each
+                bin (numpy.nanmean is the default).
+            include_stats: Set this to a name of a variable (or list of
+                names) and statistical parameters will be stored about the
+                built data bins of the variable before collapsing. The variable
+                must be one-dimensional.
+
+        Returns:
+            A GroupedArrays object with the collapsed data
+
+        Examples:
+            .. code-block:: python
+
+                # TODO: Add examples
+        """
+
+        raise NotImplementedError("Not yet implemented!")
+
+        # Get the bin indices by the main dataset to which all other
+        # shall be collapsed:
+        reference_bins = list(
+            data[reference][COLLOCATION_FIELD].group().values()
+        )
+
+        collapsed_data = GroupedArrays()
+
+        # Add additional statistics about one binned variable:
+        if include_stats is not None:
+            statistic_functions = {
+                "variation": scipy.stats.variation,
+                "mean": np.nanmean,
+                "number": lambda x, _: x.shape[0],
+                "std": np.nanstd,
+            }
+
+            # Create the bins for the varaible from which you want to have
+            # the statistics:
+            group, _ = GroupedArrays.parse(include_stats)
+            bins = data[group][COLLOCATION_FIELD].bin(
+                reference_bins
             )
-        collapsed_data["__statistics"].attrs["description"] = \
-            "Statistics about the collapsed bins of '{}'.".format(
-                include_stats
-            )
+            collapsed_data["__statistics"] = \
+                data[include_stats].apply_on_bins(
+                    bins, statistic_functions
+                )
+            collapsed_data["__statistics"].attrs["description"] = \
+                "Statistics about the collapsed bins of '{}'.".format(
+                    include_stats
+                )
 
-    for dataset in data.groups():
-        if dataset.startswith("__"):
-            collapsed_data[dataset] = data[dataset]
+        for dataset in data.groups():
+            if dataset.startswith("__"):
+                collapsed_data[dataset] = data[dataset]
 
-        collocations = data[dataset][COLLOCATION_FIELD]
+            collocations = data[dataset][COLLOCATION_FIELD]
 
-        if (dataset == reference
-            or data[dataset].attrs.get("COLLAPSED_TO", None)
-                == reference):
-            # The collocation indices will become useless
-            del data[dataset][COLLOCATION_FIELD]
+            if (dataset == reference
+                or data[dataset].attrs.get("COLLAPSED_TO", None)
+                    == reference):
+                # The collocation indices will become useless
+                del data[dataset][COLLOCATION_FIELD]
 
-            # This is the main dataset to which all other will be
-            # collapsed. Therefore, we do not need explicitly
-            # collapse here.
-            collapsed_data[dataset] = \
-                data[dataset][np.unique(collocations)]
-        else:
-            # We do not need the original and collocation indices from the
-            # dataset that will be collapsed because they will soon become
-            # useless. Moreover, they could have a different dimension
-            # length than the other variables and lead to errors in the
-            # selecting process.
-
-            del data[dataset]["__original_indices"]
-            del data[dataset][COLLOCATION_FIELD]
-
-            bins = collocations.bin(reference_bins)
-
-            # We ignore some warnings rather than fixing them
-            # TODO: Maybe fix them?
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore",
-                    message="invalid value encountered in double_scalars")
+                # This is the main dataset to which all other will be
+                # collapsed. Therefore, we do not need explicitly
+                # collapse here.
                 collapsed_data[dataset] = \
-                    data[dataset].collapse(
-                        bins, collapser=collapser,
-                    )
+                    data[dataset][np.unique(collocations)]
+            else:
+                # We do not need the original and collocation indices from the
+                # dataset that will be collapsed because they will soon become
+                # useless. Moreover, they could have a different dimension
+                # length than the other variables and lead to errors in the
+                # selecting process.
 
-            collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
+                del data[dataset]["__original_indices"]
+                del data[dataset][COLLOCATION_FIELD]
 
-    # Set the collapsed flag:
-    collapsed_data.attrs["COLLAPSED"] = 1
+                bins = collocations.bin(reference_bins)
 
-    # Overwrite the content of the old file:
-    return collapsed_data
+                # We ignore some warnings rather than fixing them
+                # TODO: Maybe fix them?
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message="invalid value encountered in double_scalars")
+                    collapsed_data[dataset] = \
+                        data[dataset].collapse(
+                            bins, collapser=collapser,
+                        )
 
+                collapsed_data[dataset].attrs["COLLAPSED_TO"] = reference
 
-def expand(data):
-    """Repeat each data point to its multiple collocation points
+        # Set the collapsed flag:
+        collapsed_data.attrs["COLLAPSED"] = 1
 
-    Warnings:
-        Does not work yet!
+        # Overwrite the content of the old file:
+        return collapsed_data
 
-    This is the inverse function of :func:`collapse`.
+    def expand(self):
+        """Repeat each data point to its multiple collocation points
 
-    Args:
-        data:
+        Warnings:
+            Does not work yet!
 
-    Returns:
+        This is the inverse function of :func:`collapse`.
 
-    """
+        Args:
+            data:
 
-    raise NotImplementedError("Not yet implemented!")
-    expanded_data = GroupedArrays()
-    for group_name in data.groups():
-        if group_name.startswith("__"):
-            continue
+        Returns:
 
-        #indices = data["__collocations"][]
-        expanded_data[group_name] = data[group_name][indices]
+        """
+
+        raise NotImplementedError("Not yet implemented!")
+        expanded_data = GroupedArrays()
+        for group_name in data.groups():
+            if group_name.startswith("__"):
+                continue
+
+            #indices = data["__collocations"][]
+            expanded_data[group_name] = data[group_name][indices]
 
 
 def _to_kilometers(distance):
@@ -365,6 +368,10 @@ def collocate(arrays, max_interval=None, max_distance=None,
 
     """
 
+    if not arrays[0] or not arrays[1]:
+        # At least of the arrays is empty
+        return np.array([[], []])
+
     if max_distance is None and max_interval is None:
         raise ValueError("Either max_distance or max_interval must be given!")
 
@@ -414,7 +421,6 @@ def collocate(arrays, max_interval=None, max_distance=None,
         )
 
         if common_time is None:
-            print("Return empty!")
             # There was no common time window found
             return np.array([[], []])
 
@@ -683,8 +689,13 @@ def collocate_datasets(
     if verbose:
         print("Retrieve time coverages from files...")
 
+    verbose_timer = time.time()
+
     # Get all primary and secondary data that overlaps with each other
     for files, data in primary.align(start, end, [secondary], max_interval):
+        if verbose > 1:
+            reading_time = time.time() - verbose_timer
+
         # This should make it easier to retrieve the original file in
         # post-processing:
         data = _add_file_identifiers(datasets, files, data)
@@ -696,6 +707,8 @@ def collocate_datasets(
         if verbose:
             _print_collocating_status(timer, start, end,
                                       *data[primary.name].get_range("time"))
+        if verbose > 1:
+            print(f"{reading_time:.2f}s for reading the data")
 
         # We do not have to collocate everything, just the common time period
         # expanded by max_interval and limited by the global start and end
@@ -711,10 +724,16 @@ def collocate_datasets(
         data[primary.name] = data[primary.name][primary_period]
         data[secondary.name] = data[secondary.name][secondary_period]
 
+        verbose_timer = time.time()
         collocations = collocate(
             [data[primary.name], data[secondary.name]],
             **collocate_args,
         )
+
+        if verbose > 1:
+            print(f"{time.time()-verbose_timer:.2f}s for collocating the data")
+
+        verbose_timer = time.time()
 
         if not collocations.any():
             if verbose:
@@ -733,9 +752,13 @@ def collocate_datasets(
                 f"{n_collocations[1]} ({datasets[1].name}) collocations to\n"
                 f"{filename}"
             )
+        if verbose > 1:
+            print(f"{time.time()-verbose_timer:.2f}s for storing the data")
 
         total_collocations[0] += n_collocations[0]
         total_collocations[1] += n_collocations[1]
+
+        verbose_timer = time.time()
 
     if verbose:
         print("-" * 79)
@@ -757,10 +780,9 @@ def _add_file_identifiers(datasets, files, data):
         for index, file in enumerate(files[ds_name]):
             length = data[ds_name][index]["time"].shape[0]
             data[ds_name][index]["__file_start"] = \
-                np.repeat(file.times[0], length).astype("M8[s]")
+                np.repeat(np.datetime64(file.times[0]), length)
             data[ds_name][index]["__file_end"] = \
-                np.repeat(file.times[1], length).astype("M8[s]")
-
+                np.repeat(np.datetime64(file.times[1]), length)
     return data
 
 
@@ -775,77 +797,6 @@ def _get_search_periods(
     secondary_period = (start <= secondary) & (secondary <= end)
 
     return primary_period, secondary_period
-
-
-def _collocate_include_cache(data, cache, primary, secondary,
-                             max_interval, collocate_args):
-
-    """Search for collocations including the cached data from previous files"""
-    # At first, let's collocate the current primary and secondary data:
-    current_collocations = collocate(
-        [data[primary.name], data[secondary.name]],
-        **collocate_args,
-    )
-    print("Current collocations:", current_collocations)
-
-    # Data from the current files may also collocate with the data from
-    # previous files. That is the reason why we parts of them before. Now, we
-    # have to check for those cross-collocations. I call it cross-collocation
-    # because it looks this:
-    #
-    # [   CACHED PRIMARY DATA \ / CURRENT PRIMARY DATA   ]
-    # [         -max_interval  X +max_interval ] ...
-    # [ CACHED SECONDARY FILE / \ CURRENT SECONDARY DATA ]
-
-    # The cached primary data may collocate with the first part of the current
-    # secondary file:
-    check_with_cache = \
-        data[secondary.name]["time"] <= \
-        data[secondary.name]["time"].min().item(0) + max_interval
-    cached_primary_with_secondary = collocate(
-        [cache[primary.name], data[secondary.name][check_with_cache]],
-        **collocate_args,
-    )
-    print("1. cross-collocations:", cached_primary_with_secondary)
-
-    # We must do the same with the cached secondary file and the first part of
-    # the current primary file:
-    check_with_cache = \
-        data[primary.name]["time"] <= \
-        data[primary.name]["time"].min().item(0) + max_interval
-    primary_with_cached_secondary = collocate(
-        [data[primary.name][check_with_cache], cache[secondary.name]],
-        **collocate_args,
-    )
-    print("2. cross-collocations:", primary_with_cached_secondary)
-
-    if not cached_primary_with_secondary.any() and not \
-            primary_with_cached_secondary.any():
-        print("Found no cross-collocations!")
-        return current_collocations
-
-    # Add the cached data to all_data
-    data[primary.name] = GroupedArrays.concat(
-        [cache[primary.name], data[primary.name]])
-    data[secondary.name] = GroupedArrays.concat(
-        [cache[secondary.name], data[secondary.name]])
-
-    # Since we added the cached data at the front to the current data, we have
-    # to shift the indices from almost all collocations:
-    cached_primary_with_secondary[1] += cache[secondary.name]["time"].size
-    primary_with_cached_secondary[0] += cache[primary.name]["time"].size
-    current_collocations[0] += cache[primary.name]["time"].size
-    current_collocations[1] += cache[secondary.name]["time"].size
-
-    print("Corrected current:", current_collocations)
-    print("1. corrected cross:", cached_primary_with_secondary)
-    print("2. corrected cross:", primary_with_cached_secondary)
-
-    return np.hstack([
-        cached_primary_with_secondary,
-        primary_with_cached_secondary,
-        current_collocations,
-    ]).astype(int)
 
 
 def _print_collocating_status(timer, start, end, current_start, current_end):
