@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib
 import copy
 import os
 import pickle
@@ -11,9 +10,9 @@ try:
     from keras.layers import Dense, Activation, Dropout
     from keras.optimizers import SGD
 except ImportError:
-    raise Exception("Could not import the required Keras modules. The QRNN " /
-                    "implementation was developed for use with Keras version" /
-                    "2.0.9.")
+    raise ImportError(
+        "Could not import the required Keras modules. The QRNN "
+        "implementation was developed for use with Keras version 2.0.9.")
 
 ################################################################################
 # Loss Functions

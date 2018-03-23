@@ -124,6 +124,16 @@ todo_include_todos = True
 if environ.get('ARTS_BUILD_PATH') is None:
     exclude_patterns.append('typhon.arts.workspace.rst')
 
+# TODO: Find a way to not exclude the whole docs if a single submodule fails.
+# Hint for future developers: The only-directive [0] does not seem to solve
+# the problem as apparently the body is still executed (this raises the error)
+# and only the produced content is excluded.
+# [0] http://www.sphinx-doc.org/en/stable/markup/misc.html#directive-only
+try:
+    import typhon.retrieval.qrnn
+except ImportError:
+    exclude_patterns.append('typhon.retrieval.rst')
+
 # Allows to automatically number figures, tables and code-blocks:
 numfig = True
 
