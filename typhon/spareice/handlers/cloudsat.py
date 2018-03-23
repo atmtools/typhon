@@ -95,11 +95,9 @@ class CloudSat(FileHandler):
 
             # Get the extra fields:
             if extra_fields is not None:
-                for field, dimensions in self.parse_fields(extra_fields):
-                    data = self._get_field(vs, field)
-
+                for field in extra_fields:
                     # Add the field data to the dataset.
-                    dataset[field] = self.select(data, dimensions)
+                    dataset[field] = self._get_field(vs, field)
         except Exception as e:
             raise e
         finally:
