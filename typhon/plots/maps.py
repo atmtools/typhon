@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """Functions related to plotting maps. """
+from collections import namedtuple
+
 import cartopy.crs as ccrs
+from cartopy.feature import NaturalEarthFeature, COLORS
 from matplotlib import pyplot as plt
 
 
 __all__ = [
     'worldmap',
+    'get_cfeatures_at_scale',
 ]
 
 
@@ -64,3 +68,97 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         ax.colorbar(scatter_plot)
 
     return ax, scatter_plot
+
+
+def get_cfeatures_at_scale(scale='110m'):
+    """Return a collection of `NaturalEarthFeature` at given scale.
+
+    Parameters:
+        scale (str): The dataset scale, i.e. one of ‘10m’, ‘50m’,
+            or ‘110m’. Corresponding to 1:10,000,000, 1:50,000,000,
+            and 1:110,000,000 respectively.
+
+    Returns:
+        collections.namedtuple:
+            Collection of :class:`~cartopy.feature.NaturalEarthFeature`
+
+    Examples:
+        >>> features = get_cfeatures_at_scale('50m')
+        >>> print(features.COASTLINE.scale)
+        '50m'
+
+    """
+    d = {}
+
+    d['BORDERS'] = NaturalEarthFeature(
+        category='cultural',
+        name='admin_0_boundary_lines_land',
+        scale=scale,
+        edgecolor='black',
+        facecolor='none',
+    )
+
+    d['STATES'] = NaturalEarthFeature(
+        category='cultural',
+        name='admin_1_states_provinces_lakes',
+        scale=scale,
+        edgecolor='black',
+        facecolor='none',
+    )
+
+    d['COASTLINE'] = NaturalEarthFeature(
+        category='physical',
+        name='coastline',
+        scale=scale,
+        edgecolor='black',
+        facecolor='none',
+    )
+
+    d['LAKES'] = NaturalEarthFeature(
+        category='physical',
+        name='lakes',
+        scale=scale,
+        edgecolor='face',
+        facecolor=COLORS['water'],
+    )
+
+    d['LAND'] = NaturalEarthFeature(
+        category='physical',
+        name='land',
+        scale=scale,
+        edgecolor='face',
+        facecolor=COLORS['land'],
+        zorder=-1,
+    )
+
+    d['OCEAN'] = NaturalEarthFeature(
+        category='physical',
+        name='ocean',
+        scale=scale,
+        edgecolor='face',
+        facecolor=COLORS['water'],
+        zorder=-1,
+    )
+
+    d['RIVERS'] = NaturalEarthFeature(
+        category='physical',
+        name='rivers_lake_centerlines',
+        scale=scale,
+        edgecolor=COLORS['water'],
+        facecolor='none',
+    )
+
+    NaturalEarthFeatures = namedtuple(
+        typename='NaturalEarthFeatures',
+        field_names=(
+            'BORDERS',
+            'STATES',
+            'COASTLINE',
+            'LAKES',
+            'LAND',
+            'OCEAN',
+            'RIVERS',
+        ),
+    )
+
+    return NaturalEarthFeatures(**d)
