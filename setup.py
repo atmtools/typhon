@@ -91,6 +91,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
+        'cartopy',
         'docutils',
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
