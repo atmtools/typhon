@@ -1,36 +1,44 @@
 # -*- coding: utf-8 -*-
+"""Plot to demonstrate the temperature colormap. """
 
-"""Plot to demonstrate the temperature colormap.
-"""
-
-import numpy as np
 import matplotlib.pyplot as plt
+import netCDF4
+import numpy as np
+import cartopy.crs as ccrs
+from cartopy.mpl.gridliner import (LONGITUDE_FORMATTER, LATITUDE_FORMATTER)
 
-from netCDF4 import Dataset
-from mpl_toolkits.basemap import Basemap
-
-import typhon
+from typhon.plots.maps import get_cfeatures_at_scale
 
 
-nc = Dataset('_data/test_data.nc')
-lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
-temp = nc.variables['temp'][:]
+# Read air temperature data.
+with netCDF4.Dataset('_data/test_data.nc') as nc:
+    lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
+    temp = nc.variables['temp'][:]
 
+# Create plot with PlateCarree projection.
 fig, ax = plt.subplots(figsize=(10, 8))
-m = Basemap(projection='cyl', resolution='i',
-            llcrnrlat=47, llcrnrlon=3,
-            urcrnrlat=56, urcrnrlon=16)
-m.drawcoastlines()
-m.drawcountries()
+ax = plt.axes(projection=ccrs.PlateCarree())
+ax.set_extent([3, 16, 47, 56])
 
-# Add colors for to land and sea (just to show off).
-m.drawmapboundary(fill_color='lightblue', zorder=-1)
-m.fillcontinents(color='lightgrey', zorder=0)
+# Add map "features".
+features = get_cfeatures_at_scale(scale='50m')
+ax.add_feature(features.BORDERS)
+ax.add_feature(features.COASTLINE)
+ax.add_feature(features.LAND)
+ax.add_feature(features.OCEAN)
 
-m.pcolormesh(lon, lat, temp, latlon=True, cmap='temperature', rasterized=True)
-m.drawmeridians(np.arange(0, 20, 2), labels=[0, 0, 0, 1])
-m.drawparallels(np.arange(45, 60, 2), labels=[1, 0, 0, 0])
-m.colorbar(label='Temperature [K]')
+# Plot the actual data.
+sm = ax.pcolormesh(lon, lat, temp,
+                   cmap='temperature',
+                   rasterized=True,
+                   transform=ccrs.PlateCarree(),
+                   )
+fig.colorbar(sm, label='Temperature [K]', fraction=0.0328, pad=0.02)
+
+# Add grids and coordinate system.
+gl = ax.gridlines(draw_labels=True, color='black')
+gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+gl.xlabels_top = gl.ylabels_right = False
 
 fig.tight_layout()
 plt.show()
