@@ -10,6 +10,8 @@ import os
 import shutil
 import subprocess
 import time
+import collections
+import itertools
 from warnings import warn
 from functools import (partial, wraps)
 
@@ -482,3 +484,38 @@ def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     if p.returncode != 0:
         raise Exception(p.stderr)
 
+
+def stack_xarray_repdim(da, **dims):
+    """Like xarrays stack, but with partial support for repeated dimensions
+
+    The xarray.DataArray.stack method fails when any dimension occurs
+    multiple times, as repeated dimensions are not currently very well
+    supported in xarray (2018-03-26).  This method provides a workaround
+    so that stack can be used for an array where some dimensions are
+    repeated, as long as the repeated dimensions are themselves not
+    stacked.
+
+
+    Parameters:
+        da (DataArray): DataArray to operate on.
+        **dims: Dimensions to stack.  As for xarray.DataArray.stack.
+    """
+
+    # make view of da without repeated dimensions
+    cnt = collections.Counter(da.dims)
+    D = {k: itertools.count() for k in cnt.keys()}
+    tmpdims = []
+    dimmap = {}
+    for dim in da.dims:
+        if cnt[dim] == 1:
+            tmpdims.append(dim)
+        else:
+            newdim = "{:s}{:d}".format(dim, next(D[dim]))
+            tmpdims.append(newdim)
+            dimmap[newdim] = dim
+    da2 = xarray.DataArray(da.values, dims=tmpdims)
+    da2_stacked = da2.stack(**dims)
+    # put back repeated dimensions
+    da3 = xarray.DataArray(da2_stacked.values,
+        dims=[dimmap.get(d, d) for d in da2_stacked.dims])
+    return da3
