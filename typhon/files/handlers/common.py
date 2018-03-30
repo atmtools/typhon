@@ -6,7 +6,7 @@ import os
 import pickle
 
 import pandas as pd
-from typhon.spareice.array import GroupedArrays
+from typhon.collections import DataGroup
 import xarray as xr
 
 __all__ = [
@@ -42,7 +42,7 @@ def parametrized(dec):
 
 
 @parametrized
-def expects_file_info(meth, pos=None, key=None):
+def expects_file_info(method, pos=None, key=None):
     """Convert a method argument to a :class:`FileInfo` object
 
     This is a decorator function that can take parameters.
@@ -50,7 +50,7 @@ def expects_file_info(meth, pos=None, key=None):
     If the argument is already a FileInfo object, nothing happens.
 
     Args:
-        meth: Method object that should be decorated.
+        method: Method object that should be decorated.
         pos: The index of the file info in the positional argument list.
             Default is 1 (assumes to decorate a method).
         key: The key of the file info in the key word argument dict.
@@ -74,7 +74,7 @@ def expects_file_info(meth, pos=None, key=None):
     if pos is None and key is None:
         pos = 1
 
-    @wraps(meth)
+    @wraps(method)
     def wrapper(*args, **kwargs):
         args = list(args)
         if args and pos is not None:
@@ -84,7 +84,7 @@ def expects_file_info(meth, pos=None, key=None):
             if not isinstance(kwargs[key], FileInfo):
                 kwargs[key] = FileInfo(kwargs[key])
 
-        return meth(*args, **kwargs)
+        return method(*args, **kwargs)
     return wrapper
 
 
@@ -99,8 +99,8 @@ class FileHandler:
     """
 
     # Flag whether this file handler supports reading from multiple files at
-    # once. This is deprecated...
-    multifile_reader_support = False
+    # once, i.e. the read method accepts a list of file info objects as well.
+    reads_multiple_files = False
 
     def __init__(
             self, reader=None, info=None, writer=None, data_merger=None,
@@ -129,22 +129,6 @@ class FileHandler:
         self.writer = writer
         self.data_merger = data_merger
         self.data_concatenator = data_concatenator
-
-    def _set_standard_return_type(self, return_type):
-        """Set the standard return types
-
-        Args:
-            return_type: A string such as *GroupedArrays* or *xarray*.
-
-        Returns:
-            None
-        """
-        if return_type is None or return_type == "GroupedArrays":
-            self.return_type = "GroupedArrays"
-        elif return_type == "xarray":
-            self.return_type = "xarray"
-        else:
-            raise ValueError(f"Unknown return type {return_type}!")
 
     @expects_file_info()
     def get_info(self, filename, **kwargs):
@@ -392,9 +376,6 @@ class CSV(FileHandler):
         Args:
             info: A function that return a :class:`FileInfo object of a
                 given file.
-            return_type: Defines what object should be returned by
-                :meth:`read`. Default is *GroupedArrays* but *xarray* is also
-                possible.
             **read_csv: Additional keyword arguments for the pandas function
                 `pandas.read_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
@@ -405,9 +386,6 @@ class CSV(FileHandler):
         # Call the base class initializer
         super().__init__(info=info)
 
-        # Set merger and concatenator for standard return types:
-        self._set_standard_return_type(return_type)
-
         self.read_csv = {} if read_csv is None else read_csv
 
         self.write_csv = {}
@@ -416,7 +394,7 @@ class CSV(FileHandler):
 
     @expects_file_info()
     def read(self, filename, fields=None, **read_csv):
-        """Read a CSV file and return an GroupedArrays object with its content.
+        """Read a CSV file and return an DataGroup object with its content.
 
         Args:
             filename: Path and name of the file as string or FileInfo object.
@@ -427,31 +405,31 @@ class CSV(FileHandler):
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
-            An GroupedArrays object.
+            An DataGroup object.
         """
 
         kwargs = self.read_csv.copy()
         kwargs.update(read_csv)
 
-        if self.return_type == "GroupedArrays":
-            return GroupedArrays.from_csv(filename.path, fields, **kwargs)
+        if self.return_type == "DataGroup":
+            return DataGroup.from_csv(filename.path, fields, **kwargs)
         else:
             dataframe = pd.read_csv(filename.path, **kwargs)
             return xr.Dataset.from_dataframe(dataframe)
 
     @expects_file_info(pos=2)
     def write(self, data, filename, **write_csv):
-        """Write an GroupedArrays object to a CSV file.
+        """Write an DataGroup object to a CSV file.
 
         Args:
-            data: An GroupedArrays object that should be saved.
+            data: An DataGroup object that should be saved.
             filename: Path and name of the file as string or FileInfo object.
             **write_csv: Additional keyword arguments for
                 `pandas.Dataframe.to_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
 
         Returns:
-            An GroupedArrays object.
+            An DataGroup object.
         """
 
         kwargs = self.write_csv.copy()
@@ -473,7 +451,7 @@ class NetCDF4(FileHandler):
 
         Args:
             return_type: Defines what object should be returned by
-                :meth:`read`. Default is *GroupedArrays* but *xarray* is also
+                :meth:`read`. Default is *DataGroup* but *xarray* is also
                 possible.
             info: You cannot use the :meth:`get_info` without giving a
                 function here that returns a FileInfo object.
@@ -481,35 +459,35 @@ class NetCDF4(FileHandler):
         # Call the base class initializer
         super().__init__(**kwargs)
 
-        # Set merger and concatenator for standard return types:
-        self._set_standard_return_type(return_type)
+        # The read method can handle multiple files
+        reads_multiple_files = True
 
     @expects_file_info()
     def read(self, filename, fields=None, mapping=None, main_group=None,
              **kwargs):
-        """Reads and parses NetCDF files and load them to an GroupedArrays.
+        """Reads and parses NetCDF files and load them to an DataGroup.
 
         If you need another return value, change it via the parameter
         *return_type* of the :meth:`__init__` method.
 
         Args:
             filename: Path and name of the file as string or FileInfo object.
-                If *return_type* is *GroupedArrays*, this can also be a tuple/list
+                If *return_type* is *DataGroup*, this can also be a tuple/list
                 of file names.
             fields: List of field names that should be read. The other fields
                 will be ignored.
             mapping: A dictionary which is used for renaming the fields. The
                 keys are the old and the values are the new names.
             main_group: If the file contains multiple groups, the main group
-                will be linked to this one (only valid for GroupedArrays).
+                will be linked to this one (only valid for DataGroup).
 
         Returns:
-            An GroupedArrays object.
+            An DataGroup object.
         """
 
-        # GroupedArrays supports reading from multiple files.
-        if self.return_type == "GroupedArrays":
-            ds = GroupedArrays.from_netcdf(filename.path, fields, **kwargs)
+        # DataGroup supports reading from multiple files.
+        if self.return_type == "DataGroup":
+            ds = DataGroup.from_netcdf(filename.path, fields, **kwargs)
             if not ds:
                 return None
             if main_group is not None:

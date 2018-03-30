@@ -2,7 +2,9 @@ from datetime import datetime, timedelta
 
 from netCDF4 import Dataset
 import numpy as np
-from typhon.spareice.array import GroupedArrays
+import pandas as pd
+from typhon.collections import DataGroup
+import xarray as xr
 
 from .common import FileHandler, expects_file_info
 
@@ -63,7 +65,7 @@ class MHSAAPP(FileHandler):
 
     @expects_file_info()
     def read(self, file_info, extra_fields=None, mapping=None):
-        """"Read and parse HDF4 files and load them to an GroupedArrays.
+        """"Read and parse HDF4 files and load them to an DataGroup.
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
@@ -73,31 +75,42 @@ class MHSAAPP(FileHandler):
                 If given, *extra_fields* must contain the old field names.
 
         Returns:
-            An GroupedArrays object.
+            An DataGroup object.
         """
 
-        if extra_fields is None:
-            extra_fields = []
-
-        fields = self.standard_fields | set(extra_fields)
-
-        dataset = GroupedArrays.from_netcdf(file_info.path, fields)
+        dataset = DataGroup.from_netcdf(
+            file_info.path, mask_and_scale=True
+        )
         dataset.name = "MHS"
+        dataset["Data"][:].rename({
+            "phony_dim_0": "swath",
+            "phony_dim_1": "pixel",
+            "phony_dim_2": "channel",
+        }, inplace=True)
+        dataset["Geolocation"][:].rename({
+            "phony_dim_3": "swath",
+            "phony_dim_4": "pixel",
+        }, inplace=True)
+
+        if extra_fields is None:
+            fields = self.standard_fields
+        else:
+            fields = self.standard_fields | set(extra_fields)
+        dataset = dataset[fields]
 
         # We do the internal mapping first so we do not deal with difficult
         # names in the following loop.
         dataset.rename(self.mapping, inplace=True)
 
-        # Handle the standard fields:
-        dataset["time"] = self._get_time_field(dataset)
-
-        # Flat the latitude and longitude vectors:
-        dataset["lon"] = dataset["lon"].flatten()
-        dataset["lat"] = dataset["lat"].flatten()
+        # Create the time coordinate but do not add it to the xarray yet since
+        # it may contain duplicated values and prevent stacking from other
+        # variables (I do not know why);
+        time_coords = self._get_time_field(dataset)
 
         # Repeat the scanline and create the scnpos:
-        dataset["scnpos"] = np.tile(np.arange(1, 91), dataset["scnline"].size)
-        dataset["scnline"] = np.repeat(dataset["scnline"], 90)
+        dataset["scnpos"] = \
+            "time", np.tile(np.arange(1, 91), dataset["scnline"].size)
+        dataset["scnline"] = "time", np.repeat(dataset["scnline"], 90)
 
         # Remove fields that we do not need any longer (expect the user asked
         # for them explicitly)
@@ -108,40 +121,37 @@ class MHSAAPP(FileHandler):
         )
 
         # Some fields need special treatment
-        for var in dataset.vars(deep=True):
+        for var in dataset.deep():
             # Unfold the variable automatically if it is a swath variable.
-            if len(dataset[var].shape) > 1 and dataset[var].shape[1] == 90:
+            if "swath" in dataset[var].dims and "pixel" in dataset[var].dims:
                 # Unfold the dimension of the variable
                 # to the shapes of the time vector.
-                dataset[var] = dataset[var].reshape(
-                    -1, dataset[var].shape[-1]
-                )
+                dataset[var] = dataset[var].stack(time=("swath", "pixel"))
 
-            # Some variables are scaled. If the user wants us to do
-            # rescaling, we do it and delete the note in the attributes.
-            if self.apply_scaling and "Scale" in dataset[var].attrs:
-                dataset[var] = dataset[var] * dataset[var].attrs["Scale"]
-                del dataset[var].attrs["Scale"]
+            scaling = dataset[var].attrs.pop("Scale", None)
+            if scaling is not None:
+                dataset[var] = dataset[var].astype(float) * scaling
 
-            dataset[var].dims = ["time_id"]
-
-        # if "Data/btemps" in dataset:
-        #     # Mask error values:
-        #     dataset["Data/btemps"][dataset["Data/btemps"] <= -9999.] = np.nan
+        # Add the time coordinate. We cannot add it earlier since it may
+        # contain duplicated values:
+        dataset["time"] = time_coords
 
         if mapping is not None:
             dataset.rename(mapping)
+
+        if not dataset["Geolocation"]:
+            del dataset["Geolocation"]
 
         return dataset
 
     @staticmethod
     def _get_time_field(dataset):
         swath_times = \
-            dataset["Data/scnlinyr"].astype('datetime64[Y]') - 1970 \
-            + dataset["Data/scnlindy"].astype('timedelta64[D]') - 1 \
+            (dataset["Data/scnlinyr"]-1970).astype('datetime64[Y]') \
+            + (dataset["Data/scnlindy"]-1).astype('timedelta64[D]') \
             + dataset["Data/scnlintime"].astype("timedelta64[ms]")
 
-        return np.repeat(swath_times, 90).flatten()
+        return "time", np.repeat(swath_times, 90).values.ravel()
         # swath_times = \
         #
         #     dataset["Data/scnlintime"].astype("timedelta64[ms]")

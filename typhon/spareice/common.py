@@ -12,7 +12,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.svm import SVR
 from typhon.spareice.array import GroupedArrays
-from typhon.spareice.datasets import Dataset
+from typhon.fileset import FileSet
 import xarray as xr
 
 __all__ = [
@@ -239,13 +239,13 @@ class Retriever:
                 the same input field names are taken as during training with
                 :meth:`train` (or were loaded from a parameter file).
             extra_fields: Extra fields that should be copied to output. If you
-                want to save the output to a Dataset, this must contain a
+                want to save the output to a FileSet, this must contain a
                 *time* field.
             cleaner: A filter function that can be used to clean the input
                 data.
 
         Returns:
-            If output is not None, a :class:`Dataset` object holding the data.
+            If output is not None, a :class:`FileSet` object holding the data.
             Otherwise an GroupedArrays / xarray.Dataset with the retrieved
             data.
 
@@ -295,25 +295,25 @@ class Retriever:
         """Predict the target values for data coming from datasets
 
         Args:
-            datasets: List of Dataset objects.
+            datasets: List of FileSet objects.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
             output: Either None (default), a path as string containing
-                placeholders or a Dataset-like object. If None, all data will
+                placeholders or a FileSet-like object. If None, all data will
                 be returned as one object.
             inputs: A dictionary of input field names. The keys must be the
                 same labels as used in :meth:`train`. The values are the field
                 names in the original data coming from *datasets*.
             extra_fields: Extra fields that should be copied to output. If you
-                want to save the output to a Dataset, this must contain a
+                want to save the output to a FileSet, this must contain a
                 *time* field.
             cleaner: A filter function that can be used to clean the input
                 data.
 
         Returns:
-            If output is not None, a :class:`Dataset` object holding the data.
+            If output is not None, a :class:`FileSet` object holding the data.
             Otherwise an GroupedArrays / xarray.Dataset with the retrieved
             data.
         """
@@ -321,13 +321,13 @@ class Retriever:
         if self.estimator is None:
             raise NotTrainedError()
 
-        if output is None or isinstance(output, Dataset):
+        if output is None or isinstance(output, FileSet):
             pass
         elif isinstance(output, str):
-            output = Dataset(path=output, name="RetrievedData")
+            output = FileSet(path=output, name="RetrievedData")
         else:
             raise ValueError("The parameter output must be None, a string or "
-                             "a Dataset object!")
+                             "a FileSet object!")
 
         results = []
 

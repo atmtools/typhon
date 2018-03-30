@@ -2,7 +2,8 @@ from datetime import datetime
 import warnings
 
 import numpy as np
-from typhon.spareice.array import Array, GroupedArrays
+from typhon.collections import DataGroup
+import xarray as xr
 
 from .common import FileHandler, expects_file_info
 
@@ -68,7 +69,7 @@ class CloudSat(FileHandler):
             An GroupedArrays object.
         """
 
-        dataset = GroupedArrays(name="CloudSat")
+        dataset = DataGroup(name="CloudSat")
 
         # The files are in HDF4 format therefore we cannot use the netCDF4
         # module. This code is taken from
@@ -84,20 +85,17 @@ class CloudSat(FileHandler):
 
             # Extract the standard fields:
             dataset["time"] = self._get_time_field(vs, file_info)
-            dataset["lat"] = self._get_field(vs, "Latitude")
-            dataset["lon"] = self._get_field(vs, "Longitude")
-            dataset["scnline"] = Array(
-                np.arange(dataset["time"].size), dims=["time_id"]
-            )
-            dataset["scnpos"] = Array(
-                [1 for _ in range(dataset["time"].size)], dims=["time_id"]
-            )
+            dataset["lat"] = ("time", self._get_field(vs, "Latitude"))
+            dataset["lon"] = ("time", self._get_field(vs, "Longitude"))
+            dataset["scnline"] = ("time", np.arange(dataset["time"].size))
+            dataset["scnpos"] = \
+                ("time", [1 for _ in range(dataset["time"].size)])
 
             # Get the extra fields:
             if extra_fields is not None:
                 for field in extra_fields:
                     # Add the field data to the dataset.
-                    dataset[field] = self._get_field(vs, field)
+                    dataset[field] = ("time", self._get_field(vs, field))
         except Exception as e:
             raise e
         finally:
@@ -117,7 +115,7 @@ class CloudSat(FileHandler):
         field_id = vs.attach(field_id)
         nrecs, _, _, _, _ = field_id.inquire()
         raw_data = field_id.read(nRec=nrecs)
-        data = Array(raw_data, dims=["time_id"]).ravel()
+        data = np.array(raw_data).ravel()
         field_id.detach()
         return data
 
@@ -149,4 +147,4 @@ class CloudSat(FileHandler):
             + np.timedelta64(first_profile_time, "s") \
             + profile_times.astype("timedelta64[ms]")
 
-        return Array(profile_times, dims=["time_id"])
+        return "time", profile_times

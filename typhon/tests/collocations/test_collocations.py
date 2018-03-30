@@ -3,8 +3,9 @@ from os.path import dirname, join
 import tempfile
 
 import numpy as np
-from typhon.spareice import collocate, collocate_datasets
-from typhon.spareice import Dataset, GroupedArrays
+from typhon.collections import DataGroup
+from typhon.collocations import collocate, Collocations
+from typhon.files import FileSet
 import xarray as xr
 
 

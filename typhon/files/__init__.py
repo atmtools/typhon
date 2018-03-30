@@ -3,8 +3,8 @@
 """This module contains convenience functions for general file handling.
 """
 
-from . import utils
+from .fileset import *
+from .handlers import *
 from .utils import *
 
-__all__ = []
-__all__ += utils.__all__
+__all__ = [s for s in dir() if not s.startswith('_')]

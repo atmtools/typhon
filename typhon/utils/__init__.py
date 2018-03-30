@@ -218,6 +218,30 @@ def _safe_eval_node(node):
 # End of snippet derived from http://stackoverflow.com/a/9558001/974555
 
 
+def unique(seq):
+    """Remove duplicates from list whilst keeping the original order
+
+    Notes:
+        If you do not care about keeping the order, use this code:
+        >>>> list(set([0, 5, 1, 2, 0, 3, 1,]))
+        [0, 1, 2, 3, 5]
+
+    This code is taken from https://stackoverflow.com/a/480227.
+
+    Args:
+        seq: A sequence (list, etc.) of elements.
+
+    Returns:
+        A list with unique items with original order.
+
+    Examples:
+        >>>> unique([0, 5, 1, 2, 0, 3, 1,])
+    """
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
 def path_append(dirname, path='PATH'):
     """Append a directory to environment path variable.
 
@@ -286,6 +310,7 @@ def get_time_dimensions(ds):
 
     return {k for (k, v) in ds.coords.items() if k in ds.dims and v.dtype.kind == "M"}
 
+
 def get_time_coordinates(ds):
     """From a xarray dataset or dataarray, get coordinates with at least 1 time dimension
 
@@ -293,6 +318,7 @@ def get_time_coordinates(ds):
 
     time_dims = get_time_dimensions(ds)
     return {k for (k, v) in ds.coords.items() if set(v.dims)&time_dims}
+
 
 # Any commits made to this module between 2015-05-01 and 2017-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and

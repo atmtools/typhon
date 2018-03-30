@@ -7,7 +7,6 @@ from scipy.spatial import distance_matrix
 from sklearn.neighbors import BallTree as SklearnBallTree
 import typhon.constants
 from typhon.geodesy import geocentric2cart
-from typhon.spareice.array import Array
 from typhon.utils.time import to_timedelta
 
 __all__ = [
@@ -27,7 +26,7 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
     def find_collocations(
             self, primary_data, secondary_data, max_interval, max_distance,
             **kwargs):
-        """Finds collocations between two GroupedArrayss / xarray.Datasets.
+        """Finds collocations between two DataGroups / xarray.Datasets.
 
         Args:
             primary_data: The data from the primary dataset as xarray.Dataset
@@ -263,7 +262,7 @@ class BruteForce(CollocationsFinder):
             primary_indices = primary_indices[passed_time_check]
             secondary_indices = secondary_indices[passed_time_check]
 
-        return Array(primary_indices), Array(secondary_indices)
+        return primary_indices, secondary_indices
 
 
 

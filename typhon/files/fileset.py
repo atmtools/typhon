@@ -8,39 +8,34 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import defaultdict, Iterable, OrderedDict
+from collections import defaultdict, deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
 import glob
 from itertools import tee
 import json
-import logging
-from multiprocessing import Pool as ProcessPool
-from multiprocessing.pool import ThreadPool
-from queue import Queue
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
 import re
 import shutil
 import threading
-from time import time
-import traceback
 import warnings
 
 import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from typhon.spareice.array import GroupedArrays
-from typhon.spareice.handlers import CSV, expects_file_info, FileInfo, NetCDF4
+from typhon.collections import DataGroup
+from .handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 import xarray as xr
 
 __all__ = [
-    "Dataset",
-    "DatasetManager",
+    "FileSet",
+    "FileSetManager",
     "InhomogeneousFilesError",
     "NoFilesError",
     "NoHandlerError",
@@ -128,8 +123,8 @@ class AsyncError(Exception):
         Exception.__init__(self, msg)
 
 
-class Dataset:
-    """Provide methods to handle a set of multiple files (dataset).
+class FileSet:
+    """Provide methods to handle a set of multiple files
 
     For more examples and an user guide, look at this tutorial_.
 
@@ -137,14 +132,14 @@ class Dataset:
 
     Examples:
 
-        Dataset with multiple files:
+        FileSet with multiple files:
 
         .. code-block:: python
 
-            from typhon.spareice import Dataset
+            from typhon.spareice import FileSet
 
-            # Define a dataset consisting of multiple files:
-            dataset = Dataset(
+            # Define a fileset consisting of multiple files:
+            dataset = FileSet(
                 path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
@@ -158,12 +153,12 @@ class Dataset:
                 # Should print the path of the file and its time coverage:
                 print(file)
 
-        Dataset with a single file:
+        FileSet with a single file:
 
         .. code-block:: python
 
-            # Define a dataset consisting of a single file:
-            dataset = Dataset(
+            # Define a fileset consisting of a single file:
+            dataset = FileSet(
                 # Simply use the path without placeholders:
                 path="/path/to/file.nc",
                 name="TestData2",
@@ -224,20 +219,11 @@ class Dataset:
 
     # Default handler
     default_handler = {
-        "nc": NetCDF4(),
-        "h5": NetCDF4(),
-        "txt": CSV(),
-        "csv": CSV(),
-        "asc": CSV(),
-    }
-
-    # Default handler
-    default_concatenator = {
-        "nc": NetCDF4(),
-        "h5": NetCDF4(),
-        "txt": CSV(),
-        "csv": CSV(),
-        "asc": CSV(),
+        "nc": NetCDF4,
+        "h5": NetCDF4,
+        "txt": CSV,
+        "csv": CSV,
+        "asc": CSV,
     }
 
     # Special characters that show whether a path contains a regex or
@@ -314,11 +300,11 @@ class Dataset:
             max_threads: Maximal number of threads that will be used for
                 parallelising some methods (e.g. writing in background). This
                 sets also the default for
-                :meth:`~typhon.spareice.datasets.Dataset.map`-like methods
+                :meth:`~typhon.spareice.datasets.FileSet.map`-like methods
                 (default is 4).
             max_processes: Maximal number of processes that will be used for
                 parallelising some methods. This sets also the default for
-                :meth:`~typhon.spareice.datasets.Dataset.map`-like methods
+                :meth:`~typhon.spareice.datasets.FileSet.map`-like methods
                 (default is 8).
             worker_type: The type of the workers that will be used to
                 parallelise some methods. Can be *process* (default) or
@@ -330,7 +316,7 @@ class Dataset:
             merge_args: Will be deprecated soon.
             concat_args: Will be deprecated soon.
             temp_dir: You can set here your own temporary directory that this
-                Dataset object should use for compressing and decompressing
+                FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
                 `tempfile.gettempdir` (see tempfile_ doc).
             compress: If true and the *path* path ends with a compression
@@ -428,6 +414,8 @@ class Dataset:
             extension = extension.lstrip(".")
 
             self.handler = self.default_handler.get(extension, None)
+            if self.handler is not None:
+                self.handler = self.handler()
         else:
             self.handler = handler
 
@@ -489,7 +477,7 @@ class Dataset:
                 # happens if the error occurs during the loading of the time
                 # coverages? We would overwrite the cache with nonsense.
                 # Therefore, we need this code in this else block.
-                atexit.register(Dataset.save_cache,
+                atexit.register(FileSet.save_cache,
                                 self, self.info_cache_filename)
 
         # Writing processes can be moved to background threads. But we do want
@@ -497,7 +485,7 @@ class Dataset:
         # create FIFO queue. The queue limits the number of parallel threads
         # to a maximum. The users can also make sure that all writing threads
         # are finished before they move on in the code.
-        # TODO: We cannot use queues as attributes for Dataset because they
+        # TODO: We cannot use queues as attributes for FileSet because they
         # TODO: cannot be pickled.
         # self._write_queue = Queue(max_threads)
 
@@ -751,7 +739,7 @@ class Dataset:
         # function consists mainly of pure python code that does not
         # release the GIL, this will slow down the performance.
         results = self.map(
-            start, end, files, func=Dataset.read, args=(self,),
+            FileSet.read, start=start, end=end, files=files, args=(self,),
             kwargs=read_args, worker_type="thread", return_info=True,
             **find_args
         )
@@ -829,7 +817,7 @@ class Dataset:
 
         if preload:
             results = self.imap(
-                start, end, files, func=Dataset.read, args=(self,),
+                start, end, files, func=FileSet.read, args=(self,),
                 kwargs=read_args, worker_type="thread", return_info=True,
                 **find_args
             )
@@ -863,6 +851,33 @@ class Dataset:
         """
         return deepcopy(self)
 
+    def detect(self, test, *args, **kwargs):
+        """Search for anomalies in dataset
+
+        Args:
+            test: Can be *duplicates*, *overlaps*, *enclosed* or a reference
+                to your own function that expects two :class:`FileInfo` objects
+                as parameters.
+            *args: Positional arguments for :meth:`find`.
+            **kwargs: Keyword arguments for :meth:`find`.
+
+        Yields:
+            A list of files that fulfilled the test.
+        """
+        def enclosed(before, after):
+            pass
+
+
+        if not callable(test):
+            test = _func.get(test, None)
+
+        if test is None:
+            raise ValueError("Need a valid test function or name!")
+
+        files = list(self.find(*args, **kwargs))
+        for i, file in enumerate(files):
+            pass
+
     def exclude_times(self, periods):
         if periods is None or not periods:
             self._exclude_times = None
@@ -873,7 +888,7 @@ class Dataset:
         self._exclude_files = set(filenames)
 
     def is_excluded(self, file):
-        """Checks whether a file is excluded from this Dataset.
+        """Checks whether a file is excluded from this FileSet.
 
         Args:
             file: A file info object.
@@ -909,8 +924,8 @@ class Dataset:
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
-            sort: If true, all files will be yielded
-                sorted by their starting time. Default is true.
+            sort: If true, all files will be yielded sorted by their starting
+                and ending time. Default is true.
             bundle: Instead of only yielding one file at a time, you can get a
                 bundle of files. There are two possibilities: by setting this
                 to an integer, you can define the size of the bundle directly
@@ -942,7 +957,7 @@ class Dataset:
         .. code-block:: python
 
             # Define a dataset consisting of multiple files:
-            dataset = Dataset(
+            dataset = FileSet(
                 "/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc"
             )
 
@@ -1041,7 +1056,7 @@ class Dataset:
 
         # Even if no files were found, the user does not want to know.
         if not no_files_error:
-            yield from self._prepare_find_files_return(
+            yield from self._prepare_find_return(
                 file_finder, sort, bundle)
             return
 
@@ -1055,7 +1070,7 @@ class Dataset:
             next(check_files)
 
             # We have found some files and can return them
-            yield from self._prepare_find_files_return(
+            yield from self._prepare_find_return(
                 return_files, sort, bundle)
         except StopIteration as err:
             raise NoFilesError(self, start, end)
@@ -1199,13 +1214,13 @@ class Dataset:
         return True
 
     @staticmethod
-    def _prepare_find_files_return(file_iterator, sort, bundle_size):
+    def _prepare_find_return(file_iterator, sort, bundle_size):
         """Prepares the return value of the find method.
 
         Args:
             file_iterator: Generator function that yields the found files.
             sort: If true, all found files will be sorted according to their
-                starting times.
+                starting and ending times.
             bundle_size: See the documentation of the *bundle* argument in
                 :meth`find` method.
 
@@ -1213,9 +1228,11 @@ class Dataset:
             Either one FileInfo object or - if bundle_size is set - a list of
             FileInfo objects.
         """
-        # We want to have sorted files if we want to bundle them.
+        # We always want to have sorted files if we want to bundle them.
         if sort or isinstance(bundle_size, int):
-            file_iterator = sorted(file_iterator, key=lambda x: x.times[0])
+            # Sort the files by starting and ending time:
+            file_iterator = sorted(
+                file_iterator, key=lambda x: (x.times[0], x.times[1]))
 
         if bundle_size is None:
             yield from file_iterator
@@ -1319,7 +1336,7 @@ class Dataset:
         """Find files between two datasets that overlap in time.
 
         Args:
-            datasets: A list of other Dataset objects. Note: at the moment only
+            datasets: A list of other FileSet objects. Note: at the moment only
                 the first dataset will be processed.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
@@ -1385,7 +1402,7 @@ class Dataset:
                 and end time or simply one datetime object (for discrete
                 files).
             template: A string with format placeholders such as {year} or
-                {day}. If not given, the template in `Dataset.path` is used.
+                {day}. If not given, the template in `FileSet.path` is used.
             fill: A dictionary with fillings for user-defined placeholder.
 
         Returns:
@@ -1479,7 +1496,7 @@ class Dataset:
             retrieve_via: Defines how further information about the file will
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is the value of the
-                *info_via* parameter during initialization of this Dataset
+                *info_via* parameter during initialization of this FileSet
                  object. If this is *filename*, the placeholders in the file's
                 path will be parsed to obtain information. If this is
                 *handler*, the
@@ -1543,7 +1560,7 @@ class Dataset:
         elif info.times[1] is None:
             # Sometimes the files have only a starting time. But if the user
             # has defined a timedelta for the coverage, the ending time can be
-            # calculated from this. Otherwise this is a Dataset that has only
+            # calculated from this. Otherwise this is a FileSet that has only
             # files that are discrete in time
             if isinstance(self.time_coverage, timedelta):
                 info.times[1] = info.times[0] + self.time_coverage
@@ -1559,7 +1576,7 @@ class Dataset:
             func = self.handler.data_concatenator
         elif isinstance(objects[0], GroupedArrays):
             func = type(objects[0]).concat
-        elif isinstance(objects[0], (xr.Dataset, xr.DataArray)):
+        elif isinstance(objects[0], (xr.FileSet, xr.DataArray)):
             func = xr.concat
         elif isinstance(objects[0], pd.DataFrame):
             func = pd.concat
@@ -1579,7 +1596,7 @@ class Dataset:
             func = self.handler.data_merger
         elif isinstance(objects[0], GroupedArrays):
             func = type(objects[0]).merge
-        elif isinstance(objects[0], (xr.Dataset, xr.DataArray)):
+        elif isinstance(objects[0], (xr.FileSet, xr.DataArray)):
             func = xr.merge
         elif isinstance(objects[0], pd.DataFrame):
             func = pd.merge
@@ -1596,20 +1613,20 @@ class Dataset:
         """Remove the link between this and another dataset
 
         Args:
-            name_or_dataset: Name of a dataset or the Dataset object itself. It
+            name_or_dataset: Name of a dataset or the FileSet object itself. It
                 must be linked to this dataset. Otherwise a KeyError will be
                 raised.
 
         Returns:
             None
         """
-        if isinstance(name_or_dataset, Dataset):
+        if isinstance(name_or_dataset, FileSet):
             del self._link[name_or_dataset.name]
         else:
             del self._link[name_or_dataset]
 
     def link(self, other_dataset, linker=None):
-        """Link this dataset with another Dataset
+        """Link this dataset with another FileSet
 
         If one file is read from this dataset, its corresponding file from
         `other_dataset` will be read, too. Their content will then be merged by
@@ -1618,14 +1635,14 @@ class Dataset:
         data types.
 
         Args:
-            other_dataset: Other Dataset-like object.
+            other_dataset: Other FileSet-like object.
             linker: Reference to a function that searches for the corresponding
                 file in *other_dataset* for a given file from this dataset.
                 Must accept *other_dataset* as first and a
                 :class:`~typhon.spareice.handlers.common.FileInfo` object as
                 parameters. It must return a FileInfo of the corresponding
                 file. If none is given,
-                :meth:`~typhon.spareice.datasets.Dataset.get_filename`
+                :meth:`~typhon.spareice.datasets.FileSet.get_filename`
                 will be used as default.
 
         Returns:
@@ -1660,17 +1677,17 @@ class Dataset:
                 )
 
     def map(
-            self, start=None, end=None, files=None, func=None, args=None,
-            kwargs=None, on_content=False, pass_info=False, read_args=None,
+            self, func, args=None, kwargs=None, start=None, end=None,
+            files=None, on_content=False, pass_info=False, read_args=None,
             output=None, max_workers=None, worker_type=None,
             worker_initializer=None, worker_initargs=None, return_info=False,
             **find_args
     ):
-        """Apply a function on all files of this dataset between two dates.
+        """Apply a function on all files of this dataset between two dates
 
         This method can use multiple workers processes / threads to boost the
         procedure significantly. Depending on which system you work, you should
-        try different numbers for *max_workers*.
+        try different numbers for `max_workers`.
 
         Use this if you need to process the files as fast as possible without
         needing to retrieve the results immediately. Otherwise you should
@@ -1702,9 +1719,9 @@ class Dataset:
             pass_info: If *on_content* is true, this decides whether a FileInfo
                 object should be passed to *func*. Default is false.
             read_args: Additional keyword arguments that will be passed
-                to the reading function (see Dataset.read() for more
+                to the reading function (see FileSet.read() for more
                 information). Will be ignored if *on_content* is False.
-            output: Set this to a path containing placeholders or a Dataset
+            output: Set this to a path containing placeholders or a FileSet
                 object and the return value of *func* will be copied there if
                 it is not None.
             max_workers: Max. number of parallel workers to use. When
@@ -1715,12 +1732,13 @@ class Dataset:
                 parallelized copies, you should set this to *thread*. Note that
                 this may reduce the performance due to Python's Global
                 Interpreter Lock (`GIL <https://stackoverflow.com/q/1294382>`).
-            worker_initializer: Must be a reference to a function that is
-                called once when initialising a new worker. Can be used to
-                preload variables into a worker's workspace. See also
+            worker_initializer: DEPRECATED! Must be a reference to a function
+                that is called once when initialising a new worker. Can be used
+                to preload variables into a worker's workspace. See also
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
-            worker_initargs: A tuple with arguments for *worker_initializer*.
+            worker_initargs: DEPRECATED! A tuple with arguments for
+                *worker_initializer*.
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
@@ -1743,7 +1761,7 @@ class Dataset:
                     return content["data"].mean(), content["data"].max()
 
                 results = dataset.map(
-                    "2018-01-01", "2018-01-02", calc_statistics,
+                    calc_statistics, start="2018-01-01", end="2018-01-02",
                     on_content=True, return_info=True,
                 )
 
@@ -1754,7 +1772,7 @@ class Dataset:
 
                 ## If you need the results directly, you can use imap instead:
                 results = dataset.imap(
-                    "2018-01-01", "2018-01-02", calc_statistics,
+                    calc_statistics, start="2018-01-01", end="2018-01-02",
                     on_content=True,
                 )
 
@@ -1772,10 +1790,11 @@ class Dataset:
                     # return the mean and maximum value
                     return content["data"].mean(), content["data"].max()
 
+                # Note: If you do not use the start or the end parameter, all
+                # files in the dataset are going to be processed:
                 results = dataset.map(
-                    "2018-01-01", "2018-01-02", calc_statistics,
-                    args=("value1",), kwargs={"kwarg1": "value2"},
-                    on_content=True,
+                    calc_statistics, args=("value1",),
+                    kwargs={"kwarg1": "value2"}, on_content=True,
                 )
         """
 
@@ -1783,11 +1802,13 @@ class Dataset:
             self._configure_pool_and_worker_args(
                 start, end, files, func, args, kwargs,
                 on_content, pass_info, read_args, output,
-                max_workers, worker_type, worker_initializer, worker_initargs,
+                max_workers, worker_type, #worker_initializer, worker_initargs,
                 return_info, **find_args
             )
 
         with pool_class(**pool_args) as pool:
+            print(pool, pool_args)
+
             # Process all found files with the arguments:
             results = pool.map(
                 self._call_map_function, worker_args,
@@ -1796,7 +1817,7 @@ class Dataset:
             return results
 
     def imap(self, *args, **kwargs):
-        """Apply a function on all files of this dataset between two dates.
+        """Apply a function on all files of this dataset between two dates
 
         This method does exact the same as :meth:`map` but works as a generator
         and is therefore less memory space consuming.
@@ -1816,28 +1837,33 @@ class Dataset:
         pool_class, pool_args, worker_args = \
             self._configure_pool_and_worker_args(*args, **kwargs)
 
+        worker_queue = deque()
+
         with pool_class(**pool_args) as pool:
-            # Preload the first file
-            pre_loaded = pool.apply_async(
-                self._call_map_function,
-                args=(next(worker_args), ),
-            )
+            workers = pool_args["max_workers"]
+            if workers is None:
+                workers = 1
 
-            for i, func_args in enumerate(worker_args):
-                yield_this = pre_loaded
-                pre_loaded = pool.apply_async(
-                    self._call_map_function, args=(func_args, )
+            for func_args in worker_args:
+                if len(worker_queue) >= workers:
+                    yield worker_queue.popleft().result()
+
+                worker_queue.append(
+                    pool.submit(
+                        self._call_map_function,
+                        func_args,
+                    )
                 )
-                yield yield_this.get()
 
-            # Flush the last processed file
-            yield pre_loaded.get()
+            # Flush the rest:
+            while worker_queue:
+                yield worker_queue.popleft().result()
 
     def _configure_pool_and_worker_args(
             self, start=None, end=None, files=None, func=None, args=None,
             kwargs=None, on_content=False, pass_info=None, read_args=None,
             output=None, max_workers=None, worker_type=None,
-            worker_initializer=None, worker_initargs=None,
+            #worker_initializer=None, worker_initargs=None,
             return_info=False, **find_args
     ):
         if func is None:
@@ -1848,30 +1874,35 @@ class Dataset:
                 "Either *files* or *start* and *end* must be given. Not all of"
                 " them!")
 
-        # Convert the path to a Dataset object:
+        # Convert the path to a FileSet object:
         if isinstance(output, str):
             output_path = output
             output = self.copy()
             output.path = output_path
 
         if worker_type is None:
-            worker_type = self.worker_type
+            # If the output is directly stored to a new FileSet, it is always
+            # better to use processes
+            if output is None:
+                worker_type = self.worker_type
+            else:
+                worker_type = "process"
 
         if worker_type == "process":
-            pool_class = ProcessPool
+            pool_class = ProcessPoolExecutor
             if max_workers is None:
                 max_workers = self.max_processes
         elif worker_type == "thread":
-            pool_class = ThreadPool
+            pool_class = ThreadPoolExecutor
             if max_workers is None:
                 max_workers = self.max_threads
         else:
             raise ValueError(f"Unknown worker type '{worker_type}!")
 
         pool_args = {
-            "processes": max_workers,
-            "initializer": worker_initializer,
-            "initargs": worker_initargs,
+            "max_workers": max_workers,
+            #"initializer": worker_initializer,
+            #"initargs": worker_initargs,
         }
 
         if kwargs is None:
@@ -1889,6 +1920,8 @@ class Dataset:
             for file in files
         )
 
+        print(worker_type, max_workers)
+
         return pool_class, pool_args, worker_args
 
     @staticmethod
@@ -1898,7 +1931,7 @@ class Dataset:
 
         Args:
             all_args: A tuple containing following elements:
-                (Dataset object, file_info, function,
+                (FileSet object, file_info, function,
                 args, kwargs, output, on_content, read_args, return_info)
 
         Returns:
@@ -1972,7 +2005,7 @@ class Dataset:
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
             end: End date. Same format as "start".
-            to: Either a Dataset object or the new path of the files containing
+            to: Either a FileSet object or the new path of the files containing
                 placeholders (such as {year}, {month}, etc.).
             convert: If true, the files will be read by the old dataset's file
                 handler and written to their new location by using the new file
@@ -1986,7 +2019,7 @@ class Dataset:
             copy: If true, then all files will be copied instead of moved only.
 
         Returns:
-            New Dataset object with the new files.
+            New FileSet object with the new files.
 
         Examples:
 
@@ -1994,12 +2027,12 @@ class Dataset:
 
             ## Copy all files between two dates to another location
 
-            old_dataset = Dataset(
+            old_dataset = FileSet(
                 "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
             )
 
             # New dataset with other path
-            new_dataset = Dataset(
+            new_dataset = FileSet(
                 "new/path/{year}/{doy}/{hour}{minute}{second}.nc",
             )
 
@@ -2014,11 +2047,11 @@ class Dataset:
 
             from typhon.spareice.handlers import CSV, NetCDF4
 
-            old_dataset = Dataset(
+            old_dataset = FileSet(
                 "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 handler=NetCDF4()
             )
-            new_dataset = Dataset(
+            new_dataset = FileSet(
                 "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
                 handler=CSV()
             )
@@ -2029,8 +2062,8 @@ class Dataset:
             )
         """
 
-        # Convert the path to a Dataset object:
-        if not isinstance(to, Dataset):
+        # Convert the path to a FileSet object:
+        if not isinstance(to, FileSet):
             destination = self.copy()
             destination.path = to
         else:
@@ -2042,7 +2075,7 @@ class Dataset:
         if self.single_file:
             file_info = self.get_info(self.path)
 
-            Dataset._move_single_file(
+            FileSet._move_single_file(
                 file_info, self, destination, convert, copy
             )
         else:
@@ -2060,7 +2093,7 @@ class Dataset:
 
             # Copy the files
             self.map(start, end,
-                     func=Dataset._move_single_file, kwargs=move_args)
+                     func=FileSet._move_single_file, kwargs=move_args)
 
         return destination
 
@@ -2068,7 +2101,7 @@ class Dataset:
     def _move_single_file(
             file_info, dataset, destination, convert, copy):
         """This is a small wrapper function for moving files. It is better to
-        use :meth:`Dataset.move` directly.
+        use :meth:`FileSet.move` directly.
 
         Args:
             dataset:
@@ -2186,7 +2219,7 @@ class Dataset:
         Args:
             filename: Path and name of the file.
             template: Template with regex/placeholders that should be used.
-                Default is *Dataset.path*.
+                Default is *FileSet.path*.
 
         Returns:
             A dictionary with filled placeholders.
@@ -2302,23 +2335,23 @@ class Dataset:
         """
         # All placeholders from which we know the resolution:
         placeholders = set(placeholders).intersection(
-            Dataset._temporal_resolution
+            FileSet._temporal_resolution
         )
 
         if not placeholders:
             return None
 
         highest_resolution = max(
-            (Dataset._temporal_resolution[tp] for tp in placeholders),
+            (FileSet._temporal_resolution[tp] for tp in placeholders),
         )
 
         highest_resolution_index = list(
-            Dataset._temporal_resolution.values()).index(highest_resolution)
+            FileSet._temporal_resolution.values()).index(highest_resolution)
 
         if highest_resolution_index == 0:
             return None
 
-        resolutions = list(Dataset._temporal_resolution.values())
+        resolutions = list(FileSet._temporal_resolution.values())
         superior_resolution = resolutions[highest_resolution_index - 1]
 
         return pd.Timedelta(superior_resolution).to_pytimedelta()
@@ -2353,13 +2386,13 @@ class Dataset:
 
         # All placeholders from which we know the resolution:
         placeholders = set(placeholders).intersection(
-            Dataset._temporal_resolution
+            FileSet._temporal_resolution
         )
 
         if not placeholders:
             # There are no placeholders in the path, therefore we return the
             # highest time resolution automatically
-            return "year", Dataset._temporal_resolution["year"]
+            return "year", FileSet._temporal_resolution["year"]
 
         # E.g. if we want to find the temporal placeholder with the lowest
         # resolution, we have to search for the maximum of their values because
@@ -2367,14 +2400,14 @@ class Dataset:
         # etc. expect
         if highest:
             placeholder = min(
-                placeholders, key=lambda k: Dataset._temporal_resolution[k]
+                placeholders, key=lambda k: FileSet._temporal_resolution[k]
             )
         else:
             placeholder = max(
-                placeholders, key=lambda k: Dataset._temporal_resolution[k]
+                placeholders, key=lambda k: FileSet._temporal_resolution[k]
             )
 
-        return placeholder, Dataset._temporal_resolution[placeholder]
+        return placeholder, FileSet._temporal_resolution[placeholder]
 
     def _fill_placeholders(self, path, extra_placeholder=None, compile=False):
         """Fill all placeholders in a path with its RegExes and compile it.
@@ -2444,7 +2477,7 @@ class Dataset:
         """
 
         return {
-            name: Dataset._add_group_capturing(name, value)
+            name: FileSet._add_group_capturing(name, value)
             for name, value in placeholder.items()
         }
 
@@ -2592,7 +2625,7 @@ class Dataset:
             shutil.move(filename+".backup", filename)
 
     def set_placeholders(self, **placeholders):
-        """Set placeholders for this Dataset.
+        """Set placeholders for this FileSet.
 
         Args:
             **placeholders: Placeholders as keyword arguments.
@@ -2649,10 +2682,10 @@ class Dataset:
 
     def write(self, data, file_info=None, times=None, fill=None,
               in_background=False, **write_args):
-        """Write content to a file by using the Dataset's file handler.
+        """Write content to a file by using the FileSet's file handler.
 
         If the filename extension is a compression format (such as *zip*,
-        etc.) and *Dataset.compress* is set to true, the file will be
+        etc.) and *FileSet.compress* is set to true, the file will be
         compressed afterwards.
 
         Notes:
@@ -2682,11 +2715,11 @@ class Dataset:
         .. code-block:: python
 
             import matplotlib.pyplot as plt
-            from typhon.spareice.datasets import Dataset
+            from typhon.spareice.datasets import FileSet
             from typhon.spareice.handlers import Plotter
 
             # Define a dataset consisting of multiple files:
-            plots = Dataset(
+            plots = FileSet(
                 path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.png",
                 handler=Plotter,
             )
@@ -2738,7 +2771,7 @@ class Dataset:
         if in_background:
             # Run this function again but as a background thread in a queue:
             threading.Thread(
-                target=Dataset.write, args=(self, data, file_info),
+                target=FileSet.write, args=(self, data, file_info),
                 kwargs=write_args.update(in_background=False),
             ).start()
             return
@@ -2767,9 +2800,9 @@ class Dataset:
         return self._write_queue.empty()
 
 
-class DatasetManager(dict):
+class FileSetManager(dict):
     def __init__(self, *args, **kwargs):
-        """Simple container for multiple Dataset objects.
+        """Simple container for multiple FileSet objects.
 
         You can use it as a native dictionary.
 
@@ -2779,9 +2812,9 @@ class DatasetManager(dict):
 
         .. code-block:: python
 
-            datasets = DatasetManager()
+            datasets = FileSetManager()
 
-            datasets += Dataset(
+            datasets += FileSet(
                 name="images",
                 files="path/to/files.png",
             )
@@ -2791,12 +2824,12 @@ class DatasetManager(dict):
                 dataset.find(...)
 
         """
-        super(DatasetManager, self).__init__(*args, **kwargs)
+        super(FileSetManager, self).__init__(*args, **kwargs)
 
     def __iadd__(self, dataset):
         if dataset.name in self:
             warnings.warn(
-                "DatasetManager: Overwrite dataset with name '%s'!"
+                "FileSetManager: Overwrite dataset with name '%s'!"
                 % dataset.name, RuntimeWarning)
 
         self[dataset.name] = dataset
