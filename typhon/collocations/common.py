@@ -614,7 +614,7 @@ def collocate(arrays, max_interval=None, max_distance=None,
     Collocations are two or more data points that are located close to each
     other in space and/or time.
 
-    A data array must be a dictionary, a xarray.Dataset or a DataGroup
+    A data array must be a dictionary, a xarray.Dataset or a pandas.DataFrame
     object with the keys *time*, *lat*, *lon*. Its values must
     be 1-dimensional numpy.array-like objects and share the same length. The
     field *time* must have the data type *numpy.datetime64*, *lat* must be
@@ -711,8 +711,26 @@ def collocate(arrays, max_interval=None, max_distance=None,
 
 
     """
+    # Internally, we use pandas.Dateframe objects. There are simpler to use
+    # than xarray.Dataset objects and are well designed for this purpose.
+    # Furthermore, xarray.Dataset has a very annoying bug at the
+    # moment that makes time selection more cumbersome
+    # (https://github.com/pydata/xarray/issues/1240).
 
-    if not arrays[0] or not arrays[1]:
+    for i, array in enumerate(arrays):
+        if isinstance(array, pd.DataFrame):
+            pass
+        elif isinstance(array, dict):
+            arrays[i] = pd.DataFrame(array)
+        elif isinstance(array, xr.Dataset):
+            arrays[i] = array.to_dataframe()
+        else:
+            raise ValueError("Unknown array object!")
+
+        # We use the time coordinate for binning, therefore we set it as index:
+        arrays[i] = arrays[i].set_index("time")
+
+    if arrays[0].empty or arrays[1].empty:
         # At least one of the arrays is empty
         return np.array([[], []])
 
@@ -741,22 +759,10 @@ def collocate(arrays, max_interval=None, max_distance=None,
 
     threads = 2 if threads is None else threads
 
-    for i, array in enumerate(arrays):
-        if isinstance(array, dict):
-            arrays[i] = xr.Dataset({
-                    "lat": ("time", array["lat"]),
-                    "lon": ("time", array["lon"]),
-                }, coords={
-                    "time": ("time", array["time"])
-                }
-            )
-        elif isinstance(array, DataGroup):
-            arrays[i] = array.data
-
     # If the time matters (i.e. max_interval is not None), we split the data
     # into temporal bins. This produces an overhead that is only negligible if
     # we have a lot of data:
-    data_magnitude = arrays[0]["time"].shape[0] * arrays[1]["time"].shape[0]
+    data_magnitude = len(arrays[0]) * len(arrays[1])
 
     # We can search for spatial collocations (max_interval=None), temporal
     # collocations (max_distance=None) or both.
@@ -777,13 +783,13 @@ def collocate(arrays, max_interval=None, max_distance=None,
         start, end, *time_indices = common_time
 
         # Select the relevant data:
-        arrays[0] = arrays[0][time_indices[0]]
-        arrays[1] = arrays[1][time_indices[1]]
+        arrays[0] = arrays[0].iloc(time_indices[0])
+        arrays[1] = arrays[1].iloc(time_indices[1])
 
         # We need this frequency as pandas.Timestamp because we use
         # pandas.period_range later.
         bin_size = pd.Timedelta(
-            (pd.Timestamp(end) - pd.Timestamp(start)) / (4 * threads - 1)
+            (pd.Timestamp(end) - pd.Timestamp(start)) / (4 * threads)
         )
 
         # Now let's split the two data arrays along their time coordinate so we
@@ -854,8 +860,10 @@ def collocate(arrays, max_interval=None, max_distance=None,
 
 
 def _select_common_time(time1, time2, max_interval):
-    common_start = np.max([time1.min(), time2.min()]).item(0) - max_interval
-    common_end = np.min([time1.max(), time2.max()]).item(0) + max_interval
+    # We need the common start and end time of the time arrays to select a
+    # common time period. Unfortunately,
+    common_start = max([time1.min(), time2.min()]) - max_interval
+    common_end = min([time1.max(), time2.max()]) + max_interval
 
     # Return the indices from the data in the common time window
     indices1 = (common_start <= time1) & (time1 <= common_end)

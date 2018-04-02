@@ -89,9 +89,20 @@ class BallTree(CollocationsFinder):
         self, primary_data, secondary_data, max_interval, max_distance,
         **kwargs
     ):
+        """
 
-        if max_interval is not None:
-            max_interval = to_timedelta(max_interval)
+        TODO: Add documentation.
+
+        Args:
+            primary_data:
+            secondary_data:
+            max_interval:
+            max_distance:
+            **kwargs:
+
+        Returns:
+
+        """
 
         # We can use different metrics for the BallTree. The default euclidean
         # metric is the fastest but produces a big error for large distances.
@@ -104,9 +115,9 @@ class BallTree(CollocationsFinder):
         if max_distance is None:
             # Search for temporal collocations only
             primary_time = \
-                primary_data["time"].astype("M8[s]").astype("int")
+                primary_data.index.to_datetime().astype(int) / 10e8
             secondary_time = \
-                secondary_data["time"].astype("M8[s]").astype("int")
+                secondary_data.index.to_datetime().astype(int) / 10e8
 
             # The BallTree implementation only allows 2-dimensional data, hence
             # we need to add an empty second dimension
@@ -168,34 +179,9 @@ class BallTree(CollocationsFinder):
             # convert it to meters.
             max_radius = max_distance * 1000
 
-        # It is more efficient to build the tree with the largest data corpus:
-        tree_with_primary = primary_points.size > secondary_points.size
-
-        # Search for all collocations
-        if tree_with_primary:
-            tree = SklearnBallTree(
-                primary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
-            )
-            results = tree.query_radius(secondary_points, r=max_radius)
-
-            # Build the list of the collocation pairs:
-            pairs = np.array([
-                [primary_index, secondary_index]
-                for secondary_index, primary_indices in enumerate(results)
-                for primary_index in primary_indices
-            ]).T
-        else:
-            tree = SklearnBallTree(
-                secondary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
-            )
-            results = tree.query_radius(primary_points, r=max_radius)
-
-            # Build the list of the collocation pairs:
-            pairs = np.array([
-                [primary_index, secondary_index]
-                for primary_index, secondary_indices in enumerate(results)
-                for secondary_index in secondary_indices
-            ]).T
+        pairs = self._find_collocations(
+            primary_points, secondary_points, max_radius, ball_tree_kwargs
+        )
 
         # No collocations were found.
         if not pairs.any():
@@ -207,14 +193,47 @@ class BallTree(CollocationsFinder):
             # Check whether the time differences between the spatial
             # collocations are less than the temporal boundary:
             passed_time_check = np.abs(
-                primary_data["time"][pairs[0]]
-                - secondary_data["time"][pairs[1]]
-            ) < np.timedelta64(max_interval)
+                primary_data.index[pairs[0]]
+                - secondary_data.index[pairs[1]]
+            ) < max_interval
 
             # Just keep all indices which satisfy the temporal condition.
             pairs = pairs[:, passed_time_check]
 
         return pairs
+
+    def _find_collocations(
+            self, primary_points, secondary_points, max_radius,
+            ball_tree_kwargs
+    ):
+        # It is more efficient to build the tree with the largest data corpus:
+        tree_with_primary = primary_points.size > secondary_points.size
+
+        # Search for all collocations
+        if tree_with_primary:
+            tree = SklearnBallTree(
+                primary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            )
+            results = tree.query_radius(secondary_points, r=max_radius)
+
+            # Build the list of the collocation pairs:
+            return np.array([
+                [primary_index, secondary_index]
+                for secondary_index, primary_indices in enumerate(results)
+                for primary_index in primary_indices
+            ]).T
+        else:
+            tree = SklearnBallTree(
+                secondary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            )
+            results = tree.query_radius(primary_points, r=max_radius)
+
+            # Build the list of the collocation pairs:
+            return np.array([
+                [primary_index, secondary_index]
+                for primary_index, secondary_indices in enumerate(results)
+                for secondary_index in secondary_indices
+            ]).T
 
 
 class BruteForce(CollocationsFinder):
