@@ -7,11 +7,11 @@ TODO: Move this package to typhon.collocations.
 Created by John Mrziglod, June 2017
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import logging
 from numbers import Number
 import time
-from multiprocessing.pool import ThreadPool
 import traceback
 import warnings
 
@@ -61,13 +61,13 @@ class Collocations(FileSet):
         # Call the base class initializer
         super().__init__(*args, **kwargs)
 
-    def add_fields(self, original_dataset, fields, **map_args):
+    def add_fields(self, original_fileset, fields, **map_args):
         """
 
         Args:
             start:
             end:
-            original_dataset:
+            original_fileset:
             group
             fields:
 
@@ -77,7 +77,7 @@ class Collocations(FileSet):
         map_args = {
             "on_content": True,
             "kwargs": {
-                "original_dataset": original_dataset,
+                "original_fileset": original_fileset,
                 "fields": fields,
             },
             **map_args,
@@ -86,14 +86,14 @@ class Collocations(FileSet):
         return self.map(Collocations._add_fields, **map_args)
 
     @staticmethod
-    def _add_fields(data, original_dataset, fields):
+    def _add_fields(data, original_fileset, fields):
         try:
             original_file = data[group].attrs["__original_file"]
         except KeyError:
             raise KeyError(
                 "The collocation files does not contain information about "
                 "their original files.")
-        original_data = original_dataset.read(original_file)[fields]
+        original_data = original_fileset.read(original_file)[fields]
         original_indices = data[group]["__original_indices"]
         data[group] = GroupedArrays.merge(
             [data[group], original_data[original_indices]],
@@ -115,8 +115,8 @@ class Collocations(FileSet):
         function).
 
         Args:
-            primary: Name of dataset which has the largest footprint. All
-                other datasets will be collapsed to its data points.
+            primary: Name of fileset which has the largest footprint. All
+                other filesets will be collapsed to its data points.
             secondary:
             collapser: Reference to a function that should be applied on each
                 bin (numpy.nanmean is the default).
@@ -237,36 +237,36 @@ class Collocations(FileSet):
             expanded_data[group_name] = data[group_name][indices]
 
     def search(
-            self, datasets, start=None, end=None, remove_overlaps=True,
-            verbose=True, **collocate_args, ):
-        """Find all collocations between two datasets and store them in files
+            self, filesets, start=None, end=None, remove_overlaps=True,
+            processes=None, verbose=True, **collocate_args, ):
+        """Find all collocations between two filesets and store them in files
 
         Collocations are two or more data points that are located close to each
         other in space and/or time.
 
-        This takes all files from the datasets between two dates and find
+        This takes all files from the filesets between two dates and find
         collocations of their data points. Afterwards they will be stored in
         *output*.
 
         Each collocation output file provides these standard fields:
 
-        * *dataset_name/lat* - Latitudes of the collocations.
-        * *dataset_name/lon* - Longitude of the collocations.
-        * *dataset_name/time* - Timestamp of the collocations.
-        * *dataset_name/__original_indices* - Indices of the collocation data in
+        * *fileset_name/lat* - Latitudes of the collocations.
+        * *fileset_name/lon* - Longitude of the collocations.
+        * *fileset_name/time* - Timestamp of the collocations.
+        * *fileset_name/__original_indices* - Indices of the collocation data in
             the original files.
         * *__collocations/{primary}.{secondary}/pairs* - Tells you which data
             points are collocated with each other by giving their indices.
 
         Args:
-            datasets: A list of FileSet objects.
+            filesets: A list of FileSet objects.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If no date is given,
                 the *0000-01-01* wil be taken.
             end: End date. Same format as "start". If no date is given, the
                 *9999-12-31* wil be taken.
-            remove_overlaps: If the files of the primary dataset overlap in
+            remove_overlaps: If the files of the primary fileset overlap in
                 time, the overlapping data is used only once for collocating.
             verbose: If true, it prints logging messages.
             **collocate_args: Additional keyword arguments that are allowed for
@@ -282,10 +282,10 @@ class Collocations(FileSet):
             # TODO Add examples
         """
 
-        if len(datasets) != 2:
-            raise ValueError("Only collocating two datasets at once is allowed"
+        if len(filesets) != 2:
+            raise ValueError("Only collocating two filesets at once is allowed"
                              "at the moment!")
-        primary, secondary = datasets
+        primary, secondary = filesets
 
         # Set the defaults for start and end
         start = datetime.min if start is None else to_datetime(start)
@@ -294,9 +294,12 @@ class Collocations(FileSet):
         # Check the max_interval argument because we need it later
         max_interval = collocate_args.get("max_interval", None)
         if max_interval is None:
-            raise ValueError("Collocating datasets without max_interval is"
+            raise ValueError("Collocating filesets without max_interval is"
                              " not yet implemented!")
         max_interval = to_timedelta(max_interval, numbers_as="seconds")
+
+        # Check the algorithm argument because we need the required fields
+        algorithm = _get_algorithm(collocate_args.get("algorithm", None))
 
         # Use a timer for profiling.
         timer = time.time()
@@ -322,49 +325,59 @@ class Collocations(FileSet):
             if verbose > 1:
                 reading_time = time.time() - verbose_timer
 
-            # This should make it easier to retrieve the original file in
-            # post-processing:
-            data = self._add_file_identifiers(datasets, files, data)
+            # This should make it easier to retrieve more data from the
+            # original file in potential post-processing:
+            data = self._add_identifiers(filesets, files, data)
 
             # Concatenate the data:
-            data = {
-                primary.name: DataGroup.concat(data[primary.name]),
-                secondary.name: DataGroup.concat(data[secondary.name]),
+            raw_data = {
+                primary.name:
+                    DataGroup.concat(data[primary.name], dim="time"),
+                secondary.name:
+                    DataGroup.concat(data[secondary.name], dim="time"),
             }
 
-            # The user may not want to collocate overlapping data since it might
-            # contain duplicates
+            # The user may not want to collocate overlapping data twice since
+            # it might contain duplicates
             if remove_overlaps and last_primary_end is not None:
-                no_overlaps = data[primary.name]["time"] > last_primary_end
-                data[primary.name] = data[primary.name][no_overlaps]
+                raw_data[primary.name] = \
+                    raw_data[primary.name].sel(time=slice(last_primary_end))
 
-            if not data[primary.name]:
+            # We do not have to collocate everything, just the common time
+            # period expanded by max_interval and limited by the global start
+            # and end parameter:
+            raw_data = self._limit_and_sort_data(
+                start, end, raw_data, primary.name, max_interval
+            )
+
+            # We do not need all data for collocating, therefore we select only
+            # the required fields and convert all to a DataFrame (makes a lot
+            # of things easier):
+            required_fields = list(algorithm.required_fields)
+            # The time is the index of the dataframe and therefore no field any
+            # longer:
+            required_fields.remove("time")
+            data = {
+                name: value.select(required_fields).data.to_dataframe()  # noqa
+                for name, value in raw_data.items()
+            }
+
+            if data[primary.name].empty:
                 if verbose:
                     print("Skip overlapping data!")
                 continue
 
             if verbose:
-                self._print_collocating_status(timer, start, end,
-                                          *data[primary.name].get_range(
-                                              "time"))
+                self._print_collocating_status(
+                    timer, start, end, data[primary.name].index
+                )
             if verbose > 1:
                 print(f"{reading_time:.2f}s for reading the data")
 
-            # We do not have to collocate everything, just the common time
-            # period expanded by max_interval and limited by the global start
-            # and end parameter:
-            primary_period, secondary_period = \
-                self._get_search_periods(
-                    start, end,
-                    data[primary.name]["time"],
-                    data[secondary.name]["time"],
-                    max_interval
-                )
-
-            data[primary.name] = data[primary.name][primary_period]
-            data[secondary.name] = data[secondary.name][secondary_period]
-
-            last_primary_end = data[primary.name]["time"].max().item(0)
+            # Maybe we have overlapping primary files? Let's save always the
+            # end of our last search to use it as starting point for the next
+            # iteration:
+            last_primary_end = data[primary.name].index.max()
 
             verbose_timer = time.time()
             collocations = collocate(
@@ -383,16 +396,16 @@ class Collocations(FileSet):
                     print("Found no collocations!")
                 continue
 
-            # Store the collocated data to the output dataset:
+            # Store the collocated data to the output fileset:
             filename, n_collocations = self._store_collocations(
-                datasets=[primary, secondary], raw_data=data,
+                filesets=[primary, secondary], raw_data=raw_data,
                 collocations=collocations, files=files, **collocate_args
             )
 
             if verbose:
                 print(
-                    f"Store {n_collocations[0]} ({datasets[0].name}) and "
-                    f"{n_collocations[1]} ({datasets[1].name}) collocations to"
+                    f"Store {n_collocations[0]} ({filesets[0].name}) and "
+                    f"{n_collocations[1]} ({filesets[1].name}) collocations to"
                     f"\n{filename}"
                 )
             if verbose > 1:
@@ -413,40 +426,65 @@ class Collocations(FileSet):
             )
 
     @staticmethod
-    def _add_file_identifiers(datasets, files, data):
+    def _add_identifiers(filesets, files, data):
         """Add file identifier (start and end time) to each data point
         """
-        for dataset in datasets:
-            ds_name = dataset.name
-            # Add the file start and end time to each element:
+        for fileset in filesets:
+            ds_name = fileset.name
+            # Add the file start and end time to each element and its index
+            # in the original file
             for index, file in enumerate(files[ds_name]):
+                if "__file_start" in data[ds_name][index]:
+                    # Apparently, we collocated and tagged this dataset
+                    # already.
+                    # TODO: Nevertheless, should we add new identifiers now?
+                    continue
+
                 length = data[ds_name][index]["time"].shape[0]
-                data[ds_name][index]["__file_start"] = Array(
-                    np.repeat(np.datetime64(file.times[0]), length),
-                    dims=["time_id"],
-                )
-                data[ds_name][index]["__file_end"] = Array(
-                    np.repeat(np.datetime64(file.times[1]), length),
-                    dims=["time_id"],
-                )
+                data[ds_name][index]["__file_start"] = \
+                    "time", np.repeat(np.datetime64(file.times[0]), length)
+                data[ds_name][index]["__file_end"] = \
+                    "time", np.repeat(np.datetime64(file.times[1]), length)
+                data[ds_name][index]["__index"] = "time", np.arange(length)
+
         return data
 
     @staticmethod
-    def _get_search_periods(
-            global_start, global_end, primary, secondary, max_interval):
+    def _limit_and_sort_data(
+            global_start, global_end, raw_data, primary, max_interval):
         """Returns the search periods for the primary and secondary data
         """
-        start = max(global_start, primary.min().item(0) - max_interval)
-        end = min(global_end, primary.max().item(0) + max_interval)
+        # Because xarray has a very annoying bug in time retrieving
+        # (https://github.com/pydata/xarray/issues/1240), this is a little bit
+        # cumbersome:
+        start = max(
+            global_start,
+            pd.Timestamp(raw_data[primary][:].time.min().item(0))-max_interval
+        )
+        end = min(
+            global_end,
+            pd.Timestamp(raw_data[primary][:].time.max().item(0))+max_interval
+        )
 
-        primary_period = (start <= primary) & (primary <= end)
-        secondary_period = (start <= secondary) & (secondary <= end)
+        print(start, end)
 
-        return primary_period, secondary_period
+        # Select only the common time window from the data:
+        raw_data = {
+            name: value.sel(time=slice(start, end))
+            for name, value in raw_data.items()
+        }
+
+        # We need monotonically increasing or decreasing time indices (well,
+        # pandas needs that):
+        return {
+            name: value.apply(xr.Dataset.sortby, "time")
+            for name, value in raw_data.items()
+        }
 
     @staticmethod
-    def _print_collocating_status(timer, start, end, current_start,
-                                  current_end):
+    def _print_collocating_status(timer, start, end, data):
+        current_start = data.min()
+        current_end = data.max()
         print("-" * 79)
         print(f"Collocating from {current_start} to {current_end}")
 
@@ -465,14 +503,13 @@ class Collocations(FileSet):
               f"remaining)")
 
     def _store_collocations(
-            self, datasets, raw_data, collocations,
-            files, **collocate_args):
+            self, filesets, raw_data, collocations, files, **collocate_args):
         """Merge the data, original indices, collocation indices and
-        additional information of the datasets to one DataGroup object.
+        additional information of the filesets to one DataGroup object.
 
         Args:
             output:
-            datasets:
+            filesets:
             raw_data:
             collocations:
             files:
@@ -486,30 +523,30 @@ class Collocations(FileSet):
 
         # We need this name to store the collocation metadata in an adequate
         # group
-        collocations_name = datasets[0].name + "." + datasets[1].name
+        collocations_name = filesets[0].name + "." + filesets[1].name
         output_data["__collocations/" + collocations_name] = DataGroup()
         metadata = output_data["__collocations/" + collocations_name]
 
         max_interval = collocate_args.get("max_interval", None)
         if max_interval is not None:
             max_interval = to_timedelta(max_interval).total_seconds()
-        metadata.attrs[
-            "max_interval"] = f"Max. interval in secs: {max_interval}"
+        metadata[:].attrs["max_interval"] = \
+            f"Max. interval in secs: {max_interval}"
 
         max_distance = collocate_args.get("max_distance", None)
-        metadata.attrs["max_distance"] = \
+        metadata[:].attrs["max_distance"] = \
             f"Max. distance in kilometers: {max_distance}"
-        metadata.attrs["primary"] = datasets[0].name
-        metadata.attrs["secondary"] = datasets[1].name
+        metadata[:].attrs["primary"] = filesets[0].name
+        metadata[:].attrs["secondary"] = filesets[1].name
 
         pairs = []
         number_of_collocations = []
 
-        for i, dataset in enumerate(datasets):
-            dataset_data = raw_data[dataset.name]
+        for i, fileset in enumerate(filesets):
+            dataset_data = raw_data[fileset.name]
 
             if "__collocations" in dataset_data.groups():
-                # This dataset contains already-collocated datasets,
+                # This dataset contains already-collocated filesets,
                 # therefore we do not select any data but copy all of them.
                 # This keeps the indices valid, which point to the original
                 # files and data:
@@ -544,19 +581,8 @@ class Collocations(FileSet):
             # Save the collocation indices in the metadata group:
             pairs.append(collocation_indices)
 
-            data = dataset_data[original_indices]
-            data["__indices"] = Array(
-                original_indices, dims=["time_id", ],
-                attrs={
-                    "long_name": "Index in the original file",
-                }
-            )
-
-            # if "__original_files" not in data.attrs:
-            #     # Set where the data came from:
-            #     data.attrs["__original_files"] = \
-            #         ";".join(file.path for file in files[datasets[i].name])
-            output_data[datasets[i].name] = data
+            output_data[filesets[i].name] = \
+                dataset_data.isel(time=original_indices)
 
         metadata["pairs"] = pairs
 
@@ -608,7 +634,7 @@ def _to_kilometers(distance):
 
 
 def collocate(arrays, max_interval=None, max_distance=None,
-              algorithm=None, threads=None,):
+              algorithm=None, threads=None, bin_factor=2):
     """Find collocations between two data arrays
 
     Collocations are two or more data points that are located close to each
@@ -646,19 +672,24 @@ def collocate(arrays, max_interval=None, max_distance=None,
             *BallTree* algorithm. See below for a table of available
             algorithms.
         threads: Finding collocations can be parallelised in threads. Give here
-            the maximum number of threads that you want to use. This does not
-            work so far.
+            the maximum number of threads that you want to use. Which number of
+            threads is the best, may be machine-dependent. So this is a
+            parameter that you can use to fine-tune the performance.
+        bin_factor: When using a temporal criterion via `max_interval`, the
+            data will be temporally binned to speed-up the search. The bin size
+            is `bin_factor` * `max_interval`. Which bin factor is the best, may
+            be dataset-dependent. So this is a parameter that you can use to
+            fine-tune the performance.
 
     Returns:
         A 2xN numpy array where N is the number of found collocations. The
-        first row contains the indices of the collocations in *data1*, the
-        second row the indices in *data2*.
+        first row contains the indices of the collocations in `data1`, the
+        second row the indices in `data2`.
 
     How the collocations are going to be found is specified by the used
     algorithm. The following algorithms are possible (you can use your
-    own algorithm by subclassing the
-    :class:`~typhon.spareice.collocations.algorithms.CollocationsFinder`
-    class):
+    own algorithm by subclassing
+    :class:`~typhon.spareice.collocations.algorithms.CollocationsFinder`):
 
     +--------------+------------------------------------------------------+
     | Algorithm    | Description                                          |
@@ -728,7 +759,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
             raise ValueError("Unknown array object!")
 
         # We use the time coordinate for binning, therefore we set it as index:
-        arrays[i] = arrays[i].set_index("time")
+        if arrays[i].index.name != "time":
+            arrays[i] = arrays[i].set_index("time")
 
     if arrays[0].empty or arrays[1].empty:
         # At least one of the arrays is empty
@@ -746,18 +778,12 @@ def collocate(arrays, max_interval=None, max_distance=None,
     if max_distance is not None:
         max_distance = _to_kilometers(max_distance)
 
-    if algorithm is None:
-        algorithm = BallTree()
-    else:
-        if isinstance(algorithm, str):
-            try:
-                algorithm = ALGORITHM[algorithm]()
-            except KeyError:
-                raise ValueError("Unknown algorithm: %s" % algorithm)
-        else:
-            algorithm = algorithm
+    algorithm = _get_algorithm(algorithm)
 
-    threads = 2 if threads is None else threads
+    # Unfortunately, a first attempt parallelizing this using threads worsened
+    # the performance. Hence, even it is ironically, it is better to use only
+    # one thread.
+    threads = 1 if threads is None else threads
 
     # If the time matters (i.e. max_interval is not None), we split the data
     # into temporal bins. This produces an overhead that is only negligible if
@@ -772,25 +798,20 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # We start by selecting only the time period where both data
         # arrays have data and that lies in the time period requested by the
         # user.
-        common_time = _select_common_time(
-            arrays[0]["time"], arrays[1]["time"], max_interval
-        )
+        start = max([arrays[0].index.min(), arrays[1].index.min()]) \
+            - max_interval
+        end = min([arrays[0].index.max(), arrays[1].index.max()]) \
+            + max_interval
 
-        if common_time is None:
-            # There was no common time window found
-            return np.array([[], []])
-
-        start, end, *time_indices = common_time
+        # Get the offset of the start date (so we can shift the indices later):
+        offsets = [
+            arrays[0].index.searchsorted(start),
+            arrays[1].index.searchsorted(start)
+        ]
 
         # Select the relevant data:
-        arrays[0] = arrays[0].iloc(time_indices[0])
-        arrays[1] = arrays[1].iloc(time_indices[1])
-
-        # We need this frequency as pandas.Timestamp because we use
-        # pandas.period_range later.
-        bin_size = pd.Timedelta(
-            (pd.Timestamp(end) - pd.Timestamp(start)) / (4 * threads)
-        )
+        arrays[0] = arrays[0].loc[start:end]
+        arrays[1] = arrays[1].loc[start:end]
 
         # Now let's split the two data arrays along their time coordinate so we
         # avoid searching for spatial collocations that do not fulfill the
@@ -798,45 +819,24 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # finding algorithm must be considered too (for example the BallTree
         # creation time). We choose therefore a bin size of roughly 10'000
         # elements and minimum bin duration of max_interval.
-        # The collocations that we will miss at the bin edges are going to be
-        # found later.
-        # TODO: Unfortunately, a first attempt parallelizing this using threads
-        # TODO: worsened the performance.
-        pairs_without_overlaps = np.hstack([
-            _collocate_period(
-                arrays, algorithm, (max_interval, max_distance), period,
-            )
-            for period in pd.period_range(start, end, freq=bin_size)
-        ])
+        def get_chunk_pairs(chunk1_start, chunk1):
+            chunk2_start = chunk1_start - max_interval
+            chunk2_end = chunk2_start + max_interval
+            offset1 = arrays[0].index.searchsorted(chunk1_start)
+            offset2 = arrays[1].index.searchsorted(chunk2_start)
+            chunk2 = arrays[1].loc[chunk2_start:chunk2_end]
+            return offset1, chunk1, offset2, chunk2
 
-        # Now, imagine our situation like this:
-        #
-        # [ PRIMARY BIN 1       ][ PRIMARY BIN 2        ]
-        # ---------------------TIME--------------------->
-        #   ... [ -max_interval ][ +max_interval ] ...
-        # ---------------------TIME--------------------->
-        # [ SECONDARY BIN 1     ][ SECONDARY BIN 2      ]
-        #
-        # We have already found the collocations between PRIMARY BIN 1 &
-        # SECONDARY BIN 1 and PRIMARY BIN 2 & SECONDARY BIN 2. However, the
-        # [-max_interval] part of PRIMARY BIN 2 might be collocated with the
-        # [+max_interval] part of SECONDARY BIN 1 (the same applies to
-        # [+max_interval] of the PRIMARY BIN 1 and [-max_interval] of the
-        # SECONDARY BIN 2). Let's find them here:
-        pairs_of_overlaps = np.hstack([
-            _collocate_period(
-                arrays, algorithm, (max_interval, max_distance),
-                pd.Period(date - max_interval, max_interval)
-                if prev1_with_next2 else pd.Period(date, max_interval),
-                pd.Period(date, max_interval) if prev1_with_next2
-                else pd.Period(date - max_interval, max_interval),
-            )
-            for date in pd.date_range(start, end, freq=bin_size)[1:-1]
-            for prev1_with_next2 in [True, False]
-        ])
+        chunks_with_args = (
+            [*get_chunk_pairs(chunk_start, chunk),
+             algorithm, (max_interval, max_distance)]
+            for chunk_start, chunk in arrays[0].groupby(
+                pd.Grouper(freq=2*max_interval))
+        )
 
-        # Put all collocations together then. Note that they are not sorted:
-        pairs = np.hstack([pairs_without_overlaps, pairs_of_overlaps])
+        with ThreadPoolExecutor(threads) as pool:
+            pairs_list = pool.map(_collocate_chunks, chunks_with_args)
+        pairs = np.hstack(pairs_list)
 
         # No collocations were found.
         if not pairs.any():
@@ -845,8 +845,8 @@ def collocate(arrays, max_interval=None, max_distance=None,
         # We selected a common time window and cut off a part in the beginning,
         # do you remember? Now we shift the indices so that they point again
         # to the real original data.
-        pairs[0] += np.where(time_indices[0])[0][0]
-        pairs[1] += np.where(time_indices[1])[0][0]
+        pairs[0] += offsets[0]
+        pairs[1] += offsets[1]
 
         pairs = pairs.astype("int64")
     else:
@@ -859,22 +859,29 @@ def collocate(arrays, max_interval=None, max_distance=None,
     return pairs
 
 
-def _select_common_time(time1, time2, max_interval):
-    # We need the common start and end time of the time arrays to select a
-    # common time period. Unfortunately,
-    common_start = max([time1.min(), time2.min()]) - max_interval
-    common_end = min([time1.max(), time2.max()]) + max_interval
+def _get_algorithm(algorithm):
+    if algorithm is None:
+        return BallTree()
+    else:
+        if isinstance(algorithm, str):
+            try:
+                return ALGORITHM[algorithm]()
+            except KeyError:
+                raise ValueError("Unknown algorithm: %s" % algorithm)
+        else:
+            return algorithm
 
-    # Return the indices from the data in the common time window
-    indices1 = (common_start <= time1) & (time1 <= common_end)
-    if not indices1.any():
-        return None
 
-    indices2 = (common_start <= time2) & (time2 <= common_end)
-    if not indices2.any():
-        return None
+def _collocate_chunks(args):
+    offset1, data1, offset2, data2, algorithm, algorithm_args = args
 
-    return common_start, common_end, indices1, indices2
+    if data1.empty or data2.empty:
+        return np.array([[], []])
+
+    pairs = algorithm.find_collocations(data1, data2, *algorithm_args)
+    pairs[0] += offset1
+    pairs[1] += offset2
+    return pairs
 
 
 def _collocate_period(data_arrays, algorithm, algorithm_args,
