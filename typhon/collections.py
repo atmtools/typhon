@@ -15,6 +15,7 @@ __all__ = [
 
 
 class DataGroup:
+
     def __init__(self, data=None, name=None):
         if data is None:
             self._data = xr.Dataset()
@@ -72,31 +73,36 @@ class DataGroup:
         # The path may contain the group and a variable name
         group, rest = DataGroup.parse(path)
 
-        if group:
-            if rest:
-                # `group` must be a valid group name
-                return self._groups[group][rest]
+        if not group:
+            return self
 
-            # `group`could be a group or a variable name. We check for
-            # variables first:
-            var = self._data.get(group, None)
-            if var is not None:
-                return var
+        if rest:
+            # `group` must be a valid group name
+            return self._groups[group][rest]
 
-            # Okay, now `group`must be a group name:
-            return self._groups[group]
-        else:
-            return self._data
+        # `group`could be a group or a variable name. We check for
+        # variables first:
+        var = self._data.get(group, None)
+        if var is not None:
+            return var
+
+        # Okay, now `group`must be a group name:
+        return self._groups[group]
 
     def __setitem__(self, path, value):
-        # The path may contain the group and a variable name
-        group, rest = DataGroup.parse(path)
-
-        if not group:
+        if path == slice(None, None, None):
             if isinstance(value, xr.Dataset):
                 self.data = value
             else:
                 raise ValueError("Root group must be a xarray.Dataset!")
+            return
+
+        # The path may contain the group and a variable name
+        group, rest = DataGroup.parse(path)
+
+        if not group:
+            raise ValueError("Root group cannot be changed via '/'. Use ':' "
+                             "instead!")
 
         if rest:
             # If no group with this name exists, we simply create a new one:
@@ -143,6 +149,34 @@ class DataGroup:
             info += textwrap.indent(repr(group), ' ' * 4)
 
         return info
+
+    def apply(self, method, *args, **kwargs):
+        dg = type(self)()
+        dg[:] = method(self[:], *args, **kwargs)
+        for group in self.deep("groups"):
+            dg[group] = method(self[group].data, *args, **kwargs)
+
+        return dg
+
+    @classmethod
+    def concat(cls, objs, **kwargs):
+        dg = cls()
+
+        if not objs:
+            return dg
+        if len(objs) == 1:
+            return objs[0].copy()
+
+        # Concatenate the main groups:
+        dg[:] = xr.concat([obj[:] for obj in objs], **kwargs)
+        # Concatenate the other groups:
+        for group in objs[0].deep("groups"):
+            dg[group] = xr.concat([obj[group].data for obj in objs], **kwargs)
+
+        return dg
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     @property
     def data(self):
@@ -212,6 +246,13 @@ class DataGroup:
         return cls(data)
 
     @classmethod
+    def from_dict(cls, dictionary):
+        dg = cls()
+        for var, data in dictionary.items():
+            dg[var] = data
+        return dg
+
+    @classmethod
     def from_netcdf(cls, paths, groups=None, **kwargs):
         """
 
@@ -263,6 +304,9 @@ class DataGroup:
     def groups(self, value):
         self._groups = value
 
+    def isel(self, *args, **kwargs):
+        return self.apply(xr.Dataset.isel, *args, **kwargs)
+
     @staticmethod
     def parse(path, root=True):
         """Parse `path` into first group and rest.
@@ -313,6 +357,9 @@ class DataGroup:
                 obj[subgroup].rename(mapping, deep=True)
 
         return obj
+
+    def sel(self, *args, **kwargs):
+        return self.apply(xr.Dataset.sel, *args, **kwargs)
 
     def select(self, fields, inplace=False):
         if inplace:
