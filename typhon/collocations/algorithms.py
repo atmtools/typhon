@@ -22,6 +22,9 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
     # should be used in multiple threads because it can handle such GIL issues.
     loves_threading = True
 
+    # What fields are required for performing the collocation?
+    required_fields = ("time", "lat", "lon")
+
     @abc.abstractmethod
     def find_collocations(
             self, primary_data, secondary_data, max_interval, max_distance,
@@ -274,8 +277,8 @@ class BruteForce(CollocationsFinder):
         # Check the temporal condition:
         if max_interval is not None:
             intervals = \
-                np.abs(primary_data["time"][primary_indices]
-                       - secondary_data["time"][secondary_indices])
+                np.abs(primary_data.index[primary_indices]
+                       - secondary_data.index[secondary_indices])
             passed_time_check = intervals < max_interval
 
             primary_indices = primary_indices[passed_time_check]
