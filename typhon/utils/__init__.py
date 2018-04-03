@@ -550,10 +550,12 @@ def stack_xarray_repdim(da, **dims):
                 if k in dims else da.coords[k] for k in np.unique(da3.dims)})
     return da3
 
+
 def split_units(value):
     """Splits a string into float number and potential unit
 
-    Taken from https://stackoverflow.com/a/30087094
+    References
+        Taken from https://stackoverflow.com/a/30087094
 
     Args:
         value: String with number and unit.
