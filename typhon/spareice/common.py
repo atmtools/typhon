@@ -12,7 +12,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.svm import SVR
 from typhon.spareice.array import GroupedArrays
-from typhon.fileset import FileSet
+from typhon.files import FileSet
 import xarray as xr
 
 __all__ = [
