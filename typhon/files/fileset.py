@@ -45,7 +45,7 @@ __all__ = [
 
 
 class InhomogeneousFilesError(Exception):
-    """Should be raised if the files of a dataset do not have the same internal
+    """Should be raised if the files of a fileset do not have the same internal
     structure but it is required.
     """
     def __init__(self, *args):
@@ -57,20 +57,20 @@ class NoFilesError(Exception):
     method.
 
     """
-    def __init__(self, dataset, start, end, *args):
+    def __init__(self, fileset, start, end, *args):
         if start == datetime.min and end >= datetime.max-timedelta(seconds=1):
-            message = f"Found no files for {dataset.name}!"
+            message = f"Found no files for {fileset.name}!"
         else:
-            message = f"Found no files for {dataset.name} between {start} " \
+            message = f"Found no files for {fileset.name} between {start} " \
                       f"and {end}!"
 
-        message += f"\nPath: {dataset.path}\nCheck the path for misspellings" \
+        message += f"\nPath: {fileset.path}\nCheck the path for misspellings" \
                    f" and whether there are files in this time period."
         Exception.__init__(self, message, *args)
 
 
 class NoHandlerError(Exception):
-    """Should be raised if no file handler is specified in a dataset object but
+    """Should be raised if no file handler is specified in a fileset object but
     a handler is required.
     """
     def __init__(self, msg, *args):
@@ -88,7 +88,7 @@ class UnfilledPlaceholderError(Exception):
                 "The path of '%s' contains a unfilled placeholder!" % (name,)
         else:
             message = \
-                "The dataset '%s' could not fill the placeholder %s!" % (
+                "The fileset '%s' could not fill the placeholder %s!" % (
                     name, placeholder_name)
         Exception.__init__(self, message, *args)
 
@@ -102,7 +102,7 @@ class UnknownPlaceholderError(Exception):
                 "The path of '%s' contains a unknown placeholder!" % (name,)
         else:
             message = \
-                "The dataset '%s' does not know the placeholder %s!" % (
+                "The fileset '%s' does not know the placeholder %s!" % (
                     name, placeholder_name)
         Exception.__init__(self, message, *args)
 
@@ -128,7 +128,7 @@ class FileSet:
 
     For more examples and an user guide, look at this tutorial_.
 
-    .. _tutorial: http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html
+    .. _tutorial: http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/fileset.html
 
     Examples:
 
@@ -139,7 +139,7 @@ class FileSet:
             from typhon.spareice import FileSet
 
             # Define a fileset consisting of multiple files:
-            dataset = FileSet(
+            files = FileSet(
                 path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 name="TestData",
                 # If the time coverage of the data cannot be retrieved from the
@@ -148,8 +148,8 @@ class FileSet:
                 info_via="filename"
             )
 
-            # Find some files of the dataset:
-            for file in dataset.find("2017-01-01", "2017-01-02"):
+            # Find some files of the fileset:
+            for file in files.find("2017-01-01", "2017-01-02"):
                 # Should print the path of the file and its time coverage:
                 print(file)
 
@@ -158,7 +158,7 @@ class FileSet:
         .. code-block:: python
 
             # Define a fileset consisting of a single file:
-            dataset = FileSet(
+            file = FileSet(
                 # Simply use the path without placeholders:
                 path="/path/to/file.nc",
                 name="TestData2",
@@ -234,41 +234,41 @@ class FileSet:
             self, path, handler=None, name=None, info_via=None,
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
-            worker_type=None,read_args=None, write_args=None,
+            worker_type=None, read_args=None, write_args=None,
             concat_args=None, merge_args=None, compress=True, decompress=True,
             temp_dir=None,
     ):
-        """Initializes a dataset object.
+        """Initialize a FileSet object.
 
         Args:
-            path: A string with the complete path to the dataset files. The
+            path: A string with the complete path to the files. The
                 string can contain placeholder such as {year}, {month},
                 etc. See below for a complete list. The direct use of
                 restricted regular expressions is also possible. Please note
                 that instead of dots '.' the asterisk '\*' is interpreted as
                 wildcard. If no placeholders are given, the path must point to
-                a file. This dataset is then seen as a single file dataset.
+                a file. This fileset is then seen as a single file set.
                 You can also define your own placeholders by using the
                 parameter *placeholder*.
-            name: The name of the dataset.
-            handler: An object which can handle the dataset files.
-                This dataset class does not care which format its files have
+            name: The name of the fileset.
+            handler: An object which can handle the fileset files.
+                This fileset class does not care which format its files have
                 when this file handler object is given. You can use a file
                 handler class from typhon.handlers, use
-                :class:`~typhon.spareice.handlers.FileHandler` or write your
-                own class. If no file handler is given, an adequate one is
+                :class:`~typhon.files.handlers.common.FileHandler` or write 
+                your own class. If no file handler is given, an adequate one is
                 automatically selected for the most common filename suffixes.
                 Please note that if no file handler is specified (and none
-                could set automatically), this dataset's functionality is
+                could set automatically), this fileset's functionality is
                 restricted.
             info_via: Defines how further information about the file will
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is *filename*. That
                 means that the placeholders in the file's path will be parsed
                 to obtain information. If this is *handler*, the
-                :meth:`~typhon.spareice.handlers.FileInfo.get_info` method is
-                used. If this is *both*, both options will be executed but the
-                information from the file handler overwrites conflicting
+                :meth:`~typhon.files.handlers.common.FileInfo.get_info` method
+                is used. If this is *both*, both options will be executed but
+                the information from the file handler overwrites conflicting
                 information from the filename.
             info_cache: Retrieving further information (such as time coverage)
                 about a file may take a while, especially when *get_info* is
@@ -278,21 +278,21 @@ class FileSet:
                 here (which need not exist) if you wish to save the information
                 data to a file. When restarting your script, this cache is
                 used.
-            time_coverage: If this dataset consists of multiple files, this
+            time_coverage: If this fileset consists of multiple files, this
                 parameter is the relative time coverage (i.e. a timedelta, e.g.
                 "1 hour") of each file. If the ending time of a file cannot be
                 retrieved by its file handler or filename, it is then its
                 starting time + *time_coverage*. Can be a timedelta object or
                 a string with time information (e.g. "2 seconds"). Otherwise
                 the missing ending time of each file will be set to its
-                starting time. If this
-                dataset consists of a single file, then this is its absolute
-                time coverage. Set this to a tuple of timestamps (datetime
-                objects or strings). Otherwise the period between year 1 and
-                9999 will be used as a default time coverage.
+                starting time. If this fileset consists of a single file, then
+                this is its absolute time coverage. Set this to a tuple of
+                timestamps (datetime objects or strings). Otherwise the period
+                between year 1 and 9999 will be used as a default time
+                coverage.
             exclude: A list of time periods (tuples of two timestamps) or
                 filenames (strings) that will be excluded when searching for
-                files of this dataset.
+                files of this fileset.
             placeholder: A dictionary with pairs of placeholder name and a
                 regular expression matching its content. These are user-defined
                 placeholders, the standard temporal placeholders do not have to
@@ -300,11 +300,11 @@ class FileSet:
             max_threads: Maximal number of threads that will be used for
                 parallelising some methods (e.g. writing in background). This
                 sets also the default for
-                :meth:`~typhon.spareice.datasets.FileSet.map`-like methods
+                :meth:`~typhon.files.fileset.FileSet.map`-like methods
                 (default is 4).
             max_processes: Maximal number of processes that will be used for
                 parallelising some methods. This sets also the default for
-                :meth:`~typhon.spareice.datasets.FileSet.map`-like methods
+                :meth:`~typhon.files.fileset.FileSet.map`-like methods
                 (default is 8).
             worker_type: The type of the workers that will be used to
                 parallelise some methods. Can be *process* (default) or
@@ -321,12 +321,11 @@ class FileSet:
                 `tempfile.gettempdir` (see tempfile_ doc).
             compress: If true and the *path* path ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
-                dataset files will be compressed after writing them to disk.
-                Default value is true.
+                files will be compressed after writing them to disk. Default
+                value is true.
             decompress: If true and the *path* path ends with a compression
-                suffix (such as *.zip*, *.gz*, *.b2z*, etc.), dataset files
-                will be decompressed before reading them. Default value is
-                true.
+                suffix (such as *.zip*, *.gz*, *.b2z*, etc.), files will be
+                decompressed before reading them. Default value is true.
 
         .. _tempfile https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir
 
@@ -374,12 +373,12 @@ class FileSet:
         self._name = None
         self.name = name
 
-        # Flag whether this is a single file dataset (will be derived in the
+        # Flag whether this is a single file fileset (will be derived in the
         # path setter method automatically):
         self.single_file = None
 
         # Complete the standard time placeholders. This must be done before
-        # setting the path to the dataset's files.
+        # setting the path to the fileset's files.
         self._time_placeholder = self._complete_placeholders_regex(
             self._time_placeholder
         )
@@ -440,7 +439,7 @@ class FileSet:
             )
 
         # The default worker settings for map-like functions
-        self.max_threads = 4 if max_threads is None else max_threads
+        self.max_threads = 3 if max_threads is None else max_threads
         self.max_processes = 4 if max_processes is None else max_processes
         self.worker_type = "process" if worker_type is None else worker_type
 
@@ -489,17 +488,17 @@ class FileSet:
         # TODO: cannot be pickled.
         # self._write_queue = Queue(max_threads)
 
-        # Dictionary for holding links to other datasets:
+        # Dictionary for holding links to other filesets:
         self._link = {}
 
     def __iter__(self):
         return iter(self.find())
 
     def __contains__(self, item):
-        """Checks whether a timestamp is covered by this dataset.
+        """Checks whether a timestamp is covered by this fileset.
 
         Notes:
-            This only gives proper results if the dataset consists of
+            This only gives proper results if the fileset consists of
             continuous data (files that covers a time span instead of only one
             timestamp).
 
@@ -576,19 +575,19 @@ class FileSet:
             info += "\nUser placeholder:\t" + self._user_placeholder
         return info
 
-    def align(self, datasets, start=None, end=None, max_interval=None):
-        """Collect the data from this and corresponding other datasets
+    def align(self, filesets, start=None, end=None, max_interval=None):
+        """Collect the data from this and corresponding other filesets
 
         Warnings:
             The name of this method may change in future.
 
-        This generator collects each file from this dataset between `start` and
+        This generator collects each file from this fileset between `start` and
         `end` and does the same with the corresponding files from other
-        datasets.
+        filesets.
 
         Args:
-            datasets: A list of dataset objects. Note: At the moment, only the
-                first dataset will be processed.
+            filesets: A list of FileSet objects. Note: At the moment, only the
+                first fileset will be processed.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If not given, it is
@@ -600,7 +599,7 @@ class FileSet:
 
         Yields:
             Two dictionaries where the keys are always the name of the
-            datasets. The values from the first are lists with
+            filesets. The values from the first are lists with
             :class:`FileInfo` objects of the opened files. The values from the
             second are lists with the content objects.
         """
@@ -608,7 +607,7 @@ class FileSet:
         end = None if end is None else to_datetime(end)
 
         # Find all overlapping files
-        matches = list(self.find_overlaps(datasets, start, end,
+        matches = list(self.find_overlaps(filesets, start, end,
                                           max_interval=max_interval))
         primaries, secondaries = zip(*matches)
 
@@ -619,7 +618,7 @@ class FileSet:
         )
 
         primary_loader = self.icollect(files=primaries)
-        secondary_loader = datasets[0].icollect(files=secondaries,
+        secondary_loader = filesets[0].icollect(files=secondaries,
                                                 return_info=True)
 
         files, data = defaultdict(list), defaultdict(list)
@@ -629,31 +628,32 @@ class FileSet:
 
             # We need to load only the files that have not been loaded earlier:
             for secondary in matches[match_id][1]:
-                if secondary not in files[datasets[0].name]:
+                if secondary not in files[filesets[0].name]:
                     secondary_file, secondary_data = next(secondary_loader)
                     if secondary != secondary_file:
                         raise AsyncError(
                             "Expected different secondary file!\n"
-                            "Does your dataset contain files that are "
-                            "completely overlapping other files?"
+                            "Does your fileset contain files that are "
+                            "completely overlapping other files? Exclude them "
+                            "via `exclude`."
                         )
-                    files[datasets[0].name].append(secondary)
-                    data[datasets[0].name].append(secondary_data)
+                    files[filesets[0].name].append(secondary)
+                    data[filesets[0].name].append(secondary_data)
 
             # We still have some files cached that we used the last time but we
             # do not need any longer. Find therefore all, that we need:
             files_to_keep = [
-                i for i, file in enumerate(files[datasets[0].name])
+                i for i, file in enumerate(files[filesets[0].name])
                 if file in matches[match_id][1]
             ]
 
             # And delete the others from the cache:
-            files[datasets[0].name][:] = [
-                file for i, file in enumerate(files[datasets[0].name])
+            files[filesets[0].name][:] = [
+                file for i, file in enumerate(files[filesets[0].name])
                 if i in files_to_keep
             ]
-            data[datasets[0].name][:] = [
-                data for i, data in enumerate(data[datasets[0].name])
+            data[filesets[0].name][:] = [
+                data for i, data in enumerate(data[filesets[0].name])
                 if i in files_to_keep
             ]
 
@@ -710,19 +710,19 @@ class FileSet:
 
             ## Load all files between two dates and concatenate their content.
             # Note: data may contain timestamps exceeding the given time period
-            data = dataset.collect("2018-01-01", "2018-01-02")
+            data = fileset.collect("2018-01-01", "2018-01-02")
 
             # The above is equivalent to this magic slicing:
-            data = dataset["2018-01-01":"2018-01-02"]
+            data = fileset["2018-01-01":"2018-01-02"]
 
 
 
             ## If you want to iterate through the files in a for loop, e.g.:
-            for content in dataset.collect("2018-01-01", "2018-01-02"):
+            for content in fileset.collect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
             # Then you should rather use icollect, which uses less memory:
-            for content in dataset.icollect("2018-01-01", "2018-01-02"):
+            for content in fileset.icollect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
         """
@@ -802,14 +802,14 @@ class FileSet:
         .. code-block:: python
 
             ## Perfect for iterating over many files.
-            for content in dataset.icollect("2018-01-01", "2018-01-02"):
+            for content in fileset.icollect("2018-01-01", "2018-01-02"):
                 # do something with file and content...
 
             ## If you want to have all files at once, do not use this:
-            data_list = list(dataset.icollect("2018-01-01", "2018-01-02"))
+            data_list = list(fileset.icollect("2018-01-01", "2018-01-02"))
 
             # This version is faster:
-            data_list = dataset.collect("2018-01-01", "2018-01-02")
+            data_list = fileset.collect("2018-01-01", "2018-01-02")
         """
 
         if read_args is None:
@@ -840,19 +840,19 @@ class FileSet:
                         yield data
 
     def copy(self):
-        """Create a so-called deep-copy of this dataset object
+        """Create a so-called deep-copy of this fileset object
 
         Notes
             This method does not copy any files. If you want to do so, use
             :meth:`move` with the parameter `copy=True`.
 
         Returns:
-            The copied dataset object
+            The copied fileset object
         """
         return deepcopy(self)
 
     def detect(self, test, *args, **kwargs):
-        """Search for anomalies in dataset
+        """Search for anomalies in fileset
 
         Args:
             test: Can be *duplicates*, *overlaps*, *enclosed* or a reference
@@ -908,7 +908,7 @@ class FileSet:
             self, start=None, end=None, sort=True, bundle=None, filters=None,
             no_files_error=True, verbose=False,
     ):
-        """ Find all files of this dataset in a given time period.
+        """ Find all files of this fileset in a given time period.
 
         The *start* and *end* parameters build a semi-open interval: only the
         files that are equal or newer than *start* and older than *end* are
@@ -933,7 +933,7 @@ class FileSet:
                 you can define the time period of one bundle. See
                 http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
                 for allowed time specifications. Default value is 1. This
-                argument will be ignored when having a single-file dataset.
+                argument will be ignored when having a single-file fileset.
                 When using *bundle*, the returned files will always be sorted
                 ignoring the state of the *sort* argument.
             filters: Limits user-defined placeholder to certain values.
@@ -948,21 +948,21 @@ class FileSet:
             verbose: If true, debug messages will be printed.
 
         Yields:
-            Either a :class:`~typhon.spareice.handlers.FileInfo` object for
+            Either a :class:`~typhon.files.handlers.common.FileInfo` object for
             each found file or - if *bundle_size* is not None - a list of
-            :class:`~typhon.spareice.handlers.FileInfo` objects.
+            :class:`~typhon.files.handlers.common.FileInfo` objects.
 
         Examples:
 
         .. code-block:: python
 
-            # Define a dataset consisting of multiple files:
-            dataset = FileSet(
+            # Define a fileset consisting of multiple files:
+            fileset = FileSet(
                 "/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc"
             )
 
-            # Find some files of the dataset:
-            for file in dataset.find("2017-01-01", "2017-01-02"):
+            # Find some files of the fileset:
+            for file in fileset.find("2017-01-01", "2017-01-02"):
                 # file is a FileInfo object that has the attribute path
                 # and times.
                 print(file.path)  # e.g. "/dir/2017/01/01/120000.nc"
@@ -983,7 +983,7 @@ class FileSet:
         if verbose:
             print("Find files between %s and %s!" % (start, end))
 
-        # Special case: the whole dataset consists of one file only.
+        # Special case: the whole fileset consists of one file only.
         if self.single_file:
             if os.path.isfile(self.path):
                 file_info = self.get_info(self.path)
@@ -1281,7 +1281,7 @@ class FileSet:
             NoFilesError is raised.
         """
 
-        # Special case: the whole dataset consists of one file only.
+        # Special case: the whole fileset consists of one file only.
         if self.single_file:
             if os.path.isfile(self.path):
                 # We do not have to check the time coverage since there this is
@@ -1331,13 +1331,13 @@ class FileSet:
         return files[np.argmin(intervals)]
 
     def find_overlaps(
-            self, datasets, start=None, end=None, max_interval=None,
+            self, filesets, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
-        """Find files between two datasets that overlap in time.
+        """Find files between two filesets that overlap in time.
 
         Args:
-            datasets: A list of other FileSet objects. Note: at the moment only
-                the first dataset will be processed.
+            filesets: A list of other FileSet objects. Note: at the moment only
+                the first fileset will be processed.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
@@ -1361,7 +1361,7 @@ class FileSet:
             self.find(start, end, filters=filters)
         )
         files2 = list(
-            datasets[0].find(start, end, filters=other_filters)
+            filesets[0].find(start, end, filters=other_filters)
         )
 
         # Convert the times (datetime objects) to seconds (integer)
@@ -1375,7 +1375,7 @@ class FileSet:
         ]).astype('int')
 
         if max_interval is not None:
-            # Expand the intervals of the secondary dataset to close-in-time
+            # Expand the intervals of the secondary fileset to close-in-time
             # intervals.
             times2[:, 0] -= int(max_interval.total_seconds())
             times2[:, 1] += int(max_interval.total_seconds())
@@ -1412,13 +1412,13 @@ class FileSet:
 
         .. code-block:: python
 
-            dataset.get_filename(
+            fileset.get_filename(
                 datetime(2016, 1, 1),
                 "{year2}/{month}/{day}.dat",
             )
             # Returns "16/01/01.dat"
 
-            dataset.get_filename(
+            fileset.get_filename(
                 ("2016-01-01", "2016-12-31"),
                 "{year}{month}{day}-{end_year}{end_month}{end_day}.dat",
             )
@@ -1492,7 +1492,7 @@ class FileSet:
 
         Args:
             file_info: A string, path-alike object or a
-                :class:`~typhon.spareice.handlers.common.FileInfo` object.
+                :class:`~typhon.files.handlers.common.FileInfo` object.
             retrieve_via: Defines how further information about the file will
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is the value of the
@@ -1500,13 +1500,13 @@ class FileSet:
                  object. If this is *filename*, the placeholders in the file's
                 path will be parsed to obtain information. If this is
                 *handler*, the
-                :meth:`~typhon.spareice.handlers.FileInfo.get_info` method is
+                :meth:`~typhon.files.handlers.common.FileInfo.get_info` method is
                 used. If this is *both*, both options will be executed but the
                 information from the file handler overwrites conflicting
                 information from the filename.
 
         Returns:
-            A :meth`~typhon.spareice.handlers.FileInfo` object.
+            A :meth`~typhon.files.handlers.common.FileInfo` object.
         """
         # We want to save time in this routine, therefore we first check
         # whether we cached this file already.
@@ -1546,7 +1546,7 @@ class FileSet:
 
         if info.times[0] is None:
             if info.times[1] is None:
-                # This is obviously a non-temporal dataset, set the times to
+                # This is obviously a non-temporal fileset, set the times to
                 # minimum and maximum so we have no problem to find it
                 info.times = [datetime.min, datetime.max]
             else:
@@ -1554,7 +1554,7 @@ class FileSet:
                 # ending time.
                 raise ValueError(
                     "Could not retrieve the starting time information from "
-                    "the file '%s' from the %s dataset!"
+                    "the file '%s' from the %s fileset!"
                     % (info.path, self.name)
                 )
         elif info.times[1] is None:
@@ -1609,48 +1609,48 @@ class FileSet:
 
         return func(objects, **self.merge_args)
 
-    def dislink(self, name_or_dataset):
-        """Remove the link between this and another dataset
+    def dislink(self, name_or_fileset):
+        """Remove the link between this and another fileset
 
         Args:
-            name_or_dataset: Name of a dataset or the FileSet object itself. It
-                must be linked to this dataset. Otherwise a KeyError will be
+            name_or_fileset: Name of a fileset or the FileSet object itself. It
+                must be linked to this fileset. Otherwise a KeyError will be
                 raised.
 
         Returns:
             None
         """
-        if isinstance(name_or_dataset, FileSet):
-            del self._link[name_or_dataset.name]
+        if isinstance(name_or_fileset, FileSet):
+            del self._link[name_or_fileset.name]
         else:
-            del self._link[name_or_dataset]
+            del self._link[name_or_fileset]
 
-    def link(self, other_dataset, linker=None):
-        """Link this dataset with another FileSet
+    def link(self, other_fileset, linker=None):
+        """Link this fileset with another FileSet
 
-        If one file is read from this dataset, its corresponding file from
-        `other_dataset` will be read, too. Their content will then be merged by
+        If one file is read from this fileset, its corresponding file from
+        `other_fileset` will be read, too. Their content will then be merged by
         using the file handler's data merging function. If it is not
         implemented, it tries to derive a standard merging function from known
         data types.
 
         Args:
-            other_dataset: Other FileSet-like object.
+            other_fileset: Other FileSet-like object.
             linker: Reference to a function that searches for the corresponding
-                file in *other_dataset* for a given file from this dataset.
-                Must accept *other_dataset* as first and a
-                :class:`~typhon.spareice.handlers.common.FileInfo` object as
+                file in *other_fileset* for a given file from this fileset.
+                Must accept *other_fileset* as first and a
+                :class:`~typhon.files.handlers.common.FileInfo` object as
                 parameters. It must return a FileInfo of the corresponding
                 file. If none is given,
-                :meth:`~typhon.spareice.datasets.FileSet.get_filename`
+                :meth:`~typhon.files.fileset.FileSet.get_filename`
                 will be used as default.
 
         Returns:
             None
         """
 
-        self._link[other_dataset.name] = {
-            "target": other_dataset,
+        self._link[other_fileset.name] = {
+            "target": other_fileset,
             "linker": linker,
         }
 
@@ -1683,7 +1683,7 @@ class FileSet:
             worker_initializer=None, worker_initargs=None, return_info=False,
             **find_args
     ):
-        """Apply a function on all files of this dataset between two dates
+        """Apply a function on all files of this fileset between two dates
 
         This method can use multiple workers processes / threads to boost the
         procedure significantly. Depending on which system you work, you should
@@ -1760,7 +1760,7 @@ class FileSet:
                     # return the mean and maximum value
                     return content["data"].mean(), content["data"].max()
 
-                results = dataset.map(
+                results = fileset.map(
                     calc_statistics, start="2018-01-01", end="2018-01-02",
                     on_content=True, return_info=True,
                 )
@@ -1771,7 +1771,7 @@ class FileSet:
                     print(result) # prints the mean and maximum value
 
                 ## If you need the results directly, you can use imap instead:
-                results = dataset.imap(
+                results = fileset.imap(
                     calc_statistics, start="2018-01-01", end="2018-01-02",
                     on_content=True,
                 )
@@ -1791,8 +1791,8 @@ class FileSet:
                     return content["data"].mean(), content["data"].max()
 
                 # Note: If you do not use the start or the end parameter, all
-                # files in the dataset are going to be processed:
-                results = dataset.map(
+                # files in the fileset are going to be processed:
+                results = fileset.map(
                     calc_statistics, args=("value1",),
                     kwargs={"kwarg1": "value2"}, on_content=True,
                 )
@@ -1807,8 +1807,6 @@ class FileSet:
             )
 
         with pool_class(**pool_args) as pool:
-            print(pool, pool_args)
-
             # Process all found files with the arguments:
             results = pool.map(
                 self._call_map_function, worker_args,
@@ -1817,7 +1815,7 @@ class FileSet:
             return results
 
     def imap(self, *args, **kwargs):
-        """Apply a function on all files of this dataset between two dates
+        """Apply a function on all files of this fileset between two dates
 
         This method does exact the same as :meth:`map` but works as a generator
         and is therefore less memory space consuming.
@@ -1920,14 +1918,12 @@ class FileSet:
             for file in files
         )
 
-        print(worker_type, max_workers)
-
         return pool_class, pool_args, worker_args
 
     @staticmethod
     def _call_map_function(all_args):
         """ This is a small wrapper function to call the function that is
-        called on dataset files via .map().
+        called on fileset files via .map().
 
         Args:
             all_args: A tuple containing following elements:
@@ -1939,7 +1935,7 @@ class FileSet:
             *kwargs*. This arguments have been extended by file info (and file
             content).
         """
-        dataset, file_info, func, args, kwargs, pass_info, output, \
+        fileset, file_info, func, args, kwargs, pass_info, output, \
             on_content, read_args, return_info = all_args
 
         args = [] if args is None else list(args)
@@ -1947,10 +1943,10 @@ class FileSet:
         if on_content:
             # file_info could be a bundle of files
             if isinstance(file_info, FileInfo):
-                file_content = dataset.read(file_info, **read_args)
+                file_content = fileset.read(file_info, **read_args)
             else:
                 file_content = \
-                    dataset.collect(files=file_info, read_args=read_args)
+                    fileset.collect(files=file_info, read_args=read_args)
             args.append(file_content)
 
         if not on_content or pass_info:
@@ -1998,7 +1994,7 @@ class FileSet:
             self, start=None, end=None, to=None, convert=None,
             copy=True,
     ):
-        """Copy files from this dataset to another location.
+        """Copy files from this fileset to another location.
 
         Args:
             start: Start date either as datetime object or as string
@@ -2007,7 +2003,7 @@ class FileSet:
             end: End date. Same format as "start".
             to: Either a FileSet object or the new path of the files containing
                 placeholders (such as {year}, {month}, etc.).
-            convert: If true, the files will be read by the old dataset's file
+            convert: If true, the files will be read by the old fileset's file
                 handler and written to their new location by using the new file
                 handler from *to*. Both file handlers must be compatible, i.e.
                 the object that the old file handler's read method returns must
@@ -2027,17 +2023,17 @@ class FileSet:
 
             ## Copy all files between two dates to another location
 
-            old_dataset = FileSet(
+            old_fileset = FileSet(
                 "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
             )
 
-            # New dataset with other path
-            new_dataset = FileSet(
+            # New fileset with other path
+            new_fileset = FileSet(
                 "new/path/{year}/{doy}/{hour}{minute}{second}.nc",
             )
 
-            old_dataset.move(
-                "2017-09-15", "2017-09-23", new_dataset,
+            old_fileset.move(
+                "2017-09-15", "2017-09-23", new_fileset,
             )
 
         .. code-block:: python
@@ -2045,20 +2041,20 @@ class FileSet:
             ## Copy all files between two dates to another location and convert
             ## them to a different format
 
-            from typhon.spareice.handlers import CSV, NetCDF4
+            from typhon.files import CSV, NetCDF4
 
-            old_dataset = FileSet(
+            old_fileset = FileSet(
                 "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 handler=NetCDF4()
             )
-            new_dataset = FileSet(
+            new_fileset = FileSet(
                 "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
                 handler=CSV()
             )
 
             # Note that this only works if both file handlers are compatible
-            new_dataset = old_dataset.move(
-                "2017-09-15", "2017-09-23", new_dataset, convert=True
+            new_fileset = old_fileset.move(
+                "2017-09-15", "2017-09-23", new_fileset, convert=True
             )
         """
 
@@ -2081,11 +2077,10 @@ class FileSet:
         else:
             if destination.single_file:
                 raise ValueError(
-                    "Cannot move files from multi-file to single-file "
-                    "dataset!")
+                    "Cannot move files from multi-file to single-file set!")
 
             move_args = {
-                "dataset": self,
+                "fileset": self,
                 "destination": destination,
                 "convert": convert,
                 "copy": copy
@@ -2099,12 +2094,12 @@ class FileSet:
 
     @staticmethod
     def _move_single_file(
-            file_info, dataset, destination, convert, copy):
+            file_info, fileset, destination, convert, copy):
         """This is a small wrapper function for moving files. It is better to
         use :meth:`FileSet.move` directly.
 
         Args:
-            dataset:
+            fileset:
             file_info: FileInfo object of the file that should be to copied.
             destination:
             convert:
@@ -2122,7 +2117,7 @@ class FileSet:
         # Shall we simply move or even convert the files?
         if convert:
             # Read the file with the current file handler
-            data = dataset.read(file_info)
+            data = fileset.read(file_info)
 
             # Maybe the user has given us a converting function?
             if callable(convert):
@@ -2144,10 +2139,10 @@ class FileSet:
 
     @property
     def name(self):
-        """Gets or sets the dataset's name.
+        """Gets or sets the fileset's name.
 
         Returns:
-            A string with the dataset's name.
+            A string with the fileset's name.
         """
         return self._name
 
@@ -2244,7 +2239,7 @@ class FileSet:
 
     @property
     def path(self):
-        """Gets or sets the path to the dataset's files.
+        """Gets or sets the path to the fileset's files.
 
         Returns:
             A string with the path (can contain placeholders or wildcards.)
@@ -2309,7 +2304,7 @@ class FileSet:
         self._end_time_superior = \
             self._get_superior_time_resolution(end_time_placeholders)
 
-        # Flag whether this is a single file dataset or not. We simply check
+        # Flag whether this is a single file fileset or not. We simply check
         # whether the path contains special characters:
         self.single_file = not any(
             True for ch in self.path
@@ -2512,12 +2507,12 @@ class FileSet:
         """Open and read a file.
 
         Notes:
-            You need to specify a file handler for this dataset before you
+            You need to specify a file handler for this fileset before you
             can use this method.
 
         Args:
             file_info: A string, path-alike object or a
-                :class:`~typhon.spareice.handlers.common.FileInfo` object.
+                :class:`~typhon.files.handlers.common.FileInfo` object.
             **read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
 
@@ -2538,7 +2533,7 @@ class FileSet:
         else:
             data = self.handler.read(file_info, **read_args)
 
-        # Add also data from linked datasets:
+        # Add also data from linked filesets:
         if self._link:
             linked_data = []
             for link in self._link.values():
@@ -2644,14 +2639,14 @@ class FileSet:
 
     @property
     def time_coverage(self):
-        """Get and set the time coverage of the files of this dataset
+        """Get and set the time coverage of the files of this fileset
 
         Setting the time coverage after initialisation resets the info cache of
-        the dataset object.
+        the fileset object.
 
         Returns:
-            The time coverage of the whole dataset (if it is a single file) as
-            tuple of datetime objects or (if it is a multi file dataset) the
+            The time coverage of the whole fileset (if it is a single file) as
+            tuple of datetime objects or (if it is a multi file fileset) the
             fixed time duration of each file as timedelta object.
 
         """
@@ -2661,7 +2656,7 @@ class FileSet:
     def time_coverage(self, value):
         if self.single_file:
             if value is None:
-                # The default for single file datasets:
+                # The default for single file filesets:
                 self._time_coverage = [
                     datetime.min,
                     datetime.max
@@ -2689,13 +2684,13 @@ class FileSet:
         compressed afterwards.
 
         Notes:
-            You need to specify a file handler for this dataset before you
+            You need to specify a file handler for this fileset before you
             can use this method.
 
         Args:
             data: An object that can be stored by the used file handler class.
             file_info: A string, path-alike object or a
-                :class:`~typhon.spareice.handlers.common.FileInfo` object.
+                :class:`~typhon.files.handlers.common.FileInfo` object.
             times: If *file_info* is not given, this can be used to generate
                 the filename. Look at :meth:`get_filename` for more
                 information.
@@ -2715,10 +2710,9 @@ class FileSet:
         .. code-block:: python
 
             import matplotlib.pyplot as plt
-            from typhon.spareice.datasets import FileSet
-            from typhon.spareice.handlers import Plotter
+            from typhon.files import FileSet, Plotter
 
-            # Define a dataset consisting of multiple files:
+            # Define a fileset consisting of multiple files:
             plots = FileSet(
                 path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.png",
                 handler=Plotter,
@@ -2729,7 +2723,7 @@ class FileSet:
             ax.plot([0, 1], [0, 1])
             ax.set_title("Data from 2018-01-01")
 
-            ## To save the plot as a file of the dataset, you have two options:
+            ## To save the plot as a file of the fileset, you have two options:
             # Use this simple expression:
             plots["2018-01-01"] = fig
 
@@ -2812,25 +2806,25 @@ class FileSetManager(dict):
 
         .. code-block:: python
 
-            datasets = FileSetManager()
+            filesets = FileSetManager()
 
-            datasets += FileSet(
+            filesets += FileSet(
                 name="images",
                 files="path/to/files.png",
             )
 
             # do something with it
-            for name, dataset in datasets.items():
-                dataset.find(...)
+            for name, fileset in filesets.items():
+                fileset.find(...)
 
         """
         super(FileSetManager, self).__init__(*args, **kwargs)
 
-    def __iadd__(self, dataset):
-        if dataset.name in self:
+    def __iadd__(self, fileset):
+        if fileset.name in self:
             warnings.warn(
-                "FileSetManager: Overwrite dataset with name '%s'!"
-                % dataset.name, RuntimeWarning)
+                "FileSetManager: Overwrite fileset with name '%s'!"
+                % fileset.name, RuntimeWarning)
 
-        self[dataset.name] = dataset
+        self[fileset.name] = fileset
         return self
