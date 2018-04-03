@@ -4,10 +4,8 @@ import tempfile
 
 import numpy as np
 import pandas as pd
-from typhon.collections import DataGroup
 from typhon.collocations import collocate, Collocations
 from typhon.files import FileSet
-import xarray as xr
 
 
 class TestCollocations:
@@ -81,11 +79,9 @@ class TestCollocations:
         assert result_spatial == check_spatial
 
     def test_collocate_datasets(self):
-        return
-
         # Collect the data from all datasets and collocate them by once, should
         # give the same results when using collocate_datasets.
-        a_dataset = Dataset(
+        a_dataset = FileSet(
             join(
                 self.refdir,
                 "tutorial_datasets/SatelliteA/{year}/{month}/{day}/{hour}"
@@ -93,7 +89,7 @@ class TestCollocations:
             ),
             name="SatelliteA",
         )
-        b_dataset = Dataset(
+        b_dataset = FileSet(
             join(
                 self.refdir,
                 "tutorial_datasets/SatelliteB/{year}/{month}/{day}/{hour}"
@@ -105,7 +101,7 @@ class TestCollocations:
         # collocate_datasets creates new files that we do not want to keep.
         with tempfile.TemporaryDirectory() as tmpdirname:
             # Create the output dataset:
-            ab_collocations = Dataset(
+            ab_collocations = Collocations(
                 path=join(
                     tmpdirname,
                     "{year}/{month}/{day}/{hour}{minute}{second}-"
@@ -114,11 +110,11 @@ class TestCollocations:
             )
 
             self._test_collocate_datasets(
-                a_dataset, b_dataset, ab_collocations
+                ab_collocations, a_dataset, b_dataset
             )
 
     @staticmethod
-    def _test_collocate_datasets(a_dataset, b_dataset, ab_collocations):
+    def _test_collocate_datasets(ab_collocations, a_dataset, b_dataset):
 
         start, end = "2018-01-01", datetime(2018, 1, 2)
 
@@ -131,10 +127,12 @@ class TestCollocations:
         b_reference = b_data_all[pairs[1]]
 
         # Using collocate_datasets
-        collocate_datasets(
+        ab_collocations.search(
             [a_dataset, b_dataset], start=start, end=end,
-            output=ab_collocations, max_interval="4h", max_distance="300km"
+            max_interval="4h", max_distance="300km"
         )
+
+        exit()
 
         a_retrieved, b_retrieved = None, None
         for data in ab_collocations.icollect(start, end):
