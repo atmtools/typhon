@@ -6,14 +6,27 @@ import pandas as pd
 from typhon.collections import DataGroup
 import xarray as xr
 
-from .common import FileHandler, expects_file_info
+from .common import NetCDF4, expects_file_info
 
 __all__ = ['MHSAAPP', ]
 
 
-class MHSAAPP(FileHandler):
-    """File handler for MHS level 1C HDF files (converted with the AAPP tool.)
+class MHSAAPP(NetCDF4):
+    """File handler for MHS level 1C HDF files (converted with the AAPP tool)
     """
+    # Map the standard fields to standard names (make also the names of all
+    # dimensions more meaningful):
+    mapping = {
+        "Geolocation/Latitude": "lat",
+        "Geolocation/Longitude": "lon",
+        "Data/scnlin": "scnline",
+        "phony_dim_0": "scnline",
+        "phony_dim_1": "scnpos",
+        "phony_dim_2": "channel",
+        "phony_dim_3": "scnline",
+        "phony_dim_4": "scnpos",
+    }
+
     # This file handler always wants to return at least time, lat and lon
     # fields. These fields are required for this:
     standard_fields = {
@@ -25,28 +38,14 @@ class MHSAAPP(FileHandler):
         "Geolocation/Longitude"
     }
 
-    mapping = {
-        "Geolocation/Latitude": "lat",
-        "Geolocation/Longitude": "lon",
-        "Data/scnlin": "scnline",
-    }
-
-    def __init__(self, mapping=None, apply_scaling=True,
-                 **kwargs):
+    def __init__(self, **kwargs):
         """
 
         Args:
-            mapping: A dictionary of old and new names. The fields are going to
-                be renamed according to it.
-            apply_scaling: Apply the scaling parameters given in the
-                variable's attributes to the data. Default is true.
             **kwargs: Additional key word arguments for base class.
         """
         # Call the base class initializer
         super().__init__(**kwargs)
-
-        self.user_mapping = mapping
-        self.apply_scaling = apply_scaling
 
     @expects_file_info()
     def get_info(self, file_info, **kwargs):
@@ -64,130 +63,70 @@ class MHSAAPP(FileHandler):
             return file_info
 
     @expects_file_info()
-    def read(self, file_info, extra_fields=None, mapping=None):
-        """"Read and parse HDF4 files and load them to an DataGroup.
+    def read(self, paths, mask_and_scale=True, **kwargs):
+        """"Read and parse HDF4 files and load them to a xarray.Dataset
 
         Args:
-            file_info: Path and name of the file as string or FileInfo object.
-            extra_fields: Additional field names that you want to extract from
-                this file as a list.
-            mapping: A dictionary that maps old field names to new field names.
-                If given, *extra_fields* must contain the old field names.
+            paths: Path and name of the file as string or FileInfo object.
+                This can also be a tuple/list of file names or a path with
+                asterisk.
+            mask_and_scale: Where the data contains missing values, it will be
+                masked with NaNs. Furthermore, data with scaling attributes
+                will be scaled with them.
+            **kwargs: Additional keyword arguments that are valid for
+                :class:`typhon.files.handlers.common.NetCDF4`.
 
         Returns:
-            An DataGroup object.
+            A xrarray.Dataset object.
         """
 
-        dataset = DataGroup.from_netcdf(
-            file_info.path, mask_and_scale=True
+        # We need to import at least the standard fields
+        user_fields = kwargs.pop("fields", {})
+        fields = self.standard_fields | set(user_fields)
+
+        # We catch the user mapping here, since we do not want to deal with
+        # user-defined names in the further processing. Instead, we use our own
+        # mapping
+        user_mapping = kwargs.pop("mapping", None)
+
+        # Load the dataset from the file:
+        dataset = super().read(
+            paths, fields=fields, mapping=self.mapping,
+            mask_and_scale=mask_and_scale, **kwargs
         )
-        dataset.name = "MHS"
-        dataset["Data"][:].rename({
-            "phony_dim_0": "swath",
-            "phony_dim_1": "pixel",
-            "phony_dim_2": "channel",
-        }, inplace=True)
-        dataset["Geolocation"][:].rename({
-            "phony_dim_3": "swath",
-            "phony_dim_4": "pixel",
-        }, inplace=True)
 
-        if extra_fields is None:
-            fields = self.standard_fields
-        else:
-            fields = self.standard_fields | set(extra_fields)
-        dataset = dataset[fields]
+        dataset = dataset.assign_coords(
+            scnline=dataset["scnline"]
+        )
 
-        # We do the internal mapping first so we do not deal with difficult
-        # names in the following loop.
-        dataset.rename(self.mapping, inplace=True)
-
-        # Create the time coordinate but do not add it to the xarray yet since
-        # it may contain duplicated values and prevent stacking from other
-        # variables (I do not know why);
-        time_coords = self._get_time_field(dataset)
-
-        # Repeat the scanline and create the scnpos:
-        dataset["scnpos"] = \
-            "time", np.tile(np.arange(1, 91), dataset["scnline"].size)
-        dataset["scnline"] = "time", np.repeat(dataset["scnline"], 90)
+        # Create the time variable (is built from several other variables):
+        dataset["time"] = self._get_time_field(dataset)
 
         # Remove fields that we do not need any longer (expect the user asked
         # for them explicitly)
-        dataset.drop(
+        dataset = dataset.drop(
             {"Data/scnlinyr", "Data/scnlindy", "Data/scnlintime"}
-            - set(extra_fields),
-            inplace=True
+            - set(user_fields),
         )
 
-        # Some fields need special treatment
-        for var in dataset.deep():
-            # Unfold the variable automatically if it is a swath variable.
-            if "swath" in dataset[var].dims and "pixel" in dataset[var].dims:
-                # Unfold the dimension of the variable
-                # to the shapes of the time vector.
-                dataset[var] = dataset[var].stack(time=("swath", "pixel"))
+        # xarray.open_dataset can mask and scale automatically, but it does not
+        # know the attribute *Scale* (which is specific for MHS):
+        if mask_and_scale:
+            for var in dataset.variables:
+                scaling = dataset[var].attrs.pop("Scale", None)
+                if scaling is not None:
+                    dataset[var] = dataset[var].astype(float) * scaling
 
-            scaling = dataset[var].attrs.pop("Scale", None)
-            if scaling is not None:
-                dataset[var] = dataset[var].astype(float) * scaling
-
-        # Add the time coordinate. We cannot add it earlier since it may
-        # contain duplicated values:
-        dataset["time"] = time_coords
-
-        if mapping is not None:
-            dataset.rename(mapping)
-
-        if not dataset["Geolocation"]:
-            del dataset["Geolocation"]
+        if user_mapping is not None:
+            dataset.rename(user_mapping, inplace=True)
 
         return dataset
 
     @staticmethod
     def _get_time_field(dataset):
-        swath_times = \
+        time = \
             (dataset["Data/scnlinyr"]-1970).astype('datetime64[Y]') \
             + (dataset["Data/scnlindy"]-1).astype('timedelta64[D]') \
             + dataset["Data/scnlintime"].astype("timedelta64[ms]")
 
-        return "time", np.repeat(swath_times, 90).values.ravel()
-        # swath_times = \
-        #
-        #     dataset["Data/scnlintime"].astype("timedelta64[ms]")
-        #
-        # # Interpolate between the start times of each swath to retrieve the
-        # # timestamp of each pixel.
-        # swath_start_indices = np.arange(
-        #     0, dataset["Data/scnlintime"].size * 90, 90)
-        # pixel_times = np.interp(
-        #     np.arange((dataset["Data/scnlintime"].size - 1) * 90),
-        #     swath_start_indices, dataset["Data/scnlintime"])
-        #
-        # # Add the timestamps from the last swath here, we could not interpolate
-        # # them in the step before because we do not have an ending timestamp.
-        # # We simply extrapolate from the difference between the last two
-        # # timestamps.
-        # last_swath_pixels = \
-        #     dataset["Data/scnlintime"][-1] \
-        #     - dataset["Data/scnlintime"][-2] \
-        #     + np.linspace(
-        #         dataset["Data/scnlintime"][-2], dataset["Data/scnlintime"][-1],
-        #         90, dtype="int32", endpoint=False)
-        # pixel_times = np.concatenate([pixel_times, last_swath_pixels])
-        #
-        # # Convert the pixel times into timedelta objects
-        # pixel_times = pixel_times.astype("timedelta64[ms]")
-        #
-        # # Convert the swath time variables (year, day of year, miliseconds
-        # # since midnight) to numpy.datetime objects. These are the start times
-        # # of each swath, we have to bring them together with the interpolated
-        # # pixel times.
-        # swath_times = \
-        #     dataset["Data/scnlinyr"].astype('datetime64[Y]') - 1970 \
-        #     + dataset["Data/scnlindy"].astype('timedelta64[D]') - 1
-        #
-        # swath_times = np.repeat(swath_times, 90)
-        # times = swath_times + pixel_times
-        #
-        # return times.flatten()
+        return time
