@@ -1,13 +1,27 @@
+from collections import defaultdict
 from copy import copy
 from datetime import datetime
 from functools import wraps
+import glob
 from inspect import signature, ismethod
 import os
 import pickle
+import warnings
 
+import netCDF4
 import pandas as pd
 from typhon.collections import DataGroup
 import xarray as xr
+
+# The HDF4 file handler needs pyhdf, this might be very tricky to install if
+# you cannot use anaconda. Hence, I do not want it to be a hard dependency:
+pyhdf_is_installed = False
+try:
+    from pyhdf import HDF, VS, V
+    from pyhdf.SD import SD, SDC
+    pyhdf_is_installed = True
+except ImportError:
+    pass
 
 __all__ = [
     'CSV',
@@ -88,6 +102,26 @@ def expects_file_info(method, pos=None, key=None):
     return wrapper
 
 
+def _xarray_select_and_rename_fields(dataset, fields, mapping):
+    if fields is not None:
+        dataset = dataset[list(fields)]
+
+    if mapping is not None:
+        # Maybe some variables should be renamed that are not in the
+        # dataset any longer?
+        names = set(dataset.dims.keys()) | set(dataset.variables.keys())
+
+        mapping = {
+            old_name: new_name
+            for old_name, new_name in mapping.items()
+            if old_name in names
+        }
+
+        dataset.rename(mapping, inplace=True)
+
+    return dataset
+
+
 class FileHandler:
     """Base file handler class.
 
@@ -129,6 +163,11 @@ class FileHandler:
         self.writer = writer
         self.data_merger = data_merger
         self.data_concatenator = data_concatenator
+
+        # If you want to ravel / flat the data coming from this file handler
+        # (e.g., this is necessary for collocation routines), you need the
+        # dimension names that you can stack on top each other.
+        self.stack_dims = {}
 
     @expects_file_info()
     def get_info(self, filename, **kwargs):
@@ -365,80 +404,136 @@ class FileInfo(os.PathLike):
 
 
 class CSV(FileHandler):
-    """File handler that can read / write data from / to a ASCII file with
-    comma separated values (or by any other delimiter).
+    """File handler that can read / write data from / to a CSV file
+
+    A CSV file is file containing data separated by commas (or by any other
+    delimiter).
     """
-    def __init__(
-            self, info=None, return_type=None,
-            read_csv=None, write_csv=None):
+    def __init__(self, info=None):
         """Initializes a CSV file handler class.
 
         Args:
-            info: A function that return a :class:`FileInfo object of a
+            info: A function that returns a :class:`FileInfo` object of a
                 given file.
-            **read_csv: Additional keyword arguments for the pandas function
-                `pandas.read_csv`. See for more details:
-                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
-            **write_csv: Additional keyword arguments for
-                `pandas.Dataframe.to_csv`. See for more details:
-                https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
         """
         # Call the base class initializer
         super().__init__(info=info)
 
-        self.read_csv = {} if read_csv is None else read_csv
-
-        self.write_csv = {}
-        if write_csv is not None:
-            self.write_csv.update(write_csv)
-
     @expects_file_info()
-    def read(self, filename, fields=None, **read_csv):
-        """Read a CSV file and return an DataGroup object with its content.
+    def read(self, file_info, fields=None, **kwargs):
+        """Read a CSV file and return an xarray.Dataset with its content
 
         Args:
-            filename: Path and name of the file as string or FileInfo object.
+            file_info: Path and name of the file as string or FileInfo object.
             fields: Field that you want to extract from the file. If not given,
                 all fields are going to be extracted.
-            **read_csv: Additional keyword arguments for the pandas function
+            **kwargs: Additional keyword arguments for the pandas function
                 `pandas.read_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
 
         Returns:
-            An DataGroup object.
+            A xarray.Dataset object.
         """
 
-        kwargs = self.read_csv.copy()
-        kwargs.update(read_csv)
+        data = pd.read_csv(file_info.path, **kwargs).to_xarray()
 
-        if self.return_type == "DataGroup":
-            return DataGroup.from_csv(filename.path, fields, **kwargs)
+        if fields is None:
+            return data
         else:
-            dataframe = pd.read_csv(filename.path, **kwargs)
-            return xr.Dataset.from_dataframe(dataframe)
+            return data[fields]
 
     @expects_file_info(pos=2)
-    def write(self, data, filename, **write_csv):
-        """Write an DataGroup object to a CSV file.
+    def write(self, data, file_info, **kwargs):
+        """Write a xarray.Dataset to a CSV file.
 
         Args:
             data: An DataGroup object that should be saved.
-            filename: Path and name of the file as string or FileInfo object.
-            **write_csv: Additional keyword arguments for
+            file_info: Path and name of the file as string or FileInfo object.
+            **kwargs: Additional keyword arguments for
                 `pandas.Dataframe.to_csv`. See for more details:
                 https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_csv.html
 
         Returns:
-            An DataGroup object.
+            None
+        """
+        data.to_dataframe().to_csv(file_info.path, **kwargs)
+
+
+class HDF4(FileHandler):
+    """File handler that can read data from a HDF4 file
+    """
+    def __init__(self, info=None):
+        """Initializes a CSV file handler class.
+
+        Args:
+            info: A function that returns a :class:`FileInfo` object of a
+                given file.
+        """
+        if not pyhdf_is_installed:
+            raise ImportError("Could not import pyhdf, which is necessary for "
+                              "reading HDF4 files!")
+
+        # Call the base class initializer
+        super().__init__(info=info)
+
+    @expects_file_info()
+    def read(self, file_info, fields=None, mapping=None):
+        """Read and parse HDF4 files and load them to a xarray.Dataset
+
+        Args:
+            file_info: Path and name of the file as string or FileInfo object.
+            fields: Field names that you want to extract from
+                this file as a list.
+            mapping: A dictionary that maps old field names to new field names.
+                If given, `fields` must contain the old field names.
+
+        Returns:
+            A xarray.Dataset object.
         """
 
-        kwargs = self.write_csv.copy()
-        kwargs.update(write_csv)
+        if fields is None:
+            raise NotImplementedError(
+                "You have to set field names. Loading the complete file is not"
+                " yet implemented!"
+            )
 
-        if isinstance(data, xr.Dataset):
-            data = data.to_dataframe()
+        dataset = xr.Dataset()
 
-        return data.to_csv(filename.path, **kwargs)
+        # Files in HDF4 format are not very pretty. This code is taken from
+        # http://hdfeos.org/zoo/OTHER/2010128055614_21420_CS_2B-GEOPROF_GRANULE_P_R04_E03.hdf.py
+        # and adapted by John Mrziglod.
+
+        file = HDF.HDF(file_info.path)
+
+        try:
+            vs = file.vstart()
+
+            for field in fields:
+                # Add the field data to the dataset.
+                dataset[field] = self._get_field(vs, field)
+        except Exception as e:
+            raise e
+        finally:
+            file.close()
+
+        return _xarray_select_and_rename_fields(dataset, fields, mapping)
+
+    @staticmethod
+    def _get_field(vs, field):
+        field_id = vs.find(field)
+
+        if field_id == 0:
+            # Field was not found.
+            warnings.warn(
+                "Field '{0}' was not found!".format(field), RuntimeWarning
+            )
+
+        field_id = vs.attach(field_id)
+        nrecs, _, _, _, _ = field_id.inquire()
+        raw_data = field_id.read(nRec=nrecs)
+        data = xr.DataArray(raw_data).squeeze()
+        field_id.detach()
+        return data
 
 
 class NetCDF4(FileHandler):
@@ -446,13 +541,10 @@ class NetCDF4(FileHandler):
     file.
     """
 
-    def __init__(self, return_type=None, **kwargs):
+    def __init__(self, **kwargs):
         """Initializes a NetCDF4 file handler class.
 
         Args:
-            return_type: Defines what object should be returned by
-                :meth:`read`. Default is *DataGroup* but *xarray* is also
-                possible.
             info: You cannot use the :meth:`get_info` without giving a
                 function here that returns a FileInfo object.
         """
@@ -460,65 +552,125 @@ class NetCDF4(FileHandler):
         super().__init__(**kwargs)
 
         # The read method can handle multiple files
-        reads_multiple_files = True
+        self.reads_multiple_files = True
 
     @expects_file_info()
-    def read(self, filename, fields=None, mapping=None, main_group=None,
-             **kwargs):
-        """Reads and parses NetCDF files and load them to an DataGroup.
-
-        If you need another return value, change it via the parameter
-        *return_type* of the :meth:`__init__` method.
+    def read(self, paths, groups=None, fields=None, mapping=None, **kwargs):
+        """Reads and parses NetCDF files and load them to a xarray.Dataset
 
         Args:
-            filename: Path and name of the file as string or FileInfo object.
-                If *return_type* is *DataGroup*, this can also be a tuple/list
-                of file names.
+            paths: Path and name of the file as string or FileInfo object.
+                This can also be a tuple/list of file names or a path with
+                asterisk (this is still not implemented!).
+            groups: Groups that you want to import.
             fields: List of field names that should be read. The other fields
-                will be ignored.
-            mapping: A dictionary which is used for renaming the fields. The
-                keys are the old and the values are the new names.
-            main_group: If the file contains multiple groups, the main group
-                will be linked to this one (only valid for DataGroup).
+                will be ignored. If `mapping` is given, this should contain the
+                new field names.
+            mapping: A dictionary which is used for renaming the fields. If
+                given, `fields` must contain the old field names.
 
         Returns:
-            An DataGroup object.
+            A xarray.Dataset object.
         """
+        if "group" in kwargs:
+            raise ValueError(
+                "Use `groups` instead of `group` as parameter!")
 
-        # DataGroup supports reading from multiple files.
-        if self.return_type == "DataGroup":
-            ds = DataGroup.from_netcdf(filename.path, fields, **kwargs)
-            if not ds:
-                return None
-            if main_group is not None:
-                ds.set_main_group(main_group)
-        elif self.return_type == "xarray":
-            ds = xr.open_dataset(filename.path, **kwargs)
-            if not ds.variables:
-                return None
-        else:
-            raise ValueError("Unknown return type '%s'!" % self.return_type)
+        # Make sure we use the NetCDF4 engine:
+        kwargs["engine"] = "netcdf4"
 
-        if fields is not None:
-            ds = ds[fields]
+        if groups is None:
+            # Find all groups by ourselves:
+            # if isinstance(paths, (tuple, list)):
+            #     filename = paths[0]
+            # elif "*" in paths:
+            #     filename = next(glob.iglob(paths))
+            # else:
+            #     filename = paths.path
 
-        if mapping is not None:
-            ds.rename(mapping, inplace=True)
+            filename = paths.path
 
-        return ds
+            with netCDF4.Dataset(filename, "r") as root:
+                groups = list(self._all_groups_in_file(root))
+
+        # Should we load multiple files?
+        multi = False  # isinstance(paths, (tuple, list)) or "*" in paths
+
+        # Load all data for each group:
+        dataset = {
+            group: xr.open_mfdataset(paths.path, group=group, **kwargs) if multi  # noqa
+            else xr.open_dataset(paths.path, group=group, **kwargs)
+            for group in groups
+        }
+
+        # We have to add the group names as prefix to the variables' names:
+        dataset = [
+            self._add_prefix(group, group_data)
+            for group, group_data in dataset.items()
+        ]
+
+        # We can merge everything to one big dataset:
+        dataset = xr.merge(dataset)
+
+        return _xarray_select_and_rename_fields(dataset, fields, mapping)
+
+    @staticmethod
+    def _all_groups_in_file(top):
+        for value in top.groups.values():
+            yield value.name
+            for children in NetCDF4._all_groups_in_file(value):
+                yield value.name + "/" + children
+
+    @staticmethod
+    def _add_prefix(prefix, data):
+        return data.rename({
+            name: "/".join([prefix, name])
+            for name in data.data_vars
+        })
 
     @expects_file_info(pos=2)
     def write(self, data, filename, **kwargs):
-        """ Writes a data object to a NetCDF file.
+        """Save a xarray.Dataset to a NetCDF file
 
-        The data object must have a *to_netcdf* method, e.g. as an GroupedArrays
-        or xarray.Dataset object.
+        Args:
+            data: A xarray.Dataset object. It may contain 'pseudo' groups (i.e.
+                variables with */* in their names). Those variables will be
+                saved in subgroups.
+            filename:
+            **kwargs:
+
+        Returns:
+
         """
+        short_names = defaultdict(list)
+        full_names = defaultdict(list)
 
-        if len(signature(data.to_netcdf).parameters) == 2:
-            data.to_netcdf(filename.path)
-        else:
-            data.to_netcdf(filename.path, **kwargs)
+        for full in data.data_vars:
+            group, short = self._split_path(full)
+            short_names[group].append(short)
+            full_names[group].append(full)
+
+        # If we ware writing out multiple groups, we do not want to overwrite
+        # the last file:
+        user_mode = kwargs.pop("mode", "w")
+        already_openend = False
+        for group, variables in full_names.items():
+            ds = data[variables]
+            ds.rename(dict(zip(full_names[group], short_names[group])),
+                      inplace=True)
+
+            ds.to_netcdf(
+                filename.path, group=group,
+                mode="a" if already_openend else user_mode,
+                **kwargs
+            )
+            already_openend = True
+
+    @staticmethod
+    def _split_path(path):
+        if "/" not in path:
+            return None, path
+        return path.rsplit("/", 1)
 
 
 class Plotter(FileHandler):
