@@ -2,10 +2,9 @@ from datetime import datetime
 import warnings
 
 import numpy as np
-from typhon.collections import DataGroup
 import xarray as xr
 
-from .common import FileHandler, expects_file_info
+from .common import HDF4, expects_file_info
 
 pyhdf_is_installed = False
 try:
@@ -20,14 +19,26 @@ __all__ = [
 ]
 
 
-class CloudSat(FileHandler):
+class CloudSat(HDF4):
     """File handler for CloudSat data in HDF4 files.
     """
 
+    # This file handler always wants to return at least time, lat and lon
+    # fields. These fields are required for this:
+    standard_fields = {
+        "UTC_start",
+        "Profile_time",
+        "Latitude",
+        "Longitude"
+    }
+
+    # Map the standard fields to standard names:
+    mapping = {
+        "Latitude": "lat",
+        "Longitude": "lon",
+    }
+
     def __init__(self, **kwargs):
-        if not pyhdf_is_installed:
-            raise ImportError("Could not import pyhdf, which is necessary for "
-                              "reading CloudSat HDF files!")
 
         # Call the base class initializer
         super().__init__(**kwargs)
@@ -55,78 +66,56 @@ class CloudSat(FileHandler):
         return file_info
 
     @expects_file_info()
-    def read(self, file_info, extra_fields=None, mapping=None):
-        """Read and parse HDF4 files and load them to an GroupedArrays.
+    def read(self, file_info, **kwargs):
+        """Read and parse HDF4 files and load them to a xarray.Dataset
+
+        A description about all variables in CloudSat dataset can be found in
+        http://www.cloudsat.cira.colostate.edu/data-products/level-2c/2c-ice?term=53.
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
-            extra_fields: Additional field names that you want to extract from
-                this file as a list.
-            mapping: A dictionary that maps old field names to new field names.
-                If given, *extra_fields* must contain the old field names.
+            **kwargs: Additional keyword arguments that are valid for
+                :class:`typhon.files.handlers.common.HDF4`.
 
         Returns:
-            An GroupedArrays object.
+            A xarray.Dataset object.
         """
 
-        dataset = DataGroup(name="CloudSat")
+        # We need to import at least the standard fields
+        user_fields = kwargs.pop("fields", {})
+        fields = self.standard_fields | set(user_fields)
 
-        # The files are in HDF4 format therefore we cannot use the netCDF4
-        # module. This code is taken from
-        # http://hdfeos.org/zoo/OTHER/2010128055614_21420_CS_2B-GEOPROF_GRANULE_P_R04_E03.hdf.py
-        # and adapted by John Mrziglod. A description about all variables in
-        # CloudSat dataset can be found in
-        # http://www.cloudsat.cira.colostate.edu/data-products/level-2c/2c-ice?term=53.
+        # We catch the user mapping here, since we do not want to deal with
+        # user-defined names in the further processing. Instead, we use our own
+        # mapping
+        user_mapping = kwargs.pop("mapping", None)
 
-        file = HDF.HDF(file_info.path)
+        # Load the dataset from the file:
+        dataset = super().read(
+            file_info, fields=fields, mapping=self.mapping, **kwargs
+        )
 
-        try:
-            vs = file.vstart()
+        dataset["time"] = self._get_time_field(dataset, file_info)
 
-            # Extract the standard fields:
-            dataset["time"] = self._get_time_field(vs, file_info)
-            dataset["lat"] = ("time", self._get_field(vs, "Latitude"))
-            dataset["lon"] = ("time", self._get_field(vs, "Longitude"))
-            dataset["scnline"] = ("time", np.arange(dataset["time"].size))
-            dataset["scnpos"] = \
-                ("time", [1 for _ in range(dataset["time"].size)])
+        # Remove fields that we do not need any longer (expect the user asked
+        # for them explicitly)
+        dataset = dataset.drop(
+            {"UTC_start", "Profile_time"} - set(user_fields),
+        )
 
-            # Get the extra fields:
-            if extra_fields is not None:
-                for field in extra_fields:
-                    # Add the field data to the dataset.
-                    dataset[field] = ("time", self._get_field(vs, field))
-        except Exception as e:
-            raise e
-        finally:
-            file.close()
+        if user_mapping is not None:
+            dataset.rename(user_mapping, inplace=True)
 
         return dataset
 
-    def _get_field(self, vs, field):
-        field_id = vs.find(field)
+    def _get_time_field(self, dataset, file_info):
+        # This gives us the starting time of the first profile in seconds
+        # since midnight in UTC:
+        first_profile_time = round(dataset['UTC_start'].item(0))
 
-        if field_id == 0:
-            # Field was not found.
-            warnings.warn(
-                "Field '{0}' was not found!".format(field),
-                RuntimeWarning)
-
-        field_id = vs.attach(field_id)
-        nrecs, _, _, _, _ = field_id.inquire()
-        raw_data = field_id.read(nRec=nrecs)
-        data = np.array(raw_data).ravel()
-        field_id.detach()
-        return data
-
-    def _get_time_field(self, vs, file_info):
-        # This gives us the starting time of the first profile in
-        # seconds since midnight in UTC:
-        first_profile_time = round(self._get_field(vs, 'UTC_start').item(0))
-
-        # This gives us the starting time of all other profiles in
-        # seconds since the start of the first profile.
-        profile_times = self._get_field(vs, 'Profile_time').ravel()
+        # This gives us the starting time of all other profiles in seconds
+        # since the start of the first profile.
+        profile_times = dataset['Profile_time']
 
         # Convert the seconds to milliseconds
         profile_times *= 1000
@@ -135,9 +124,8 @@ class CloudSat(FileHandler):
         try:
             date = file_info.times[0].date()
         except AttributeError:
-            warnings.warn("No starting date in file_info set. Use "
-                          "1970-01-01 as starting point.")
-            date = datetime(1970, 1, 1)
+            # We have to load the info by ourselves:
+            date = self.get_info(file_info).times[0].date()
 
         # Put all times together so we obtain one full timestamp
         # (date + time) for each data point. We are using the
@@ -147,4 +135,4 @@ class CloudSat(FileHandler):
             + np.timedelta64(first_profile_time, "s") \
             + profile_times.astype("timedelta64[ms]")
 
-        return "time", profile_times
+        return profile_times
