@@ -1,32 +1,39 @@
 # -*- coding: utf-8 -*-
+"""Plot to demonstrate the velocity colormap. """
 
-"""Plot to demonstrate the velocity colormap.
-"""
-
-import numpy as np
 import matplotlib.pyplot as plt
+import netCDF4
+import numpy as np
+import cartopy.crs as ccrs
 
-from netCDF4 import Dataset
-from mpl_toolkits.basemap import Basemap
-
-import typhon
+from typhon.plots import (center_colorbar, get_cfeatures_at_scale)
 
 
-nc = Dataset('_data/test_data.nc')
-lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
-v = nc.variables['v'][:]
+# Read wind speed data.
+with netCDF4.Dataset('_data/test_data.nc') as nc:
+    lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
+    v = nc.variables['v'][:]
 
+# Create plot with PlateCarree projection.
 fig, ax = plt.subplots(figsize=(10, 8))
-m = Basemap(projection='cyl', resolution='i',
-            llcrnrlat=47, llcrnrlon=3,
-            urcrnrlat=56, urcrnrlon=16)
-m.drawcoastlines()
-m.drawcountries()
-m.drawmeridians(np.arange(0, 20, 2), labels=[0, 0, 0, 1])
-m.drawparallels(np.arange(45, 60, 2), labels=[1, 0, 0, 0])
-m.pcolormesh(lon, lat, v, latlon=True, cmap='velocity', rasterized=True)
-cb = m.colorbar(label='Meridional wind [m/s]')
-typhon.plots.center_colorbar(cb)
+ax = plt.axes(projection=ccrs.PlateCarree())
+ax.set_extent([3, 16, 47, 56])
+
+# Add map "features".
+features = get_cfeatures_at_scale(scale='50m')
+ax.add_feature(features.COASTLINE)
+ax.add_feature(features.BORDERS)
+ax.add_feature(features.LAND)
+
+# Plot the actual data.
+sm = ax.pcolormesh(lon, lat, v,
+                   cmap='velocity',
+                   rasterized=True,
+                   transform=ccrs.PlateCarree(),
+                   )
+
+cb = fig.colorbar(sm, label='Meridional wind [m/s]', fraction=0.0328, pad=0.02)
+center_colorbar(cb)
 
 fig.tight_layout()
 plt.show()
