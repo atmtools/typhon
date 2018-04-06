@@ -27,8 +27,8 @@ with netCDF4.Dataset('_data/test_data.nc') as nc:
 wdir = np.arctan2(u, v) + np.pi
 
 # Create plot with PlateCarree projection.
-fig, ax = plt.subplots(figsize=(10, 8))
-ax = plt.axes(projection=ccrs.PlateCarree())
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
 ax.set_extent([3, 16, 47, 56])
 
 # Add map "features".
