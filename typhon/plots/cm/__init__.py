@@ -34,9 +34,10 @@ for (name, data) in datad.items():
         cmaps[name + '_r'] = LinearSegmentedColormap(
             name + '_r', _rev_cdict(data))
     else:
-        cmaps[name] = LinearSegmentedColormap.from_list(name, data)
+        cmaps[name] = LinearSegmentedColormap.from_list(
+            name, data, N=len(data))
         cmaps[name + '_r'] = LinearSegmentedColormap.from_list(
-            name + '_r', data[::-1])
+            name + '_r', data[::-1], N=len(data))
 
 locals().update(cmaps)
 
