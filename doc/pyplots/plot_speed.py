@@ -1,34 +1,45 @@
 # -*- coding: utf-8 -*-
+"""Plot to demonstrate the speed colormap. """
 
-"""Plot to demonstrate the speed colormap.
-"""
-
-import numpy as np
 import matplotlib.pyplot as plt
+import netCDF4
+import numpy as np
+import cartopy.crs as ccrs
+from cartopy.mpl.gridliner import (LONGITUDE_FORMATTER, LATITUDE_FORMATTER)
 
-from netCDF4 import Dataset
-from mpl_toolkits.basemap import Basemap
-
-import typhon
+from typhon.plots.maps import get_cfeatures_at_scale
 
 
-nc = Dataset('_data/test_data.nc')
-lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
-u, v = nc.variables['u'][:], nc.variables['v'][:]
+# Read wind speed data.
+with netCDF4.Dataset('_data/test_data.nc') as nc:
+    lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
+    u, v = nc.variables['u'][:], nc.variables['v'][:]
 
 wspeed = np.hypot(u, v)
 
+# Create plot with PlateCarree projection.
 fig, ax = plt.subplots(figsize=(10, 8))
-m = Basemap(projection='cyl', resolution='i',
-            llcrnrlat=47, llcrnrlon=3,
-            urcrnrlat=56, urcrnrlon=16)
-m.drawcoastlines()
-m.drawcountries()
-m.drawmeridians(np.arange(0, 20, 2), labels=[0, 0, 0, 1])
-m.drawparallels(np.arange(45, 60, 2), labels=[1, 0, 0, 0])
-m.pcolormesh(lon, lat, wspeed, latlon=True, cmap=plt.get_cmap('speed', lut=10),
-             rasterized=True)
-m.colorbar(label='Wind speed [m/s]')
+ax = plt.axes(projection=ccrs.Mercator())
+ax.set_extent([3, 16, 47, 56])
+
+# Add map "features".
+features = get_cfeatures_at_scale(scale='50m')
+ax.add_feature(features.BORDERS)
+ax.add_feature(features.COASTLINE)
+
+# Plot the actual data.
+sm = ax.pcolormesh(lon, lat, wspeed,
+                   cmap=plt.get_cmap('speed', lut=10),
+                   rasterized=True,
+                   transform=ccrs.PlateCarree(),
+                   )
+
+fig.colorbar(sm, label='Wind speed [m/s]', fraction=0.05, pad=0.02)
+
+# Add coordinate system without drawing gridlines.
+gl = ax.gridlines(draw_labels=True, color='none')
+gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+gl.xlabels_top = gl.ylabels_right = False
 
 fig.tight_layout()
 plt.show()
