@@ -25,6 +25,11 @@ Difference
 .. plot:: pyplots/plot_difference.py
     :include-source:
 
+Max-Planck
+^^^^^^^^^^
+.. plot:: pyplots/plot_max-planck.py
+    :include-source:
+
 Phase
 ^^^^^
 .. plot:: pyplots/plot_phase.py
