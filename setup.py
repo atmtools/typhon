@@ -111,7 +111,6 @@ setup(
     # $ pip install -e .[dev,test]
     extras_require={
         'docs': [
-            'basemap',
             'pint',
         ],
         'tests': [
