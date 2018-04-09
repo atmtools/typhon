@@ -26,12 +26,10 @@ import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from typhon.collections import DataGroup
 from .handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
-import xarray as xr
 
 __all__ = [
     "FileSet",
@@ -235,8 +233,7 @@ class FileSet:
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
-            concat_args=None, merge_args=None, compress=True, decompress=True,
-            temp_dir=None,
+            compress=True, decompress=True, temp_dir=None,
     ):
         """Initialize a FileSet object.
 
@@ -313,8 +310,6 @@ class FileSet:
                 always be passed to :meth:`read`.
             write_args: Additional keyword arguments in a dictionary that
                 should always be passed to :meth:`write`.
-            merge_args: Will be deprecated soon.
-            concat_args: Will be deprecated soon.
             temp_dir: You can set here your own temporary directory that this
                 FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
@@ -447,10 +442,6 @@ class FileSet:
         self.read_args = {} if read_args is None else read_args
         self.write_args = {} if write_args is None else write_args
 
-        # Data merging and concatenating arguments:
-        self.merge_args = {} if merge_args is None else merge_args
-        self.concat_args = {} if concat_args is None else concat_args
-
         self.compress = compress
         self.decompress = decompress
         self.temp_dir = temp_dir
@@ -572,7 +563,7 @@ class FileSet:
         info += "\nType:\t" + dtype
         info += "\nFiles path:\t" + self.path
         if self._user_placeholder:
-            info += "\nUser placeholder:\t" + self._user_placeholder
+            info += "\nUser placeholder:\t" + str(self._user_placeholder)
         return info
 
     def align(self, filesets, start=None, end=None, max_interval=None):
@@ -665,7 +656,7 @@ class FileSet:
             yield files, data
 
     def collect(self, start=None, end=None, files=None, read_args=None,
-                return_info=False, concat=True, concat_args=None, **find_args):
+                return_info=False, **find_args):
         """Load all files between two dates sorted by their starting time
 
         Notes
@@ -695,8 +686,6 @@ class FileSet:
                 *read* method of the used file handler class.
             return_info: If true, return a FileInfo object with each content
                 value indicating to which file the function was applied.
-            concat: If true (default), return the data concatenated by using
-                standard concatenate functions.
             **find_args: Additional keyword arguments that are allowed
                 for :meth:`find`.
 
@@ -708,14 +697,12 @@ class FileSet:
 
         .. code-block:: python
 
-            ## Load all files between two dates and concatenate their content.
+            ## Load all files between two dates:
             # Note: data may contain timestamps exceeding the given time period
             data = fileset.collect("2018-01-01", "2018-01-02")
 
             # The above is equivalent to this magic slicing:
             data = fileset["2018-01-01":"2018-01-02"]
-
-
 
             ## If you want to iterate through the files in a for loop, e.g.:
             for content in fileset.collect("2018-01-01", "2018-01-02"):
@@ -728,9 +715,6 @@ class FileSet:
         """
         if read_args is None:
             read_args = {}
-
-        if concat_args is None:
-            concat_args = {}
 
         # If we used map with processes, it would need to pickle the data
         # coming from all workers. This would be very inefficient. Threads
@@ -755,10 +739,7 @@ class FileSet:
             if content is not None
         ])
 
-        if concat:
-            data = self._concat_data(data, **concat_args)
-        else:
-            data = list(data)
+        data = list(data)
 
         if return_info:
             return list(files), data
@@ -1570,45 +1551,6 @@ class FileSet:
         self.info_cache[info.path] = info
         return info
 
-    def _concat_data(self, objects, **kwargs):
-
-        if self.handler.data_concatenator is not None:
-            func = self.handler.data_concatenator
-        elif isinstance(objects[0], GroupedArrays):
-            func = type(objects[0]).concat
-        elif isinstance(objects[0], (xr.FileSet, xr.DataArray)):
-            func = xr.concat
-        elif isinstance(objects[0], pd.DataFrame):
-            func = pd.concat
-        else:
-            print(GroupedArrays)
-            raise ValueError(
-                f"No concatenating function is specified for "
-                f"{type(objects[0])}! You can set one via your file handler's "
-                f"data_concatenator parameter."
-            )
-
-        return func(objects, **{**self.concat_args, **kwargs})
-
-    def _merge_data(self, objects):
-
-        if self.handler.data_merger is not None:
-            func = self.handler.data_merger
-        elif isinstance(objects[0], GroupedArrays):
-            func = type(objects[0]).merge
-        elif isinstance(objects[0], (xr.FileSet, xr.DataArray)):
-            func = xr.merge
-        elif isinstance(objects[0], pd.DataFrame):
-            func = pd.merge
-        else:
-            raise ValueError(
-                f"No merging function is specified for "
-                f"{type(objects[0])}! You set one via your file handler's "
-                f"data_merger parameter."
-            )
-
-        return func(objects, **self.merge_args)
-
     def dislink(self, name_or_fileset):
         """Remove the link between this and another fileset
 
@@ -1991,18 +1933,13 @@ class FileSet:
         return _return(file_info, True)
 
     def move(
-            self, start=None, end=None, to=None, convert=None,
-            copy=True,
+            self, target=None, convert=None, copy=True, **find_args,
     ):
-        """Copy files from this fileset to another location.
+        """Move (or copy) files from this fileset to another location
 
         Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            to: Either a FileSet object or the new path of the files containing
-                placeholders (such as {year}, {month}, etc.).
+            target: Either a FileSet object or the path (containing
+                placeholders) where the files should be moved to.
             convert: If true, the files will be read by the old fileset's file
                 handler and written to their new location by using the new file
                 handler from *to*. Both file handlers must be compatible, i.e.
@@ -2012,7 +1949,9 @@ class FileSet:
                 of the read method into something else before it will be passed
                 to the write method. Default is false, i.e. the file will be
                 simply copied without converting.
-            copy: If true, then all files will be copied instead of moved only.
+            copy: If true, then all files will be copied instead of moved.
+            **find_args: Additional keyword arguments that are allowed
+                for :meth`find` such as `start`, `end` or `files`.
 
         Returns:
             New FileSet object with the new files.
@@ -2033,7 +1972,7 @@ class FileSet:
             )
 
             old_fileset.move(
-                "2017-09-15", "2017-09-23", new_fileset,
+                new_fileset, start="2017-09-15", end="2017-09-23",
             )
 
         .. code-block:: python
@@ -2044,26 +1983,31 @@ class FileSet:
             from typhon.files import CSV, NetCDF4
 
             old_fileset = FileSet(
-                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
-                handler=NetCDF4()
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc"
             )
             new_fileset = FileSet(
-                "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
-                handler=CSV()
+                "new/path/{year}/{doy}/{hour}{minute}{second}.csv"
             )
 
             # Note that this only works if both file handlers are compatible
             new_fileset = old_fileset.move(
-                "2017-09-15", "2017-09-23", new_fileset, convert=True
+                new_fileset, convert=True, start="2017-09-15",
+                end="2017-09-23",
+            )
+
+            # It is also possible to set the new path directly:
+            new_fileset = old_fileset.move(
+                "new/path/{year}/{doy}/{hour}{minute}{second}.csv",
+                convert=True, start="2017-09-15", end="2017-09-23",
             )
         """
 
         # Convert the path to a FileSet object:
-        if not isinstance(to, FileSet):
+        if not isinstance(target, FileSet):
             destination = self.copy()
-            destination.path = to
+            destination.path = target
         else:
-            destination = to
+            destination = target
 
         if convert is None:
             convert = False
@@ -2087,8 +2031,7 @@ class FileSet:
             }
 
             # Copy the files
-            self.map(start, end,
-                     func=FileSet._move_single_file, kwargs=move_args)
+            self.map(FileSet._move_single_file, kwargs=move_args, **find_args)
 
         return destination
 
@@ -2534,24 +2477,24 @@ class FileSet:
             data = self.handler.read(file_info, **read_args)
 
         # Add also data from linked filesets:
-        if self._link:
-            linked_data = []
-            for link in self._link.values():
-                if link["linker"] is None:
-                    # Simply try to find the corresponding file by generating a
-                    # filename:
-                    other_file = link["target"].get_filename(
-                        times=file_info.times, fill=file_info.attr
-                    )
-                else:
-                    # Find the corresponding file via the given linker function
-                    other_file = link["linker"](link["target"], file_info)
-
-                linked_data.append(
-                    self._link["target"].read(other_file)
-                )
-
-            return self._merge_data([data, *linked_data])
+        # if self._link:
+        #     linked_data = []
+        #     for link in self._link.values():
+        #         if link["linker"] is None:
+        #             # Simply try to find the corresponding file by generating a
+        #             # filename:
+        #             other_file = link["target"].get_filename(
+        #                 times=file_info.times, fill=file_info.attr
+        #             )
+        #         else:
+        #             # Find the corresponding file via the given linker function
+        #             other_file = link["linker"](link["target"], file_info)
+        #
+        #         linked_data.append(
+        #             self._link["target"].read(other_file)
+        #         )
+        #
+        #     return self._merge_data([data, *linked_data])
 
         return data
 
