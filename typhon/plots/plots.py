@@ -729,7 +729,7 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             background=False, **kwargs):
+             bg=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -742,7 +742,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         ax: A matplotlib axis object. If not given, a new axis
             object will be created in the current figure.
         projection: If no axis is given, specify here the cartopy projection.
-        background: If true, a background image will be drawn.
+        bg: If true, a background image will be drawn.
         **kwargs:
 
     Returns:
@@ -770,7 +770,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     if ax is None:
         ax = fig.add_subplot(111, projection=projection)
 
-    if background:
+    if bg:
         ax.stock_img()
 
     # It is counter-intuitive but if we want to plot our data with normal
