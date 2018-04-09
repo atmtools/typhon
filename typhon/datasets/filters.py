@@ -436,10 +436,12 @@ class HIRSBestLineFilter(OverlapFilter):
     # those are expected to be different between orbits, others are not
     knowndiff = {'hrs_scnlin', 'hrs_qualind', 'hrs_linqualflgs',
                  'hrs_chqualflg'}
+    warn_overlap = False # set to True if you want warnings when overlaps inconsistent
 
     late = True
-    def __init__(self, ds):
+    def __init__(self, ds, warn_overlap=False):
         self.ds = ds
+        self.warn_overlap = warn_overlap
 
     orbits = []
     def reset(self):
@@ -506,19 +508,20 @@ class HIRSBestLineFilter(OverlapFilter):
             mult_ii = ii[multcnt_i]
             mult_cnt = cnt[multcnt_i]
             rep = arrsrt[mult_ii:mult_ii+mult_cnt]
-            fields_notclose = {nm for nm in rep.dtype.names
-                if not
-                (rep[nm][0]==rep[nm]
-                 if rep[nm].dtype.kind[0] in "MmS"
-                 else numpy.isclose(rep[nm][0, ...], rep[nm])
-                ).all()} - self.knowndiff
-            if len(fields_notclose) > 0:
-                warnings.warn(
-                    "Overlapping or duplicate scanlines "
-                    "have inconsistent values for ".format(
-                        rep[0]["time"].astype(datetime.datetime))
-                    + ", ".join(list(fields_notclose)),
-                        UserWarning)
+            if self.warn_overlap:
+                fields_notclose = {nm for nm in rep.dtype.names
+                    if not
+                    (rep[nm][0]==rep[nm]
+                     if rep[nm].dtype.kind[0] in "MmS"
+                     else numpy.isclose(rep[nm][0, ...], rep[nm])
+                    ).all()} - self.knowndiff
+                if len(fields_notclose) > 0:
+                    warnings.warn(
+                        "Overlapping or duplicate scanlines "
+                        "have inconsistent values for ".format(
+                            rep[0]["time"].astype(datetime.datetime))
+                        + ", ".join(list(fields_notclose)),
+                            UserWarning)
             # ii normally contains the index of the first of a sequence of
             # duplicates; select_winner returns the index of the optimal
             # choice within the set 'rep' of repeated scanlines; the sum
