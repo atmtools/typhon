@@ -593,6 +593,9 @@ class NetCDF4(FileHandler):
             with netCDF4.Dataset(filename, "r") as root:
                 groups = list(self._all_groups_in_file(root))
 
+            if not groups:
+                groups = [None, ]
+
         # Should we load multiple files?
         multi = False  # isinstance(paths, (tuple, list)) or "*" in paths
 
@@ -616,6 +619,7 @@ class NetCDF4(FileHandler):
 
     @staticmethod
     def _all_groups_in_file(top):
+        #yield "/"
         for value in top.groups.values():
             yield value.name
             for children in NetCDF4._all_groups_in_file(value):
@@ -624,7 +628,7 @@ class NetCDF4(FileHandler):
     @staticmethod
     def _add_prefix(prefix, data):
         return data.rename({
-            name: "/".join([prefix, name])
+            name: name if prefix is None else "/".join([prefix, name])
             for name in data.data_vars
         })
 
