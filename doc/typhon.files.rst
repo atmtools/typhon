@@ -48,6 +48,7 @@ File handlers for common formats
    CSV
    FileHandler
    FileInfo
+   HDF4
    NetCDF4
    Plotter
 
@@ -62,6 +63,15 @@ File handlers for satellite products
    :toctree: generated
 
    CloudSat
+
+.. automodule:: typhon.files.handlers.hoaps
+
+.. currentmodule:: typhon.files.handlers.hoaps
+
+.. autosummary::
+   :toctree: generated
+
+   HOAPS
 
 .. automodule:: typhon.files.handlers.tovs
 
