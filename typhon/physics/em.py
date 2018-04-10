@@ -358,3 +358,131 @@ def stefan_boltzmann_law(T):
         Energy per surface area [W m^-2]
     """
     return constants.stefan_boltzmann_constant * T**4
+
+
+def zeeman_splitting(gu, gl, mu, ml, H=1):
+    """ Zeeman splitting
+
+    .. math::
+        \Delta f = \\frac{H\mu_b}{h}(g_um_u - g_lm_l),
+    where $\mu_b$ is the Bohr magneton and $h$ is the Planck constant.
+
+    Parameters:
+        gu (scalar or ndarray) Upper g
+
+        gl (scalar or ndarray) Lower g
+
+        mu (scalar or ndarray) Upper projection of j
+
+        ml (scalar or ndarray) Lower projection of j
+
+        H (scalar or ndarray) Absolute strength of magnetic field in Teslas
+
+    Returns:
+        (scalar or ndarray) Splitting in Hertz
+    """
+    h = constants.planck
+    mu_B = constants.mu_B
+
+    frac = mu_B / h
+    return frac * (gu * mu - gl * ml) * H
+
+
+def zeeman_strength(ju, jl, mu, ml):
+    """ Zeeman line strength
+
+    .. math:: \Delta S_{M_u,M_l} = C \\left(\\begin{array}{ccc} J_l & 1 & J_u
+                       \\\\ M_l & M_u-M_l&-M_u \\end{array}\\right)^2,
+    where C is either 3/2 or 3/4 depending on in mu-ml is 0 or not.  In case
+
+
+    Parameters:
+        ju: (scalar or 1darray) Upper level J.  Must be same size as jl
+
+        jl: (scalar or 1darray) Lower level J.  Must be same size as ju
+
+        mu: (scalar or ndarray) Upper level M.  Must be same size as ml unless
+        J is vector-type, then it is ignored
+
+        ml: (scalar or ndarray) Lower level M.  Must be same size as mu unless
+        J is vector-type, then it is ignored
+
+    Returns:
+        (scalar or ndarray) Relative line strength of component normalized to 1
+        or array(array(S+, Pi, S-))
+    """
+    assert type(jl) == type(ju), "Must have same type"
+    assert type(ml) == type(mu), "Must have same type"
+    try:
+        import sympy.physics.wigner as wig
+        if np.isscalar(mu) and np.isscalar(ju):
+            dm = mu - ml
+            w = wig.wigner_3j(jl, 1, ju, ml, dm, -mu)
+            w = float(w)
+            if dm == 0:
+                r = w**2 * 1.5
+            else:
+                r = w**2 * 0.75
+        elif np.isscalar(ju):
+            r = []
+            for i in range(len(mu)):
+                r.append(zeeman_strength(ju, jl, mu[i], ml[i]))
+            r = np.array(r)
+        else:
+            r = []
+            for i in range(len(ju)):
+                JU = ju[i]
+                JL = jl[i]
+                if np.isscalar(JU):
+                    t = []
+                    MU, ML = zeeman_transitions(JU, JL, "S-")
+                    t.append(zeeman_strength(JU, JL, MU, ML))
+                    MU, ML = zeeman_transitions(JU, JL, "Pi")
+                    t.append(zeeman_strength(JU, JL, MU, ML))
+                    MU, ML = zeeman_transitions(JU, JL, "S+")
+                    t.append(zeeman_strength(JU, JL, MU, ML))
+                    r.append(t)
+                else:
+                    r.append(zeeman_strength(JU, JL, mu, ml))
+            r = np.array(r)
+        return r
+    except ModuleNotFoundError:
+        raise RuntimeError("Must have sympy installed to use")
+
+
+def zeeman_transitions(ju, jl, type):
+    """ Find possible mu and ml for valid ju and jl for a given transistion
+    polarization
+
+    Parameters:
+        ju: (scalar)  Upper level J
+
+        jl: (scalar)  Lower level J
+
+        type: (string) "Pi", "S+", or "S-" for relevant polarization type
+
+    Returns:
+        (tuple) MU, ML arrays for given Js and polarization type
+    """
+    assert np.isscalar(ju) and np.isscalar(jl), "non-scalar J non supported"
+    assert type.lower() in ["pi", "s+", "s-"], "unknown transition type"
+    assert ju - jl in [-1, 0, 1], "delta-J should belong to {-1, 0, 1}"
+    assert ju > 0 and jl >= 0, "only for positive ju and non-negative for jl"
+
+    if type.lower() == "pi":
+        J = min(ju, jl)
+        return np.arange(-J, J + 1), np.arange(-J, J + 1)
+    elif type.lower() == "s+":
+        if ju < jl:
+            return np.arange(-ju, ju+1), np.arange(-ju+1, ju+2)
+        elif ju == jl:
+            return np.arange(-ju, ju), np.arange(-ju+1, ju+1)
+        else:
+            return np.arange(-ju, jl), np.arange(-ju+1, jl+1)
+    elif type.lower() == "s-":
+        if ju < jl:
+            return np.arange(-ju, ju+1), np.arange(-jl, ju)
+        elif ju == jl:
+            return np.arange(-ju+1, ju+1), np.arange(-ju, ju)
+        else:
+            return np.arange(-ju+2, ju+1), np.arange(-ju+1, ju)
