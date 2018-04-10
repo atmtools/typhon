@@ -9,7 +9,7 @@ class OceanRAIN(NetCDF4):
     """File handler that can read data from OceanRAIN NetCDF4 files.
 
     This object handles OceanRAIN V1.0 NetCDF4 files such as they are
-    compatible with :mod:`typhon.spareice`, i.e.:
+    compatible with :mod:`typhon.collocations`, i.e.:
 
     * rename *latitude* and *longitude* field to *lat* and *lon*.
     * convert the content of the *time* variable to numpydtetime64 objects.
@@ -20,12 +20,11 @@ class OceanRAIN(NetCDF4):
 
         .. :code-block:: python3
 
+            from typhon.files import FileSet, OceanRAIN
             from typhon.plots import worldmap
-            from typhon.spareice import Dataset
-            from typhon.spareice.handlers import OceanRAIN
 
             # Create a Dataset object that points to the files:
-            ocean_rain = Dataset(
+            ocean_rain = FileSet(
                 "OceanRAIN_1.0/OceanRAIN__W__{ship}_{ship_id}__UHAM-ICDC__v1_0.nc",
                 handler=OceanRAIN(),
                 info_via="both",
@@ -39,7 +38,7 @@ class OceanRAIN(NetCDF4):
             for file, data in ocean_rain.icollect(return_info=True):
                 label = f"{file.attr['ship']} ({data['lat'].size} mins)"
 
-                # We plot only every 1000th point to draw the worldmap faster:
+                # We only plot every 1000th point to draw the worldmap faster:
                 ax, plot = worldmap(
                     data["lat"][::1000], data["lon"][::1000], ax=ax,
                     s=6, label=label, background=True
@@ -86,23 +85,21 @@ class OceanRAIN(NetCDF4):
 
     @expects_file_info()
     def read(self, filename, **kwargs):
-        """Reads and parses NetCDF files and load them to an GroupedArrays.
-
-        If you need another return value, change it via the parameter
-        *return_type* of the :meth:`__init__` method.
+        """Read and parse a NetCDF file and load it to a xarray.Dataset
 
         Args:
             filename: Path and name of the file as string or FileInfo object.
             **kwargs: Additional key word arguments that are allowed for the
-                :class:`typhon.spareice.handlers.common.NetCDF4` class.
+                :class:`~typhon.files.handlers.common.NetCDF4` class.
 
         Returns:
-            An GroupedArrays object.
+            A xarray.Dataset object.
         """
 
-        # import always the standard fields:
-        fields = \
-            {"time", "latitude", "longitude"} | set(kwargs.pop("fields", {}))
+        # Make sure that the standard fields are always gonna be imported:
+        fields = kwargs.pop("fields", None)
+        if fields is not None:
+            fields = {"time", "latitude", "longitude"} | set(fields)
 
         # This renaming makes the data compatible for collocate routines:
         mapping = {
