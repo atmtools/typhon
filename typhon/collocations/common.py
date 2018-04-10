@@ -18,7 +18,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import scipy.stats
-from typhon.files import FileSet
+from typhon.files import FileSet, NoHandlerError
 from typhon.math import cantor_pairing
 from typhon.utils import split_units
 from typhon.utils.time import to_datetime, to_timedelta
@@ -326,8 +326,6 @@ class Collocations(FileSet):
             if verbose > 1:
                 reading_time = time.time() - verbose_timer
 
-            print(raw_data)
-
             raw_data, stacked_dims = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
                 remove_overlaps, last_primary_end,
@@ -463,6 +461,9 @@ class Collocations(FileSet):
                         __collocation=dataset[name]['time'] > last_primary_end
                     )
 
+                # Filter out NaNs:
+                dataset[name] = dataset[name].dropna("__collocation")
+
                 # Check whether something is left:
                 if not len(dataset[name]['time']):
                     return None, None
@@ -483,9 +484,13 @@ class Collocations(FileSet):
                     + max_interval
                 )
 
-                print(start, end)
-
-            print(dataset[name])
+                if start > end:
+                    raise ValueError(
+                        "The time coverage of the content of the following "
+                        "files is not identical with the time coverage given "
+                        "by get_info. Actual time coverage:\n"
+                        + "\n".join(repr(file) for file in files[name])
+                    )
 
             # We do not have to collocate everything, just the common time
             # period expanded by max_interval and limited by the global start
