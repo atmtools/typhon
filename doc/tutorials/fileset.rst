@@ -1,5 +1,5 @@
-Using typhon.spareice.Dataset for data processing
-#################################################
+Using FileSet for data processing
+#################################
 
 .. contents:: :local:
 
@@ -13,15 +13,15 @@ What is the idea?
 Imagine you have a big dataset consisting of many files containing observations
 (e.g. images or satellite data). The files cover certain time periods and
 are bundled into subdirectories. See
-:numref:`Fig.{number}<fig-example-datasets>` for an example.
+:numref:`Fig.{number}<fig-example-filesets>` for an example.
 
-.. _fig-example-datasets:
+.. _fig-example-filesets:
 
-.. figure:: _figures/example_datasets.png
+.. figure:: _figures/example_filesets.png
    :scale: 50 %
    :alt: screen shot of dataset directory structure
 
-   Example of datasets
+   Example of filesets
 
    All files of *Satellite B* are located in subdirectories which
    contain temporal information in their names (year, month, day, etc.).
@@ -32,8 +32,8 @@ functions on their content and eventually adding files with new data to this
 dataset. So, how to find all files in a time period? You could start by writing
 nested *for* loops and using python's *glob* function. Normally, such solutions
 requires time to implement, are error-prone and are not portable to other
-datasets with different structures. Hence, save your time/energy/nerves and
-simply use the :class:`~typhon.spareice.datasets.Dataset` class.
+filesets with different structures. Hence, save your time/energy/nerves and
+simply use the :class:`~typhon.files.fileset.FileSet` class.
 
 .. Hint::
    If you want to run the code from this tutorial on your machine as well,
@@ -53,14 +53,14 @@ Dataset object with the path to our files:
 
 .. code-block:: python
 
-   # Import the Dataset class from the typhon module.
-   from typhon.spareice import Dataset
+   # Import the FileSet class from the typhon module.
+   from typhon.files import FileSet
 
-   # Define a dataset object pointing to the files
+   # Define a fileset object pointing to the files
    # of the Satellite B
-   b_dataset = Dataset(
-       path="data/SatelliteB/{year}/{month}/{day}/"
-            "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+   b_fileset = FileSet(
+       path="data/SatelliteB/{year}-{month}-{day}/"
+            "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
    )
 
 Nothing interesting happens so far. We imported the Dataset class from the 
@@ -72,44 +72,39 @@ those placeholders by itself when searching for files. Let's see it in action:
 
 .. code-block:: python
 
-    # Find all files from our dataset:
-    for file in b_dataset:
-        print(file)
+   # Find all files (but only print the first one)
+   for file in b_fileset:
+       print(repr(file))
 
 .. code-block:: none
    :caption: Output:
 
-   .../data/SatelliteB/2018/01/01/000000-060000.nc.gz
-      Start: 2018-01-01 00:00:00
-      End: 2018-01-01 06:00:00
-   .../data/SatelliteB/2018/01/01/060000-120000.nc.gz
-      Start: 2018-01-01 06:00:00
-      End: 2018-01-01 12:00:00
-   .../data/SatelliteB/2018/01/01/120000-180000.nc.gz
-      Start: 2018-01-01 12:00:00
-      End: 2018-01-01 18:00:00
-   .../data/SatelliteB/2018/01/01/180000-000000.nc.gz
-      Start: 2018-01-01 18:00:00
-      End: 2018-01-02 00:00:00
+   .../data/SatelliteB/2018-01-01/000000-050000.nc
+   .../data/SatelliteB/2018-01-01/050000-100000.nc
+   .../data/SatelliteB/2018-01-01/100000-150000.nc
+   .../data/SatelliteB/2018-01-01/150000-200000.nc
+   .../data/SatelliteB/2018-01-01/200000-010000.nc
+   .../data/SatelliteB/2018-01-02/010000-060000.nc
+   .../data/SatelliteB/2018-01-02/060000-110000.nc
+   .../data/SatelliteB/2018-01-02/110000-160000.nc
+   .../data/SatelliteB/2018-01-02/160000-210000.nc
+   .../data/SatelliteB/2018-01-02/210000-020000.nc
+   .../data/SatelliteB/2018-01-03/060000-120000.nc
 
 If we want to have only files from a certain time period, we can use the
-:meth:`~typhon.spareice.datasets.Dataset.find` method:
+:meth:`~typhon.files.fileset.FileSet.find` method:
 
 .. code-block:: python
 
    # Find all files in a certain time period
-   for file in b_dataset.find("2018-01-01", "2018-01-01 12:00:00"):
+   for file in b_fileset.find("2018-01-01", "2018-01-01 12:00:00"):
        print(file)
 
 .. code-block:: none
    :caption: Output:
 
-   .../data/SatelliteB/2018/01/01/000000-060000.nc.
-      Start: 2018-01-01 00:00:00
-      End: 2018-01-01 06:00:00
-   .../data/SatelliteB/2018/01/01/060000-120000.nc.gz
-      Start: 2018-01-01 06:00:00
-      End: 2018-01-01 12:00:00
+   .../data/SatelliteB/2018/01/01/000000-050000.nc
+   .../data/SatelliteB/2018/01/01/050000-100000.nc
 
 In both examples from above, we yield a
 :class:`~typhon.spareice.handlers.common.FileInfo` object in the `file`
@@ -118,6 +113,7 @@ Let's have a look at them:
 
 .. code-block:: python
 
+   print("Type:", type(file))
    print("Path:", file.path)
    print("Times:", file.times)
    print("Attributes", file.attr)
@@ -125,13 +121,14 @@ Let's have a look at them:
 .. code-block:: none
    :caption: Output:
 
-   Path: .../data/SatelliteB/2018/01/01/000000-060000.nc.gz
-   Times: [datetime.datetime(2018, 1, 1, 0, 0), datetime.datetime(2018, 1, 1, 6, 0)]
+   Type: <class 'typhon.files.handlers.common.FileInfo'>
+   Path: .../data/SatelliteB/2018-01-03/060000-120000.nc
+   Times: [datetime.datetime(2018, 1, 3, 6, 0), datetime.datetime(2018, 1, 3, 12, 0)]
    Attributes: {}
 
 Surprisingly, *path* returns the path to the file and *times* is a list with
 two datetime objects: the start and end time of the file. They are retrieved by
-the placeholders that were used in the *path* argument of the Dataset object.
+the placeholders that were used in the `path` argument of the Dataset object.
 But what is about *attr* and why is it an empty dictionary? Additionally to the
 temporal placeholders (such as {year}, etc.), which are converted into start
 and end datetime objects, you can define own placeholders. For example, let's
@@ -141,22 +138,40 @@ make a placeholder out of the satellite name:
 
    # The same dataset as before but with one additional placeholder in the
    # path:
-   dataset = Dataset(
-      path="data/{satname}/{year}/{month}/{day}/"
-           "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+   fileset = FileSet(
+     path="data/{satname}/{year}-{month}-{day}/"
+          "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
    )
 
-   for file in dataset.find("2018-01-01", "2018-01-02"):
-      print("Path:", file.path)
-      print("Attributes", file.attr)
+   for file in fileset.find("2018-01-01", "2018-01-02"):
+     print("Path:", file.path)
+     print("Attributes", file.attr)
 
 .. code-block:: none
    :caption: Output:
 
-   Path: .../data/SatelliteA/2018/01/01/000000-050000.nc.gz
-      Attributes {'satname': 'SatelliteA'}
-   Path: .../data/SatelliteB/2018/01/01/000000-060000.nc.gz
-      Attributes {'satname': 'SatelliteB'}
+   Path: .../data/SatelliteA/2018-01-01/000000-040000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteB/2018-01-01/000000-050000.nc
+   Attributes {'satname': 'SatelliteB'}
+   Path: .../data/SatelliteA/2018-01-01/040000-080000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteB/2018-01-01/050000-100000.nc
+   Attributes {'satname': 'SatelliteB'}
+   Path: .../data/SatelliteA/2018-01-01/080000-120000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteB/2018-01-01/100000-150000.nc
+   Attributes {'satname': 'SatelliteB'}
+   Path: .../data/SatelliteA/2018-01-01/120000-160000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteB/2018-01-01/150000-200000.nc
+   Attributes {'satname': 'SatelliteB'}
+   Path: .../data/SatelliteA/2018-01-01/160000-200000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteA/2018-01-01/200000-000000.nc
+   Attributes {'satname': 'SatelliteA'}
+   Path: .../data/SatelliteB/2018-01-01/200000-010000.nc
+   Attributes {'satname': 'SatelliteB'}
 
 As we can see, we are able to find the data from *Satellite A* as well because
 it has the same subdirectory structure as *Satellite B*. The placeholder
@@ -164,12 +179,12 @@ it has the same subdirectory structure as *Satellite B*. The placeholder
 automatically and returned in *attr*. This could be useful if we want to
 process our files and we need to know from which satellite they came from. We
 can apply a filter on this placeholder when using
-:meth:`~typhon.spareice.datasets.Dataset.find`:
+:meth:`~typhon.files.fileset.FileSet.find`:
 
 .. code-block:: python
 
    filters = {"satname": "SatelliteA"}
-   for file in dataset.find("2018-01-01", "2018-01-02", filters=filters):
+   for file in fileset.find("2018-01-01", "2018-01-02", filters=filters):
        print("Path:", file.path)
        print("  Attributes", file.attr)
 
@@ -184,13 +199,13 @@ we can add a *!* before the placeholder name.
    filters = {"!satname": "SatelliteA"}
 
 We can also set a placeholder permanently to our favourite regular expression
-(e.g. if you want to call :meth:`~typhon.spareice.datasets.Dataset.find`
+(e.g. if you want to call :meth:`~typhon.files.fileset.FileSet.find`
 multiple times). Use
-:meth:`~typhon.spareice.datasets.Dataset.set_placeholders` for this:
+:meth:`~typhon.files.fileset.FileSet.set_placeholders` for this:
 
 .. code-block:: python
 
-   dataset.set_placeholders(satname="\w+?B")
+   fileset.set_placeholders(satname="\w+?B")
 
 Which results that we only find satellites which name ends with *B*. If you
 want to find out more about placeholders, have a look at this
@@ -203,54 +218,52 @@ Read and Create Files
 Handling common file formats
 ++++++++++++++++++++++++++++
 
-Well, it is nice to find all files from one dataset. But we also want to open
+Well, it is nice to find all files from one fileset. But we also want to open
 them and read their content. For doing this, we could use our found `FileInfo`
 objects as file argument for python's `open` builtin function:
 
 .. code-block:: python
 
-   for file in b_dataset.find("2018-01-01", "2018-01-02"):
+   for file in b_fileset.find("2018-01-01", "2018-01-02"):
       with open(file, "rb") as f:
          # This returns a lot of byte strings:
          print(f.readline())
 
-Okay, this may be not very practical for gzipped netCDF files since it just
-returns a lot of byte strings. Of course, we could use the `python-netcdf`
-module for reading the files but then we would still need to unzip them by
-ourselves before. Well, we could do that. But our Dataset object provides
-a much easier way:
+Okay, this may be not very practical for netCDF files since it just returns a
+lot of byte strings. Of course, we could use the `python-netcdf`
+module for reading the files but our Dataset object provides a much easier way:
 
 .. code-block:: python
 
-   data = b_dataset["2018-01-01"]
+   data = b_fileset["2018-01-01"]
    print(data)
 
 .. code-block:: none
    :caption: Output:
 
-   Name: 120729074544 <class 'typhon.spareice.array.ArrayGroup'>
-   Attributes:
-      --
-   Groups:
-      --
-   Variables:
-      lat (40,) :
-      [-0.00159265 -0.16190251 -0.31802342 -0.46591602 -0.60175384 -0.72202232
-       -0.82360972 -0.90388763 -0.96077901 -0.99281188 -0.99915745 -0.97965155
-       -0.93479885 -0.86575984 -0.77432078 -0.66284751 -0.5342242  -0.39177875
-      ...
+   <xarray.Dataset>
+   Dimensions:  (time: 15)
+   Coordinates:
+     * time     (time) datetime64[ns] 2018-01-01 2018-01-01T00:20:00 ...
+   Data variables:
+       lat      (time) float64 ...
+       lon      (time) float64 ...
+       data     (time) float64 ...
 
-This found a file that is the closest to 2018-01-01 and decompressed it.
-Afterwards it loaded its decompressed content into an
-:class:`~typhon.spareice.array.ArrayGroup` object (kind of dictionary that
-holds numpy arrays). And all this by using only one single expression! We can
-also read all files from a time period:
+This found a file that is the closest to 2018-01-01 and decompressed it (if it
+was compressed by using zip, gzip or other common compression standards).
+Afterwards it loaded its content into an `xarray.Dataset` object (kind of
+sophisticated dictionary that holds numpy arrays; have a look at xarray_). And
+all this by using only one single expression! We can also read all files from a
+time period:
+
+. _xarray: http://xarray.pydata.org/en/stable/
 
 .. code-block:: python
 
    # Find files from 2018-01-01 to 2018-01-01 and load them into
    # numpy arrays
-   data = dataset["2018-01-01":"2018-01-02"]
+   data = b_fileset["2018-01-01":"2018-01-02"]
 
    # data is now a list of ArrayGroup objects.
 
@@ -511,7 +524,7 @@ The `our_reader` function actually provides to return the nth line of the file
 if the argument `lineno` is given. If we want to read files with additional
 arguments for the underlying reader function, we cannot use the simple
 expression with brackets any longer. We have to use the more extended version
-in form of the :meth:`~typhon.spareice.datasets.Dataset.read` method instead:
+in form of the :meth:`~typhon.files.fileset.FileSet.read` method instead:
 
 .. code-block:: python
 
@@ -533,9 +546,9 @@ in form of the :meth:`~typhon.spareice.datasets.Dataset.read` method instead:
    Data: 2) Second line...
 
 Using additional arguments for creating a file works very similar as above, we
-can use :meth:`~typhon.spareice.datasets.Dataset.write` here. Another
+can use :meth:`~typhon.files.fileset.FileSet.write` here. Another
 difference is that we have to generate a filename first by using
-:meth:`~typhon.spareice.datasets.Dataset.generate_filename`.
+:meth:`~typhon.files.fileset.FileSet.generate_filename`.
 
 .. code-block:: python
 
@@ -566,8 +579,8 @@ How can we read the second lines from all files? We could do this:
 
 If you want to use parallel workers to load the files faster (will not
 make much difference for our small files here though), use
-:meth:`~typhon.spareice.datasets.Dataset.icollect` in combination with a
-for-loop or simply :meth:`~typhon.spareice.datasets.Dataset.collect` alone:
+:meth:`~typhon.files.fileset.FileSet.icollect` in combination with a
+for-loop or simply :meth:`~typhon.files.fileset.FileSet.collect` alone:
 
 .. code-block:: python
 
@@ -586,7 +599,7 @@ Get information from a file
 ===========================
 
 The Dataset object needs information about each file in order to find them
-properly via :meth:`~typhon.spareice.datasets.Dataset.find`. Normally, this
+properly via :meth:`~typhon.files.fileset.FileSet.find`. Normally, this
 happens by using :ref:`placeholders<typhon-dataset-placeholders>` in the files'
 path and name. Each placeholder is represented by a regular expression that is
 used to parse the filename. But sometimes this is not enough. For example, if

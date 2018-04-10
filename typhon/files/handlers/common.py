@@ -646,12 +646,10 @@ class NetCDF4(FileHandler):
         Returns:
 
         """
-        short_names = defaultdict(list)
         full_names = defaultdict(list)
 
-        for full in data.data_vars:
-            group, short = self._split_path(full)
-            short_names[group].append(short)
+        for full in data.variables:
+            group, _ = self._split_path(full)
             full_names[group].append(full)
 
         # If we ware writing out multiple groups, we do not want to overwrite
@@ -660,8 +658,13 @@ class NetCDF4(FileHandler):
         already_openend = False
         for group, variables in full_names.items():
             ds = data[variables]
-            ds.rename(dict(zip(full_names[group], short_names[group])),
-                      inplace=True)
+
+            # Remove the group name from all variables:
+            mapping = {
+                full: self._split_path(full)[1]
+                for full in ds.variables
+            }
+            ds.rename(mapping, inplace=True)
 
             ds.to_netcdf(
                 filename.path, group=group,

@@ -63,15 +63,6 @@ File handlers for satellite products
 
    CloudSat
 
-.. automodule:: typhon.files.handlers.hoaps
-
-.. currentmodule:: typhon.files.handlers.hoaps
-
-.. autosummary::
-   :toctree: generated
-
-   HOAPS
-
 .. automodule:: typhon.files.handlers.tovs
 
 .. currentmodule:: typhon.files.handlers.tovs

@@ -20,6 +20,7 @@ import os.path
 import re
 import shutil
 import threading
+import time
 import warnings
 
 import numpy as np
@@ -604,13 +605,14 @@ class FileSet:
 
         # We want to put all secondaries in a loading queue. Hence, we need the
         # list flattened and without duplicates.
+        timer = time.time()
         secondaries = unique(
             secondary for match in secondaries for secondary in match
         )
 
         primary_loader = self.icollect(files=primaries)
-        secondary_loader = filesets[0].icollect(files=secondaries,
-                                                return_info=True)
+        secondary_loader = filesets[0].icollect(
+            files=secondaries, return_info=True)
 
         files, data = defaultdict(list), defaultdict(list)
         for match_id, primary_data in enumerate(primary_loader):
@@ -623,10 +625,11 @@ class FileSet:
                     secondary_file, secondary_data = next(secondary_loader)
                     if secondary != secondary_file:
                         raise AsyncError(
-                            "Expected different secondary file!\n"
-                            "Does your fileset contain files that are "
-                            "completely overlapping other files? Exclude them "
-                            "via `exclude`."
+                            f"Expected the file {secondary}\nbut the file "
+                            f"{secondary_file} was loaded!\nDoes your fileset"
+                            f" '{self.name}' contain files that are "
+                            f"completely overlapping other files? Exclude them"
+                            " via `exclude`."
                         )
                     files[filesets[0].name].append(secondary)
                     data[filesets[0].name].append(secondary_data)
@@ -843,21 +846,24 @@ class FileSet:
             **kwargs: Keyword arguments for :meth:`find`.
 
         Yields:
-            A list of files that fulfilled the test.
+            A :class:`FileInfo` object of each file that fulfilled the test.
         """
-        def enclosed(before, after):
-            pass
-
-
         if not callable(test):
-            test = _func.get(test, None)
+            if test == "enclosed":
+                yield from self._detect_enclosed(*args, **kwargs)
 
         if test is None:
             raise ValueError("Need a valid test function or name!")
 
-        files = list(self.find(*args, **kwargs))
-        for i, file in enumerate(files):
-            pass
+        previous = None
+        for file in self.find(*args, **kwargs):
+            if previous is None:
+                continue
+            if test(previous, file):
+                yield file
+
+    def _detect_enclosed(self, *args, **kwargs):
+        yield None
 
     def exclude_times(self, periods):
         if periods is None or not periods:
@@ -1037,8 +1043,7 @@ class FileSet:
 
         # Even if no files were found, the user does not want to know.
         if not no_files_error:
-            yield from self._prepare_find_return(
-                file_finder, sort, bundle)
+            yield from self._prepare_find_return(file_finder, sort, bundle)
             return
 
         # The users wants an error to be raised if no files were found. Since
@@ -1051,8 +1056,7 @@ class FileSet:
             next(check_files)
 
             # We have found some files and can return them
-            yield from self._prepare_find_return(
-                return_files, sort, bundle)
+            yield from self._prepare_find_return(return_files, sort, bundle)
         except StopIteration as err:
             raise NoFilesError(self, start, end)
 
@@ -1346,14 +1350,14 @@ class FileSet:
         )
 
         # Convert the times (datetime objects) to seconds (integer)
-        times1 = [
-            [int(file.times[0].timestamp()), int(file.times[1].timestamp())]
+        times1 = np.asarray([
+            file.times
             for file in files1
-        ]
+        ]).astype("M8[s]").astype(int).tolist()
         times2 = np.asarray([
-            [file.times[0].timestamp(), file.times[1].timestamp()]
+            file.times
             for file in files2
-        ]).astype('int')
+        ]).astype("M8[s]").astype(int)
 
         if max_interval is not None:
             # Expand the intervals of the secondary fileset to close-in-time

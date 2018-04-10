@@ -326,10 +326,17 @@ class Collocations(FileSet):
             if verbose > 1:
                 reading_time = time.time() - verbose_timer
 
-            raw_data = self._prepare_data(
+            print(raw_data)
+
+            raw_data, stacked_dims = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
                 remove_overlaps, last_primary_end,
             )
+
+            if raw_data is None:
+                if verbose:
+                    print("Skipping because data is empty!")
+                continue
 
             # We do not need all data for collocating, therefore we select only
             # the required fields and convert all to a DataFrame (makes a lot
@@ -377,7 +384,8 @@ class Collocations(FileSet):
             # Store the collocated data to the output fileset:
             filename, n_collocations = self._store_collocations(
                 filesets=[primary, secondary], raw_data=raw_data,
-                collocations=collocations, files=files, **collocate_args
+                collocations=collocations, files=files,
+                stacked_dims=stacked_dims, **collocate_args
             )
 
             if verbose:
@@ -413,6 +421,11 @@ class Collocations(FileSet):
         """
         primary, secondary = filesets
 
+        # We may have stack (flat) some datasets. The dimensions that have to
+        # be stacked will be chosen automatically. We store there names in this
+        # dictionary for later:
+        stacked_dims = {}
+
         for fileset in filesets:
             name = fileset.name
 
@@ -437,7 +450,8 @@ class Collocations(FileSet):
             # where we can flat multiple dimensions to one. Which dimensions do
             # we have to stack together? We need the fields *time*, *lat* and
             # *lon* to be flat. So we choose their dimensions to be stacked.
-            dataset[name] = self._flat_to_main_coord(dataset[name])
+            dataset[name], stacked_dims[name] = \
+                self._flat_to_main_coord(dataset[name])
 
             # The user may not want to collocate overlapping data twice since
             # it might contain duplicates
@@ -446,8 +460,12 @@ class Collocations(FileSet):
             if name == primary.name:
                 if remove_overlaps and last_primary_end is not None:
                     dataset[name] = dataset[name].isel(
-                        __main_coord=dataset[name]['time'] > last_primary_end
+                        __collocation=dataset[name]['time'] > last_primary_end
                     )
+
+                # Check whether something is left:
+                if not len(dataset[name]['time']):
+                    return None, None
 
                 # We want to select a common time window from both datasets,
                 # aligned to the primary's time coverage. Because xarray has a
@@ -465,17 +483,21 @@ class Collocations(FileSet):
                     + max_interval
                 )
 
+                print(start, end)
+
+            print(dataset[name])
+
             # We do not have to collocate everything, just the common time
             # period expanded by max_interval and limited by the global start
             # and end parameter:
             dataset[name] = dataset[name].isel(
-                __main_coord=(dataset[name]['time'] >= np.datetime64(start))
+                __collocation=(dataset[name]['time'] >= np.datetime64(start))
                               & (dataset[name]['time'] <= np.datetime64(end))
             )
 
             dataset[name] = dataset[name].sortby("time")
 
-        return dataset
+        return dataset, stacked_dims
 
     @staticmethod
     def _flat_to_main_coord(data):
@@ -486,7 +508,7 @@ class Collocations(FileSet):
             key=lambda x: len(x)
         )
 
-        return data.stack(__main_coord=dims)
+        return data.stack(__collocation=dims), dims
 
     @staticmethod
     def _add_identifiers(files, data, dimension):
@@ -534,7 +556,8 @@ class Collocations(FileSet):
               f"remaining)")
 
     def _store_collocations(
-            self, filesets, raw_data, collocations, files, **collocate_args):
+            self, filesets, raw_data, collocations, files, stacked_dims,
+            **collocate_args):
         """Merge the data, original indices, collocation indices and
         additional information of the filesets to one DataGroup object.
 
@@ -548,7 +571,6 @@ class Collocations(FileSet):
         Returns:
             List with number of collocations
         """
-        collocations_name = filesets[0].name + "." + filesets[1].name
 
         # This holds the collocation information:
         metadata = xr.Dataset()
@@ -565,12 +587,12 @@ class Collocations(FileSet):
         metadata.attrs["primary"] = filesets[0].name
         metadata.attrs["secondary"] = filesets[1].name
 
+        file_start, file_end = None, None
         pairs = []
         number_of_collocations = []
+        output_data = {}
 
         for i, fileset in enumerate(filesets):
-            dataset_data = raw_data[fileset.name]
-
             # if "__collocations" in dataset_data.groups():
             #     # This dataset contains already-collocated filesets,
             #     # therefore we do not select any data but copy all of them.
@@ -599,27 +621,75 @@ class Collocations(FileSet):
                 index=original_indices,
             )
 
-            collocation_indices = new_indices.loc[collocations[i]]
+            collocation_indices = new_indices.loc[collocations[i]].values
 
             # Save the collocation indices in the metadata group:
             pairs.append(collocation_indices)
 
-            output_data[filesets[i].name] = \
-                dataset_data.isel(time=original_indices)
+            output_data[fileset.name] = \
+                raw_data[fileset.name].isel(__collocation=original_indices)
 
-        metadata["pairs"] = pairs
+            # We need the total time coverage of all datasets for the name of
+            # the output file
+            data_start = pd.Timestamp(
+                output_data[fileset.name]["time"].min().item(0)
+            )
+            data_end = pd.Timestamp(
+                output_data[fileset.name]["time"].max().item(0)
+            )
+            if file_start is None or file_start > data_start:
+                file_start = data_start
+            if file_end is None or file_end < data_end:
+                file_end = data_end
 
-        time_coverage = output_data.get_range("time", deep=True)
-        output_data.attrs["start_time"] = \
-            time_coverage[0].strftime("%Y-%m-%dT%H:%M:%S.%f")
-        output_data.attrs["end_time"] = \
-            time_coverage[1].strftime("%Y-%m-%dT%H:%M:%S.%f")
+            # We have to convert the MultiIndex to a normal index because we
+            # cannot store it to a file otherwise. We can convert it by simply
+            # setting it to new values, but we are losing the sub-level
+            # coordinates (the dimenisons that we stacked to create the
+            # multi-index in the first place) with that step. Hence, we store
+            # the sub-level coordinates in additional dataset to preserve them.
+            stacked_dims_data = xr.merge([
+                xr.DataArray(
+                    output_data[fileset.name][dim].values,
+                    name=dim, dims=["__collocation"]
+                )
+                for dim in stacked_dims[fileset.name]
+            ])
+            output_data[fileset.name]["__collocation"] = \
+                np.arange(output_data[fileset.name]["__collocation"].size)
+
+            # Now, since we unstacked the multi-index, we can add thw
+            # stacked dimensions back to the dataset:
+            output_data[fileset.name] = xr.merge(
+                [output_data[fileset.name], stacked_dims_data],
+            )
+
+            # We want to merge all datasets together (but as subgroups). Hence,
+            # add the fileset name to each dataset as prefix:
+            output_data[fileset.name].rename(
+                {
+                    name: "/".join([fileset.name, name])
+                    for name in output_data[fileset.name].variables
+                }, inplace=True
+            )
+
+        metadata_group = \
+            "__collocations/" + filesets[0].name + "." + filesets[1].name + "/"
+        metadata[metadata_group + "pairs"] = \
+            ("fileset", "collocation"), np.array(pairs)
+
+        # Merge all datasets into one:
+        output_data = xr.merge(
+            [data for data in output_data.values()] + [metadata]
+        )
 
         # Prepare the name for the output file:
         attributes = {
-            p: v for file in files.values() for p, v in file[0].attr.items()
+            p: v
+            for file in files.values()
+            for p, v in file[0].attr.items()
         }
-        filename = self.get_filename(time_coverage, fill=attributes)
+        filename = self.get_filename([file_start, file_end], fill=attributes)
 
         # Write the data to the file.
         self.write(output_data, filename)
