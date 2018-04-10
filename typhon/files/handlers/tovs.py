@@ -80,9 +80,12 @@ class MHSAAPP(NetCDF4):
             A xrarray.Dataset object.
         """
 
-        # We need to import at least the standard fields
-        user_fields = kwargs.pop("fields", {})
-        fields = self.standard_fields | set(user_fields)
+        # Make sure that the standard fields are always gonna be imported:
+        user_fields = kwargs.pop("fields", None)
+        if user_fields is not None:
+            fields = self.standard_fields | set(user_fields)
+        else:
+            fields = None
 
         # We catch the user mapping here, since we do not want to deal with
         # user-defined names in the further processing. Instead, we use our own
