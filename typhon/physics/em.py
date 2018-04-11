@@ -394,6 +394,9 @@ def zeeman_strength(ju, jl, mu, ml):
     .. math:: \Delta S_{M_u,M_l} = C \\left(\\begin{array}{ccc} J_l & 1 & J_u
                        \\\\ M_l & M_u-M_l&-M_u \\end{array}\\right)^2,
     where C is either 3/2 or 3/4 depending on in mu-ml is 0 or not.  In case
+    the intent is to return many split lines, the size of either (jl, ju) or
+    (ml, mu) must be the same.  Regardless, these pairs have to be of the same
+    type
 
 
     Parameters:
