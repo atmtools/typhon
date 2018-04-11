@@ -398,7 +398,6 @@ def zeeman_strength(ju, jl, mu, ml):
     (ml, mu) must be the same.  Regardless, these pairs have to be of the same
     type
 
-
     Parameters:
         ju: (scalar or 1darray) Upper level J.  Must be same size as jl
 
