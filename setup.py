@@ -96,11 +96,11 @@ setup(
         'netCDF4>=1.1.1',
         'numba',
         'numexpr',
-        'numpy>=1.6',
+        'numpy>=1.13',
         'scikit-learn',
         'scipy>=0.15.1',
         'setuptools>=0.7.2',
-        'xarray',
+        'xarray>=0.10.2',
     ],
 
     # List additional groups of dependencies here (e.g. development
