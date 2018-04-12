@@ -27,10 +27,11 @@ import numpy as np
 import pandas as pd
 import typhon.files
 import typhon.plots
-from .handlers import CSV, expects_file_info, FileInfo, NetCDF4
 from typhon.trees import IntervalTree
 from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
+
+from .handlers import CSV, expects_file_info, FileInfo, NetCDF4
 
 __all__ = [
     "FileSet",
@@ -605,22 +606,24 @@ class FileSet:
 
         # We want to put all secondaries in a loading queue. Hence, we need the
         # list flattened and without duplicates.
-        timer = time.time()
         secondaries = unique(
             secondary for match in secondaries for secondary in match
         )
 
+        # Prepare the loader for the primaries and secondaries:
         primary_loader = self.icollect(files=primaries)
         secondary_loader = filesets[0].icollect(
-            files=secondaries, return_info=True)
+            files=secondaries, return_info=True
+        )
 
         files, data = defaultdict(list), defaultdict(list)
         for match_id, primary_data in enumerate(primary_loader):
             files[self.name] = [primaries[match_id]]
             data[self.name] = [primary_data]
 
-            # We need to load only the files that have not been loaded earlier:
+            # We only need to load the files that have not been loaded earlier:
             for secondary in matches[match_id][1]:
+
                 if secondary not in files[filesets[0].name]:
                     secondary_file, secondary_data = next(secondary_loader)
                     if secondary != secondary_file:
@@ -635,7 +638,7 @@ class FileSet:
                     data[filesets[0].name].append(secondary_data)
 
             # We still have some files cached that we used the last time but we
-            # do not need any longer. Find therefore all, that we need:
+            # do not need any longer. Find them all that we need:
             files_to_keep = [
                 i for i, file in enumerate(files[filesets[0].name])
                 if file in matches[match_id][1]
@@ -677,10 +680,8 @@ class FileSet:
         consider using :meth:`icollect` instead.
 
         Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
+            start: The same as in :meth:`find`.
+            end: The same as in :meth:`find`.
             files: If you have already a list of files that you want to
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
@@ -726,8 +727,9 @@ class FileSet:
         # function consists mainly of pure python code that does not
         # release the GIL, this will slow down the performance.
         results = self.map(
-            FileSet.read, start=start, end=end, files=files, args=(self,),
-            kwargs=read_args, worker_type="thread", return_info=True,
+            FileSet.read, args=(self,), kwargs=read_args,
+            files=files, start=start, end=end,
+            worker_type="thread", return_info=True,
             **find_args
         )
 
@@ -742,36 +744,34 @@ class FileSet:
             if content is not None
         ])
 
-        data = list(data)
-
         if return_info:
-            return list(files), data
+            return list(files), list(data)
         else:
-            return data
+            return list(data)
 
     def icollect(self, start=None, end=None, files=None, read_args=None,
                  preload=True, return_info=False, **find_args):
         """Load all files between two dates sorted by their starting time
 
-        Use this in for-loops but if you need all files at once, use
-        :meth:`collect` instead.
-
-        Does the same as :meth:`collect` but works as a generator and is
-        therefore less memory space consuming but also slower.
+        Does the same as :meth:`collect` but works as a generator. Instead of
+        loading all files at the same time, it loads them in chunks (the chunk
+        size is defined by `max_workers). Hence, this method is less memory
+        space consuming but slower than :meth:`collect`. Simple hint: use this
+        in for-loops but if you need all files at once, use :meth:`collect`
+        instead.
 
         Args:
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
+            start: The same as in :meth:`find`.
+            end: The same as in :meth:`find`.
             files: If you have already a list of files that you want to
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
                 allowed to set *start* and *end* then.
             read_args: Additional key word arguments for the
                 *read* method of the used file handler class.
-            preload: Per default this method loads the next file to yield in a
-                background thread. Set this to False, if you do not want this.
+            preload: Per default this method loads the next N files in
+                background threads (the number can be set by `max_workers`).
+                Set this to False, if you do not want pre-loading.
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
@@ -801,8 +801,9 @@ class FileSet:
 
         if preload:
             results = self.imap(
-                start, end, files, func=FileSet.read, args=(self,),
-                kwargs=read_args, worker_type="thread", return_info=True,
+                FileSet.read, args=(self,), kwargs=read_args,
+                files=files, start=start, end=end,
+                worker_type="thread", return_info=True,
                 **find_args
             )
 
@@ -813,7 +814,7 @@ class FileSet:
                     yield data
         else:
             if files is None:
-                files = self.find(start, end, **find_args)
+                files = self.find(**find_args)
 
             for info in files:
                 data = self.read(info, **read_args)
@@ -1623,11 +1624,11 @@ class FileSet:
                 )
 
     def map(
-            self, func, args=None, kwargs=None, start=None, end=None,
-            files=None, on_content=False, pass_info=False, read_args=None,
-            output=None, max_workers=None, worker_type=None,
-            worker_initializer=None, worker_initargs=None, return_info=False,
-            **find_args
+            self, func, args=None, kwargs=None, files=None, on_content=False,
+            pass_info=None, read_args=None, output=None,
+            max_workers=None, worker_type=None,
+            #worker_initializer=None, worker_initargs=None,
+            return_info=False, **find_args
     ):
         """Apply a function on all files of this fileset between two dates
 
@@ -1644,38 +1645,34 @@ class FileSet:
             unless *sort* is False.
 
         Args:
-            start: Start timestamp either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End timestamp. Same format as "start".
+            func: A reference to a function that should be applied.
+            args: A list/tuple with positional arguments that should be passed
+                to `func`. It will be extended with the file arguments, i.e.
+                a FileInfo object if `on_content` is false or - if `on_content`
+                and `pass_info` are true - the read content of a file and its
+                corresponding FileInfo object.
+            kwargs: A dictionary with keyword arguments that should be passed
+                to `func`.
             files: If you have already a list of files that you want to
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
-                allowed to set *start* and *end* then.
-            func: A reference to a function that should be applied.
-            args: A list/tuple with positional arguments that should be passed
-                to *func*. It will be extended with the file arguments, i.e.
-                a FileInfo object if *on_content* is false or - if *on_content*
-                and *pass_info* are true - the read content of a file and its
-                corresponding FileInfo object.
-            kwargs: A dictionary with keyword arguments that should be passed
-                to *func*.
-            on_content: If true, the file will be read before *func* will be
-                applied. The content will then be passed to *func*.
-            pass_info: If *on_content* is true, this decides whether a FileInfo
-                object should be passed to *func*. Default is false.
+                allowed to set `start` and `end then.
+            on_content: If true, the file will be read before `func` will be
+                applied. The content will then be passed to `func`.
+            pass_info: If `on_content` is true, this decides whether a FileInfo
+                object should be passed to `func`. Default is false.
             read_args: Additional keyword arguments that will be passed
                 to the reading function (see FileSet.read() for more
-                information). Will be ignored if *on_content* is False.
+                information). Will be ignored if `on_content` is False.
             output: Set this to a path containing placeholders or a FileSet
-                object and the return value of *func* will be copied there if
+                object and the return value of `func` will be copied there if
                 it is not None.
             max_workers: Max. number of parallel workers to use. When
                 lacking performance, you should change this number.
             worker_type: The type of the workers that will be used to
-                parallelize *func*. Can be *process* or *thread*. If *func* is
+                parallelize `func`. Can be `process` or `thread`. If `func` is
                 a function that needs to share a lot of data with its
-                parallelized copies, you should set this to *thread*. Note that
+                parallelized copies, you should set this to `thread`. Note that
                 this may reduce the performance due to Python's Global
                 Interpreter Lock (`GIL <https://stackoverflow.com/q/1294382>`).
             worker_initializer: DEPRECATED! Must be a reference to a function
@@ -1684,11 +1681,11 @@ class FileSet:
                 https://docs.python.org/3.1/library/multiprocessing.html#module-multiprocessing.pool
                 for more information.
             worker_initargs: DEPRECATED! A tuple with arguments for
-                *worker_initializer*.
+                `worker_initializer`.
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
             **find_args: Additional keyword arguments that are allowed
-                for :meth`find`.
+                for :meth`find` such as `start` or `end`.
 
         Returns:
             A list with tuples of a FileInfo object and the return value of the
@@ -1746,19 +1743,17 @@ class FileSet:
 
         pool_class, pool_args, worker_args = \
             self._configure_pool_and_worker_args(
-                start, end, files, func, args, kwargs,
-                on_content, pass_info, read_args, output,
-                max_workers, worker_type, #worker_initializer, worker_initargs,
+                func, args, kwargs, files, on_content, pass_info, read_args,
+                output, max_workers, worker_type,
+                #worker_initializer, worker_initargs,
                 return_info, **find_args
             )
 
         with pool_class(**pool_args) as pool:
             # Process all found files with the arguments:
-            results = pool.map(
+            return list(pool.map(
                 self._call_map_function, worker_args,
-            )
-
-            return results
+            ))
 
     def imap(self, *args, **kwargs):
         """Apply a function on all files of this fileset between two dates
@@ -1772,7 +1767,7 @@ class FileSet:
 
         Yields:
             A tuple with the FileInfo object of the processed file and the
-            return value of the applied function. If *output* is set, the
+            return value of the applied function. If `output` is set, the
             second element is not the return value but a boolean values
             indicating whether the return value was not None.
 
@@ -1804,18 +1799,20 @@ class FileSet:
                 yield worker_queue.popleft().result()
 
     def _configure_pool_and_worker_args(
-            self, start=None, end=None, files=None, func=None, args=None,
-            kwargs=None, on_content=False, pass_info=None, read_args=None,
-            output=None, max_workers=None, worker_type=None,
+            self, func, args=None, kwargs=None, files=None,
+            on_content=False, pass_info=None, read_args=None, output=None,
+            max_workers=None, worker_type=None,
             #worker_initializer=None, worker_initargs=None,
             return_info=False, **find_args
     ):
         if func is None:
-            raise ValueError("The parameter *func* must be given!")
+            raise ValueError("The parameter `func` must be given!")
 
-        if files is not None and (start is not None or end is not None):
+        if files is not None \
+                and (find_args.get("start", None) is not None
+                     or find_args.get("end", None) is not None):
             raise ValueError(
-                "Either *files* or *start* and *end* must be given. Not all of"
+                "Either `files` or `start` and `end` must be given. Not all of"
                 " them!")
 
         # Convert the path to a FileSet object:
@@ -1856,7 +1853,7 @@ class FileSet:
             read_args = {}
 
         if files is None:
-            files = self.find(start, end, **find_args)
+            files = self.find(**find_args)
 
         worker_args = (
             (self, file, func, args, kwargs, pass_info, output,
