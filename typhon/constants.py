@@ -108,6 +108,7 @@ c = speed_of_light = spc.speed_of_light  # m s^-1
 N_A = avogadro = N = spc.Avogadro  # mol^-1
 K = zero_celsius = 273.15  # Kelvin at 0 Celsius
 R = gas_constant = spc.gas_constant  # J mol^-1 K^-1
+mu_B = spc.e * spc.Planck * (0.25 / spc.pi) / spc.m_e  # J T^-1
 molar_mass_dry_air = 28.9645e-3  # kg mol^-1
 molar_mass_water = 18.01528e-3  # kg mol^-1
 gas_constant_dry_air = R / molar_mass_dry_air  # J K^-1 kg^-1
