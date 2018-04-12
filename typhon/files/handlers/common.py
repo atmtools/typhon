@@ -555,8 +555,9 @@ class NetCDF4(FileHandler):
         self.reads_multiple_files = True
 
     @expects_file_info()
-    def read(self, paths, groups=None, fields=None, mapping=None, **kwargs):
-        """Reads and parses NetCDF files and load them to a xarray.Dataset
+    def read(self, paths, groups=None, fields=None, mapping=None,
+             global_coords=True, **kwargs):
+        """Read and parse NetCDF files and load them to a xarray.Dataset
 
         Args:
             paths: Path and name of the file as string or FileInfo object.
@@ -568,16 +569,24 @@ class NetCDF4(FileHandler):
                 new field names.
             mapping: A dictionary which is used for renaming the fields. If
                 given, `fields` must contain the old field names.
+            global_coords: When reading multiple groups that will be merged,
+                you have to decide what will happen with the equally-named
+                coordinates in different groups. Either they will be handled as
+                local coordinates (separate for each subgroup) or they will be
+                handled as global coordinates: through-out all subgroups they
+                share the same values. Variables that depend on these
+                coordinates, will be aligned and eventually be padded with NaN
+                values.
 
         Returns:
             A xarray.Dataset object.
         """
         if "group" in kwargs:
-            raise ValueError(
-                "Use `groups` instead of `group` as parameter!")
+            raise ValueError("Use `groups` instead of `group` as parameter!")
 
         # Make sure we use the NetCDF4 engine:
         kwargs["engine"] = "netcdf4"
+        kwargs["autoclose"] = True
 
         if groups is None:
             # Find all groups by ourselves:
@@ -608,7 +617,7 @@ class NetCDF4(FileHandler):
 
         # We have to add the group names as prefix to the variables' names:
         dataset = [
-            self._add_prefix(group, group_data)
+            self._add_prefix(group, group_data, global_coords)
             for group, group_data in dataset.items()
         ]
 
@@ -626,10 +635,16 @@ class NetCDF4(FileHandler):
                 yield value.name + "/" + children
 
     @staticmethod
-    def _add_prefix(prefix, data):
+    def _add_prefix(prefix, data, global_coords):
+        # If we do not want to have global coords, we need to rename as well:
+        if global_coords:
+            names = data.data_vars
+        else:
+            names = data.variables
+
         return data.rename({
             name: name if prefix is None else "/".join([prefix, name])
-            for name in data.data_vars
+            for name in names
         })
 
     @expects_file_info(pos=2)
