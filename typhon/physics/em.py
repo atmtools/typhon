@@ -413,43 +413,45 @@ def zeeman_strength(ju, jl, mu, ml):
         (scalar or ndarray) Relative line strength of component normalized to 1
         or array(array(S+, Pi, S-))
     """
-    assert type(jl) == type(ju), "Must have same type"
-    assert type(ml) == type(mu), "Must have same type"
     try:
         import sympy.physics.wigner as wig
-        if np.isscalar(mu) and np.isscalar(ju):
-            dm = mu - ml
-            w = wig.wigner_3j(jl, 1, ju, ml, dm, -mu)
-            w = float(w)
-            if dm == 0:
-                r = w**2 * 1.5
-            else:
-                r = w**2 * 0.75
-        elif np.isscalar(ju):
-            r = []
-            for i in range(len(mu)):
-                r.append(zeeman_strength(ju, jl, mu[i], ml[i]))
-            r = np.array(r)
-        else:
-            r = []
-            for i in range(len(ju)):
-                JU = ju[i]
-                JL = jl[i]
-                if np.isscalar(JU):
-                    t = []
-                    MU, ML = zeeman_transitions(JU, JL, "S-")
-                    t.append(zeeman_strength(JU, JL, MU, ML))
-                    MU, ML = zeeman_transitions(JU, JL, "Pi")
-                    t.append(zeeman_strength(JU, JL, MU, ML))
-                    MU, ML = zeeman_transitions(JU, JL, "S+")
-                    t.append(zeeman_strength(JU, JL, MU, ML))
-                    r.append(t)
-                else:
-                    r.append(zeeman_strength(JU, JL, mu, ml))
-            r = np.array(r)
-        return r
     except ModuleNotFoundError:
         raise RuntimeError("Must have sympy installed to use")
+
+    assert type(jl) == type(ju), "Must have same type"
+    assert type(ml) == type(mu), "Must have same type"
+
+    if np.isscalar(mu) and np.isscalar(ju):
+        dm = mu - ml
+        w = wig.wigner_3j(jl, 1, ju, ml, dm, -mu)
+        w = float(w)
+        if dm == 0:
+            r = w**2 * 1.5
+        else:
+            r = w**2 * 0.75
+    elif np.isscalar(ju):
+        r = []
+        for i in range(len(mu)):
+            r.append(zeeman_strength(ju, jl, mu[i], ml[i]))
+        r = np.array(r)
+    else:
+        r = []
+        for i in range(len(ju)):
+            JU = ju[i]
+            JL = jl[i]
+            if np.isscalar(JU):
+                t = []
+                MU, ML = zeeman_transitions(JU, JL, "S-")
+                t.append(zeeman_strength(JU, JL, MU, ML))
+                MU, ML = zeeman_transitions(JU, JL, "Pi")
+                t.append(zeeman_strength(JU, JL, MU, ML))
+                MU, ML = zeeman_transitions(JU, JL, "S+")
+                t.append(zeeman_strength(JU, JL, MU, ML))
+                r.append(t)
+            else:
+                r.append(zeeman_strength(JU, JL, mu, ml))
+        r = np.array(r)
+    return r
 
 
 def zeeman_transitions(ju, jl, type):
