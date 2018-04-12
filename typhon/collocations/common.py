@@ -1,13 +1,12 @@
 """
-This module contains classes to find collocations between datasets. They are
-inspired by the CollocatedDataset classes in atmlab implemented by Gerrit Holl.
-
-TODO: Move this package to typhon.collocations.
+This module provides classes and functions to find collocations between
+filesets and datasets. They are inspired by the CollocatedDataset classes in
+atmlab implemented by Gerrit Holl.
 
 Created by John Mrziglod, June 2017
 """
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
 import logging
 from numbers import Number
@@ -15,6 +14,7 @@ import time
 import traceback
 import warnings
 
+import numba
 import numpy as np
 import pandas as pd
 import scipy.stats
@@ -49,6 +49,39 @@ UNITS_CONVERSION_FACTORS = [
     [{"ft", "foot", "feet"}, 0.3048e-3],
 ]
 
+# The names for the processes. This started as an easter egg, but it actually
+# helps more than arbitrary numbers or ids when debugging different processes.
+PROCESS_NAMES = [
+    'Newton', 'Einstein', 'Bohr', 'Darwin', 'Pasteur', 'Freud', 'Galilei',
+    'Lavoisier', 'Kepler', 'Copernicus', 'Faraday', 'Maxwell', 'Bernard',
+    'Boas', 'Heisenberg', 'Pauling', 'Virchow', 'Schrodinger', 'Rutherford',
+    'Dirac', 'Vesalius', 'Brahe', 'Buffon', 'Boltzmann', 'Planck', 'Curie',
+    'Herschel', 'Lyell', 'Laplace', 'Hubble', 'Thomson', 'Born', 'Crick',
+    'Fermi', 'Euler', 'Liebig', 'Eddington', 'Harvey', 'Malpighi', 'Huygens',
+    'Gauss', 'Haller', 'Kekule', 'Koch', 'Gell-Mann', 'Fischer', 'Mendeleev',
+    'Glashow', 'Watson', 'Bardeen', 'Neumann', 'Feynman', 'Wegener', 'Hawking',
+    'Leeuwenhoek', 'Laue', 'Kirchhoff', 'Bethe', 'Euclid', 'Mendel', 'Onnes',
+    'Morgan', 'Helmholtz', 'Ehrlich', 'Mayr', 'Sherrington', 'Dobzhansky',
+    'Delbruck', 'Lamarck', 'Bayliss', 'Chomsky', 'Sanger', 'Lucretius',
+    'Dalton', 'Broglie', 'Linnaeus', 'Piaget', 'Simpson', 'Levi-Strauss',
+    'Margulis', 'Landsteiner', 'Lorenz', 'Wilson', 'Hopkins', 'Elion', 'Selye',
+    'Oppenheimer', 'Teller', 'Libby', 'Haeckel', 'Salk', 'Kraepelin',
+    'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
+    'Archimedes'
+]
+
+
+@numba.jit
+def _rows_for_secondaries(primary):
+    current_row = np.zeros(primary.size, dtype=int)
+    rows = np.zeros(primary.size, dtype=int)
+    i = 0
+    for p in primary:
+        rows[i] = current_row[p]
+        i += 1
+        current_row[p] += 1
+    return rows
+
 
 class Collocations(FileSet):
     """Class for finding and storing collocations between FileSet objects
@@ -57,6 +90,14 @@ class Collocations(FileSet):
     instead.
     """
     def __init__(self, *args, **kwargs):
+        """Initialize a Collocation object
+
+        This :class:`~typhon.files.fileset.FileSet`
+
+        Args:
+            *args:
+            **kwargs:
+        """
         # Call the base class initializer
         super().__init__(*args, **kwargs)
 
@@ -86,20 +127,69 @@ class Collocations(FileSet):
 
     @staticmethod
     def _add_fields(data, original_fileset, fields):
-        try:
-            original_file = data[group].attrs["__original_file"]
-        except KeyError:
-            raise KeyError(
-                "The collocation files does not contain information about "
-                "their original files.")
-        original_data = original_fileset.read(original_file)[fields]
-        original_indices = data[group]["__original_indices"]
-        data[group] = GroupedArrays.merge(
-            [data[group], original_data[original_indices]],
-            overwrite_error=False
-        )
+        pass
 
-        return data
+    def collect(self, *args, mode=None, collapser=None, **kwargs):
+        """
+
+        Args:
+            *args:
+            mode:
+            collapser:
+            **kwargs:
+
+        Returns:
+
+        """
+        pass
+
+    def _collapse(self, data, primary, secondary, collapser):
+        # TODO: Add more explanation
+
+        pairs = "__pairs_" + primary + "." + secondary
+        primary_indices = data[pairs][0].values
+        secondary_indices = data[pairs][1].values
+
+        # THE GOAL: We want to bin the secondary data according to the
+        # primary indices and apply a collapse function (e.g. mean) to it.
+        # THE PROBLEM: We might to group the data in many (!) bins that might
+        # not have the same size and we have to apply a function onto each of
+        # these bins. How to make this efficient?
+        # APPROACH 1: pandas and xarray provide the powerful groupby method
+        # which allows grouping by bins and applying a function to it.
+        # -> This does not scale well with big datasets (100k of primaries
+        # takes ~15 seconds).
+        # APPROACH 2: Applying functions onto matrix columns is very fast in
+        # numpy even if the matrix is big. We could create a matrix where each
+        # column acts as a primary bin, the number of its rows is maximum
+        # number of secondaries per bin. Then, we fill the secondary data into
+        # the corresponding bins. Since they might be a different number of
+        # secondaries for each bin, there will be unfilled slots. We fill these
+        # slots with NaN values (so they won't affect the outcome of the
+        # collapser function). Now, we can apply the collapser function on the
+        # whole matrix along the columns.
+        # -> This approach is very fast but might need more space.
+        # We follow approach 2, since it may scale better than approach 1 and
+        # we normally do not have to worry about memory space. Gerrit's
+        # collocation toolkit in atmlab also follows a similar approach.
+
+        # Let's start! 
+        rows_in_bins = _rows_for_secondaries(primary_indices)
+
+        # Create the matrix
+        binned_indices = np.zeros(
+            (np.max(rows_in_bins)+1,
+             np.unique(primary_indices).size), dtype=int
+        )
+        binned_indices[rows_in_bins, primary_indices] = secondary_indices
+
+        flag = np.ones_like(binned_indices, dtype=bool)
+        flag[rows_in_bins, primary_indices] = False
+
+        for var, var_data in data.variables.items():
+            binned_var_data = var_data[binned_indices]
+            binned_var_data[flag] = np.nan
+            data[var] = collapser(data, axis=1)
 
     def collapse(self, primary, secondary, collapser=None, include_stats=None,
                  **map_args):
@@ -211,11 +301,8 @@ class Collocations(FileSet):
 
         return collapsed_data
 
-    def expand(self):
-        """Repeat each data point to its multiple collocation points
-
-        Warnings:
-            Does not work yet!
+    def expand(self, *collect_args, **collect_kwargs):
+        """Collect collocation data from files and pad
 
         This is the inverse function of :func:`collapse`.
 
@@ -237,25 +324,33 @@ class Collocations(FileSet):
 
     def search(
             self, filesets, start=None, end=None, remove_overlaps=True,
-            processes=None, verbose=True, **collocate_args, ):
+            processes=None, log_dir=None, verbose=1, **collocate_args, ):
         """Find all collocations between two filesets and store them in files
 
         Collocations are two or more data points that are located close to each
         other in space and/or time.
 
-        This takes all files from the filesets between two dates and find
-        collocations of their data points. Afterwards they will be stored in
-        *output*.
+        This takes all files from the filesets between two dates, find
+        collocations of their data points and store them in output files.
 
         Each collocation output file provides these standard fields:
 
         * *fileset_name/lat* - Latitudes of the collocations.
         * *fileset_name/lon* - Longitude of the collocations.
         * *fileset_name/time* - Timestamp of the collocations.
-        * *fileset_name/__original_indices* - Indices of the collocation data in
+        * *fileset_name/__index* - Indices of the collocation data in
             the original files.
+        * *fileset_name/__file_start* - Start time of the original file.
+        * *fileset_name/__file_end* - End time of the original file.
         * *__collocations/{primary}.{secondary}/pairs* - Tells you which data
             points are collocated with each other by giving their indices.
+
+        And all additional fields that were loaded from the original files (you
+        can control which fields should be loaded by the `read_args` parameter
+        from the :class:`~typhon.files.fileset.FileSet` objects in `filesets`).
+        Note that subgroups in the original data will be flattened by replacing
+        */* with *_* since xarray is not yet able to handle grouped data
+        properly.
 
         Args:
             filesets: A list of FileSet objects.
@@ -263,16 +358,17 @@ class Collocations(FileSet):
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If no date is given,
                 the *0000-01-01* wil be taken.
-            end: End date. Same format as "start". If no date is given, the
+            end: End date. Same format as `start`. If no date is given, the
                 *9999-12-31* wil be taken.
             remove_overlaps: If the files of the primary fileset overlap in
                 time, the overlapping data is used only once for collocating.
+            processes: The number of processes that should be used to
+                parallelize the collocation process. Default is 1.
+            log_dir: If given, the log files for the processes will be stored
+                in this directory.
             verbose: If true, it prints logging messages.
             **collocate_args: Additional keyword arguments that are allowed for
-                :func:`collocate` except *arrays*.
-
-        Returns:
-            A :class:`FileSet` object holding the collocated data.
+                :func:`collocate` except `data`.
 
         Examples:
 
@@ -284,33 +380,80 @@ class Collocations(FileSet):
         if len(filesets) != 2:
             raise ValueError("Only collocating two filesets at once is allowed"
                              "at the moment!")
-        primary, secondary = filesets
-
-        # Set the defaults for start and end
-        start = datetime.min if start is None else to_datetime(start)
-        end = datetime.max if end is None else to_datetime(end)
 
         # Check the max_interval argument because we need it later
         max_interval = collocate_args.get("max_interval", None)
         if max_interval is None:
             raise ValueError("Collocating filesets without max_interval is"
                              " not yet implemented!")
-        max_interval = to_timedelta(max_interval, numbers_as="seconds")
+        # max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
         # Check the algorithm argument because we need the required fields
-        algorithm = _get_algorithm(collocate_args.get("algorithm", None))
+        collocate_args["algorithm"] = \
+            _get_algorithm(collocate_args.get("algorithm", None))
+
+        # Encourage the user to set the start and end timestamps explicitly
+        # (otherwise splitting onto multiple processes may not be very
+        # efficient):
+        if start is None or end is None:
+            raise ValueError("The collocation search needs explicit start and "
+                             "end timestamps")
+        start = to_datetime(start)
+        end = to_datetime(end)
+
+        # Set the number of processes per default to 1, the user shall
+        # explicitly ask for parallel processing:
+        if processes is None:
+            processes = 1
+
+        # We split up the whole search period into chunks and search in each
+        # chunk with an individual process.
+        diff = (end - start) / processes
+        periods = [
+            [start + diff * i, start + diff * (i + 1)]
+            for i in range(processes)
+        ]
+
+        if verbose:
+            print(f"Start {processes} processes to collocate "
+                  f"{filesets[0].name} and {filesets[1].name}\nfrom {start} to"
+                  f" {end}")
+            print("-" * 79)
+
+        with ProcessPoolExecutor(processes) as pool:
+            futures = [
+                pool.submit(
+                    Collocations._search, self, PROCESS_NAMES[i],
+                    filesets, period[0], period[1], remove_overlaps,
+                    verbose=min(verbose, 1), **collocate_args
+                )
+                for i, period in enumerate(periods)
+            ]
+
+            # Wait for all processes to end
+            wait(futures)
+
+            for future in futures:
+                if future.exception() is not None:
+                    traceback.print_tb(future.exception().__traceback__)
+
+    def _search(self, pid, filesets, start, end, remove_overlaps,
+                verbose, **collocate_args):
+
+        primary, secondary = filesets
+
+        # Check the max_interval argument because we need it later
+        max_interval = to_timedelta(
+            collocate_args["max_interval"], numbers_as="seconds"
+        )
 
         # Use a timer for profiling.
         timer = time.time()
 
         if verbose:
-            print(f"Find collocations between {primary.name} and "
-                  f"{secondary.name} from {start} to {end}")
+            print(f"[{pid}] Collocate from {start} to {end}")
 
         total_collocations = [0, 0]
-
-        if verbose:
-            print("Retrieve time coverages from files...")
 
         verbose_timer = time.time()
 
@@ -332,27 +475,27 @@ class Collocations(FileSet):
             )
 
             if raw_data is None:
-                if verbose:
+                if verbose > 1:
                     print("Skipping because data is empty!")
                 continue
 
             # We do not need all data for collocating, therefore we select only
             # the required fields and convert all to a DataFrame (makes a lot
             # of things easier):
-            required_fields = list(algorithm.required_fields)
+            required_fields = list(collocate_args["algorithm"].required_fields)
             data = {
                 name: value[required_fields].to_dataframe()  # noqa
                 for name, value in raw_data.items()
             }
 
             if data[primary.name].empty or data[secondary.name].empty:
-                if verbose:
+                if verbose > 1:
                     print("Skipping because data is empty!")
                 continue
 
             if verbose:
                 self._print_collocating_status(
-                    timer, start, end, data[primary.name]["time"]
+                    pid, timer, start, end, data[primary.name]["time"]
                 )
             if verbose > 1:
                 print(f"{reading_time:.2f}s for reading the data")
@@ -375,7 +518,7 @@ class Collocations(FileSet):
             verbose_timer = time.time()
 
             if not collocations.any():
-                if verbose:
+                if verbose > 1:
                     print("Found no collocations!")
                 continue
 
@@ -386,13 +529,12 @@ class Collocations(FileSet):
                 stacked_dims=stacked_dims, **collocate_args
             )
 
-            if verbose:
+            if verbose > 1:
                 print(
                     f"Store {n_collocations[0]} ({filesets[0].name}) and "
                     f"{n_collocations[1]} ({filesets[1].name}) collocations to"
                     f"\n{filename}"
                 )
-            if verbose > 1:
                 print(f"{time.time()-verbose_timer:.2f}s for storing the data")
 
             total_collocations[0] += n_collocations[0]
@@ -401,12 +543,11 @@ class Collocations(FileSet):
             verbose_timer = time.time()
 
         if verbose:
-            print("-" * 79)
             print(
-                f"Took {time.time()-timer:.2f} s to find "
+                f"[{pid}] {time.time()-timer:.2f} s to find "
                 f"{total_collocations[0]} ({primary.name}) and "
                 f"{total_collocations[1]} ({secondary.name}) "
-                f"collocations.\nProcessed {end-start} hours of data."
+                f"collocations."
             )
 
     def _prepare_data(self, filesets, files, dataset,
@@ -433,7 +574,7 @@ class Collocations(FileSet):
             # to the data. We need the length of the main dimension for this.
             # What is the main dimension? Well, we simply use the first
             # dimension of the time variable.
-            main_dimension = dataset[name][0]['time'].dims[0]
+            main_dimension = dataset[name][0].time.dims[0]
             dataset[name] = self._add_identifiers(
                 files[name], dataset[name], main_dimension
             )
@@ -460,9 +601,6 @@ class Collocations(FileSet):
                     dataset[name] = dataset[name].isel(
                         __collocation=dataset[name]['time'] > last_primary_end
                     )
-
-                # Filter out NaNs:
-                dataset[name] = dataset[name].dropna("__collocation")
 
                 # Check whether something is left:
                 if not len(dataset[name]['time']):
@@ -499,6 +637,17 @@ class Collocations(FileSet):
                 __collocation=(dataset[name]['time'] >= np.datetime64(start))
                               & (dataset[name]['time'] <= np.datetime64(end))
             )
+
+            # Filter out NaNs:
+            not_nans = \
+                dataset[name].time.notnull() \
+                & dataset[name].lat.notnull() \
+                & dataset[name].lon.notnull()
+            dataset[name] = dataset[name].isel(__collocation=not_nans)
+
+            # Check whether something is left:
+            if not len(dataset[name].time):
+                return None, None
 
             dataset[name] = dataset[name].sortby("time")
 
@@ -540,11 +689,11 @@ class Collocations(FileSet):
         return data
 
     @staticmethod
-    def _print_collocating_status(timer, start, end, data):
+    def _print_collocating_status(pid, timer, start, end, data):
         current_start = data.min()
         current_end = data.max()
-        print("-" * 79)
-        print(f"Collocating from {current_start} to {current_end}")
+        #print("-" * 79)
+        #print(f"Collocating from {current_start} to {current_end}")
 
         if start == datetime.min and end == datetime.max:
             return
@@ -557,8 +706,8 @@ class Collocations(FileSet):
             seconds=int(elapsed_time * (1 / progress - 1))
         )
 
-        print(f"Progress: {100*progress:.0f}% done ({expected_time} hours "
-              f"remaining)")
+        print(f"[{pid}] {100*progress:.0f}% done ({expected_time} "
+              f"hours remaining)")
 
     def _store_collocations(
             self, filesets, raw_data, collocations, files, stacked_dims,
@@ -576,21 +725,6 @@ class Collocations(FileSet):
         Returns:
             List with number of collocations
         """
-
-        # This holds the collocation information:
-        metadata = xr.Dataset()
-
-        max_interval = collocate_args.get("max_interval", None)
-        if max_interval is not None:
-            max_interval = to_timedelta(max_interval).total_seconds()
-        metadata.attrs["max_interval"] = \
-            f"Max. interval in secs: {max_interval}"
-
-        max_distance = collocate_args.get("max_distance", None)
-        metadata.attrs["max_distance"] = \
-            f"Max. distance in kilometers: {max_distance}"
-        metadata.attrs["primary"] = filesets[0].name
-        metadata.attrs["secondary"] = filesets[1].name
 
         file_start, file_end = None, None
         pairs = []
@@ -633,6 +767,18 @@ class Collocations(FileSet):
 
             output_data[fileset.name] = \
                 raw_data[fileset.name].isel(__collocation=original_indices)
+
+            # xarrays does not really handle grouped data (actually, not at
+            # all). Until this has changed, I do not want to have subgroups in
+            # the output data (this makes things complicated when it comes to
+            # coordinates). Therefore, we 'flat' each group before continuing:
+            output_data[fileset.name].rename(
+                {
+                    old_name: old_name.replace("/", "_")
+                    for old_name in output_data[fileset.name].variables
+                    if "/" in old_name
+                }, inplace=True
+            )
 
             # We need the total time coverage of all datasets for the name of
             # the output file
@@ -678,15 +824,30 @@ class Collocations(FileSet):
                 }, inplace=True
             )
 
-        metadata_group = \
-            "__collocations/" + filesets[0].name + "." + filesets[1].name + "/"
-        metadata[metadata_group + "pairs"] = \
-            ("fileset", "collocation"), np.array(pairs)
+        max_interval = collocate_args.get("max_interval", None)
+        if max_interval is not None:
+            max_interval = to_timedelta(max_interval).total_seconds()
+        max_distance = collocate_args.get("max_distance", None)
+
+        # This holds the collocation information:
+        metadata = xr.DataArray(
+            np.array(pairs), dims=("fileset", "collocation"),
+            attrs={
+                "max_interval": f"Max. interval in secs: {max_interval}",
+                "max_distance": f"Max. distance in kilometers: {max_distance}",
+                "primary": filesets[0].name,
+                "secondary": filesets[1].name
+            }
+        )
+
+        metadata_name = \
+            "__pairs_" + filesets[0].name + "." + filesets[1].name
 
         # Merge all datasets into one:
         output_data = xr.merge(
-            [data for data in output_data.values()] + [metadata]
+            [data for data in output_data.values()]
         )
+        output_data[metadata_name] = metadata
 
         # Prepare the name for the output file:
         attributes = {
