@@ -16,6 +16,7 @@ from warnings import warn
 from functools import (partial, wraps)
 
 import xarray
+import pandas
 import numpy as np
 
 from . import cache
@@ -515,7 +516,11 @@ def stack_xarray_repdim(da, **dims):
             dimmap[newdim] = dim
     da2 = xarray.DataArray(da.values, dims=tmpdims)
     da2_stacked = da2.stack(**dims)
-    # put back repeated dimensions
+    # put back repeated dimensions with new coordinates
     da3 = xarray.DataArray(da2_stacked.values,
         dims=[dimmap.get(d, d) for d in da2_stacked.dims])
+    da3 = da3.assign_coords(
+        **{k: pandas.MultiIndex.from_product(
+                    [da.coords[kk] for kk in dims[k]], names=dims[k])
+                if k in dims else da.coords[k] for k in np.unique(da3.dims)})
     return da3
