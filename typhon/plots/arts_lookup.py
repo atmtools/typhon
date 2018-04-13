@@ -209,7 +209,7 @@ def _add_opacity_legend(ax=None):
 
 
 def _add_xsec_legend(lookup, ipressures, ax=None):
-    """Add legend to an cross section lookup table plot."""
+    """Add legend to a cross section lookup table plot."""
     if ax is None:
         ax = plt.gca()
 
@@ -227,9 +227,11 @@ def _add_xsec_legend(lookup, ipressures, ax=None):
 
 
 def _setup_lookup_figure(lookup, cols=3):
+    """Create the figure and axes objects for the lookup table plot."""
     rows = int(np.ceil(len(lookup.speciestags) / cols))
     fig, ax = plt.subplots(rows + 1, cols, figsize=(4*cols, (rows + 1) * 2))
     fig.tight_layout()
+
     return rows, cols, fig, ax
 
 
@@ -243,17 +245,20 @@ def plot_arts_lookup(lookup, opacity=True, z=None, g=typhon.constants.g,
 
     Parameters:
         lookup (typhon.arts.catalogues.GasAbsLookup): ARTS lookup table object.
-        opacity (bool): Set to False to plot the absorption cross sections
-        z (ndarray): Altitude profile. Optional input for opacity calculation.
-            If not given, the layer thicknesses are calculated based on the
-            hypsometric formula.
-        g (float): Gravity constant. Uses Earth's gravity by default.
-        r (float): Gas constant for dry air. Uses constant for Earth by default.
-        tpert (int): Index of temperature perturbation to plot.
-        vmrpert (int): Index of vmr perturbation for nonlinear species to plot.
-        pressures (ndarray(int)): Pressure levels to plot. If not given, up to
-            6 pressure levels are selected.
-        cols (int): Species to plot per row.
+        opacity (bool, optional): Set to False to plot the absorption cross
+            sections.
+        z (ndarray, optional): Altitude profile. Optional input for opacity
+            calculation. If not given, the layer thicknesses are calculated
+            based on the hypsometric formula.
+        g (float, optional): Gravity constant. Uses Earth's gravity by default.
+        r (float, optional): Gas constant for dry air.
+            Uses constant for Earth by default.
+        tpert (int, optional): Index of temperature perturbation to plot.
+        vmrpert (int, optional): Index of vmr perturbation for nonlinear
+            species to plot.
+        pressures (ndarray(int), optional): Pressure levels to plot. If not
+            given, up to 6 pressure levels are selected.
+        cols (int, optional): Species to plot per row.
 
     Returns:
         matplotlib.figure.Figure, ndarray(AxesSubplot):
@@ -286,7 +291,7 @@ def plot_arts_lookup(lookup, opacity=True, z=None, g=typhon.constants.g,
         lookup_file = join(dirname(ty.__file__), 'tests', 'plots',
                            'reference', 'abs_lookup_small.xml')
         fig, ax = ty.plots.plot_arts_lookup(ty.arts.xml.load(lookup_file),
-                                           opacity=False)
+                                            opacity=False)
 
         fig.suptitle('Lookup table absorption cross sections [m$^2$]')
         fig.subplots_adjust(top=0.88)
