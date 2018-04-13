@@ -824,6 +824,7 @@ class QuantumNumberRecord:
 
         if type is not None:
             mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], type)
+            return zeeman_splitting(gu, gl, mu, ml, H)
         else:
             mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "PI")
             pi = zeeman_splitting(gu, gl, mu, ml, H)
