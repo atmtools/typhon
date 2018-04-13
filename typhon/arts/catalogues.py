@@ -801,6 +801,53 @@ class QuantumNumberRecord:
         else:
             self._qns['UP'] = QuantumNumbers()
 
+    def zeeman_splitting(self, type=None, case=None, H=1):
+        from ..physics.em import zeeman_splitting, landau_g_factor, \
+            zeeman_transitions
+        if case is None:
+            raise RuntimeError("No unknown cases allowed")
+
+        if case.lower() == 'a':
+            gu = landau_g_factor(self.upper['Omega'], self.upper['J'],
+                                 self.upper['S'], self.upper['Lambda'],
+                                 gs=2, gl=1, case='a')
+            gl = landau_g_factor(self.lower['Omega'], self.lower['J'],
+                                 self.lower['S'], self.lower['Lambda'],
+                                 gs=2, gl=1, case='a')
+        elif case.lower() == 'b':
+            gu = landau_g_factor(self.upper['N'], self.upper['J'],
+                                 self.upper['S'], self.upper['Lambda'],
+                                 gs=2, gl=1, case='b')
+            gl = landau_g_factor(self.lower['N'], self.lower['J'],
+                                 self.lower['S'], self.lower['Lambda'],
+                                 gs=2, gl=1, case='b')
+
+        if type is not None:
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], type)
+            return zeeman_splitting(gu, gl, mu, ml, H)
+        else:
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "PI")
+            pi = zeeman_splitting(gu, gl, mu, ml, H)
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "S+")
+            sp = zeeman_splitting(gu, gl, mu, ml, H)
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "S-")
+            sm = zeeman_splitting(gu, gl, mu, ml, H)
+            return {"pi": pi, "s+": sp, "s-": sm}
+
+    def zeeman_transitions(self, type=None):
+        from ..physics.em import zeeman_transitions, zeeman_strength
+        if type is not None:
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], type)
+            return zeeman_strength(self.upper['J'], self.lower['J'], mu, ml)
+        else:
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "PI")
+            pi = zeeman_strength(self.upper['J'], self.lower['J'], mu, ml)
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "S+")
+            sp = zeeman_strength(self.upper['J'], self.lower['J'], mu, ml)
+            mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], "S-")
+            sm = zeeman_strength(self.upper['J'], self.lower['J'], mu, ml)
+            return {"pi": pi, "s+": sp, "s-": sm}
+
     @classmethod
     def from_xml(cls, xmlelement):
         """Loads a QuantumNumberRecord object from an existing file.

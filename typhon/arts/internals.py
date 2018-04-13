@@ -94,7 +94,9 @@ class ARTSCAT5:
                                         "PB": {"Type": None,
                                                "Data": np.array([])},
                                         "LM": {"Type": None,
-                                               "Data": np.array([])}})
+                                               "Data": np.array([])},
+                                        "LSM": {"Type": None,
+                                                "Data": np.array([])}})
 
         spec = lr[1].split('-')
         self.LineRecordData['spec'] = np.append(self.LineRecordData['spec'],
@@ -126,6 +128,13 @@ class ARTSCAT5:
                 key = this
             elif key == 'QN':
                 qnr += ' ' + this
+            elif this == 'LSM':
+                i += 1
+                x = int(lr[i])
+                i += 1
+                for nothing in range(x):
+                    self._dictionaries[-1]['LSM'][lr[i]] = lr[i+1]
+                    i += 2
             else:
                 try:
                     self._dictionaries[-1][key]["Data"] = \
