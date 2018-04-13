@@ -109,6 +109,7 @@ def DopplerWind(Temp, FreqGrid, Para, wind_v, shift_direction=False):
     elif shift_direction is 'Blue' or 'blue' or 'BLUE':
         D_effect = (-deltav)
     else:print('Set Direction, red shift or blue shift')
+
 #    step1 = Para[0]/c*(2.*R*Temp*np.log(2.)/(Para[1]*1.e-3))**0.5  # HWHM
 #    outy = np.exp(-np.log(2.)*(FreqGrid-Para[0])**2/step1**2) *\
 #                 (np.log(2.)/np.pi)**0.5/step1

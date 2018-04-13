@@ -33,19 +33,21 @@ def swifile(atmosphere):
     return alt, pre, temp, mole, alt_ref
 
 
-def plot_alt_temp_mole(atmosphere):
+def plot_alt_temp_mole(atmosphere=None, temp=None, alt_ref=None, mole=None):
     """Plot-helping function
     """
-    alt, pre, temp, mole, alt_ref = swifile(atmosphere)
+    if atmosphere is True:
+        alt, pre, temp, mole, alt_ref = swifile(atmosphere)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.plot(mole*1.e-6,alt_ref,'b-')  # ,label='Number density(SSL=60)')
-    plt.xlabel('Number density [cm$^{-3}$]',fontsize=24,weight='bold')
+    plt.xlabel('Number density [cm$^{-3}$]',fontsize=18,weight='bold')
     plt.xscale('log')
-    plt.ylabel('Altitude [km]',fontsize=24,weight='bold')
+    plt.ylabel('Altitude [km]',fontsize=18,weight='bold')
     ax2=ax.twiny()
     ax2.plot(temp,alt_ref,'k-', label='Temperature')
-    ax2.set_xlabel("Temperature [K]",fontsize=24,weight='bold')
+    ax2.set_xlabel("Temperature [K]",fontsize=18,weight='bold')
     ax2.plot([],[],'b-', label='H$_{2}$O Number density')
     plt.legend()
+    fig.tight_layout(pad=0.4)
     return fig
