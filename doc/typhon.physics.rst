@@ -26,12 +26,16 @@ physics
    snell
    specific_humidity2mixing_ratio
    specific_humidity2vmr
+   stefan_boltzmann_law
    vmr2mixing_ratio
    vmr2specific_humidity
    wavelength2frequency
    wavelength2wavenumber
    wavenumber2frequency
    wavenumber2wavelength
+   zeeman_splitting
+   zeeman_strength
+   zeeman_transitions
 
 physics.metrology
 =================
