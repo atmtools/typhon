@@ -227,7 +227,7 @@ def _add_xsec_legend(lookup, ipressures, ax=None):
 
 def _setup_lookup_figure(lookup, cols=3):
     rows = int(np.ceil(len(lookup.speciestags) / cols))
-    fig, ax = plt.subplots(rows + 1, cols, figsize=(4*rows, (rows + 1) * 2))
+    fig, ax = plt.subplots(rows + 1, cols, figsize=(4*cols, (rows + 1) * 2))
     fig.tight_layout()
     return rows, cols, fig, ax
 
