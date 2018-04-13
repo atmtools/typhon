@@ -360,6 +360,94 @@ def stefan_boltzmann_law(T):
     return constants.stefan_boltzmann_constant * T**4
 
 
+def hund_case_a_landau_g_factor(o, j, s, l, gs, gl):
+    """ Hund case A Landau g-factor
+
+    .. math::
+        g =  \\frac{\\Omega}{J(J+1)} \\left( g_sS + g_l\\Lambda \\right)
+
+    Parameters:
+        o (float): Omega of level
+
+        j (float): J of level
+
+        l (float): Lambda of level
+
+        s (float): Sigma of level
+
+        gs (float): relativistic spin factor of molecule
+
+        gl (float): relativistic orbital factor of molecule
+
+    Returns:
+        g (float): Landau g-factor for Hund case A
+    """
+    return gs * o * s / (j * (j + 1)) + gl * o * l / (j * (j + 1))
+
+
+def hund_case_b_landau_g_factor(n, j, s, l, gs, gl):
+    """ Hund case B Landau g-factor
+
+    .. math::
+        g = g_s \\frac{J(J+1) + S(S+1) - N(N+1)}{2J(J+1)} +
+        g_l \\Lambda \\frac{J(J+1) - S(S+1) + N(N+1)}{2JN(J+1)(N+1)}
+
+    Parameters:
+        n (float): N of level
+
+        j (float): J of level
+
+        l (float): Lambda of level
+
+        s (float): S of level
+
+        gs (float): relativistic spin factor of molecule
+
+        gl (float): relativistic orbital factor of molecule
+
+    Returns:
+        g (float): Landau g-factor for Hund case B
+    """
+    return gs * (j(j+1) + s(s+1) - n(n+1)) / (2 * j * (j + 1)) + \
+        l * gl * (j(j+1) - s(s+1) + n(n+1)) / (2 * j * n * (j + 1) * (n + 1))
+
+
+def landau_g_factor(x, j, s, l=None, gs=2, gl=1, case=None):
+    """ The Landau g-factor
+
+    Parameters:
+        x (float): N or Omega of level
+
+        j (float): J of level
+
+        s (float): S of level
+
+        l (float): Lambda of level
+
+        gs (float): relativistic spin factor of molecule
+
+        gl (float): relativistic orbital factor of molecule
+
+        case (str): Case type, 'a' or 'b'
+
+    Returns:
+        g (float): Landau g-factor for the Hund case or None for unknown case
+    """
+    if j == 0:
+        return 0
+    elif l is None:
+        l = 0
+
+    assert type(case) == str, "Case must be str for J not 0"
+
+    if case.lower() == 'a':
+        return hund_case_a_landau_g_factor(x, j, s, l, gs, gl)
+    elif case.lower() == 'b':
+        return hund_case_b_landau_g_factor(x, j, s, l, gs, gl)
+    else:
+        raise RuntimeError("Unknown case-type: " + case)
+
+
 def zeeman_splitting(gu, gl, mu, ml, H=1):
     """ Zeeman splitting
 
@@ -394,7 +482,9 @@ def zeeman_strength(ju, jl, mu, ml):
     .. math:: \Delta S_{M_u,M_l} = C \\left(\\begin{array}{ccc} J_l & 1 & J_u
                        \\\\ M_l & M_u-M_l&-M_u \\end{array}\\right)^2,
     where C is either 3/2 or 3/4 depending on in mu-ml is 0 or not.  In case
-
+    the intent is to return many split lines, the size of either (jl, ju) or
+    (ml, mu) must be the same.  Regardless, these pairs have to be of the same
+    type
 
     Parameters:
         ju: (scalar or 1darray) Upper level J.  Must be same size as jl
@@ -411,8 +501,8 @@ def zeeman_strength(ju, jl, mu, ml):
         (scalar or ndarray) Relative line strength of component normalized to 1
         or array(array(S+, Pi, S-))
     """
-    assert type(jl) == type(ju), "Must have same type"
-    assert type(ml) == type(mu), "Must have same type"
+    assert type(jl) == type(ju), "Must have same type: J"
+    assert type(ml) == type(mu), "Must have same type: M"
     try:
         import sympy.physics.wigner as wig
         if np.isscalar(mu) and np.isscalar(ju):
