@@ -23,6 +23,10 @@ __all__ = [
     'wavelength2wavenumber',
     'wavenumber2frequency',
     'wavenumber2wavelength',
+    'stefan_boltzmann_law',
+    'zeeman_splitting',
+    'zeeman_strength',
+    'zeeman_transitions',
     ]
 
 
@@ -352,10 +356,10 @@ def stefan_boltzmann_law(T):
         j = \\sigma T^4
 
     Parameters:
-        T: Physical temperature  of object [K]
+        T (float or ndarray): Physical temperature  of object [K]
 
     Returns:
-        Energy per surface area [W m^-2]
+        float or ndarray: Energy per surface area [W m^-2]
     """
     return constants.stefan_boltzmann_constant * T**4
 
@@ -365,21 +369,22 @@ def zeeman_splitting(gu, gl, mu, ml, H=1):
 
     .. math::
         \Delta f = \\frac{H\mu_b}{h}(g_um_u - g_lm_l),
+
     where $\mu_b$ is the Bohr magneton and $h$ is the Planck constant.
 
     Parameters:
-        gu (scalar or ndarray) Upper g
+        gu (scalar or ndarray): Upper g
 
-        gl (scalar or ndarray) Lower g
+        gl (scalar or ndarray): Lower g
 
-        mu (scalar or ndarray) Upper projection of j
+        mu (scalar or ndarray): Upper projection of j
 
-        ml (scalar or ndarray) Lower projection of j
+        ml (scalar or ndarray): Lower projection of j
 
-        H (scalar or ndarray) Absolute strength of magnetic field in Teslas
+        H (scalar or ndarray): Absolute strength of magnetic field in Teslas
 
     Returns:
-        (scalar or ndarray) Splitting in Hertz
+        scalar or ndarray: Splitting in Hertz
     """
     h = constants.planck
     mu_B = constants.mu_B
@@ -393,24 +398,25 @@ def zeeman_strength(ju, jl, mu, ml):
 
     .. math:: \Delta S_{M_u,M_l} = C \\left(\\begin{array}{ccc} J_l & 1 & J_u
                        \\\\ M_l & M_u-M_l&-M_u \\end{array}\\right)^2,
+
     where C is either 3/2 or 3/4 depending on in mu-ml is 0 or not.  In case
     the intent is to return many split lines, the size of either (jl, ju) or
     (ml, mu) must be the same.  Regardless, these pairs have to be of the same
     type
 
     Parameters:
-        ju: (scalar or 1darray) Upper level J.  Must be same size as jl
+        ju (scalar or 1darray): Upper level J.  Must be same size as jl
 
-        jl: (scalar or 1darray) Lower level J.  Must be same size as ju
+        jl (scalar or 1darray): Lower level J.  Must be same size as ju
 
-        mu: (scalar or ndarray) Upper level M.  Must be same size as ml unless
+        mu (scalar or ndarray): Upper level M.  Must be same size as ml unless
         J is vector-type, then it is ignored
 
-        ml: (scalar or ndarray) Lower level M.  Must be same size as mu unless
+        ml (scalar or ndarray): Lower level M.  Must be same size as mu unless
         J is vector-type, then it is ignored
 
     Returns:
-        (scalar or ndarray) Relative line strength of component normalized to 1
+        scalar or ndarray: Relative line strength of component normalized to 1
         or array(array(S+, Pi, S-))
     """
     try:
@@ -459,14 +465,14 @@ def zeeman_transitions(ju, jl, type):
     polarization
 
     Parameters:
-        ju: (scalar)  Upper level J
+        ju (scalar):  Upper level J
 
-        jl: (scalar)  Lower level J
+        jl (scalar):  Lower level J
 
-        type: (string) "Pi", "S+", or "S-" for relevant polarization type
+        type (string): "Pi", "S+", or "S-" for relevant polarization type
 
     Returns:
-        (tuple) MU, ML arrays for given Js and polarization type
+        tuple: MU, ML arrays for given Js and polarization type
     """
     assert np.isscalar(ju) and np.isscalar(jl), "non-scalar J non supported"
     assert type.lower() in ["pi", "s+", "s-"], "unknown transition type"
