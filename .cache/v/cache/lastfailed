@@ -1,0 +1,5 @@
+{
+  "typhon/tests/spareice/test_datasets.py::TestDataset::()::test_magic_methods": true,
+  "typhon/tests/spareice/test_datasets.py::TestDataset::()::test_tutorial": true,
+  "typhon/tests/test_nonlte.py::TestNonlte::()::test_trapz_inte_edge": true
+}

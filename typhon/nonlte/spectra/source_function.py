@@ -39,3 +39,4 @@ def Bv_T(Freq, T):
     # brbr = 1  # .e7*1.e-4
     Bv_out = 2.*h*Freq**3/c**2/(np.exp(h*Freq/k/T)-1.)
     return Bv_out
+
