@@ -7,10 +7,11 @@ from itertools import zip_longest
 
 import matplotlib.pyplot as plt
 import numpy as np
-import typhon.constants
 from cycler import cycler
 from matplotlib.lines import Line2D
 from scipy.interpolate import interp1d
+
+import typhon.constants
 from typhon.plots import (ScalingFormatter, set_xaxis_formatter)
 
 __all__ = [
