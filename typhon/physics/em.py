@@ -370,7 +370,8 @@ def zeeman_splitting(gu, gl, mu, ml, H=1):
     .. math::
         \Delta f = \\frac{H\mu_b}{h}(g_um_u - g_lm_l),
 
-    where $\mu_b$ is the Bohr magneton and $h$ is the Planck constant.
+    where :math:`\mu_b` is the Bohr magneton and :math:`h` is the Planck
+    constant.
 
     Parameters:
         gu (scalar or ndarray): Upper g
