@@ -155,10 +155,12 @@ def calc_opacity_from_lookup(lookup, z=None, g=typhon.constants.g,
 
     Parameters:
         lookup (typhon.arts.catalogues.GasAbsLookup): ARTS lookup table.
-        z (ndarray):
-        g (float): Gravity constant. Default uses Earth's gravity.
-        r (float): Gas constant for dry air. Default uses constant for Earth.
-        tpert (int): Index of temperature perturbation to plot.
+        z (ndarray, optional): Altitude profile. If not given, the layer
+            thicknesses are calculated based on the hypsometric formula.
+        g (float, optional): Gravity constant. Default uses Earth's gravity.
+        r (float, optional): Gas constant for dry air. Default uses constant
+            for Earth.
+        tpert (int, optional): Index of temperature perturbation to plot.
 
     Returns:
         ndarray: Opacity per species in lookup table.
