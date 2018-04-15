@@ -36,6 +36,7 @@ class CloudSat(HDF4):
     mapping = {
         "Latitude": "lat",
         "Longitude": "lon",
+        "dim_0": "scnline",
     }
 
     def __init__(self, **kwargs):
