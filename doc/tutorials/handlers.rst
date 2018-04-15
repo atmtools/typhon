@@ -15,12 +15,12 @@ These are the special methods that are used by
 :class:`~typhon.spareice.datasets.Dataset`:
 
 +---------------------+-----------------------+-------------------------------+
-| Dataset method      | FileHandler method    | Description                   |
+| FileSet method      | FileHandler method    | Description                   |
 +=====================+=======================+===============================+
-| Dataset.read()      | FileHandler.read()    | Opens and reads a file.       |
+| FileSet.read()      | FileHandler.read()    | Opens and reads a file.       |
 +---------------------+-----------------------+-------------------------------+
-| Dataset.write()     | FileHandler.write()   | Writes data to a file.        |
+| FileSet.write()     | FileHandler.write()   | Writes data to a file.        |
 +---------------------+-----------------------+-------------------------------+
-| Dataset.get_info()  | FileHandler.get_info()| Gets information (e.g. time \ |
+| FileSet.get_info()  | FileHandler.get_info()| Gets information (e.g. time \ |
 |                     |                       | coverage) of a file.          |
 +---------------------+-----------------------+-------------------------------+

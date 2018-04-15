@@ -52,12 +52,12 @@ this happened.
 .. image:: _figures/collocations/arrays-worldmap.png
 
 
-Now, let's find all measurements of *primary* that have a maxmimum
+Now, let's find all measurements of *primary* that have a maximmum
 distance of *300 kilometers* to the measurements of *secondary*:
 
 .. code-block:: python
 
-    from typhon.spareice import collocate
+    from typhon.collocations import collocate
     
     indices = collocate([primary, secondary], max_distance=500,)
     print(indices)
@@ -92,7 +92,6 @@ Let's mark the collocations with red crosses on the map:
     worldmap(primary["lat"], primary["lon"], s=24, ax=wmap,)
     worldmap(secondary["lat"], secondary["lon"], s=24, ax=wmap,)
     wmap.set_extent([0, 90, -10, 50])
-    fig.savefig("example-collocations.pdf")
 
 
 
@@ -132,7 +131,7 @@ can leave *max_distance* out:
 .. image:: _figures/collocations/intervals.png
 
 
-Find collocations between two datasets
+Find collocations between two filesets
 --------------------------------------
 
 .. Warning::
@@ -140,48 +139,50 @@ Find collocations between two datasets
    typhon. Please wait for an update.
 
 Normally, one has the data stored in a set of many files. typhon
-provides an object to handle those *datasets* (see the `typhon
-doc <http://radiativetransfer.org/misc/typhon/doc-trunk/generated/typhon.spareice.datasets.Dataset.html>`__).
+provides an object to handle those *filesets* (see the `typhon
+doc <http://radiativetransfer.org/misc/typhon/doc-trunk/generated/typhon.files.filesets.FileSet.html>`__).
 It is very simple to find collocations between them.
 
-Firstly, we need to create Dataset objects and let them know where to find
+Firstly, we need to create FileSet objects and let them know where to find
 their files:
 
 .. code-block:: python
     
-    from typhon.spareice import collocate, collocate_datasets, CollocatedDataset, Dataset
+    from typhon.files import FileSet
     
-    # Create the dataset object and point them to the input files
-    a_dataset = Dataset(
+    # Create the filesets objects and point them to the input files
+    a_fileset = FileSet(
         name="SatelliteA",
         path="data/SatelliteA/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
     )
-    b_dataset = Dataset(
+    b_fileset = FileSet(
         name="SatelliteB",
         path="data/SatelliteB/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
-    )
-    
-    # Create the output dataset:
-    ab_collocations = CollocatedDataset(
-        name="ab_collocations",
-        path="data/ab_collocations/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
     )
 
-If you do not know how to deal with those Dataset objects, try this
-`tutorial <http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html>`__.
+If you do not know how to deal with those FileSet objects, try this
+`tutorial <http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/fileset.html>`__.
 
 Now, we can search for collocations between *a\_dataset* and
 *b\_dataset* and store them to *ab\_collocations*.
 
 .. code-block:: python
 
-    collocate_datasets(
-        [a_dataset, b_dataset], start="2018", end="2018-01-02",
-        output=ab_collocations, max_interval="1h", max_distance=300
-    )
+   from typhon.collocations import Collocations
+
+   # Create the output dataset:
+   ab_collocations = Collocations(
+     name="ab_collocations",
+     path="data/ab_collocations/{year}/{month}/{day}/"
+          "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+   )
+
+   ab_collocations.search(
+     [a_fileset, b_fileset], start="2018", end="2018-01-02",
+     max_interval="1h", max_distance=300
+   )
 
 
 .. parsed-literal::

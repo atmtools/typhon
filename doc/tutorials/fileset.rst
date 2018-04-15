@@ -49,7 +49,7 @@ Find Files
 
 We stick to our example from above and want to find all files from our
 *Satellite B* dataset between two dates. To do this, we have to create a
-Dataset object with the path to our files:
+FileSet object with the path to our files:
 
 .. code-block:: python
 
@@ -63,11 +63,11 @@ Dataset object with the path to our files:
             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
    )
 
-Nothing interesting happens so far. We imported the Dataset class from the 
-typhon module, created a Dataset object and told it where to find its files.
+Nothing interesting happens so far. We imported the FileSet class from the
+typhon module, created a FileSet object and told it where to find its files.
 These words surrounded by braces (e.g. "{year}") are called placeholders. They
 work like regular expressions and generalize the path, so we need not give 
-explicit paths that point to the files directly. The Dataset object can fill
+explicit paths that point to each file directly. The FileSet object can fill
 those placeholders by itself when searching for files. Let's see it in action:
 
 .. code-block:: python
@@ -92,7 +92,7 @@ those placeholders by itself when searching for files. Let's see it in action:
    .../data/SatelliteB/2018-01-03/060000-120000.nc
 
 If we want to have only files from a certain time period, we can use the
-:meth:`~typhon.files.fileset.FileSet.find` method:
+:meth:`~typhon.files.fileset.FileSet.find` method with start and end parameter:
 
 .. code-block:: python
 
@@ -231,7 +231,7 @@ objects as file argument for python's `open` builtin function:
 
 Okay, this may be not very practical for netCDF files since it just returns a
 lot of byte strings. Of course, we could use the `python-netcdf`
-module for reading the files but our Dataset object provides a much easier way:
+module for reading the files but our FileSet object provides a much easier way:
 
 .. code-block:: python
 
@@ -265,65 +265,55 @@ time period:
    # numpy arrays
    data = b_fileset["2018-01-01":"2018-01-02"]
 
-   # data is now a list of ArrayGroup objects.
+   # data is now a list of xr.Dataset objects.
 
-What if we want to create a new file for our Dataset? How does this work? It
+What if we want to create a new file for our FileSet? How does this work? It
 is as simple as reading them. Create your data object first and then pass it to
-the Dataset:
+the FileSet:
 
 .. code-block:: python
 
-   import numpy as np
-   from typhon.spareice import Array, ArrayGroup
+   import xarray as xr
 
-   # Create an ArrayGroup which holds data in form of numpy arrays. This should
-   # work with xarray.Dataset as well.
-   data = ArrayGroup()
-   data['lat'] = Array(
-       90*np.sin(np.linspace(0, 6.28, 7)),
-       dims=('time',)
-   )
-   data['lon'] = Array(
-       np.linspace(-180, 180, 7), dims=('time',)
-   )
-   data['data'] = Array(
-       data['lat'] * 2 + np.random.randn(7), dims=('time',)
-   )
-   data["time"] = np.arange(
-       "2018-01-03 06:00:00", "2018-01-03 13:00:00",
-       dtype="datetime64[h]"
+   # Create a xr.Dataset which holds data in form of numpy arrays:
+   data = xr.Dataset()
+   data['lat'] = 'time', 90 * np.sin(np.linspace(0, 6.28, 7))
+   data['lon'] = 'time',  np.linspace(-180, 180, 7)
+   data['data'] = data['lat'] * 2 + np.random.randn(7)
+   data["time"] = pd.date_range(
+       "2018-01-03 06:00:00", "2018-01-03 12:00:00", freq="h"
    )
 
-   # Save this ArrayGroup object to a file that belongs to our Dataset:
-   dataset["2018-01-03 06:00:00":"2018-01-03 12:00:00"] = data
+   # Save this xr.Dataset object to a file that belongs to our fileset. The
+   # given timestamps indicate the time coverage of the file:
+   b_fileset["2018-01-03 06:00:00":"2018-01-03 12:00:00"] = data
 
 If we look now in our dataset directory, we find a new file called
-*data/SatelliteB/2018/01/03/060000-120000.nc.gz*. We can unzip it and see its
-content with a netCDF viewer (e.g. panoply). So our Dataset object took
-our ArrayGroup, put it into a netCDF file and gzipped it automatically. The
-Dataset object tries to detect from the path suffix the format of the files.
-This works for netCDF files (*\*.nc*) and for CSV files (*\*.txt*, *\*.asc* or
-*\*.csv*).
+*data/SatelliteB/2018-01-03/060000-120000.nc*. We can see its content with a
+netCDF viewer (e.g. panoply). So our FileSet object took our xarray.Dataset and
+put it into a netCDF file automatically. The FileSet object tries to detect
+from the path suffix the format of the files. This works for netCDF files
+(*\*.nc*) and for CSV files (*\*.txt*, *\*.asc* or *\*.csv*).
 
 Handling other file formats
 +++++++++++++++++++++++++++
 
 What happens with files in CSV format but with a different filename suffix? Or
 with other file formats, e.g. such as from CloudSat instruments? Can the
-Dataset read and write them as well? Yes, it can. But it is going to need some
+FileSet read and write them as well? Yes, it can. But it is going to need some
 help of us before doing so. To understand this better, we have to be honest:
-the Dataset object cannot do very much; it simply finds files and compress /
+the FileSet object cannot do very much; it simply finds files and compress /
 decompress them if necessary. However, to read or create files, it trusts a
 *file handler* and let it do the format-specific work. A file handler is an
 object, which knows everything about a certain file format and hence can read
-it or use it to write a new file. The Dataset object automatically tries to
+it or use it to write a new file. The FileSet object automatically tries to
 find an adequate file handler according to the filename suffix. Hence, it knew
-that our files from *Satellite B* (with the suffix *.nc.gz*) have to be
-decompressed and then opened with the
+that our files from *Satellite B* (with the suffix *.nc*) have to be opened
+with the
 :class:`~typhon.spareice.handlers.common.NetCDF4` file handler.
 
 If we want to use another file handler, we can set the file handler by
-ourselves. Let's demonstrate this by using another dataset, e.g. data from
+ourselves. Let's demonstrate this by using another fileset, e.g. data from
 *Satellite C*. Its structure looks like this:
 
 .. _fig-example-dataset_c:
@@ -334,16 +324,17 @@ ourselves. Let's demonstrate this by using another dataset, e.g. data from
 
    Files of Satellite C
 
-The files are stored in a different directory structure and are
-in CSV format. Instead of having subdirectories with month and day, we now have
-subdirectories with the so-called day-of-year (all days since the start of the
-year). Do not worry, the Dataset object can handle this structure without any
-problems:
+
+The files are stored in a different directory structure and are in CSV format.
+Instead of having subdirectories with month and day, we now have subdirectories
+with the so-called day-of-year (all days since the start of the year). Do not
+worry, the FileSet object can handle this structure without any problems with
+the temporal placeholder *doy*:
 
 .. code-block:: python
 
-   c_dataset = Dataset(
-      path="data/SatelliteC/{year}/{doy}/{hour}{minute}{second}.dat.gz",
+   c_fileset = FileSet(
+       path="data/SatelliteC/{year}-{doy}/{hour}{minute}{second}.dat",
    )
 
    for file in c_dataset.find("2018-01-01", "2018-01-02"):
@@ -352,7 +343,7 @@ problems:
 .. code-block:: none
    :caption: Output
 
-   .../data/SatelliteC/2018/001/000000.dat.gz
+   .../data/SatelliteC/2018-001/000000.dat
       Start: 2018-01-01 00:00:00
       End: 2018-01-01 00:00:00
    ...
@@ -370,7 +361,7 @@ But if we try to open one of the files, the following happens:
    NoHandlerError                            Traceback (most recent call last)
    ...
 
-   NoHandlerError: Could not read '.../data/SatelliteC/2018/001/000000.dat.gz'!
+   NoHandlerError: Could not read '.../data/SatelliteC/2018-001/000000.dat'!
       I do not know which file handler to use. Set one by yourself.
 
 
@@ -381,62 +372,64 @@ to open these CSV files.
 
 .. code-block:: python
 
-   from typhon.spareice.handlers import CSV
+   # Import the CSV file handler
+   from typhon.files import CSV
 
-   # Create a CSV file handler that interprets the column 'time' as
-   # timestamp object.
-   csv_handler = CSV(
-       read_csv={"parse_dates":["time", ]}
-   )
+   # Use the CSV file handler for the c_fileset (you could do this also
+   # during initialization of the FileSet object):
+   c_fileset.handler = CSV()
 
-   c_dataset = Dataset(
-       path="data/SatelliteC/{year}/{doy}/{hour}{minute}{second}.dat.gz",
-       handler=csv_handler,
-   )
+   # Maybe, the file handler needs some additional information when
+   # reading a file? We can set them by *FileSet.read_args*. For example,
+   # this let the file handler interpret the column 'time' as timestamp
+   # object. Have a look at the CSV file handler documentation
+   # to know which else parameters you can pass via read_args:
+   c_fileset.read_args={
+       "parse_dates": ["time", ]
+   }
 
-   c_dataset["2018-01-01"]
+   # This works now:
+   c_fileset["2018-01-01"]
 
 .. code-block:: none
    :caption: Output
 
-   Name: 4523163040 <class 'typhon.spareice.array.ArrayGroup'>
-   Attributes:
-    --
-   Groups:
-    --
-   Variables:
-    Unnamed: 0 (40,) :
-      [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-         24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39]
-    data (40,) :
-      ...
+   <xarray.Dataset>
+   Dimensions:  (index: 15)
+   Coordinates:
+     * index    (index) int64 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14
+   Data variables:
+       time     (index) datetime64[ns] 2018-01-01 2018-01-01T00:20:00 ...
+       lat      (index) float64 50.59 53.21 55.42 57.21 58.57 59.48 59.94 ...
+       lon      (index) float64 -180.0 -177.5 -175.0 -172.5 -170.0 -167.5 ...
+       data     (index) float64 99.7 105.6 114.1 114.6 117.0 119.8 120.1 ...
 
 There are more file handlers for other file formats. For example,
-:class:`~typhon.spareice.handlers.cloudsat.CloudSat` can read CloudSat HDF4
+:class:`~typhon.files.handlers.cloudsat.CloudSat` can read CloudSat HDF4
 files. Have a look at :ref:`typhon-handlers` for a complete list of official
 handler classes in typhon. Every file handler might have its own specifications
-and options, you can read about them in their documentation.
+and options, you can read about them in their documentations.
 
 Handling your file formats
 ++++++++++++++++++++++++++
 
 If you need a special format that is not covered by the official file handlers,
 you can use the generic
-:class:`~typhon.spareice.handlers.common.FileHandler` object and set customized
+:class:`~typhon.files.handlers.common.FileHandler` object and set customized
 reader and writer functions. Another way - if you like object-oriented
 programming - is to subclass
-:class:`~typhon.spareice.handlers.common.FileHandler` and write your own file
+:class:`~typhon.files.handlers.common.FileHandler` and write your own file
 handler class (see :doc:`handlers` for a tutorial). Since the latter is for
 more advanced programmers, here is a simple but extensive example that shows
 how to use your own reader and writer functions easily. This also shows how to
-create a new dataset with many files on-the-fly:
+create a new fileset with many files on-the-fly:
 
 .. code-block:: python
 
    from datetime import datetime, timedelta
 
    # Get the base class to use a customized file handler
-   from typhon.spareice.handlers import FileHandler
+   from typhon.files import FileHandler
 
 
    # Here are our reader and writer functions:
@@ -457,29 +450,29 @@ create a new dataset with many files on-the-fly:
 
 
    def our_writer(data, file_info, mode="w"):
-       """Append a text to a file
+      """Append a text to a file
 
-       Args:
-           data: A string with content.
-           file_info: A FileInfo object.
-           mode: The writing mode. 'w' means overwriting (default) and
-               'a' means appending.
+      Args:
+          data: A string with content.
+          file_info: A FileInfo object.
+          mode: The writing mode. 'w' means overwriting
+              (default) and 'a' means appending.
 
-       Returns:
-           A string with the first line
-       """
+      Returns:
+          None
+      """
 
-       with open(file_info, mode) as file:
-           file.write(data)
+      with open(file_info, mode) as file:
+          file.write(data)
 
-   # Let's customize a file handler with our functions
+   # Let's create a file handler with our functions
    our_handler = FileHandler(
        reader=our_reader,
        writer=our_writer,
    )
 
-   # Let's create a new dataset and pass our file handler
-   our_dataset = Dataset(
+   # Let's create a new dataset and pass our own file handler
+   our_dataset = FileSet(
       path="data/own_dataset/{year}/{doy}/{hour}{minute}{second}.txt",
       handler=our_handler,
    )
@@ -548,12 +541,12 @@ in form of the :meth:`~typhon.files.fileset.FileSet.read` method instead:
 Using additional arguments for creating a file works very similar as above, we
 can use :meth:`~typhon.files.fileset.FileSet.write` here. Another
 difference is that we have to generate a filename first by using
-:meth:`~typhon.files.fileset.FileSet.generate_filename`.
+:meth:`~typhon.files.fileset.FileSet.get_filename`.
 
 .. code-block:: python
 
    # Generate a filename for our dataset and a given timestamp:
-   filename = our_dataset.generate_filename("2018-01-01 04:00:00")
+   filename = our_dataset.get_filename("2018-01-01 04:00:00")
 
    data = "4) Appended fourth line...\n"
 
@@ -592,7 +585,6 @@ for-loop or simply :meth:`~typhon.files.fileset.FileSet.collect` alone:
 
    # Read the second line of all files at once:
    data_list = our_dataset.collect(read_args={"lineno": 2})
-   print(data_list)
 
 
 Get information from a file
@@ -609,7 +601,7 @@ for example:
 
 .. code-block:: python
 
-   from typhon.spareice.handlers import CSV
+   from typhon.files import CSV
 
    # Create a CSV file handler that interprets the column 'time' as
    # timestamp object.
