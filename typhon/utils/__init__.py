@@ -12,6 +12,8 @@ import subprocess
 import time
 import collections
 import itertools
+import traceback
+
 from warnings import warn
 from functools import (partial, wraps)
 
@@ -588,3 +590,29 @@ def split_units(value):
             units = value[-1:] + units
             value = value[:-1]
     return number, units.strip()
+
+
+def reraise_with_stack(func):
+    """Make functions include the whole stack in raised exceptions
+
+    Notes:
+        This is a decorator function.
+
+    When using the concurrent.futures module, the original traceback message
+    gets lost, which makes it difficult to debug. This decorator solves the
+    problem.
+
+    Taken from https://stackoverflow.com/a/29357032.
+    """
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            traceback_str = traceback.format_exc()
+            raise Exception(
+                "Error occurred. Original traceback is\n%s\n" % traceback_str
+            )
+
+    return wrapped
