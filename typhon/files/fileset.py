@@ -661,8 +661,12 @@ class FileSet:
 
             yield files, data
 
-    def collect(self, start=None, end=None, files=None, read_args=None,
-                return_info=False, **find_args):
+    @staticmethod
+    def _pseudo_passer(*args):
+        return args[0]
+
+    def collect(self, start=None, end=None, files=None, return_info=False,
+                **map_args):
         """Load all files between two dates sorted by their starting time
 
         Notes
@@ -685,17 +689,17 @@ class FileSet:
             files: If you have already a list of files that you want to
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
-                allowed to set *start* and *end* then.
-            read_args: Additional key word arguments for the
-                *read* method of the used file handler class.
+                allowed to set `start` and `end` then.
             return_info: If true, return a FileInfo object with each content
                 value indicating to which file the function was applied.
-            **find_args: Additional keyword arguments that are allowed
-                for :meth:`find`.
+            **map_args: Additional keyword arguments that are allowed
+                for :meth:`map`. Some might be overwritten by this method.
 
-        Yields:
-            A list of tuples with of the FileInfo object of a file and its
-            content. The list is sorted by the starting times of the files.
+        Returns:
+            If `return_info` is True, two list are going to be returned:
+            one with FileInfo objects of the files and one with the read
+            content objects. Otherwise, the list with the read content objects
+            only. The lists are sorted by the starting times of the files.
 
         Examples:
 
@@ -717,21 +721,29 @@ class FileSet:
                 # do something with file and content...
 
         """
-        if read_args is None:
-            read_args = {}
+
+        # Actually, this method is nothing else than a customized alias for the
+        # map method:
+        map_args = {
+            **map_args,
+            "files": files,
+            "start": start,
+            "end": end,
+            "worker_type": "thread",
+            "on_content": True,
+            "return_info": True,
+        }
+
+        if "func" not in map_args:
+            map_args["func"] = self._pseudo_passer
 
         # If we used map with processes, it would need to pickle the data
         # coming from all workers. This would be very inefficient. Threads
         # are better because sharing data does not cost much and a file
-        # reading function is typically io-bound. However, if the reading
+        # reading function is typically IO-bound. However, if the reading
         # function consists mainly of pure python code that does not
         # release the GIL, this will slow down the performance.
-        results = self.map(
-            FileSet.read, args=(self,), kwargs=read_args,
-            files=files, start=start, end=end,
-            worker_type="thread", return_info=True,
-            **find_args
-        )
+        results = self.map(**map_args)
 
         # Tell the python interpreter explicitly to free up memory to improve
         # performance (see https://stackoverflow.com/q/1316767/9144990):
@@ -749,8 +761,7 @@ class FileSet:
         else:
             return list(data)
 
-    def icollect(self, start=None, end=None, files=None, read_args=None,
-                 preload=True, return_info=False, **find_args):
+    def icollect(self, start=None, end=None, files=None, **map_args):
         """Load all files between two dates sorted by their starting time
 
         Does the same as :meth:`collect` but works as a generator. Instead of
@@ -767,15 +778,8 @@ class FileSet:
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
                 allowed to set *start* and *end* then.
-            read_args: Additional key word arguments for the
-                *read* method of the used file handler class.
-            preload: Per default this method loads the next N files in
-                background threads (the number can be set by `max_workers`).
-                Set this to False, if you do not want pre-loading.
-            return_info: If true, return a FileInfo object with each return
-                value indicating to which file the function was applied.
-            **find_args: Additional keyword arguments that are allowed
-                for :meth:`find`.
+            **map_args: Additional keyword arguments that are allowed
+                for :meth:`imap`. Some might be overwritten by this method.
 
         Yields:
             A tuple of the FileInfo object of a file and its content. These
@@ -796,33 +800,21 @@ class FileSet:
             data_list = fileset.collect("2018-01-01", "2018-01-02")
         """
 
-        if read_args is None:
-            read_args = {}
+        # Actually, this method is nothing else than a customized alias for the
+        # imap method:
+        map_args = {
+            **map_args,
+            "files": files,
+            "start": start,
+            "end": end,
+            "worker_type": "thread",
+            "on_content": True,
+        }
 
-        if preload:
-            results = self.imap(
-                FileSet.read, args=(self,), kwargs=read_args,
-                files=files, start=start, end=end,
-                worker_type="thread", return_info=True,
-                **find_args
-            )
+        if "func" not in map_args:
+            map_args["func"] = self._pseudo_passer
 
-            for info, data in results:
-                if return_info:
-                    yield info, data
-                else:
-                    yield data
-        else:
-            if files is None:
-                files = self.find(**find_args)
-
-            for info in files:
-                data = self.read(info, **read_args)
-                if data is not None:
-                    if return_info:
-                        yield info, data
-                    else:
-                        yield data
+        yield from self.imap(**map_args)
 
     def copy(self):
         """Create a so-called deep-copy of this fileset object
@@ -2447,8 +2439,8 @@ class FileSet:
             return value[len(f"(?P<{placeholder}>"):-1]
 
     @expects_file_info()
-    def read(self, file_info=None, **read_args):
-        """Open and read a file.
+    def read(self, file_info, **read_args):
+        """Open and read a file
 
         Notes:
             You need to specify a file handler for this fileset before you
