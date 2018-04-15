@@ -10,6 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
 import logging
 from numbers import Number
+import random
 import time
 import traceback
 import warnings
@@ -20,13 +21,14 @@ import pandas as pd
 import scipy.stats
 from typhon.files import FileSet, NoHandlerError
 from typhon.math import cantor_pairing
-from typhon.utils import split_units
+from typhon.utils import reraise_with_stack, split_units
 from typhon.utils.time import to_datetime, to_timedelta
 import xarray as xr
 
 from .algorithms import BallTree, BruteForce
 
 __all__ = [
+    "collapse",
     "collocate",
     "Collocations",
 ]
@@ -50,7 +52,7 @@ UNITS_CONVERSION_FACTORS = [
 ]
 
 # The names for the processes. This started as an easter egg, but it actually
-# helps more than arbitrary numbers or ids when debugging different processes.
+# helps identify different processes during debugging.
 PROCESS_NAMES = [
     'Newton', 'Einstein', 'Bohr', 'Darwin', 'Pasteur', 'Freud', 'Galilei',
     'Lavoisier', 'Kepler', 'Copernicus', 'Faraday', 'Maxwell', 'Bernard',
@@ -69,18 +71,7 @@ PROCESS_NAMES = [
     'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
     'Archimedes'
 ]
-
-
-@numba.jit
-def _rows_for_secondaries(primary):
-    current_row = np.zeros(primary.size, dtype=int)
-    rows = np.zeros(primary.size, dtype=int)
-    i = 0
-    for p in primary:
-        rows[i] = current_row[p]
-        i += 1
-        current_row[p] += 1
-    return rows
+random.shuffle(PROCESS_NAMES)
 
 
 class Collocations(FileSet):
@@ -89,17 +80,32 @@ class Collocations(FileSet):
     If you want to find collocations between Arrays, use :func:`collocate`
     instead.
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(
+            self, *args, primary=None, secondary=None, mode=None,
+            collapser=None, **kwargs):
         """Initialize a Collocation object
 
         This :class:`~typhon.files.fileset.FileSet`
 
         Args:
             *args:
+            primary: Name of fileset which has the largest footprint. All
+                other filesets will be collapsed to its data points.
+            secondary: Name of fileset which has the smaller footprints.
+            mode: The collocations can be collapsed or expanded after
+                collecting. Set this either to *collapse* (default) or
+                *expand*.
+            collapser: If the mode is *collapse*, here you can give your
+                dictionary with additional collapser functions.
             **kwargs:
         """
         # Call the base class initializer
         super().__init__(*args, **kwargs)
+
+        self.primary = primary
+        self.secondary = secondary
+        self.mode = mode
+        self.collapser = collapser
 
     def add_fields(self, original_fileset, fields, **map_args):
         """
@@ -129,198 +135,44 @@ class Collocations(FileSet):
     def _add_fields(data, original_fileset, fields):
         pass
 
-    def collect(self, *args, mode=None, collapser=None, **kwargs):
-        """
+    def read(self, *args, **kwargs):
+        """Read a file and apply a collapser / expand function to it
+
+        Does the same as :meth:`~typhon.files.fileset.FileSet.read` from the
+        base class :class:`~typhon.files.fileset.FileSet`, but can
+        collapse or expand collocations after reading them.
 
         Args:
-            *args:
-            mode:
-            collapser:
-            **kwargs:
+            *args: Positional arguments for
+                :meth:`~typhon.files.fileset.FileSet.read`.
+            **kwargs: Keyword arguments for
+                :meth:`~typhon.files.fileset.FileSet.read`.
 
         Returns:
-
+            The same as :meth:`~typhon.files.fileset.FileSet.read`, but with
+            data that is either collapsed or expanded.
         """
-        pass
+        data = super(Collocations, self).read(*args, **kwargs)
 
-    def _collapse(self, data, primary, secondary, collapser):
-        # TODO: Add more explanation
+        if self.mode == "fileset":
+            return data
 
-        pairs = "__pairs_" + primary + "." + secondary
-        primary_indices = data[pairs][0].values
-        secondary_indices = data[pairs][1].values
+        if self.primary is None or self.secondary is None:
+            raise ValueError(
+                "You must set the primary and secondary properties before "
+                "using advanced reading modes!"
+            )
 
-        # THE GOAL: We want to bin the secondary data according to the
-        # primary indices and apply a collapse function (e.g. mean) to it.
-        # THE PROBLEM: We might to group the data in many (!) bins that might
-        # not have the same size and we have to apply a function onto each of
-        # these bins. How to make this efficient?
-        # APPROACH 1: pandas and xarray provide the powerful groupby method
-        # which allows grouping by bins and applying a function to it.
-        # -> This does not scale well with big datasets (100k of primaries
-        # takes ~15 seconds).
-        # APPROACH 2: Applying functions onto matrix columns is very fast in
-        # numpy even if the matrix is big. We could create a matrix where each
-        # column acts as a primary bin, the number of its rows is maximum
-        # number of secondaries per bin. Then, we fill the secondary data into
-        # the corresponding bins. Since they might be a different number of
-        # secondaries for each bin, there will be unfilled slots. We fill these
-        # slots with NaN values (so they won't affect the outcome of the
-        # collapser function). Now, we can apply the collapser function on the
-        # whole matrix along the columns.
-        # -> This approach is very fast but might need more space.
-        # We follow approach 2, since it may scale better than approach 1 and
-        # we normally do not have to worry about memory space. Gerrit's
-        # collocation toolkit in atmlab also follows a similar approach.
-
-        # Let's start! 
-        rows_in_bins = _rows_for_secondaries(primary_indices)
-
-        # Create the matrix
-        binned_indices = np.zeros(
-            (np.max(rows_in_bins)+1,
-             np.unique(primary_indices).size), dtype=int
-        )
-        binned_indices[rows_in_bins, primary_indices] = secondary_indices
-
-        flag = np.ones_like(binned_indices, dtype=bool)
-        flag[rows_in_bins, primary_indices] = False
-
-        for var, var_data in data.variables.items():
-            binned_var_data = var_data[binned_indices]
-            binned_var_data[flag] = np.nan
-            data[var] = collapser(data, axis=1)
-
-    def collapse(self, primary, secondary, collapser=None, include_stats=None,
-                 **map_args):
-        """Collapses all multiple collocation points to a single data point
-
-        During searching for collocations, one might find multiple collocation
-        points from one dataset for one single point of the other dataset. For
-        example, the MHS instrument has a larger footprint than the AVHRR
-        instrument, hence one will find several AVHRR colloocation points for
-        each MHS data point. This method performs a function on the multiple
-        collocation points to merge them to one single point (e.g. the mean
-        function).
-
-        Args:
-            primary: Name of fileset which has the largest footprint. All
-                other filesets will be collapsed to its data points.
-            secondary:
-            collapser: Reference to a function that should be applied on each
-                bin (numpy.nanmean is the default).
-            include_stats: Set this to a name of a variable (or list of
-                names) and statistical parameters will be stored about the
-                built data bins of the variable before collapsing. The variable
-                must be one-dimensional.
-            **map_args
-
-        Returns:
-            A DataGroup object with the collapsed data
-
-        Examples:
-            .. code-block:: python
-
-                # TODO: Add examples
-        """
-        map_args = {
-            **map_args,
-            "on_content": True,
-            "worker_type":
-                "thread" if map_args.get("output", None) is None else "process",  # noqa
-            "kwargs": {
-                "primary": primary,
-                "secondary": secondary,
-                "collapser": collapser,
-                "include_stats": include_stats,
-            },
-        }
-
-        return self.map(Collocations._collapse, **map_args)
-
-    @staticmethod
-    def _collapse(data, primary, secondary, collapser=None,
-                  include_stats=None, ):
-        timer = time.time()
-        print(f"After {time.time()-timer:.2f}s: Starting collapse")
-        pairs = data["__collocations"][primary + "." + secondary]["pairs"]
-
-        # Get the bin indices by the main dataset to which all other
-        # shall be collapsed:
-        reference_bins = list(pairs[0].group().values())
-        print(f"After {time.time()-timer:.2f}s: Got reference bins")
-
-        collapsed_data = DataGroup()
-
-        # Add additional statistics about one binned variable:
-        if include_stats is not None:
-            statistic_functions = {
-                "variation": scipy.stats.variation,
-                "mean": np.nanmean,
-                "number": lambda x, _: x.shape[0],
-                "std": np.nanstd,
-            }
-
-            # Create the bins for the variable from which you want to have
-            # the statistics:
-            group, _ = DataGroup.parse(include_stats)
-            pair_index = 0 if group == primary else 1
-            bins = pairs[pair_index].bin(reference_bins)
-            collapsed_data["__statistics"] = \
-                data[include_stats].apply_on_bins(
-                    bins, statistic_functions
-                )
-            collapsed_data["__statistics"].attrs["description"] = \
-                "Statistics about the collapsed bins of '{}'.".format(
-                    include_stats
-                )
-            print(f"After {time.time()-timer:2.f}s: Got statistics")
-
-        # This is the main dataset to which all other will be collapsed.
-        # Therefore, we do not need explicitly collapse here.
-        collapsed_data[primary] = data[primary][np.unique(pairs[0])]
-        print(f"After {time.time()-timer:.2f}s: Got primary")
-
-        # Collapse the secondary to the primary:
-        bins = pairs[1].bin(reference_bins)
-        print(f"After {time.time()-timer:.2f}s: collapsed secondary bins")
-
-        # We ignore some warnings rather than fixing them
-        # TODO: Maybe fix them?
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="invalid value encountered in double_scalars")
-            collapsed_data[secondary] = \
-                data[secondary].collapse(
-                    bins, collapser=collapser,
-                )
-        print(f"After {time.time()-timer:.2f} s: Got secondary")
-
-        print("Ending collapse")
-
-        return collapsed_data
-
-    def expand(self, *collect_args, **collect_kwargs):
-        """Collect collocation data from files and pad
-
-        This is the inverse function of :func:`collapse`.
-
-        Args:
-            data:
-
-        Returns:
-
-        """
-
-        raise NotImplementedError("Not yet implemented!")
-        expanded_data = DataGroup()
-        for group_name in data.groups():
-            if group_name.startswith("__"):
-                continue
-
-            #indices = data["__collocations"][]
-            expanded_data[group_name] = data[group_name][indices]
+        if self.mode == "collapse" or self.mode is None:
+            return collapse(data, self.primary, self.secondary, self.collapser)
+        elif self.mode == "expand":
+            return expand(data, self.primary, self.secondary)
+        else:
+            raise ValueError(
+                f"Unknown reading mode for collocations: {self.mode}!\n"
+                "Allowed modes are: 'collapse' (default), 'expand' or "
+                "'fileset'."
+            )
 
     def search(
             self, filesets, start=None, end=None, remove_overlaps=True,
@@ -381,6 +233,11 @@ class Collocations(FileSet):
             raise ValueError("Only collocating two filesets at once is allowed"
                              "at the moment!")
 
+        # Set the primary and secondary names (will be needed when reading from
+        # the collocation files):
+        self.primary = filesets[0].name
+        self.secondary = filesets[1].name
+
         # Check the max_interval argument because we need it later
         max_interval = collocate_args.get("max_interval", None)
         if max_interval is None:
@@ -435,11 +292,11 @@ class Collocations(FileSet):
 
             for future in futures:
                 if future.exception() is not None:
-                    traceback.print_tb(future.exception().__traceback__)
+                    print(future.exception())
 
+    @reraise_with_stack
     def _search(self, pid, filesets, start, end, remove_overlaps,
                 verbose, **collocate_args):
-
         primary, secondary = filesets
 
         # Check the max_interval argument because we need it later
@@ -824,6 +681,13 @@ class Collocations(FileSet):
                 }, inplace=True
             )
 
+        # Merge all datasets into one:
+        output_data = xr.merge(
+            [data for data in output_data.values()]
+        )
+
+        # Add the metadata information (collocation pairs, distance and
+        # interval):
         max_interval = collocate_args.get("max_interval", None)
         if max_interval is not None:
             max_interval = to_timedelta(max_interval).total_seconds()
@@ -831,7 +695,7 @@ class Collocations(FileSet):
 
         # This holds the collocation information:
         metadata = xr.DataArray(
-            np.array(pairs), dims=("fileset", "collocation"),
+            np.array(pairs, dtype=int), dims=("fileset", "pair"),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",
@@ -840,14 +704,8 @@ class Collocations(FileSet):
             }
         )
 
-        metadata_name = \
-            "__pairs_" + filesets[0].name + "." + filesets[1].name
-
-        # Merge all datasets into one:
-        output_data = xr.merge(
-            [data for data in output_data.values()]
-        )
-        output_data[metadata_name] = metadata
+        meta_group = _get_meta_group(filesets[0].name, filesets[1].name)
+        output_data[meta_group + "/pairs"] = metadata
 
         # Prepare the name for the output file:
         attributes = {
@@ -890,6 +748,137 @@ def _to_kilometers(distance):
             return length * factor
 
     raise ValueError(f"Unknown distance unit: {unit}!")
+
+
+def _get_meta_group(primary, secondary):
+    return f"{primary}.{secondary}"
+
+
+@numba.jit
+def _rows_for_secondaries(primary):
+    """Helper function for collapse"""
+    current_row = np.zeros(primary.size, dtype=int)
+    rows = np.zeros(primary.size, dtype=int)
+    i = 0
+    for p in primary:
+        rows[i] = current_row[p]
+        i += 1
+        current_row[p] += 1
+    return rows
+
+
+def collapse(data, primary, secondary, collapser=None):
+    """Collapse all multiple collocation points to a single data point
+
+    During searching for collocations, one might find multiple collocation
+    points from one dataset for one single point of the other dataset. For
+    example, the MHS instrument has a larger footprint than the AVHRR
+    instrument, hence one will find several AVHRR colloocation points for
+    each MHS data point. This method performs a function on the multiple
+    collocation points to merge them to one single point (e.g. the mean
+    function).
+
+    Args:
+        primary: Name of fileset which has the largest footprint. All
+            other filesets will be collapsed to its data points.
+        secondary:
+        collapser: Dictionary with names of collapser functions to apply and
+            references to them. Defaults collpaser functions are *mean*, *std*
+            and *number* (count of valid data points).
+
+    Returns:
+        A xr.Dataset object with the collapsed data
+
+    Examples:
+        .. code-block:: python
+
+            # TODO: Add examples
+    """
+    pairs = _get_meta_group(primary, secondary) + "/pairs"
+    primary_indices = data[pairs][0].values
+    secondary_indices = data[pairs][1].values
+
+    # THE GOAL: We want to bin the secondary data according to the
+    # primary indices and apply a collapse function (e.g. mean) to it.
+    # THE PROBLEM: We might to group the data in many (!) bins that might
+    # not have the same size and we have to apply a function onto each of
+    # these bins. How to make this efficient?
+    # APPROACH 1: pandas and xarray provide the powerful groupby method
+    # which allows grouping by bins and applying a function to it.
+    # -> This does not scale well with big datasets (100k of primaries
+    # takes ~15 seconds).
+    # APPROACH 2: Applying functions onto matrix columns is very fast in
+    # numpy even if the matrix is big. We could create a matrix where each
+    # column acts as a primary bin, the number of its rows is the maximum
+    # number of secondaries per bin. Then, we fill the secondary data into
+    # the corresponding bins. Since they might be a different number of
+    # secondaries for each bin, there will be unfilled slots. We fill these
+    # slots with NaN values (so they won't affect the outcome of the
+    # collapser function). Now, we can apply the collapser function on the
+    # whole matrix along the columns.
+    # -> This approach is very fast but might need more space.
+    # We follow approach 2, since it may scale better than approach 1 and
+    # we normally do not have to worry about memory space. Gerrit's
+    # collocation toolkit in atmlab also follows a similar approach.
+    # Ok, let's start!
+
+    # The matrix has the shape of N(max. number of secondaries per primary)
+    # x N(unique primaries). So the columns are the primary bins. We know at
+    # which column to put the secondary data by using primary_indices. Now, we
+    # have to find out at which row to put them:
+    rows_in_bins = _rows_for_secondaries(primary_indices)
+
+    # Create an empty matrix:
+    binned_data = np.empty(
+        (np.max(rows_in_bins)+1,
+         np.unique(primary_indices).size)
+    )
+
+    # Fill all slots with NaNs:
+    binned_data[:] = np.nan
+
+    # The user may give his own collapser functions:
+    if collapser is None:
+        collapser = {}
+    collapser = {
+        "mean": lambda m: np.nanmean(m, axis=1),
+        "std": lambda m: np.nanstd(m, axis=1),
+        "number": lambda m: np.count_nonzero(~np.isnan(m), axis=1),
+        **collapser,
+    }
+
+    collapsed = xr.Dataset()
+
+    for var_name, var_data in data.variables.items():
+        group, local_name = var_name.split("/")
+
+        # We copy the primaries, collapse the secondaries and ignore the rest
+        if group == primary:
+            # We want to make the resulting dataset collocation-friendly (so
+            # that we might use it for a collocation search with another
+            # dataset)
+            if local_name in ("time", "lat", "lon"):
+                collapsed[local_name] = var_data
+            else:
+                collapsed[var_name] = var_data
+            continue
+        elif group != secondary:
+            continue
+
+        # The standard fields (time, lat, lon) and the special fields to
+        # retrieve additional fields are useless after collapsing. Hence,
+        # ignore them (won't be copied to the resulting dataset):
+        if local_name in ("time", "lat", "lon") or local_name.startswith("__"):
+            continue
+
+        # Fill the data in the bins:
+        binned_data[rows_in_bins, primary_indices] \
+            = var_data[secondary_indices]
+
+        for func_name, func in collapser.items():
+            collapsed[f"{var_name}_{func_name}"] = func(binned_data)
+
+    return collapsed
 
 
 def collocate(data, max_interval=None, max_distance=None,
@@ -1143,87 +1132,28 @@ def _collocate_chunks(args):
     return pairs
 
 
-def _collocate_period(data_arrays, algorithm, algorithm_args,
-                      period1, period2=None, ):
-    data1, data2 = data_arrays
+def expand(data, primary, secondary):
+    """Collect collocation data from files and pad
 
-    if period2 is None:
-        period2 = period1
+    This is the inverse function of :func:`collapse`.
 
-    # Select the period
-    indices1 = np.where(
-        (period1.start_time < data1["time"])
-        & (data1["time"] < period1.end_time)
-    )[0]
-    if not indices1.any():
-        return np.array([[], []])
+    Args:
+        data:
+        primary:
+        secondary:
 
-    indices2 = np.where(
-        (period2.start_time < data2["time"])
-        & (data2["time"] < period2.end_time)
-    )[0]
-    if not indices2.any():
-        return np.array([[], []])
+    Returns:
 
-    pair_indices = algorithm.find_collocations(
-        data1[indices1], data2[indices2],
-        *algorithm_args,
-    )
+    """
 
-    if not pair_indices.any():
-        return np.array([[], []])
+    pairs = _get_meta_group(primary, secondary) + "/pairs"
+    primary_indices = data[pairs][0].values
+    secondary_indices = data[pairs][1].values
 
-    # We selected a time period, hence we must correct the found indices
-    # to let them point to the original data1 and data2
-    pair_indices[0] = indices1[pair_indices[0]]
-    pair_indices[1] = indices2[pair_indices[1]]
+    expanded_data = xr.Dataset()
+    for group_name in data.groups():
+        if group_name.startswith("__"):
+            continue
 
-    # Get also the indices where we searched in overlapping periods
-    # overlapping_with_before = \
-    #     np.where(
-    #         (period.start_time - max_interval < data1["time"])
-    #         & (data1["time"] < period.start_time)
-    #     )
-    # overlapping_with_after = \
-    #     np.where(
-    #         (period.end_time - max_interval < data1["time"])
-    #         & (data1["time"] < period.end_time)
-    #     )
-
-    # Return also unique collocation ids to detect duplicates later
-    return pair_indices
-
-# TODO: Parallelizing collocate() does not work properly since threading and
-# the GIL introduces a significant overhead. Maybe one should give
-# multiprocessing a try but this would require pickling many (possibly huge)
-# data arrays. Hence, this is so far deprecated:
-# def _parallelizing():
-#     # We need to decide whether we should parallelize everything by using
-#     # threads or not.
-#     if (time_indices[0].size > 10000 and time_indices[1].size > 10000) or
-#             algorithm.loves_threading:
-#         # Oh yes, let's parallelize it and create a pool of threads! Why
-#         # threads instead of processes? We do not want to pickle the arrays
-#         # (because they could be huge) and we trust our finding algorithm
-#         # when it says it loves threading.
-#         pool = ThreadPool(threads, )
-#
-#         # Get all overlaps (time periods where two threads search for
-#         # collocations):
-#         # overlap_indicess = [
-#         #     [[period.start_time-max_interval, period.start_time],
-#         #      [period.end_time + max_interval, period.end_time]]
-#         #     for i, period in enumerate(periods)
-#         #     if i > 0
-#         # ]
-#
-#         overlapping_pairs = \
-#             pool.map(_collocate_thread_period, periods)
-#
-#         # The search periods had overlaps. Hence the collocations contain
-#         # duplicates.
-#         pairs = np.hstack([
-#             pairs_of_thread[0]
-#             for i, pairs_of_thread in enumerate(overlapping_pairs)
-#             if pairs_of_thread is not None
-#         ])
+        #indices = data["__collocations"][]
+        expanded_data[group_name] = data[group_name][indices]
