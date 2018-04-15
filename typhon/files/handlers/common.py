@@ -556,7 +556,7 @@ class NetCDF4(FileHandler):
 
     @expects_file_info()
     def read(self, paths, groups=None, fields=None, mapping=None,
-             global_coords=True, **kwargs):
+             global_coords=False, **kwargs):
         """Read and parse NetCDF files and load them to a xarray.Dataset
 
         Args:
