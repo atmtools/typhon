@@ -914,9 +914,9 @@ def collocate(data, max_interval=None, max_distance=None,
     algorithm = _get_algorithm(algorithm)
 
     # Unfortunately, a first attempt parallelizing this using threads worsened
-    # the performance. Hence, even it is ironically, it is better to use only
-    # one thread.
-    threads = 1 if threads is None else threads
+    # the performance. Maybe the used collocation algorithm does not release
+    # the GIL? Hence, even it is ironically, it faster to use only one thread.
+    threads = 2 if threads is None else threads
 
     # If the time matters (i.e. max_interval is not None), we split the data
     # into temporal bins. This produces an overhead that is only negligible if
@@ -950,18 +950,9 @@ def collocate(data, max_interval=None, max_distance=None,
         # avoid searching for spatial collocations that do not fulfill the
         # temporal condition in the first place. However, the overhead of the
         # finding algorithm must be considered too (for example the BallTree
-        # creation time). We choose therefore a bin size of roughly 10'000
-        # elements and minimum bin duration of max_interval.
-        def get_chunk_pairs(chunk1_start, chunk1):
-            chunk2_start = chunk1_start - max_interval
-            chunk2_end = chunk2_start + max_interval
-            offset1 = data[0].index.searchsorted(chunk1_start)
-            offset2 = data[1].index.searchsorted(chunk2_start)
-            chunk2 = data[1].loc[chunk2_start:chunk2_end]
-            return offset1, chunk1, offset2, chunk2
-
+        # creation time).
         chunks_with_args = (
-            [*get_chunk_pairs(chunk_start, chunk),
+            [*_get_chunk_pairs(chunk_start, chunk, data, max_interval),
              algorithm, (max_interval, max_distance)]
             for chunk_start, chunk in data[0].groupby(
                 pd.Grouper(freq=2*max_interval))
@@ -990,6 +981,16 @@ def collocate(data, max_interval=None, max_distance=None,
         )
 
     return pairs
+
+
+def _get_chunk_pairs(chunk1_start, chunk1, data, max_interval):
+    """"""
+    chunk2_start = chunk1_start - max_interval
+    chunk2_end = chunk1.index.max() + max_interval
+    offset1 = data[0].index.searchsorted(chunk1_start)
+    offset2 = data[1].index.searchsorted(chunk2_start)
+    chunk2 = data[1].loc[chunk2_start:chunk2_end]
+    return offset1, chunk1, offset2, chunk2
 
 
 def _get_algorithm(algorithm):
