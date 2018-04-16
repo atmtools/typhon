@@ -8,5 +8,6 @@ from typhon.plots.colors import *  # noqa
 from typhon.plots.common import *  # noqa
 from typhon.plots.formatter import *  # noqa
 from typhon.plots.plots import *  # noqa
+from typhon.plots.arts_lookup import *  # noqa
 
 __all__ = [s for s in dir() if not s.startswith('_')]
