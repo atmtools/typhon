@@ -31,6 +31,7 @@ __all__ = [
     "collapse",
     "collocate",
     "Collocations",
+    "expand",
 ]
 
 # Finder algorithms for collocations:
@@ -38,8 +39,6 @@ ALGORITHM = {
     "BallTree": BallTree,
     "BruteForce": BruteForce,
 }
-
-COLLOCATION_FIELD = "__collocation_ids"
 
 # Factor to convert a length unit to kilometers
 UNITS_CONVERSION_FACTORS = [
@@ -194,7 +193,7 @@ class Collocations(FileSet):
             the original files.
         * *fileset_name/__file_start* - Start time of the original file.
         * *fileset_name/__file_end* - End time of the original file.
-        * *__collocations/{primary}.{secondary}/pairs* - Tells you which data
+        * *collocations/{primary}.{secondary}/pairs* - Tells you which data
             points are collocated with each other by giving their indices.
 
         And all additional fields that were loaded from the original files (you
@@ -456,7 +455,7 @@ class Collocations(FileSet):
             if name == primary.name:
                 if remove_overlaps and last_primary_end is not None:
                     dataset[name] = dataset[name].isel(
-                        __collocation=dataset[name]['time'] > last_primary_end
+                        collocation=dataset[name]['time'] > last_primary_end
                     )
 
                 # Check whether something is left:
@@ -491,7 +490,7 @@ class Collocations(FileSet):
             # period expanded by max_interval and limited by the global start
             # and end parameter:
             dataset[name] = dataset[name].isel(
-                __collocation=(dataset[name]['time'] >= np.datetime64(start))
+                collocation=(dataset[name]['time'] >= np.datetime64(start))
                               & (dataset[name]['time'] <= np.datetime64(end))
             )
 
@@ -500,7 +499,7 @@ class Collocations(FileSet):
                 dataset[name].time.notnull() \
                 & dataset[name].lat.notnull() \
                 & dataset[name].lon.notnull()
-            dataset[name] = dataset[name].isel(__collocation=not_nans)
+            dataset[name] = dataset[name].isel(collocation=not_nans)
 
             # Check whether something is left:
             if not len(dataset[name].time):
@@ -519,7 +518,7 @@ class Collocations(FileSet):
             key=lambda x: len(x)
         )
 
-        return data.stack(__collocation=dims), dims
+        return data.stack(collocation=dims), dims
 
     @staticmethod
     def _add_identifiers(files, data, dimension):
@@ -623,7 +622,7 @@ class Collocations(FileSet):
             pairs.append(collocation_indices)
 
             output_data[fileset.name] = \
-                raw_data[fileset.name].isel(__collocation=original_indices)
+                raw_data[fileset.name].isel(collocation=original_indices)
 
             # xarrays does not really handle grouped data (actually, not at
             # all). Until this has changed, I do not want to have subgroups in
@@ -659,12 +658,12 @@ class Collocations(FileSet):
             stacked_dims_data = xr.merge([
                 xr.DataArray(
                     output_data[fileset.name][dim].values,
-                    name=dim, dims=["__collocation"]
+                    name=dim, dims=["collocation"]
                 )
                 for dim in stacked_dims[fileset.name]
             ])
-            output_data[fileset.name]["__collocation"] = \
-                np.arange(output_data[fileset.name]["__collocation"].size)
+            output_data[fileset.name]["collocation"] = \
+                np.arange(output_data[fileset.name]["collocation"].size)
 
             # Now, since we unstacked the multi-index, we can add thw
             # stacked dimensions back to the dataset:
@@ -695,7 +694,7 @@ class Collocations(FileSet):
 
         # This holds the collocation information:
         metadata = xr.DataArray(
-            np.array(pairs, dtype=int), dims=("fileset", "pair"),
+            np.array(pairs, dtype=int), dims=("fileset", "collocation"),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",
@@ -765,120 +764,6 @@ def _rows_for_secondaries(primary):
         i += 1
         current_row[p] += 1
     return rows
-
-
-def collapse(data, primary, secondary, collapser=None):
-    """Collapse all multiple collocation points to a single data point
-
-    During searching for collocations, one might find multiple collocation
-    points from one dataset for one single point of the other dataset. For
-    example, the MHS instrument has a larger footprint than the AVHRR
-    instrument, hence one will find several AVHRR colloocation points for
-    each MHS data point. This method performs a function on the multiple
-    collocation points to merge them to one single point (e.g. the mean
-    function).
-
-    Args:
-        primary: Name of fileset which has the largest footprint. All
-            other filesets will be collapsed to its data points.
-        secondary:
-        collapser: Dictionary with names of collapser functions to apply and
-            references to them. Defaults collpaser functions are *mean*, *std*
-            and *number* (count of valid data points).
-
-    Returns:
-        A xr.Dataset object with the collapsed data
-
-    Examples:
-        .. code-block:: python
-
-            # TODO: Add examples
-    """
-    pairs = _get_meta_group(primary, secondary) + "/pairs"
-    primary_indices = data[pairs][0].values
-    secondary_indices = data[pairs][1].values
-
-    # THE GOAL: We want to bin the secondary data according to the
-    # primary indices and apply a collapse function (e.g. mean) to it.
-    # THE PROBLEM: We might to group the data in many (!) bins that might
-    # not have the same size and we have to apply a function onto each of
-    # these bins. How to make this efficient?
-    # APPROACH 1: pandas and xarray provide the powerful groupby method
-    # which allows grouping by bins and applying a function to it.
-    # -> This does not scale well with big datasets (100k of primaries
-    # takes ~15 seconds).
-    # APPROACH 2: Applying functions onto matrix columns is very fast in
-    # numpy even if the matrix is big. We could create a matrix where each
-    # column acts as a primary bin, the number of its rows is the maximum
-    # number of secondaries per bin. Then, we fill the secondary data into
-    # the corresponding bins. Since they might be a different number of
-    # secondaries for each bin, there will be unfilled slots. We fill these
-    # slots with NaN values (so they won't affect the outcome of the
-    # collapser function). Now, we can apply the collapser function on the
-    # whole matrix along the columns.
-    # -> This approach is very fast but might need more space.
-    # We follow approach 2, since it may scale better than approach 1 and
-    # we normally do not have to worry about memory space. Gerrit's
-    # collocation toolkit in atmlab also follows a similar approach.
-    # Ok, let's start!
-
-    # The matrix has the shape of N(max. number of secondaries per primary)
-    # x N(unique primaries). So the columns are the primary bins. We know at
-    # which column to put the secondary data by using primary_indices. Now, we
-    # have to find out at which row to put them:
-    rows_in_bins = _rows_for_secondaries(primary_indices)
-
-    # Create an empty matrix:
-    binned_data = np.empty(
-        (np.max(rows_in_bins)+1,
-         np.unique(primary_indices).size)
-    )
-
-    # Fill all slots with NaNs:
-    binned_data[:] = np.nan
-
-    # The user may give his own collapser functions:
-    if collapser is None:
-        collapser = {}
-    collapser = {
-        "mean": lambda m: np.nanmean(m, axis=1),
-        "std": lambda m: np.nanstd(m, axis=1),
-        "number": lambda m: np.count_nonzero(~np.isnan(m), axis=1),
-        **collapser,
-    }
-
-    collapsed = xr.Dataset()
-
-    for var_name, var_data in data.variables.items():
-        group, local_name = var_name.split("/")
-
-        # We copy the primaries, collapse the secondaries and ignore the rest
-        if group == primary:
-            # We want to make the resulting dataset collocation-friendly (so
-            # that we might use it for a collocation search with another
-            # dataset)
-            if local_name in ("time", "lat", "lon"):
-                collapsed[local_name] = var_data
-            else:
-                collapsed[var_name] = var_data
-            continue
-        elif group != secondary:
-            continue
-
-        # The standard fields (time, lat, lon) and the special fields to
-        # retrieve additional fields are useless after collapsing. Hence,
-        # ignore them (won't be copied to the resulting dataset):
-        if local_name in ("time", "lat", "lon") or local_name.startswith("__"):
-            continue
-
-        # Fill the data in the bins:
-        binned_data[rows_in_bins, primary_indices] \
-            = var_data[secondary_indices]
-
-        for func_name, func in collapser.items():
-            collapsed[f"{var_name}_{func_name}"] = func(binned_data)
-
-    return collapsed
 
 
 def collocate(data, max_interval=None, max_distance=None,
@@ -990,6 +875,9 @@ def collocate(data, max_interval=None, max_distance=None,
 
 
     """
+    if len(data) != 2:
+        raise ValueError("So far, only collocating of two data is allowed.")
+
     # Internally, we use pandas.Dateframe objects. There are simpler to use
     # than xarray.Dataset objects and are well designed for this purpose.
     # Furthermore, xarray.Dataset has a very annoying bug at the
@@ -1016,9 +904,6 @@ def collocate(data, max_interval=None, max_distance=None,
 
     if max_distance is None and max_interval is None:
         raise ValueError("Either max_distance or max_interval must be given!")
-
-    if len(data) != 2:
-        raise ValueError("So far, only collocating of two data is allowed.")
 
     if max_interval is not None:
         max_interval = to_timedelta(max_interval, numbers_as="seconds")
@@ -1132,10 +1017,142 @@ def _collocate_chunks(args):
     return pairs
 
 
-def expand(data, primary, secondary):
-    """Collect collocation data from files and pad
+def collapse(data, primary, secondary, collapser=None):
+    """Collapse all multiple collocation points to a single data point
 
-    This is the inverse function of :func:`collapse`.
+    During searching for collocations, one might find multiple collocation
+    points from one dataset for one single point of the other dataset. For
+    example, the MHS instrument has a larger footprint than the AVHRR
+    instrument, hence one will find several AVHRR colloocation points for
+    each MHS data point. This method performs a function on the multiple
+    collocation points to merge them to one single point (e.g. the mean
+    function).
+
+    Args:
+        data:
+        primary: Name of fileset which has the largest footprint. All
+            other filesets will be collapsed to its data points.
+        secondary:
+        collapser: Dictionary with names of collapser functions to apply and
+            references to them. Defaults collpaser functions are *mean*, *std*
+            and *number* (count of valid data points).
+
+    Returns:
+        A xr.Dataset object with the collapsed data
+
+    Examples:
+        .. code-block:: python
+
+            # TODO: Add examples
+    """
+    pairs = _get_meta_group(primary, secondary) + "/pairs"
+    primary_indices = data[pairs][0].values
+    secondary_indices = data[pairs][1].values
+
+    # THE GOAL: We want to bin the secondary data according to the
+    # primary indices and apply a collapse function (e.g. mean) to it.
+    # THE PROBLEM: We might to group the data in many (!) bins that might
+    # not have the same size and we have to apply a function onto each of
+    # these bins. How to make this efficient?
+    # APPROACH 1: pandas and xarray provide the powerful groupby method
+    # which allows grouping by bins and applying a function to it.
+    # -> This does not scale well with big datasets (100k of primaries
+    # takes ~15 seconds).
+    # APPROACH 2: Applying functions onto matrix columns is very fast in
+    # numpy even if the matrix is big. We could create a matrix where each
+    # column acts as a primary bin, the number of its rows is the maximum
+    # number of secondaries per bin. Then, we fill the secondary data into
+    # the corresponding bins. Since they might be a different number of
+    # secondaries for each bin, there will be unfilled slots. We fill these
+    # slots with NaN values (so they won't affect the outcome of the
+    # collapser function). Now, we can apply the collapser function on the
+    # whole matrix along the columns.
+    # -> This approach is very fast but might need more space.
+    # We follow approach 2, since it may scale better than approach 1 and
+    # we normally do not have to worry about memory space. Gerrit's
+    # collocation toolkit in atmlab also follows a similar approach.
+    # Ok, let's start!
+
+    # The matrix has the shape of N(max. number of secondaries per primary)
+    # x N(unique primaries). So the columns are the primary bins. We know at
+    # which column to put the secondary data by using primary_indices. Now, we
+    # have to find out at which row to put them:
+    rows_in_bins = _rows_for_secondaries(primary_indices)
+
+    # Create an empty matrix:
+    binned_data = np.empty(
+        (np.max(rows_in_bins)+1,
+         np.unique(primary_indices).size)
+    )
+
+    # Fill all slots with NaNs:
+    binned_data[:] = np.nan
+
+    # The user may give his own collapser functions:
+    if collapser is None:
+        collapser = {}
+    collapser = {
+        "mean": lambda m: np.nanmean(m, axis=0),
+        "std": lambda m: np.nanstd(m, axis=0),
+        "number": lambda m: np.count_nonzero(~np.isnan(m), axis=0),
+        **collapser,
+    }
+
+    collapsed = xr.Dataset()
+
+    for var_name, var_data in data.variables.items():
+        group, local_name = var_name.split("/")
+
+        # We copy the primaries, collapse the secondaries and ignore the rest
+        if group == primary:
+            # We want to make the resulting dataset collocation-friendly (so
+            # that we might use it for a collocation search with another
+            # dataset)
+            if local_name in ("time", "lat", "lon"):
+                collapsed[local_name] = var_data
+            else:
+                collapsed[var_name] = var_data
+            continue
+        elif group != secondary:
+            continue
+
+        # The standard fields (time, lat, lon) and the special fields to
+        # retrieve additional fields are useless after collapsing. Hence,
+        # ignore them (won't be copied to the resulting dataset):
+        if local_name in ("time", "lat", "lon") or local_name.startswith("__"):
+            continue
+
+        # Fill the data in the bins:
+        binned_data[rows_in_bins, primary_indices] \
+            = var_data.values[secondary_indices]
+
+        # Create the dimension names for the data:
+        dims = [
+            dim
+            for dim in var_data.dims
+        ]
+
+        for func_name, func in collapser.items():
+            collapsed[f"{var_name}_{func_name}"] = dims, func(binned_data)
+
+    # The collocation coordinate of both datasets are equal now:
+    collapsed.rename({
+        primary + "/collocation": "collocation",
+        secondary + "/collocation": "collocation",
+    }, inplace=True)
+
+    return collapsed
+
+
+def expand(data, primary, secondary):
+    """Repeat the primary data so they align with their secondary collocations
+
+    During searching for collocations, one might find multiple collocation
+    points from one dataset for one single point of the other dataset. For
+    example, the MHS instrument has a larger footprint than the AVHRR
+    instrument, hence one will find several AVHRR colloocation points for
+    each MHS data point. To avoid needing more storage than required, no
+    duplicated data values are stored even if they collocate multiple times.
 
     Args:
         data:
@@ -1150,10 +1167,32 @@ def expand(data, primary, secondary):
     primary_indices = data[pairs][0].values
     secondary_indices = data[pairs][1].values
 
-    expanded_data = xr.Dataset()
-    for group_name in data.groups():
-        if group_name.startswith("__"):
-            continue
+    expanded = data.isel(
+        **{primary + "/collocation": primary_indices}
+    )
+    expanded = expanded.isel(
+        **{secondary + "/collocation": secondary_indices}
+    )
 
-        #indices = data["__collocations"][]
-        expanded_data[group_name] = data[group_name][indices]
+    # The variable pairs is useless now:
+    expanded = expanded.drop(
+        pairs,  # primary + "/collocation", secondary + "/collocation"
+    )
+
+    # The collocation coordinate of both datasets are equal now:
+    expanded["collocation"] = \
+        primary + "/collocation",  np.arange(data[pairs][0].size)
+    expanded.swap_dims(
+        {primary + "/collocation": "collocation"}, inplace=True)
+
+    expanded["collocation"] = \
+        secondary + "/collocation", np.arange(data[pairs][0].size)
+    expanded.swap_dims(
+        {secondary + "/collocation": "collocation"}, inplace=True)
+
+    expanded.reset_coords([
+        primary + "/collocation",
+        secondary + "/collocation"], drop=True, inplace=True
+    )
+
+    return expanded
