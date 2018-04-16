@@ -108,7 +108,7 @@ class TestFileSet:
         files = FileSet(
             join(
                 self.refdir,
-                "fileset_tutorial/{satellite}/*/*/*/*.nc"
+                "fileset_tutorial/{satellite}/*/*.nc"
             ),
             placeholder={"satellite": 'SatelliteA'},
         )
@@ -120,19 +120,7 @@ class TestFileSet:
         check = list(sorted([
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-03/000000-040000.nc'),
-                [datetime.datetime(1, 1, 1, 0, 0),
-                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                {'satellite': 'SatelliteA'}),
-            FileInfo(
-                join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-02/200000-000000.nc'),
-                [datetime.datetime(1, 1, 1, 0, 0),
-                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
-                {'satellite': 'SatelliteA'}),
-            FileInfo(
-                join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-02/120000-160000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-02/000000-040000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
@@ -144,7 +132,7 @@ class TestFileSet:
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-02/160000-200000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-02/200000-000000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
@@ -156,19 +144,19 @@ class TestFileSet:
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-02/000000-040000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-02/120000-160000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-01/200000-000000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-02/160000-200000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-01/120000-160000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-01/000000-040000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
@@ -180,7 +168,7 @@ class TestFileSet:
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-01/160000-200000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-01/200000-000000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
@@ -192,7 +180,13 @@ class TestFileSet:
                 {'satellite': 'SatelliteA'}),
             FileInfo(
                 join(self.refdir,
-                     'fileset_tutorial/SatelliteA/2018-01-01/000000-040000.nc'),
+                     'fileset_tutorial/SatelliteA/2018-01-01/120000-160000.nc'),
+                [datetime.datetime(1, 1, 1, 0, 0),
+                 datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
+                {'satellite': 'SatelliteA'}),
+            FileInfo(
+                join(self.refdir,
+                     'fileset_tutorial/SatelliteA/2018-01-01/160000-200000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
@@ -213,21 +207,17 @@ class TestFileSet:
         print(repr(result["time"].astype("M8[s]")))
 
         check = np.array(
-            ['2018-01-01T00:00:00', '2018-01-01T00:20:00',
-               '2018-01-01T00:40:00',
-               '2018-01-01T01:00:00', '2018-01-01T01:20:00',
-               '2018-01-01T01:40:00',
-               '2018-01-01T02:00:00', '2018-01-01T02:20:00',
-               '2018-01-01T02:40:00',
-               '2018-01-01T03:00:00', '2018-01-01T03:20:00',
-               '2018-01-01T03:40:00',
-               '2018-01-01T04:00:00', '2018-01-01T04:20:00',
-               '2018-01-01T04:40:00'
-             ], dtype='datetime64[s]'
-        )
+            ['2018-01-01T00:00:00.000000000', '2018-01-01T00:20:00.000000000',
+             '2018-01-01T00:40:00.000000000', '2018-01-01T01:00:00.000000000',
+             '2018-01-01T01:20:00.000000000', '2018-01-01T01:40:00.000000000',
+             '2018-01-01T02:00:00.000000000', '2018-01-01T02:20:00.000000000',
+             '2018-01-01T02:40:00.000000000', '2018-01-01T03:00:00.000000000',
+             '2018-01-01T03:20:00.000000000', '2018-01-01T03:40:00.000000000',
+             '2018-01-01T04:00:00.000000000', '2018-01-01T04:20:00.000000000',
+             '2018-01-01T04:40:00.000000000'], dtype='datetime64[ns]')
 
         assert np.allclose(
-            result["time"].astype("M8[s]").astype("int"),
+            result["time"].astype("int"),
             check.astype("int")
         )
 
