@@ -762,7 +762,6 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
 
     if projection is None:
         if ax is None:
-
             projection = ccrs.PlateCarree()
         else:
             projection = ax.projection
@@ -782,7 +781,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     else:
         scatter_plot = ax.scatter(
             lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults)
-        ax.colorbar(scatter_plot)
+        fig.colorbar(scatter_plot)
 
     return ax, scatter_plot
 
