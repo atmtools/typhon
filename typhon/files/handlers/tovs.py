@@ -1,10 +1,6 @@
 from datetime import datetime, timedelta
 
 from netCDF4 import Dataset
-import numpy as np
-import pandas as pd
-from typhon.collections import DataGroup
-import xarray as xr
 
 from .common import NetCDF4, expects_file_info
 
@@ -81,8 +77,8 @@ class MHSAAPP(NetCDF4):
         """
 
         # Make sure that the standard fields are always gonna be imported:
-        user_fields = kwargs.pop("fields", None)
-        if user_fields is not None:
+        user_fields = kwargs.pop("fields", {})
+        if user_fields:
             fields = self.standard_fields | set(user_fields)
         else:
             fields = None

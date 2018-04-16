@@ -12,6 +12,8 @@ Find collocations with typhon
    notebook file *collocations.ipynb*. You will need the jupyter_ engine for
    this.
 
+.. _jupyter: http://jupyter.org/install.html
+
 Collocations between two data arrays
 ------------------------------------
 

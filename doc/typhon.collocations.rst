@@ -1,5 +1,5 @@
-spareice.collocations
-=====================
+Collocations
+============
 
 .. automodule:: typhon.collocations
 
@@ -8,5 +8,7 @@ spareice.collocations
 .. autosummary::
    :toctree: generated
 
+   collapse
    collocate
    Collocations
+   expand

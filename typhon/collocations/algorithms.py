@@ -7,7 +7,6 @@ from scipy.spatial import distance_matrix
 from sklearn.neighbors import BallTree as SklearnBallTree
 import typhon.constants
 from typhon.geodesy import geocentric2cart
-from typhon.utils.time import to_timedelta
 
 __all__ = [
         "CollocationsFinder",
