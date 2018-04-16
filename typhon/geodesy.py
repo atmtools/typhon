@@ -520,7 +520,7 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
 
 
 def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
-    """Calculate the distance between two geographical positions
+    r"""Calculate the distance between two geographical positions
 
     This is the 'As-the-crow-flies' distance between two points, specified by
     their latitude and longitude. This uses the so-called haversine formula,
