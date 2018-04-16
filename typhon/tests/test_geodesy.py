@@ -170,7 +170,7 @@ class TestGeodesy:
         """Test calculation of great circle distance."""
         distance = geodesy.great_circle_distance(90, 30, 100, 60)
 
-        assert distance == 10
+        assert np.isclose(distance, 10)
 
     def test_great_circle_distance_radius(self):
         """Test calculation of great circle distance with radious."""

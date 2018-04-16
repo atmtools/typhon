@@ -33,6 +33,7 @@ __all__ = [
     'cartposlos2geocentric',
     'geocentricposlos2cart',
     'sphere_plane_intersection',
+    'tunnel_distance',
 ]
 
 
@@ -519,15 +520,19 @@ def geocentric2geodetic(r, lat, lon, ellipsoid=None):
 
 
 def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
-    """Calculate the distance between two geograpgical positions.
+    """Calculate the distance between two geographical positions
 
-    "As-the-crow-flies" distance between two points, specified by their
-    latitude and longitude.
+    This is the 'As-the-crow-flies' distance between two points, specified by
+    their latitude and longitude. This uses the so-called haversine formula,
+    defined by:
 
-    If the optional argument *r* is given, the distance in m is returned.
-    Otherwise the angular distance in degrees is returned.
+    .. math::
+        d = 2 \arcsin \left( \sqrt{
+            \sin \left(\frac{\varphi_2-\varphi_1}{2} \right)^2
+            + \cos(\varphi_1) \cdot \cos(\varphi_1)
+            \cdot \sin \left(\frac{\lambda_2-\lambda_1}{2} \right)^2} \right)
 
-    Parameters:
+    Args:
         lat1: Latitude of position 1.
         lon1: Longitude of position 1.
         lat2: Latitude of position 2.
@@ -535,14 +540,20 @@ def great_circle_distance(lat1, lon1, lat2, lon2, r=None):
         r (float): The radius (common for both points).
 
     Returns:
-        Distance, either in degress or m.
+        If the optional argument *r* is given, the distance in m is returned.
+        Otherwise the angular distance in degrees is returned.
 
-    .. Ported from atmlab. Original author: Patrick Eriksson
+    .. Taken from https://stackoverflow.com/a/29546836/9144990
     """
-    a = (sind((lat2 - lat1) / 2)**2 + cosd(lat1) * (cosd(lat2)) *
-         (sind((lon2 - lon1) / 2)**2))
+    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
 
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(
+        dlon / 2.0) ** 2
+
+    c = 2 * np.arcsin(np.sqrt(a))
 
     if r is None:
         return np.rad2deg(c)
@@ -1086,6 +1097,27 @@ def sphere_plane_intersection(pos, r, theta=np.linspace(-180., 180.)):
             points[i, ii, :] = pos[ii, :] + rc * (cosd(theta[i]) * v1 +
                                                   sind(theta[i]) * v2)
     return points
+
+
+def tunnel_distance(lat1, lon1, lat2, lon2):
+    """Calculate the tunnel distance between two points on the Earth's surface
+
+    Args:
+        lat1: Single number or numpy array with latitudes in degrees.
+        lon1: Single number or numpy array with longitudes in degrees.
+        lat2: Single number or numpy array with latitudes in degrees.
+        lon2: Single number or numpy array with longitudes in degrees.
+
+    Returns:
+        Tunnel distance in meters
+    """
+    points1 = np.column_stack(
+        geocentric2cart(constants.earth_radius, lat1, lon1)
+    )
+    points2 = np.column_stack(
+        geocentric2cart(constants.earth_radius, lat2, lon2)
+    )
+    return np.sqrt(np.sum((points2 - points1)**2, axis=1))
 
 
 def _broadcast(*args):

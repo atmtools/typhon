@@ -15,12 +15,14 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FuncFormatter
 from matplotlib.cm import get_cmap
+import scipy.stats as stats
 
 from typhon.plots import formatter
 from typhon.math import stats as tpstats
 
 
 __all__ = [
+    'binned_statistic',
     'plot_distribution_as_percentiles',
     'heatmap',
     'scatter_density_plot_matrix',
@@ -29,10 +31,70 @@ __all__ = [
     'profile_p_log',
     'profile_z',
     'channels',
-    'worldmap',
     'colored_bars',
     'plot_bitfield',
+    'worldmap',
 ]
+
+
+def binned_statistic(
+            x, y, bins=20, ax=None, ptype=None, pargs=None, **kwargs
+        ):
+    """Bin the data and plot their statistics
+
+    Per default, this calculates the median for each bin. If you need another
+    statistic (e.g. mean or std) use the keyword `statistic`.
+
+    Args:
+        x: The values which should be binned and plotted on the x-axis.
+        y: The values on which the statistics should be applied.
+        bins: Number of bins. Default is 20.
+        ax (AxesSubplot, optional): Axes to plot in.
+        ptype: Plot type. Can be *scatter* or *boxplot*.
+        pargs: Plotting keyword arguments that are allowed for *ptype*.
+        **kwargs: Additional key word arguments for
+            `scipy.stats.binned_statistic`.
+
+    Returns:
+        The axis and the plot object.
+    """
+
+    if ax is None:
+        ax = plt.gca()
+
+    if pargs is None:
+        pargs = {}
+
+    if ptype is None or ptype == "scatter":
+        default = {
+            "statistic": "median",
+            "bins": bins,
+            **kwargs,
+        }
+
+        statistics, bin_edges, bin_ind = stats.binned_statistic(
+            x, values=y, **default
+        )
+        bin_width = (bin_edges[1] - bin_edges[0])
+        bin_centers = bin_edges[1:] - bin_width / 2
+
+        plot = ax.scatter(bin_centers, statistics, **pargs)
+    elif ptype == "boxplot":
+        bin_lefts = np.linspace(x.min(), x.max(), bins)
+        bins_indices = np.digitize(x, bin_lefts)
+
+        plot = ax.boxplot(
+            [y[bins_indices == i] for i in range(bins)],
+            **pargs
+        )
+
+        bin_width = (bin_lefts[1] - bin_lefts[0])
+        bin_centers = bin_lefts[1:] + bin_width / 2
+        ax.set_xticklabels([f"{center:.1f}" for center in bin_centers])
+    else:
+        raise ValueError(f"Unknown plot type {ptype}!")
+
+    return ax, plot
 
 
 def plot_distribution_as_percentiles(ax, x, y,
@@ -667,7 +729,7 @@ def channels(met_mm_backend, ylim=None, ax=None, **kwargs):
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             background=False, **kwargs):
+             bg=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -680,7 +742,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         ax: A matplotlib axis object. If not given, a new axis
             object will be created in the current figure.
         projection: If no axis is given, specify here the cartopy projection.
-        background: If true, a background image will be drawn.
+        bg: If true, a background image will be drawn.
         **kwargs:
 
     Returns:
@@ -708,7 +770,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     if ax is None:
         ax = fig.add_subplot(111, projection=projection)
 
-    if background:
+    if bg:
         ax.stock_img()
 
     # It is counter-intuitive but if we want to plot our data with normal

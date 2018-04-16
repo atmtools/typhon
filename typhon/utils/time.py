@@ -6,10 +6,13 @@
 from datetime import datetime, timedelta
 from numbers import Number
 
+import netCDF4
+import numpy as np
 import pandas as pd
 
-
 __all__ = [
+    "date2num",
+    "num2date",
     "set_time_resolution",
     "to_datetime",
     "to_timedelta",
@@ -118,3 +121,105 @@ def to_timedelta(obj, numbers_as=None):
         return timedelta(**{numbers_as: int(obj)})
     else:
         return pd.to_timedelta(obj).to_pytimedelta()
+
+
+unit_mapper = {
+    "nanoseconds": "ns",
+    "microseconds": "us",
+    "milliseconds": "ms",
+    "seconds": "s",
+    "hours": "h",
+    "minutes": "m",
+    "days": "D",
+}
+
+
+class InvalidUnitString(Exception):
+    def __init__(self, *args, **kwargs):
+        super(InvalidUnitString, self).__init__(*args, **kwargs)
+
+
+def date2num(dates, units, calendar=None):
+    """Convert an array of integer into datetime objects.
+
+    This function optimizes the date2num function of python-netCDF4 if the
+    standard calendar is used.
+
+    Args:
+        dates: Either an array of numpy.datetime64 objects (if standard
+            gregorian calendar is used), otherwise an array of python
+            datetime objects.
+        units: A string with the format "{unit} since {epoch}",
+            e.g. "seconds since 1970-01-01T00:00:00".
+        calendar: (optional) Standard is gregorian. If others are used,
+            netCDF4.num2date will be called.
+
+    Returns:
+        An array of integers.
+    """
+    if calendar is None:
+        calendar = "gregorian"
+    else:
+        calendar = calendar.lower()
+
+    if calendar != "gregorian":
+        return netCDF4.date2num(dates, units, calendar)
+
+    try:
+        unit, epoch = units.split(" since ")
+    except ValueError:
+        raise InvalidUnitString("Could not convert to numeric values!")
+
+    converted_data = \
+        dates.astype("M8[%s]" % unit_mapper[unit]).astype("int")
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
+    return converted_data
+
+
+def num2date(times, units, calendar=None):
+    """Convert an array of integers into datetime objects.
+
+    This function optimizes the num2date function of python-netCDF4 if the
+    standard calendar is used.
+
+    Args:
+        times: An array of integers representing timestamps.
+        units: A string with the format "{unit} since {epoch}",
+            e.g. "seconds since 1970-01-01T00:00:00".
+        calendar: (optional) Standard is gregorian. If others are used,
+            netCDF4.num2date will be called.
+
+    Returns:
+        Either an array of numpy.datetime64 objects (if standard gregorian
+        calendar is used), otherwise an array of python datetime objects.
+    """
+    try:
+        unit, epoch = units.split(" since ")
+    except ValueError:
+        raise InvalidUnitString("Could not convert to datetimes!")
+
+    if calendar is None:
+        calendar = "gregorian"
+    else:
+        calendar = calendar.lower()
+
+    if calendar != "gregorian":
+        return netCDF4.num2date(times, units, calendar).astype(
+            "M8[%s]" % unit_mapper[unit])
+
+    # Numpy uses the epoch 1970-01-01 natively.
+    converted_data = times.astype("M8[%s]" % unit_mapper[unit])
+
+    # numpy.datetime64 cannot read certain time formats while pandas can.
+    epoch = pd.Timestamp(epoch).to_datetime64()
+
+    # Maybe there is another epoch used?
+    if epoch != np.datetime64("1970-01-01"):
+        converted_data -= np.datetime64("1970-01-01") - epoch
+    return converted_data
+

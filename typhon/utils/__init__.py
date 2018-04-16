@@ -12,6 +12,8 @@ import subprocess
 import time
 import collections
 import itertools
+import traceback
+
 from warnings import warn
 from functools import (partial, wraps)
 
@@ -218,6 +220,30 @@ def _safe_eval_node(node):
 # End of snippet derived from http://stackoverflow.com/a/9558001/974555
 
 
+def unique(seq):
+    """Remove duplicates from list whilst keeping the original order
+
+    Notes:
+        If you do not care about keeping the order, use this code:
+        >>>> list(set([0, 5, 1, 2, 0, 3, 1,]))
+        [0, 1, 2, 3, 5]
+
+    This code is taken from https://stackoverflow.com/a/480227.
+
+    Args:
+        seq: A sequence (list, etc.) of elements.
+
+    Returns:
+        A list with unique items with original order.
+
+    Examples:
+        >>>> unique([0, 5, 1, 2, 0, 3, 1,])
+    """
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
 def path_append(dirname, path='PATH'):
     """Append a directory to environment path variable.
 
@@ -286,6 +312,7 @@ def get_time_dimensions(ds):
 
     return {k for (k, v) in ds.coords.items() if k in ds.dims and v.dtype.kind == "M"}
 
+
 def get_time_coordinates(ds):
     """From a xarray dataset or dataarray, get coordinates with at least 1 time dimension
 
@@ -293,6 +320,7 @@ def get_time_coordinates(ds):
 
     time_dims = get_time_dimensions(ds)
     return {k for (k, v) in ds.coords.items() if set(v.dims)&time_dims}
+
 
 # Any commits made to this module between 2015-05-01 and 2017-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and
@@ -485,7 +513,6 @@ def image2mpeg(glob, outfile, framerate=12, resolution='1920x1080'):
     if p.returncode != 0:
         raise Exception(p.stderr)
 
-
 def stack_xarray_repdim(da, **dims):
     """Like xarrays stack, but with partial support for repeated dimensions
 
@@ -524,3 +551,68 @@ def stack_xarray_repdim(da, **dims):
                     [da.coords[kk] for kk in dims[k]], names=dims[k])
                 if k in dims else da.coords[k] for k in np.unique(da3.dims)})
     return da3
+
+
+def split_units(value):
+    """Splits a string into float number and potential unit
+
+    References
+        Taken from https://stackoverflow.com/a/30087094
+
+    Args:
+        value: String with number and unit.
+
+    Returns
+        A tuple of a float and unit string.
+
+    Examples:
+
+        >>> split_units("2GB")
+        (2.0, 'GB')
+        >>> split_units("17 ft")
+        (17.0, 'ft')
+        >>> split_units("   3.4e-27 frobnitzem ")
+        (3.4e-27, 'frobnitzem')
+        >>> split_units("9001")
+        (9001.0, '')
+        >>> split_units("spam sandwhiches")
+        (0, 'spam sandwhiches')
+        >>> split_units("")
+        (0, '')
+    """
+    units = ""
+    number = 0
+    while value:
+        try:
+            number = float(value)
+            break
+        except ValueError:
+            units = value[-1:] + units
+            value = value[:-1]
+    return number, units.strip()
+
+
+def reraise_with_stack(func):
+    """Make functions include the whole stack in raised exceptions
+
+    Notes:
+        This is a decorator function.
+
+    When using the concurrent.futures module, the original traceback message
+    gets lost, which makes it difficult to debug. This decorator solves the
+    problem.
+
+    Taken from https://stackoverflow.com/a/29357032.
+    """
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            traceback_str = traceback.format_exc()
+            raise Exception(
+                "Error occurred. Original traceback is\n%s\n" % traceback_str
+            )
+
+    return wrapped

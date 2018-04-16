@@ -7,6 +7,8 @@ performing query requests on them significantly.
 
 from collections import Iterable
 
+import pandas as pd
+import numba
 import numpy as np
 
 __all__ = [
@@ -51,9 +53,12 @@ class IntervalTree:
         """Creates an IntervalTree object.
 
         Args:
-            intervals: A numpy array containing the intervals (list of two
-                numbers).
+            intervals: A list or numpy.array containing the intervals (list of
+                two numbers).
         """
+        if not isinstance(intervals, np.ndarray):
+            intervals = np.asarray(intervals)
+
         # Check the intervals whether they are valid:
         self.left = np.min(intervals)
         self.right = np.max(intervals)
@@ -71,6 +76,7 @@ class IntervalTree:
         else:
             return bool(self._query_point(item, self.root, check_extreme=True))
 
+    # @numba.jit
     def _build_tree(self, intervals):
         if not intervals.any():
             return None
@@ -85,7 +91,8 @@ class IntervalTree:
 
         return IntervalTreeNode(
             center_point, center,
-            self._build_tree(left), self._build_tree(right))
+            self._build_tree(left), self._build_tree(right)
+        )
 
     @staticmethod
     def _get_center(intervals):
@@ -104,9 +111,7 @@ class IntervalTree:
         Returns:
             True if the intervals overlap.
         """
-        return interval1[0] <= interval2[0] <= interval1[1] or \
-            interval1[0] <= interval2[1] <= interval1[1] or \
-            (interval2[0] <= interval1[0] and interval2[1] >= interval1[1])
+        return interval1[0] <= interval2[1] and interval1[1] >= interval2[0]
 
     @staticmethod
     def interval_contains(interval, point):
@@ -122,6 +127,7 @@ class IntervalTree:
         """
         return interval[0] <= point <= interval[1]
 
+    # @numba.jit
     def query(self, intervals):
         """Find all overlaps between this tree and a list of intervals.
 
@@ -136,6 +142,7 @@ class IntervalTree:
         return [self._query(interval, self.root, check_extreme=True)
                 for interval in intervals]
 
+    # @numba.jit
     def _query(self, query_interval, node, check_extreme=False):
         # Check this special case: the bounds of the query interval lie outside
         # of the bounds of this tree:
@@ -156,6 +163,7 @@ class IntervalTree:
 
         return intervals
 
+    # @numba.jit
     def query_points(self, points):
         """Find all intervals of this tree which contain one of those points.
 
@@ -169,11 +177,13 @@ class IntervalTree:
         return [self._query_point(point, self.root, check_extreme=True)
                 for point in points]
 
+    # @numba.jit
     def _query_point(self, point, node, check_extreme=False):
         # Check this special case: the query point lies outside of the bounds
         # of this tree:
         if check_extreme \
-                and not IntervalTree.interval_contains((self.left, self.right), point):
+                and not IntervalTree.interval_contains(
+                    (self.left, self.right), point):
             return []
 
         # Let's start with the centered intervals

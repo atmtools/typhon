@@ -28,6 +28,9 @@ class TestUtils():
         with pytest.raises(Exception):
             utils.image2mpeg(glob='', outfile='foo.mp4')
 
+    def test_unique(self):
+        assert utils.unique([0, 5, 1, 2, 0, 3, 1]) == [0, 5, 1, 2, 3]
+
     def test_undo_xarray_floatification(self):
         ds = xarray.Dataset(
             {"a": (["x"], numpy.array([1, 2, 3], dtype="f4")),

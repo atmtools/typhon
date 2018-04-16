@@ -1,21 +1,16 @@
-
 Find collocations with typhon
 =============================
 
 .. Warning::
    This tutorial is still under development and contains invalid code.
 
-Before we start, we configure this notebook so that it shows our
-matplotlib plots directly.
-
-.. code:: ipython3
-
-    %matplotlib inline
-    %load_ext autoreload
-    %autoreload 2
-    
-    import numpy as np
-    import matplotlib.pyplot as plt
+.. Hint::
+   If you want to run the code from this tutorial on your machine as well,
+   download
+   :download:`spareice_tutorials.zip<_downloads/spareice_tutorials.zip>` and
+   unzip it. You can find the code examples for this tutorial in the jupyter
+   notebook file *collocations.ipynb*. You will need the jupyter_ engine for
+   this.
 
 Collocations between two data arrays
 ------------------------------------
@@ -23,15 +18,13 @@ Collocations between two data arrays
 Let's try out the simplest case: You have two data arrays with
 temporal-spatial data and you want to find collocations between them.
 
-Firstly, we create two example data arrays (can be a simple dictionary
-of numpy arrays or other dictionary-like objects such as
-xarray.Dataset). Let's assume, these data arrays represent measurements
-from two different instruments (e.g. on satellites or ships that can
-swim over land). Each measurement has a time attribute indicating when
+At first, we create two example data arrays with faked measurements. Let's
+assume, these data arrays represent measurements from two different instruments
+(e.g. on satellites). Each measurement has a time attribute indicating when
 it was taken and a geo-location (latitude and longitude) indicating where
 this happened.
 
-.. code:: ipython3
+.. code-block:: python
 
     import cartopy.crs as projections
     from typhon.plots import worldmap
@@ -59,15 +52,12 @@ this happened.
 .. image:: _figures/collocations/arrays-worldmap.png
 
 
-The timestamps for the measurements are exactly shifted by one hour
-between *primary* and *secondary*:
-
-Secondly, let's find all measurements of *primary* that have a maxmimum
+Now, let's find all measurements of *primary* that have a maximmum
 distance of *300 kilometers* to the measurements of *secondary*:
 
-.. code:: ipython3
+.. code-block:: python
 
-    from typhon.spareice import collocate
+    from typhon.collocations import collocate
     
     indices = collocate([primary, secondary], max_distance=500,)
     print(indices)
@@ -80,12 +70,12 @@ distance of *300 kilometers* to the measurements of *secondary*:
 
 
 This means, that the 4th point of *primary* collocates with the 4th
-point of *secondary* and the 16th point of *primary* collocates with the
-15th point of *secondary*
+point of *secondary* and the 15th point of *primary* collocates with the
+15th point of *secondary*, etc.
 
-Let's plot the two collocations on a map as red crosses:
+Let's mark the collocations with red crosses on the map:
 
-.. code:: ipython3
+.. code-block:: python
 
     fig = plt.figure(figsize=(10, 10))
     
@@ -102,7 +92,6 @@ Let's plot the two collocations on a map as red crosses:
     worldmap(primary["lat"], primary["lon"], s=24, ax=wmap,)
     worldmap(secondary["lat"], secondary["lon"], s=24, ax=wmap,)
     wmap.set_extent([0, 90, -10, 50])
-    fig.savefig("example-collocations.pdf")
 
 
 
@@ -113,7 +102,7 @@ We can also add a temporal filter that filters out all points which
 difference in time is bigger than a time interval. We are doing this by
 using *max\_interval*:
 
-.. code:: ipython3
+.. code-block:: python
 
     indices = collocate([primary, secondary], max_distance=300, max_interval="1 hour")
     print(indices)
@@ -125,12 +114,12 @@ using *max\_interval*:
      [4]]
 
 
-If we are not interested in spatial collocations but only in temporal
-ones, we can set a *max\_interval* parameter only:
+If we are not interested in spatial collocations but only in temporal ones, we
+can leave *max_distance* out:
 
-.. code:: ipython3
+.. code-block:: python
 
-    # Find temporal collocations
+    # Find temporal collocations (without regarding the location)
     indices = collocate([primary, secondary], max_interval="1 hour")
     
     # Plot intervals
@@ -142,7 +131,7 @@ ones, we can set a *max\_interval* parameter only:
 .. image:: _figures/collocations/intervals.png
 
 
-Find collocations between two datasets
+Find collocations between two filesets
 --------------------------------------
 
 .. Warning::
@@ -150,58 +139,56 @@ Find collocations between two datasets
    typhon. Please wait for an update.
 
 Normally, one has the data stored in a set of many files. typhon
-provides an object to handle those *datasets* (see the `typhon
-doc <http://radiativetransfer.org/misc/typhon/doc-trunk/generated/typhon.spareice.datasets.Dataset.html>`__).
+provides an object to handle those *filesets* (see the `typhon
+doc <http://radiativetransfer.org/misc/typhon/doc-trunk/generated/typhon.files.filesets.FileSet.html>`__).
 It is very simple to find collocations between them.
 
-Firstly, we need to create Dataset objects and let them know where to find
+Firstly, we need to create FileSet objects and let them know where to find
 their files:
 
-.. code:: ipython3
+.. code-block:: python
     
-    from typhon.spareice import collocate, collocate_datasets, CollocatedDataset, Dataset
+    from typhon.files import FileSet
     
-    # Create the dataset object and point them to the input files
-    a_dataset = Dataset(
+    # Create the filesets objects and point them to the input files
+    a_fileset = FileSet(
         name="SatelliteA",
         path="data/SatelliteA/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
     )
-    b_dataset = Dataset(
+    b_fileset = FileSet(
         name="SatelliteB",
         path="data/SatelliteB/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
-    )
-    
-    # Create the output dataset:
-    ab_collocations = CollocatedDataset(
-        name="ab_collocations",
-        path="data/ab_collocations/{year}/{month}/{day}/"
-             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+             "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
     )
 
-If you do not know how to deal with those Dataset objects, try this
-`tutorial <http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html>`__.
+If you do not know how to deal with those FileSet objects, try this
+`tutorial <http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/fileset.html>`__.
 
 Now, we can search for collocations between *a\_dataset* and
 *b\_dataset* and store them to *ab\_collocations*.
 
-.. code:: ipython3
+.. code-block:: python
 
-    collocate_datasets(
-        [a_dataset, b_dataset], start="2018", end="2018-01-02",
-        output=ab_collocations, max_interval="1h", max_distance=300
-    )
+   from typhon.collocations import Collocations
+
+   # Create the output dataset:
+   ab_collocations = Collocations(
+     name="ab_collocations",
+     path="data/ab_collocations/{year}/{month}/{day}/"
+          "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc.gz"
+   )
+
+   ab_collocations.search(
+     [a_fileset, b_fileset], start="2018", end="2018-01-02",
+     max_interval="1h", max_distance=300
+   )
 
 
 .. parsed-literal::
 
     Find collocations between SatelliteA and SatelliteB from 2018-01-01 00:00:00 to 2018-01-02 00:00:00
     Retrieve time coverages from files...
-
-
-::
-
 
     ---------------------------------------------------------------------------
 
@@ -233,7 +220,7 @@ Now, we can search for collocations between *a\_dataset* and
     TypeError: 'NoneType' object does not support item assignment
 
 
-.. code:: ipython3
+.. code-block:: python
 
     from typhon.spareice import collocate
     
@@ -259,7 +246,7 @@ Find collocations between more than two datasets
 How about finding collocations between more than two datasets? Let's
 assume we have an additional dataset from *Satellite C*:
 
-.. code:: ipython3
+.. code-block:: python
 
     from typhon.spareice.handlers import CSV
     
@@ -285,7 +272,7 @@ Point 1 is still not implemented. However, it is planned to do it like
 this: Simply pass more datasets objects to the *Collocator.read()*
 method.
 
-.. code:: ipython3
+.. code-block:: python
 
     # Create the output dataset:
     abc_collocations = CollocatedDataset(
@@ -305,7 +292,7 @@ This is easy to achieve. We have already collocated *a\_dataset* with
 want to use as reference from the *a\_dataset* or *b\_dataset* by
 setting the parameter ``primary`` of *ab\_collocations*:
 
-.. code:: ipython3
+.. code-block:: python
 
     # Using the Satellite A dataset (a_dataset) as reference:
     ab_collocations.primary = "SatelliteA"
@@ -318,23 +305,4 @@ setting the parameter ``primary`` of *ab\_collocations*:
 
 Now, let's find the collocations:
 
-.. code:: ipython3
-
-    collocator = Collocator(max_interval=100, max_distance=300)
-    collocator.run(start, end, [ab_collocations, c_dataset], output=ac_collocations)
-
-
-::
-
-
-    ---------------------------------------------------------------------------
-
-    NameError                                 Traceback (most recent call last)
-
-    <ipython-input-13-fd64dea4f16f> in <module>()
-          1 collocator = Collocator(max_interval=100, max_distance=300)
-    ----> 2 collocator.run(start, end, [ab_collocations, c_dataset], output=ac_collocations)
-    
-
-    NameError: name 'start' is not defined
 
