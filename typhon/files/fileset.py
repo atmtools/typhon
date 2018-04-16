@@ -315,7 +315,7 @@ class FileSet:
             temp_dir: You can set here your own temporary directory that this
                 FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
-                `tempfile.gettempdir` (see tempfile_ doc).
+                `tempfile.gettempdir` (see :func:`tempfile.gettempdir`).
             compress: If true and `path` ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 files will be compressed after writing them to disk. Default
@@ -324,14 +324,12 @@ class FileSet:
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), files will be
                 decompressed before reading them. Default value is true.
 
-        .. _tempfile https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir
-
-        You can use regular expressions or placeholders in :param:`path` to
+        You can use regular expressions or placeholders in `path` to
         generalize the files path. Placeholders are going to be captured and
         returned by file-finding methods such as :meth:`find`. Temporal
         placeholders will be converted to datetime objects and represent a
-        file's time coverage. Allowed temporal placeholders in the
-        :param:`path` argument are:
+        file's time coverage. Allowed temporal placeholders in the `path`
+        argument are:
 
         +-------------+------------------------------------------+------------+
         | Placeholder | Description                              | Example    |
@@ -355,6 +353,7 @@ class FileSet:
         +-------------+------------------------------------------+------------+
         | millisecond | Three digits indicating the millisecond. | 999        |
         +-------------+------------------------------------------+------------+
+
         .. [1] Numbers lower than 65 are interpreted as 20XX while numbers
             equal or greater are interpreted as 19XX (e.g. 65 = 1965,
             99 = 1999)
@@ -1475,12 +1474,12 @@ class FileSet:
                 be retrieved (e.g. time coverage). Possible options are
                 *filename*, *handler* or *both*. Default is the value of the
                 *info_via* parameter during initialization of this FileSet
-                 object. If this is *filename*, the placeholders in the file's
+                object. If this is *filename*, the placeholders in the file's
                 path will be parsed to obtain information. If this is
                 *handler*, the
-                :meth:`~typhon.files.handlers.common.FileInfo.get_info` method is
-                used. If this is *both*, both options will be executed but the
-                information from the file handler overwrites conflicting
+                :meth:`~typhon.files.handlers.common.FileInfo.get_info` method
+                is used. If this is *both*, both options will be executed but
+                the information from the file handler overwrites conflicting
                 information from the filename.
 
         Returns:
@@ -1620,7 +1619,7 @@ class FileSet:
             pass_info=None, read_args=None, output=None,
             max_workers=None, worker_type=None,
             #worker_initializer=None, worker_initargs=None,
-            return_info=False, **find_args
+            return_info=False, **find_kwargs
     ):
         """Apply a function on all files of this fileset between two dates
 
@@ -1648,7 +1647,7 @@ class FileSet:
             files: If you have already a list of files that you want to
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
-                allowed to set `start` and `end then.
+                allowed to set `start` and `end` then.
             on_content: If true, the file will be read before `func` will be
                 applied. The content will then be passed to `func`.
             pass_info: If `on_content` is true, this decides whether a FileInfo
@@ -1676,7 +1675,7 @@ class FileSet:
                 `worker_initializer`.
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
-            **find_args: Additional keyword arguments that are allowed
+            **find_kwargs: Additional keyword arguments that are allowed
                 for :meth`find` such as `start` or `end`.
 
         Returns:
@@ -1738,7 +1737,7 @@ class FileSet:
                 func, args, kwargs, files, on_content, pass_info, read_args,
                 output, max_workers, worker_type,
                 #worker_initializer, worker_initargs,
-                return_info, **find_args
+                return_info, **find_kwargs
             )
 
         with pool_class(**pool_args) as pool:
