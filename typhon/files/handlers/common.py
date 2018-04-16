@@ -10,7 +10,6 @@ import warnings
 
 import netCDF4
 import pandas as pd
-from typhon.collections import DataGroup
 import xarray as xr
 
 # The HDF4 file handler needs pyhdf, this might be very tricky to install if
@@ -624,7 +623,9 @@ class NetCDF4(FileHandler):
         # We can merge everything to one big dataset:
         dataset = xr.merge(dataset)
 
-        return _xarray_select_and_rename_fields(dataset, fields, mapping)
+        dataset = _xarray_select_and_rename_fields(dataset, fields, mapping)
+        dataset.load()
+        return dataset
 
     @staticmethod
     def _all_groups_in_file(top):

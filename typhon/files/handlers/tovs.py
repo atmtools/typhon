@@ -1,10 +1,6 @@
 from datetime import datetime, timedelta
 
 from netCDF4 import Dataset
-import numpy as np
-import pandas as pd
-from typhon.collections import DataGroup
-import xarray as xr
 
 from .common import NetCDF4, expects_file_info
 

@@ -2,7 +2,7 @@
 This module contains classes to handle datasets consisting of many files.
 
 Have a look at this tutorial:
-http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/dataset.html
+http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/fileset.html
 
 Created by John Mrziglod, June 2017
 """
@@ -316,11 +316,11 @@ class FileSet:
                 FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
                 `tempfile.gettempdir` (see tempfile_ doc).
-            compress: If true and the *path* path ends with a compression
+            compress: If true and `path` ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), newly created
                 files will be compressed after writing them to disk. Default
                 value is true.
-            decompress: If true and the *path* path ends with a compression
+            decompress: If true and `path` ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), files will be
                 decompressed before reading them. Default value is true.
 

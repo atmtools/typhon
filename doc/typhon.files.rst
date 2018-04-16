@@ -1,5 +1,5 @@
 files
-=============
+=====
 
 .. automodule:: typhon.files
 

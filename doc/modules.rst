@@ -27,6 +27,14 @@ Atmosphere
 
    typhon.atmosphere
 
+Collocations
+------------
+
+.. toctree::
+   :maxdepth: 2
+
+   typhon.collocations
+
 Configuration and Environment
 -----------------------------
 
@@ -51,6 +59,12 @@ Datasets
    :maxdepth: 2
 
    typhon.datasets
+
+File sets and handlers
+----------------------
+
+.. toctree::
+   :maxdepth: 2
 
    typhon.files
 
@@ -120,8 +134,8 @@ Spectroscopy
 
    typhon.spectroscopy
 
-Collocations and SPARE-ICE
---------------------------
+SPARE-ICE
+---------
 
 .. toctree::
    :maxdepth: 2

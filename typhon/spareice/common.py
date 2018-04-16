@@ -11,7 +11,6 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.svm import SVR
-from typhon.spareice.array import GroupedArrays
 from typhon.files import FileSet
 import xarray as xr
 
@@ -219,7 +218,6 @@ class Retriever:
             scaler = parameter.pop("scaler", None)
             if scaler is None:
                 raise ValueError("Found no coefficients for scaler!")
-
 
             self.scaler = self._create_model(
                 MinMaxScaler, scaler["params"], scaler["coefs"],
