@@ -13,7 +13,7 @@ from typhon.plots.maps import get_cfeatures_at_scale
 # Read air temperature data.
 with netCDF4.Dataset('_data/test_data.nc') as nc:
     lon, lat = np.meshgrid(nc.variables['lon'][:], nc.variables['lat'][:])
-    h2o = nc.variables['qv'][:]
+    h2o = nc.variables['qv'][:].astype('float64')
 
 # Create plot with PlateCarree projection.
 fig = plt.figure(figsize=(10, 8))
