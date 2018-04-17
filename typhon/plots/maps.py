@@ -2,9 +2,14 @@
 """Functions related to plotting maps. """
 from collections import namedtuple
 
-import cartopy.crs as ccrs
-from cartopy.feature import NaturalEarthFeature, COLORS
-from matplotlib import pyplot as plt
+try:
+    import cartopy.crs as ccrs
+    from cartopy.feature import NaturalEarthFeature, COLORS
+except ImportError:
+    raise ImportError('You have to install `cartopy` to use functions '
+                      'located in `typhon.plots.maps`.')
+else:
+    from matplotlib import pyplot as plt
 
 
 __all__ = [
