@@ -21,7 +21,6 @@ plots
    colors2cmap
    figsize
    get_available_styles
-   get_cfeatures_at_scale
    get_subplot_arrangement
    heatmap
    HectoPascalFormatter
@@ -41,7 +40,6 @@ plots
    sorted_legend_handles_labels
    styles
    supcolorbar
-   worldmap
 
 Typhon style sheet
 ^^^^^^^^^^^^^^^^^^
