@@ -28,7 +28,7 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
     def find_collocations(
             self, primary_data, secondary_data, max_interval, max_distance,
             **kwargs):
-        """Finds collocations between two DataGroups / xarray.Datasets.
+        """Find collocations between two pandas.DataFrames
 
         Args:
             primary_data: The data from the primary dataset as xarray.Dataset
@@ -44,31 +44,18 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
                 kilometers to meet the collocation criteria.
 
         Returns:
-            Four lists:
-            (1) primary indices - The indices of the data in *primary_data*
-                that have collocations.
-            (2) secondary indices - The indices of the data in *secondary_data*
-                that have collocations.
-            (3) primary collocations - This and (4) define the collocation
-                pairs. It is a list containing indices of the corresponding
-                data points. The first element of this list is collocated with
-                the first element of the *secondary collocations* list (4),
-                etc. Can contain duplicates if one dataset point has
-                multiple collocations from the another dataset.
-            (4) secondary collocations - Same as (3) but containing the
-                collocations of the secondary data.
+            One numpy.array with two rows (for the primary and the secondary
+            data) and N columns. Each column represents one collocation and the
+            two values indicate the index in the primary and secondary data.
         """
         pass
 
 
 class BallTree(CollocationsFinder):
-    def __init__(self, leaf_size=None, tunnel_limit=None):
+    def __init__(self, tunnel_limit=None, magnitude_factor=100, **kwargs):
         """Initialize a CollocationsFinder with a BallTree algorithm
 
         Args:
-            leaf_size: Number of points at which to switch to brute-force.
-                Default is 16. Look here for more details:
-                http://scikit-learn.org/stable/modules/generated/sklearn.neighbors.BallTree.html
             tunnel_limit: Maximum distance in kilometers at which to switch
                 from tunnel to haversine distance metric. Per default this
                 algorithm uses the tunnel metric, which simply transform all
@@ -78,42 +65,121 @@ class BallTree(CollocationsFinder):
                 this limit (`max_distance` is greater than this parameter), the
                 haversine metric is used, which is more accurate but takes more
                 time. Default is 1000 kilometers.
+            magnitude_factor: Since building new trees is expensive, this
+                algorithm tries to use the last tree when possible (e.g. for
+                data with fixed grid). However, building the tree with the
+                larger dataset and query it with the smaller dataset is faster
+                than vice versa. Depending on which premise to follow, there
+                might have a different performance in the end. This parameter
+                is the factor that... TODO
+            **kwargs: Additional keyword arguments that are allowed for the
+                scikit-learn BallTree class (
+                http://scikit-learn.org/stable/modules/generated/sklearn.neighbors.BallTree.html)
+                such as `leaf_size`.
         """
         super(BallTree, self).__init__()
 
-        self.leaf_size = 16 if leaf_size is None else leaf_size
         if tunnel_limit is None:
             self.tunnel_limit = 1000
         else:
             self.tunnel_limit = tunnel_limit
 
+        # Building a ball tree is expensive. Let's cache the points from last
+        # time, so maybe it is possible to reuse the last tree?
+        self.tree = None
+        self.tree_points = None
+        self.used_primary = None
+
+        # Additional BallTree key word arguments:
+        self.tree_kwargs = kwargs
+
+        # New tree factor:
+        self.magnitude_factor = magnitude_factor
+
     def find_collocations(
         self, primary_data, secondary_data, max_interval, max_distance,
-        **kwargs
+        **kwargs,
     ):
-        """
-
-        TODO: Add documentation.
+        """Find collocations between two pandas.DataFrames
 
         Args:
-            primary_data:
-            secondary_data:
-            max_interval:
-            max_distance:
-            **kwargs:
+            primary_data: The data from the primary dataset as xarray.Dataset
+                object. This object must provide the special fields "lat",
+                "lon" and "time" as 1-dimensional arrays.
+            secondary_data: The data from the secondary dataset as
+                xarray.Dataset object. Needs to meet the same conditions as
+                primary_data ("lat", "lon" and "time" fields).
+            max_interval: The maximum interval of time between two data points
+                in seconds. If this is None, the data will be searched for
+                spatial collocations only.
+            max_distance: The maximum distance between two data points in
+                kilometers to meet the collocation criteria.
 
         Returns:
-
+            One numpy.array with two rows (for the primary and the secondary
+            data) and N columns. Each column represents one collocation and the
+            two values indicate the index in the primary and secondary data.
         """
 
+        # Convert the data, set radius and choose metric
+        primary_points, secondary_points, max_radius, metric \
+            = self._prepare_tree_data(
+                primary_data, secondary_data, max_interval, max_distance
+            )
+
+        # Finding collocations is expensive, therefore we want to optimize it
+        # and have to decide which points to use for tree building.
+        use_primary = self._choose_points_to_build_tree(
+            primary_points, secondary_points
+        )
+
+        pairs = self._find_collocations(
+            primary_points, secondary_points, max_radius, ball_tree_kwargs
+        )
+
+        # No collocations were found.
+        if not pairs.any():
+            return np.array([[], []])
+
+        # Check here for temporal collocations:
+        if max_distance is not None and max_interval is not None:
+            # Check whether the time differences between the spatial
+            # collocations are less than the temporal boundary:
+            passed_time_check = np.abs(
+                primary_data.index[pairs[0]]
+                - secondary_data.index[pairs[1]]
+            ) < max_interval
+
+            # Just keep all indices which satisfy the temporal condition.
+            pairs = pairs[:, passed_time_check]
+
+        return pairs
+
+    def _build_tree(self, points, metric):
+        # Find out whether the cached tree still works with the new points:
+        if np.allclose(self.tree_points, points):
+            return self.tree
+
+        # Or create a new one:
+        kwargs = {**self.tree_kwargs, "metric": metric}
+
+        # Set the cache new:
+        self.tree_points = points
+
+        return SklearnBallTree(
+            points, **kwargs
+        )
+
+    def _prepare_tree_data(self, primary_data, secondary_data, max_interval,
+                           max_distance):
         # We can use different metrics for the BallTree. The default euclidean
         # metric is the fastest but produces a big error for large distances.
         # We have to convert also all data to 3D-cartesian coordinates.
         # The users can define a spatial limit for the euclidean metric. If
         # they set a maximum distance greater than this limit, the haversine
         # metric will be used, which is more correct.
-        ball_tree_kwargs = {}
 
+        metric = "minkowski"
         if max_distance is None:
             # Search for temporal collocations only
             primary_time = \
@@ -123,7 +189,7 @@ class BallTree(CollocationsFinder):
 
             # The BallTree implementation only allows 2-dimensional data, hence
             # we need to add an empty second dimension
-            # TODO: Change this
+            # TODO: Use a more adequate algorithm here? Maybe a range tree?
             primary_points = np.column_stack(
                 [primary_time, np.zeros_like(primary_time)]
             )
@@ -135,7 +201,7 @@ class BallTree(CollocationsFinder):
         elif self.tunnel_limit is not None \
                 and max_distance > self.tunnel_limit:
             # Use the more expensive and accurate haversine metric
-            ball_tree_kwargs["metric"] = "haversine"
+            metric = "haversine"
 
             # We need the latitudes and longitudes in radians:
             primary_points = np.radians(
@@ -181,28 +247,50 @@ class BallTree(CollocationsFinder):
             # convert it to meters.
             max_radius = max_distance * 1000
 
-        pairs = self._find_collocations(
-            primary_points, secondary_points, max_radius, ball_tree_kwargs
-        )
+        return primary_points, secondary_points, max_radius, metric
 
-        # No collocations were found.
-        if not pairs.any():
-            return np.array([[], []])
+    def _choose_points_to_build_tree(self, primary, secondary):
+        """Choose which points should be used for tree building
 
-        # Check here for temporal collocations:
-        if max_distance is not None and max_interval is not None:
+        This method helps to optimize the performance.
 
-            # Check whether the time differences between the spatial
-            # collocations are less than the temporal boundary:
-            passed_time_check = np.abs(
-                primary_data.index[pairs[0]]
-                - secondary_data.index[pairs[1]]
-            ) < max_interval
+        Args:
+            primary: Converted primary points
+            secondary: Converted secondary points
 
-            # Just keep all indices which satisfy the temporal condition.
-            pairs = pairs[:, passed_time_check]
+        Returns:
+            True if primary points should be used for tree building. False
+            otherwise.
+        """
+        # There are two options to optimize the performance:
+        # A) Cache the tree and reuse it if either the primary or the secondary
+        # points have not changed (that is the case for gridded data). Building
+        # the tree is normally very expensive, so it should never be done
+        # without a reason.
+        # B) Build the tree with the larger set of points and query it with the
+        # smaller set.
+        # Which option should be used if A and B cannot be applied at the same
+        # time? If the magnitude of one point set is much larger (by
+        # `magnitude factor` larger) than the other point set, then we strictly
+        # follow B. Otherwise, we prioritize A.
 
-        return pairs
+        if primary > secondary * self.magnitude_factor:
+            # Use primary points
+            return True
+        elif secondary > primary * self.magnitude_factor:
+            # Use secondary points
+            return False
+
+        # If we used the primary points last time and they still fit, use them
+        # again:
+        if self.used_primary and np.allclose(primary, self.tree_points):
+            return True
+
+        # Check the same for the secondary data:
+        if not self.used_primary and np.allclose(secondary, self.tree_points):
+            return False
+
+        return primary > secondary
 
     def _find_collocations(
             self, primary_points, secondary_points, max_radius,
@@ -213,10 +301,10 @@ class BallTree(CollocationsFinder):
 
         # Search for all collocations
         if tree_with_primary:
-            tree = SklearnBallTree(
-                primary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            self.tree = SklearnBallTree(
+                primary_points, **ball_tree_kwargs
             )
-            results = tree.query_radius(secondary_points, r=max_radius)
+            results = self.tree.query_radius(secondary_points, r=max_radius)
 
             # Build the list of the collocation pairs:
             return np.array([
@@ -225,10 +313,10 @@ class BallTree(CollocationsFinder):
                 for primary_index in primary_indices
             ]).T
         else:
-            tree = SklearnBallTree(
-                secondary_points, leaf_size=self.leaf_size, **ball_tree_kwargs
+            self.tree = SklearnBallTree(
+                secondary_points, **ball_tree_kwargs
             )
-            results = tree.query_radius(primary_points, r=max_radius)
+            results = self.tree.query_radius(primary_points, r=max_radius)
 
             # Build the list of the collocation pairs:
             return np.array([
