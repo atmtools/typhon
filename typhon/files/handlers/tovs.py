@@ -60,7 +60,7 @@ class MHSAAPP(NetCDF4):
 
     @expects_file_info()
     def read(self, paths, mask_and_scale=True, **kwargs):
-        """"Read and parse HDF4 files and load them to a xarray.Dataset
+        """Read and parse MHS HDF5 files and load them to a xarray.Dataset
 
         Args:
             paths: Path and name of the file as string or FileInfo object.
