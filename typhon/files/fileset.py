@@ -116,8 +116,8 @@ class PlaceholderRegexError(Exception):
         )
 
 
-class AsyncError(Exception):
-    """Should be raised if the regex of a placeholder is broken.
+class AlignError(Exception):
+    """Should be raised if two filesets could not be aligned to each other.
     """
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -435,7 +435,7 @@ class FileSet:
             )
 
         # The default worker settings for map-like functions
-        self.max_threads = 3 if max_threads is None else max_threads
+        self.max_threads = 4 if max_threads is None else max_threads
         self.max_processes = 4 if max_processes is None else max_processes
         self.worker_type = "process" if worker_type is None else worker_type
 
@@ -567,7 +567,7 @@ class FileSet:
             info += "\nUser placeholder:\t" + str(self._user_placeholder)
         return info
 
-    def align(self, filesets, start=None, end=None, max_interval=None):
+    def align(self, other, start=None, end=None, max_interval=None):
         """Collect the data from this and corresponding other filesets
 
         Warnings:
@@ -578,8 +578,7 @@ class FileSet:
         filesets.
 
         Args:
-            filesets: A list of FileSet objects. Note: At the moment, only the
-                first fileset will be processed.
+            other: Another fileset object.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If not given, it is
@@ -599,7 +598,7 @@ class FileSet:
         end = None if end is None else to_datetime(end)
 
         # Find all overlapping files
-        matches = list(self.find_overlaps(filesets, start, end,
+        matches = list(self.find_overlaps(other, start, end,
                                           max_interval=max_interval))
         primaries, secondaries = zip(*matches)
 
@@ -611,7 +610,7 @@ class FileSet:
 
         # Prepare the loader for the primaries and secondaries:
         primary_loader = self.icollect(files=primaries)
-        secondary_loader = filesets[0].icollect(
+        secondary_loader = other.icollect(
             files=secondaries, return_info=True
         )
 
@@ -622,34 +621,32 @@ class FileSet:
 
             # We only need to load the files that have not been loaded earlier:
             for secondary in matches[match_id][1]:
-
-                if secondary not in files[filesets[0].name]:
+                if secondary not in files[other.name]:
                     secondary_file, secondary_data = next(secondary_loader)
                     if secondary != secondary_file:
-                        raise AsyncError(
-                            f"Expected the file {secondary}\nbut the file "
-                            f"{secondary_file} was loaded!\nDoes your fileset"
-                            f" '{self.name}' contain files that are "
-                            f"completely overlapping other files? Exclude them"
-                            " via `exclude`."
+                        raise AlignError(
+                            f"Expected '{secondary}'\nbut '{secondary_file}' "
+                            f"was loaded!\nDoes your fileset"
+                            f" '{self.name}' contain files between that are "
+                            f"completely overlapped by other files? Exclude "
+                            f"them via `exclude`."
                         )
-                    files[filesets[0].name].append(secondary)
-                    data[filesets[0].name].append(secondary_data)
+                    files[other.name].append(secondary)
+                    data[other.name].append(secondary_data)
 
             # We still have some files cached that we used the last time but we
-            # do not need any longer. Find them all that we need:
-            files_to_keep = [
-                i for i, file in enumerate(files[filesets[0].name])
+            # do not need any longer. Find all that we need:
+            files_to_keep = {
+                i for i, file in enumerate(files[other.name])
                 if file in matches[match_id][1]
-            ]
+            }
 
-            # And delete the others from the cache:
-            files[filesets[0].name][:] = [
-                file for i, file in enumerate(files[filesets[0].name])
+            files[other.name][:] = [
+                file for i, file in enumerate(files[other.name])
                 if i in files_to_keep
             ]
-            data[filesets[0].name][:] = [
-                data for i, data in enumerate(data[filesets[0].name])
+            data[other.name][:] = [
+                data for i, data in enumerate(data[other.name])
                 if i in files_to_keep
             ]
 
@@ -1199,7 +1196,7 @@ class FileSet:
             sort: If true, all found files will be sorted according to their
                 starting and ending times.
             bundle_size: See the documentation of the *bundle* argument in
-                :meth`find` method.
+                :meth:`find` method.
 
         Yields:
             Either one FileInfo object or - if bundle_size is set - a list of
@@ -1308,13 +1305,12 @@ class FileSet:
         return files[np.argmin(intervals)]
 
     def find_overlaps(
-            self, filesets, start=None, end=None, max_interval=None,
+            self, other, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
         """Find files between two filesets that overlap in time.
 
         Args:
-            filesets: A list of other FileSet objects. Note: at the moment only
-                the first fileset will be processed.
+            other: Another FileSet object.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
@@ -1338,7 +1334,7 @@ class FileSet:
             self.find(start, end, filters=filters)
         )
         files2 = list(
-            filesets[0].find(start, end, filters=other_filters)
+            other.find(start, end, filters=other_filters)
         )
 
         # Convert the times (datetime objects) to seconds (integer)
@@ -1483,7 +1479,7 @@ class FileSet:
                 information from the filename.
 
         Returns:
-            A :meth`~typhon.files.handlers.common.FileInfo` object.
+            A :meth:`~typhon.files.handlers.common.FileInfo` object.
         """
         # We want to save time in this routine, therefore we first check
         # whether we cached this file already.
@@ -1621,7 +1617,7 @@ class FileSet:
             #worker_initializer=None, worker_initargs=None,
             return_info=False, **find_kwargs
     ):
-        """Apply a function on all files of this fileset between two dates
+        """Apply a function on files of this fileset with parallel workers
 
         This method can use multiple workers processes / threads to boost the
         procedure significantly. Depending on which system you work, you should
@@ -1676,7 +1672,7 @@ class FileSet:
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
             **find_kwargs: Additional keyword arguments that are allowed
-                for :meth`find` such as `start` or `end`.
+                for :meth:`find` such as `start` or `end`.
 
         Returns:
             A list with tuples of a FileInfo object and the return value of the
@@ -1747,7 +1743,7 @@ class FileSet:
             ))
 
     def imap(self, *args, **kwargs):
-        """Apply a function on all files of this fileset between two dates
+        """Apply a function on files and return the result immediately
 
         This method does exact the same as :meth:`map` but works as a generator
         and is therefore less memory space consuming.
@@ -1943,7 +1939,7 @@ class FileSet:
                 simply copied without converting.
             copy: If true, then all files will be copied instead of moved.
             **find_args: Additional keyword arguments that are allowed
-                for :meth`find` such as `start`, `end` or `files`.
+                for :meth:`find` such as `start`, `end` or `files`.
 
         Returns:
             New FileSet object with the new files.
