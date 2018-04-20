@@ -110,7 +110,7 @@ setup(
     # $ pip install -e .[dev,test]
     extras_require={
         'docs': [
-            'basemap',
+            'cartopy',
             'pint',
         ],
         'tests': [

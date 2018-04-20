@@ -117,6 +117,7 @@ Plotting
 
    typhon.plots
    typhon.plots.cm
+   typhon.plots.maps
 
 Retrieval
 ---------
