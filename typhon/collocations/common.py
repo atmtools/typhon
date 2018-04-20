@@ -244,9 +244,10 @@ class Collocations(FileSet):
                              " not yet implemented!")
         # max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
-        # Check the algorithm argument because we need the required fields
-        collocate_args["algorithm"] = \
-            _get_algorithm(collocate_args.get("algorithm", None))
+        # Check the algorithm argument because we need the required fields.
+        # Since we create the algorithm object now and use it multiple times,
+        # it may cache internally things to speed up the process.
+        algorithm = _get_algorithm(collocate_args.pop("algorithm", None))
 
         # Encourage the user to set the start and end timestamps explicitly
         # (otherwise splitting onto multiple processes may not be very
@@ -281,7 +282,8 @@ class Collocations(FileSet):
                 pool.submit(
                     Collocations._search, self, PROCESS_NAMES[i],
                     filesets, period[0], period[1], remove_overlaps,
-                    verbose=min(verbose, 1), **collocate_args
+                    verbose=min(verbose, 1), algorithm=algorithm,
+                    **collocate_args
                 )
                 for i, period in enumerate(periods)
             ]
@@ -289,9 +291,9 @@ class Collocations(FileSet):
             # Wait for all processes to end
             wait(futures)
 
-            for future in futures:
+            for i, future in enumerate(futures):
                 if future.exception() is not None:
-                    print(future.exception())
+                    print(f"[{PROCESS_NAMES[i]}] {future.exception()}")
 
     @reraise_with_stack
     def _search(self, pid, filesets, start, end, remove_overlaps,
@@ -318,9 +320,7 @@ class Collocations(FileSet):
         last_primary_end = None
 
         # Get all primary and secondary data that overlaps with each other
-        file_pairs = primary.align(
-            [secondary], start, end, max_interval
-        )
+        file_pairs = primary.align(secondary, start, end, max_interval)
         for files, raw_data in file_pairs:
             if verbose > 1:
                 reading_time = time.time() - verbose_timer
@@ -753,19 +753,6 @@ def _get_meta_group(primary, secondary):
     return f"{primary}.{secondary}"
 
 
-@numba.jit
-def _rows_for_secondaries(primary):
-    """Helper function for collapse"""
-    current_row = np.zeros(primary.size, dtype=int)
-    rows = np.zeros(primary.size, dtype=int)
-    i = 0
-    for p in primary:
-        rows[i] = current_row[p]
-        i += 1
-        current_row[p] += 1
-    return rows
-
-
 def collocate(data, max_interval=None, max_distance=None,
               algorithm=None, threads=None, bin_factor=2):
     """Find collocations between two data objects
@@ -1018,6 +1005,31 @@ def _collocate_chunks(args):
     return pairs
 
 
+@numba.jit
+def _rows_for_secondaries_numba(primary):
+    """Helper function for collapse - numba optimized"""
+    current_row = np.zeros(primary.size, dtype=int)
+    rows = np.zeros(primary.size, dtype=int)
+    i = 0
+    for p in primary:
+        rows[i] = current_row[p]
+        i += 1
+        current_row[p] += 1
+    return rows
+
+
+def _rows_for_secondaries(primary):
+    """Helper function for collapse"""
+    current_row = np.zeros(primary.size, dtype=int)
+    rows = np.zeros(primary.size, dtype=int)
+    i = 0
+    for p in primary:
+        rows[i] = current_row[p]
+        i += 1
+        current_row[p] += 1
+    return rows
+
+
 def collapse(data, primary, secondary, collapser=None):
     """Collapse all multiple collocation points to a single data point
 
@@ -1050,6 +1062,9 @@ def collapse(data, primary, secondary, collapser=None):
     primary_indices = data[pairs][0].values
     secondary_indices = data[pairs][1].values
 
+    # This is the name of the dimension along which we collapse:
+    collapse_dim = secondary + "/collocation"
+
     # THE GOAL: We want to bin the secondary data according to the
     # primary indices and apply a collapse function (e.g. mean) to it.
     # THE PROBLEM: We might to group the data in many (!) bins that might
@@ -1077,25 +1092,25 @@ def collapse(data, primary, secondary, collapser=None):
     # The matrix has the shape of N(max. number of secondaries per primary)
     # x N(unique primaries). So the columns are the primary bins. We know at
     # which column to put the secondary data by using primary_indices. Now, we
-    # have to find out at which row to put them:
-    rows_in_bins = _rows_for_secondaries(primary_indices)
-
-    # Create an empty matrix:
-    binned_data = np.empty(
-        (np.max(rows_in_bins)+1,
-         np.unique(primary_indices).size)
-    )
-
-    # Fill all slots with NaNs:
-    binned_data[:] = np.nan
+    # have to find out at which row to put them. For big datasets, this might
+    # be a very expensive function. Therefore, we have have two version: One
+    # (pure-python), which we use for small datasets, and one (numba-optimized)
+    # for big datasets because Numba produces an overhead:
+    #timer = time.time()
+    if len(primary_indices) < 1000:
+        rows_in_bins = _rows_for_secondaries(primary_indices)
+    #    print(f"{time.time()-timer:.2f} seconds for pure-python")
+    else:
+        rows_in_bins = _rows_for_secondaries_numba(primary_indices)
+    #    print(f"{time.time()-timer:.2f} seconds for numba")
 
     # The user may give his own collapser functions:
     if collapser is None:
         collapser = {}
     collapser = {
-        "mean": lambda m: np.nanmean(m, axis=0),
-        "std": lambda m: np.nanstd(m, axis=0),
-        "number": lambda m: np.count_nonzero(~np.isnan(m), axis=0),
+        "mean": lambda m, a: np.nanmean(m, axis=a),
+        "std": lambda m, a: np.nanstd(m, axis=a),
+        "number": lambda m, a: np.count_nonzero(~np.isnan(m), axis=a),
         **collapser,
     }
 
@@ -1123,9 +1138,41 @@ def collapse(data, primary, secondary, collapser=None):
         if local_name in ("time", "lat", "lon") or local_name.startswith("__"):
             continue
 
+        # The dimensions of the binner matrix:
+        binner_dims = [
+            np.max(rows_in_bins) + 1,
+            np.unique(primary_indices).size
+        ]
+
+        # The data might have additional dimensions (e.g. brightness
+        # temperatures from MHS have 5 channels). We must now how many
+        # additional dimensions the data have and what their length is.
+        add_dim_sizes = [
+            var_data.shape[i]
+            for i, dim in enumerate(var_data.dims)
+            if dim != collapse_dim
+        ]
+        binner_dims.extend(add_dim_sizes)
+
+        # Make sure that our collapsing dimension is the first dimension of the
+        # array. Otherwise we get problems, when converting the DataArray to a
+        # numpy array.
+        new_ordered_dims = list(var_data.dims)
+        new_ordered_dims.remove(collapse_dim)
+        new_ordered_dims.insert(0, collapse_dim)
+
+        var_data = var_data.transpose(*new_ordered_dims)
+
         # Fill the data in the bins:
+        # Create an empty matrix:
+        binned_data = np.empty(binner_dims)
+
+        # Fill all slots with NaNs:
+        binned_data[:] = np.nan
         binned_data[rows_in_bins, primary_indices] \
-            = var_data.values[secondary_indices]
+            = var_data.isel(
+                **{collapse_dim: secondary_indices}
+            ).values
 
         # Create the dimension names for the data:
         dims = [
@@ -1133,15 +1180,17 @@ def collapse(data, primary, secondary, collapser=None):
             for dim in var_data.dims
         ]
 
+        axis = var_data.dims.index(collapse_dim)
+
         for func_name, func in collapser.items():
-            collapsed[f"{var_name}_{func_name}"] = dims, func(binned_data)
+            collapsed[f"{var_name}_{func_name}"] \
+                = dims, func(binned_data, axis)
 
     # The collocation coordinate of both datasets are equal now:
     collapsed.rename({
         primary + "/collocation": "collocation",
         secondary + "/collocation": "collocation",
     }, inplace=True)
-
     return collapsed
 
 
