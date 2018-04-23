@@ -1,15 +1,15 @@
 name: typhon
 dependencies:
-        - python>=3.5.1
+        - python>=3.6
+        - cartopy
         - matplotlib>=1.4
         - netCDF4>=1.1.1
-        - nose>=1.3.0
+        - numba
         - numexpr
         - numpy>=1.13
         - pandas
+        - pytest
         - scikit-learn
         - scipy>=0.15.1
         - setuptools>=0.7.2
         - xarray>=0.10.2
-        - numba
-
