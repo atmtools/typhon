@@ -9,13 +9,13 @@ import typhon.constants
 from typhon.geodesy import geocentric2cart
 
 __all__ = [
-        "CollocationsFinder",
+        "CollocatorAlgorithm",
         "BallTree",
         "BruteForce",
     ]
 
 
-class CollocationsFinder(metaclass=abc.ABCMeta):
+class CollocatorAlgorithm(metaclass=abc.ABCMeta):
     # Multiple threads in Python only speed things up when the code releases
     # the GIL. This flag can be used to indicate that this finder algorithm
     # should be used in multiple threads because it can handle such GIL issues.
@@ -25,7 +25,7 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
     required_fields = ("time", "lat", "lon")
 
     @abc.abstractmethod
-    def find_collocations(
+    def run(
             self, primary_data, secondary_data, max_interval, max_distance,
             **kwargs):
         """Find collocations between two pandas.DataFrames
@@ -51,7 +51,7 @@ class CollocationsFinder(metaclass=abc.ABCMeta):
         pass
 
 
-class BallTree(CollocationsFinder):
+class BallTree(CollocatorAlgorithm):
     def __init__(self, tunnel_limit=None, magnitude_factor=100, **kwargs):
         """Initialize a CollocationsFinder with a BallTree algorithm
 
@@ -91,16 +91,17 @@ class BallTree(CollocationsFinder):
         self.used_primary = None
 
         # Additional BallTree key word arguments:
+        kwargs = {}
         self.tree_kwargs = kwargs
 
         # New tree factor:
         self.magnitude_factor = magnitude_factor
 
-    def find_collocations(
+    def run(
         self, primary_data, secondary_data, max_interval, max_distance,
         **kwargs,
     ):
-        """Find collocations between two pandas.DataFrames
+        """Find collocations between two pandas.DataFrame objects
 
         Args:
             primary_data: The data from the primary dataset as xarray.Dataset
@@ -116,9 +117,12 @@ class BallTree(CollocationsFinder):
                 kilometers to meet the collocation criteria.
 
         Returns:
-            One numpy.array with two rows (for the primary and the secondary
-            data) and N columns. Each column represents one collocation and the
-            two values indicate the index in the primary and secondary data.
+            Three numpy.arrays: the pairs of collocations (as indices in the
+            original data), the interval for the time dimension and the
+            distance for the spatial dimension. The pairs are a 2xN numpy.array
+            where N is the number of found collocations. The first row contains
+            the indices of the collocations in `data1`, the second row the
+            indices in `data2`.
         """
 
         # Convert the data, set radius and choose metric
@@ -129,45 +133,77 @@ class BallTree(CollocationsFinder):
 
         # Finding collocations is expensive, therefore we want to optimize it
         # and have to decide which points to use for tree building.
-        use_primary = self._choose_points_to_build_tree(
+        tree_with_primary = self._choose_points_to_build_tree(
             primary_points, secondary_points
         )
 
-        pairs = self._find_collocations(
-            primary_points, secondary_points, max_radius, ball_tree_kwargs
+        # Build the tree:
+        self.tree = self._build_tree(
+            primary_points if tree_with_primary else secondary_points,
+            metric
         )
+
+        # Query the tree:
+        jagged_pairs, jagged_distances = self.tree.query_radius(
+            secondary_points if tree_with_primary else primary_points,
+            r=max_radius, return_distance=True,
+        )
+
+        # Build the list of the collocation pairs:
+        if tree_with_primary:
+            pairs = np.array([
+                [primary_index, secondary_index]
+                for secondary_index, primary_indices in enumerate(jagged_pairs)
+                for primary_index in primary_indices
+            ]).T
+        else:
+            pairs = np.array([
+                [primary_index, secondary_index]
+                for primary_index, secondary_indices in enumerate(jagged_pairs)
+                for secondary_index in secondary_indices
+            ]).T
 
         # No collocations were found.
         if not pairs.any():
-            return np.array([[], []])
+            # We return empty arrays to have consistent return values:
+            return np.array([[], []]), \
+                   np.array([], dtype='timedelta64[ns]'), \
+                   np.array([])
+
+        distances = np.hstack([
+            distances_with_primary
+            for distances_with_primary in jagged_distances
+        ])
+
+        intervals = np.abs(
+            primary_data.index[pairs[0]]
+            - secondary_data.index[pairs[1]]
+        )
 
         # Check here for temporal collocations:
         if max_distance is not None and max_interval is not None:
             # Check whether the time differences between the spatial
             # collocations are less than the temporal boundary:
-            passed_time_check = np.abs(
-                primary_data.index[pairs[0]]
-                - secondary_data.index[pairs[1]]
-            ) < max_interval
+
+            passed_time_check = intervals < max_interval
 
             # Just keep all indices which satisfy the temporal condition.
             pairs = pairs[:, passed_time_check]
+            intervals = intervals[passed_time_check]
+            distances = distances[passed_time_check]
 
-        return pairs
+        return pairs, intervals, distances
 
     def _build_tree(self, points, metric):
         # Find out whether the cached tree still works with the new points:
-        if np.allclose(self.tree_points, points):
+        if self._is_cached(points):
             return self.tree
 
         # Or create a new one:
-        kwargs = {**self.tree_kwargs, "metric": metric}
-
-        # Set the cache new:
         self.tree_points = points
 
         return SklearnBallTree(
-            points, **kwargs
+            points, **{**self.tree_kwargs, "metric": metric}
         )
 
     def _prepare_tree_data(self, primary_data, secondary_data, max_interval,
@@ -264,73 +300,52 @@ class BallTree(CollocationsFinder):
         """
         # There are two options to optimize the performance:
         # A) Cache the tree and reuse it if either the primary or the secondary
-        # points have not changed (that is the case for gridded data). Building
-        # the tree is normally very expensive, so it should never be done
-        # without a reason.
+        # points have not changed (that is the case for data with a fixed
+        # grid). Building the tree is normally very expensive, so it should
+        # never be done without a reason.
         # B) Build the tree with the larger set of points and query it with the
         # smaller set.
         # Which option should be used if A and B cannot be applied at the same
         # time? If the magnitude of one point set is much larger (by
-        # `magnitude factor` larger) than the other point set, then we strictly
+        # `magnitude factor` larger) than the other point set, we strictly
         # follow B. Otherwise, we prioritize A.
 
-        if primary > secondary * self.magnitude_factor:
+        if primary.size > secondary.size * self.magnitude_factor:
             # Use primary points
             return True
-        elif secondary > primary * self.magnitude_factor:
+        elif secondary.size > primary.size * self.magnitude_factor:
             # Use secondary points
             return False
 
-        # If we used the primary points last time and they still fit, use them
-        # again:
-        if self.used_primary and np.allclose(primary, self.tree_points):
+        # Apparently, none of the datasets is much larger than the others. So
+        # just check whether we still have a cached tree. If we used the
+        # primary points last time and they still fit, use them again:
+        if self.used_primary and self._is_cached(primary):
             return True
 
         # Check the same for the secondary data:
-        if not self.used_primary and np.allclose(secondary, self.tree_points):
+        if not self.used_primary and self._is_cached(secondary):
             return False
 
-        return primary > secondary
+        # Otherwise, just use the larger dataset:
+        return primary.size > secondary.size
 
-    def _find_collocations(
-            self, primary_points, secondary_points, max_radius,
-            ball_tree_kwargs
-    ):
-        # It is more efficient to build the tree with the largest data corpus:
-        tree_with_primary = primary_points.size > secondary_points.size
+    def _is_cached(self, points):
+        if self.tree_points is None:
+            return False
 
-        # Search for all collocations
-        if tree_with_primary:
-            self.tree = SklearnBallTree(
-                primary_points, **ball_tree_kwargs
-            )
-            results = self.tree.query_radius(secondary_points, r=max_radius)
-
-            # Build the list of the collocation pairs:
-            return np.array([
-                [primary_index, secondary_index]
-                for secondary_index, primary_indices in enumerate(results)
-                for primary_index in primary_indices
-            ]).T
-        else:
-            self.tree = SklearnBallTree(
-                secondary_points, **ball_tree_kwargs
-            )
-            results = self.tree.query_radius(primary_points, r=max_radius)
-
-            # Build the list of the collocation pairs:
-            return np.array([
-                [primary_index, secondary_index]
-                for primary_index, secondary_indices in enumerate(results)
-                for secondary_index in secondary_indices
-            ]).T
+        try:
+            return np.allclose(points, self.tree_points)
+        except ValueError:
+            # The shapes are different
+            return False
 
 
-class BruteForce(CollocationsFinder):
+class BruteForce(CollocatorAlgorithm):
     def __init__(self):
         super(BruteForce, self).__init__()
 
-    def find_collocations(
+    def run(
             self, primary_data, secondary_data, max_interval, max_distance,
             **kwargs
     ):
