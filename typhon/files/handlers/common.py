@@ -101,10 +101,7 @@ def expects_file_info(method, pos=None, key=None):
     return wrapper
 
 
-def _xarray_select_and_rename_fields(dataset, fields, mapping):
-    if fields is not None:
-        dataset = dataset[list(fields)]
-
+def _xarray_rename_fields(dataset, mapping):
     if mapping is not None:
         # Maybe some variables should be renamed that are not in the
         # dataset any longer?
@@ -515,7 +512,7 @@ class HDF4(FileHandler):
         finally:
             file.close()
 
-        return _xarray_select_and_rename_fields(dataset, fields, mapping)
+        return _xarray_rename_fields(dataset, mapping)
 
     @staticmethod
     def _get_field(vs, field):
@@ -554,86 +551,68 @@ class NetCDF4(FileHandler):
         self.reads_multiple_files = True
 
     @expects_file_info()
-    def read(self, paths, groups=None, fields=None, mapping=None,
-             global_coords=False, **kwargs):
+    def read(self, file_info, fields=None, mapping=None, **kwargs):
         """Read and parse NetCDF files and load them to a xarray.Dataset
 
         Args:
-            paths: Path and name of the file as string or FileInfo object.
+            file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk (this is still not implemented!).
-            groups: Groups that you want to import.
+            groups: Groups that you want to import. Otherwise all groups are
+                going to be imported.
             fields: List of field names that should be read. The other fields
                 will be ignored. If `mapping` is given, this should contain the
                 new field names.
             mapping: A dictionary which is used for renaming the fields. If
                 given, `fields` must contain the old field names.
-            global_coords: When reading multiple groups that will be merged,
-                you have to decide what will happen with the equally-named
-                coordinates in different groups. Either they will be handled as
-                local coordinates (separate for each subgroup) or they will be
-                handled as global coordinates: through-out all subgroups they
-                share the same values. Variables that depend on these
-                coordinates, will be aligned and eventually be padded with NaN
-                values.
+            **kwargs: Additional keyword arguments for
+                :func:`xarray.decode_cf` such as `mask_and_scale`, etc.
 
         Returns:
             A xarray.Dataset object.
         """
-        if "group" in kwargs:
-            raise ValueError("Use `groups` instead of `group` as parameter!")
+        # xr.open_dataset does still not support loading all groups from a
+        # file except a very cumbersome (and expensive) way by using the
+        # parameter `group`. To avoid this, we load all groups and their
+        # variables by using the netCDF4 directly and load them later into a
+        # xarray dataset.
 
-        # Make sure we use the NetCDF4 engine:
-        kwargs["engine"] = "netcdf4"
-        kwargs["autoclose"] = True
+        with netCDF4.Dataset(file_info.path, "r") as root:
+            dataset = xr.Dataset()
+            self._load_netcdf_group(dataset, None, root, fields)
 
-        if groups is None:
-            # Find all groups by ourselves:
-            # if isinstance(paths, (tuple, list)):
-            #     filename = paths[0]
-            # elif "*" in paths:
-            #     filename = next(glob.iglob(paths))
-            # else:
-            #     filename = paths.path
+            xr.decode_cf(dataset, **kwargs)
 
-            filename = paths.path
-
-            with netCDF4.Dataset(filename, "r") as root:
-                groups = list(self._all_groups_in_file(root))
-
-            if not groups:
-                groups = [None, ]
-
-        # Should we load multiple files?
-        multi = False  # isinstance(paths, (tuple, list)) or "*" in paths
-
-        # Load all data for each group:
-        dataset = {
-            group: xr.open_mfdataset(paths.path, group=group, **kwargs) if multi  # noqa
-            else xr.open_dataset(paths.path, group=group, **kwargs)
-            for group in groups
-        }
-
-        # We have to add the group names as prefix to the variables' names:
-        dataset = [
-            self._add_prefix(group, group_data, global_coords)
-            for group, group_data in dataset.items()
-        ]
-
-        # We can merge everything to one big dataset:
-        dataset = xr.merge(dataset)
-
-        dataset = _xarray_select_and_rename_fields(dataset, fields, mapping)
-        dataset.load()
-        return dataset
+        return _xarray_rename_fields(dataset, mapping)
 
     @staticmethod
-    def _all_groups_in_file(top):
-        #yield "/"
-        for value in top.groups.values():
-            yield value.name
-            for children in NetCDF4._all_groups_in_file(value):
-                yield value.name + "/" + children
+    def _load_netcdf_group(ds, path, group, fields):
+        if path is None:
+            # The current group is the root group
+            path = ""
+            ds.attrs = dict(group.__dict__)
+        else:
+            path += "/"
+
+        # Dimension (coordinate) mapping: A coordinate might be defined in a
+        # group, then it is valid for this group only. Otherwise, the
+        # coordinate from the parent group is taken.
+        dim_map = {
+            dim: dim if dim not in group.variables else path + dim
+            for dim in group.dimensions
+        }
+
+        # Load variables:
+        for var_name, var in group.variables.items():
+            if fields is None or path + var_name in fields:
+                dims = [dim_map[dim] for dim in var.dimensions]
+                ds[path + var_name] = dims, var[:], dict(var.__dict__)
+
+        # Do the same for all sub groups:
+        for sub_group_name, sub_group in group.groups.items():
+            NetCDF4._load_netcdf_group(
+                ds, path + sub_group_name, sub_group, fields
+            )
 
     @staticmethod
     def _add_prefix(prefix, data, global_coords):
