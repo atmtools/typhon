@@ -8,7 +8,7 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import defaultdict, deque, OrderedDict
+from collections import Counter, defaultdict, deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
@@ -568,14 +568,14 @@ class FileSet:
         return info
 
     def align(self, other, start=None, end=None, max_interval=None):
-        """Collect the data from this and corresponding other filesets
+        """Collect files from this fileset and a matching other fileset
 
         Warnings:
             The name of this method may change in future.
 
-        This generator collects each file from this fileset between `start` and
-        `end` and does the same with the corresponding files from other
-        filesets.
+        This generator finds the matches between two filesets (the files that
+        overlap each other in time), reads their content and yields them. The
+        reading is done in parallel threads to enhance the performance.
 
         Args:
             other: Another fileset object.
@@ -598,64 +598,88 @@ class FileSet:
         end = None if end is None else to_datetime(end)
 
         # Find all overlapping files
-        matches = list(self.find_overlaps(other, start, end,
-                                          max_interval=max_interval))
+        matches = list(
+            self.match(other, start, end, max_interval=max_interval)
+        )
         primaries, secondaries = zip(*matches)
 
-        # We want to put all secondaries in a loading queue. Hence, we need the
-        # list flattened and without duplicates.
-        secondaries = unique(
+        # We have to consider the following to make the align method work
+        # properly:
+        # A) Load the files in parallel loading queues (done by icollect) and
+        # read them only once even if it might be used by multiple primaries.
+        # B) Secondaries that are going to be used by multiple primaries must
+        # be cached until we are sure that they won't be needed any longer.
+
+        # This deals with part A:
+        # Se need the list flattened and without duplicates.
+        unique_secondaries = unique(
             secondary for match in secondaries for secondary in match
         )
 
         # Prepare the loader for the primaries and secondaries:
         primary_loader = self.icollect(files=primaries)
         secondary_loader = other.icollect(
-            files=secondaries, return_info=True
+            files=unique_secondaries, return_info=True
         )
 
-        files, data = defaultdict(list), defaultdict(list)
+        # Here we prepare part B:
+        # We count how often we need the secondaries (some primaries may need
+        # the same secondary). Later, we decrease the counter for the
+        # secondary for each use. If the counter reaches zero, we can delete it
+        # from the cache.
+        secondary_usage = Counter(
+            secondary for match in secondaries for secondary in match
+        )
+
+        # We will need this cache for secondaries that are used by multiple
+        # primaries:
+        cache = {}
+
         for match_id, primary_data in enumerate(primary_loader):
+            files, data = defaultdict(list), defaultdict(list)
             files[self.name] = [primaries[match_id]]
             data[self.name] = [primary_data]
 
-            # We only need to load the files that have not been loaded earlier:
-            for secondary in matches[match_id][1]:
-                if secondary not in files[other.name]:
+            to_delete = []
+
+            # We only need to load the secondary files that have not been
+            # cached earlier:
+            for secondary_to_yield in matches[match_id][1]:
+                if secondary_to_yield not in cache:
                     secondary_file, secondary_data = next(secondary_loader)
-                    if secondary != secondary_file:
+                    if secondary_to_yield != secondary_file:
                         raise AlignError(
-                            f"Expected '{secondary}'\nbut '{secondary_file}' "
-                            f"was loaded!\nDoes your fileset"
-                            f" '{self.name}' contain files between that are "
-                            f"completely overlapped by other files? Exclude "
-                            f"them via `exclude`."
+                            f"Expected '{secondary_to_yield}'\nbut "
+                            f"'{secondary_file}' was loaded!\nDoes your "
+                            f"fileset '{self.name}' contain files between that"
+                            f"are completely overlapped by other files? "
+                            f"Please exclude them via `exclude`."
                         )
-                    files[other.name].append(secondary)
-                    data[other.name].append(secondary_data)
 
-            # We still have some files cached that we used the last time but we
-            # do not need any longer. Find all that we need:
-            files_to_keep = {
-                i for i, file in enumerate(files[other.name])
-                if file in matches[match_id][1]
-            }
+                    # Add the loaded secondary to the cache
+                    cache[secondary_file] = secondary_data
 
-            files[other.name][:] = [
-                file for i, file in enumerate(files[other.name])
-                if i in files_to_keep
-            ]
-            data[other.name][:] = [
-                data for i, data in enumerate(data[other.name])
-                if i in files_to_keep
-            ]
+                files[other.name].append(secondary_to_yield)
+                data[other.name].append(cache[secondary_to_yield])
+
+                # Decrease the counter for this secondary:
+                secondary_usage[secondary_to_yield] -= 1
+
+                # Apparently, this secondary won't be needed any longer. Delete
+                # it from the cache after yielding it to the user
+                if not secondary_usage[secondary_to_yield]:
+                    to_delete.append(secondary_to_yield)
+
+            yield files, data
+
+            # Delete the files from the cache that we do not need any longer:
+            for file_to_delete in to_delete:
+                del cache[file_to_delete]
 
             # Tell the python interpreter explicitly to free up memory to
             # improve performance (see
             # https://stackoverflow.com/q/1316767/9144990):
             gc.collect()
-
-            yield files, data
 
     @staticmethod
     def _pseudo_passer(*args):
@@ -1304,10 +1328,12 @@ class FileSet:
         intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
         return files[np.argmin(intervals)]
 
-    def find_overlaps(
+    def match(
             self, other, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
-        """Find files between two filesets that overlap in time.
+        """Find matching files between two filesets
+
+        Matching files are files that overlap each in their time coverage.
 
         Args:
             other: Another FileSet object.
@@ -1319,11 +1345,15 @@ class FileSet:
                 two overlapping files. Must be an integer or float.
             filters: The same filter argument that is allowed for
                 :meth:`find`.
-            other_filters: The same filter argument that is allowed for
-                :meth:`find`.
+            other_filters: The same as `filter` but it will be applied to
+                `other`.
 
         Yields:
-            A tuple with the names of two files which correspond to each other.
+            A tuple with the :class:`FileInfo` object from this fileset and a
+            list with matching files from the other fileset.
+
+        Examples:
+            TODO: Add example
         """
         if max_interval is not None:
             max_interval = to_timedelta(max_interval)
@@ -2070,7 +2100,7 @@ class FileSet:
 
     @property
     def name(self):
-        """Gets or sets the fileset's name.
+        """Get or set the fileset's name.
 
         Returns:
             A string with the fileset's name.
