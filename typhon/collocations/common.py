@@ -600,7 +600,7 @@ class Collocations(FileSet):
 
     @staticmethod
     def _print_collocating_status(pid, timer, start, end, data):
-        #current_start = data.min()
+        current_start = data.min()
         current_end = data.max()
 
         if start == datetime.min and end == datetime.max:
@@ -616,6 +616,7 @@ class Collocations(FileSet):
 
         print(f"[{pid}] {100*progress:.0f}% done ({expected_time} "
               f"hours remaining)")
+        print(f"[{pid}] Collocating {current_start} to {current_end}")
 
     def _store_collocations(
             self, filesets, raw_data, collocations, files, **collocate_args):
@@ -894,26 +895,27 @@ class Collocator:
         Args:
             data: A list of data objects that fulfill the specifications from
                 above. So far, only collocating two arrays is implemented.
-            max_interval: Either a number as a time interval in seconds, a string
-                containing a time with a unit (e.g. *100 minutes*) or a timedelta
-                object. This is the maximum time interval between two data points
-                If this is None, the data will be searched for spatial collocations
-                only.
+            max_interval: Either a number as a time interval in seconds, a
+                string containing a time with a unit (e.g. *100 minutes*) or a
+                timedelta object. This is the maximum time interval between two
+                data points. If this is None, the data will be searched for
+                spatial collocations only.
             max_distance: Either a number as a length in kilometers or a string
-                containing a length with a unit (e.g. *100 meters*). This is the
-                maximum distance between two data points in to meet the collocation
-                criteria. If this is None, the data will be searched for temporal
-                collocations only. Either *max_interval* or *max_distance* must be
-                given.
-            threads: Finding collocations can be parallelised in threads. Give here
-                the maximum number of threads that you want to use. Which number of
-                threads is the best, may be machine-dependent. So this is a
-                parameter that you can use to fine-tune the performance.
+                containing a length with a unit (e.g. *100 meters*). This is
+                the maximum distance between two data points in to meet the
+                collocation criteria. If this is None, the data will be
+                searched for temporal collocations only. Either `max_interval`
+                or *max_distance* must be given.
+            threads: Finding collocations can be parallelised in threads. Give
+                here the maximum number of threads that you want to use. Which
+                number of threads is the best, may be machine-dependent. So
+                this is a parameter that you can use to fine-tune the
+                performance.
             bin_factor: When using a temporal criterion via `max_interval`, the
-                data will be temporally binned to speed-up the search. The bin size
-                is `bin_factor` * `max_interval`. Which bin factor is the best, may
-                be dataset-dependent. So this is a parameter that you can use to
-                fine-tune the performance.
+                data will be temporally binned to speed-up the search. The bin
+                size is `bin_factor` * `max_interval`. Which bin factor is the
+                best, may be dataset-dependent. So this is a parameter that you
+                can use to fine-tune the performance.
 
         Returns:
             Three numpy.arrays: the pairs of collocations (as indices in the
@@ -962,9 +964,6 @@ class Collocator:
         if len(data) != 2:
             raise ValueError("So far, only collocating of two data is allowed.")
 
-        # If no collocations have been found, return this:
-        empty = np.array([[], []]), np.array([]), np.array([])
-
         # Internally, we use pandas.Dateframe objects. There are simpler to use
         # than xarray.Dataset objects and are well designed for this purpose.
         # Furthermore, xarray.Dataset has a very annoying bug at the
@@ -980,17 +979,19 @@ class Collocator:
             else:
                 raise ValueError("Unknown array object!")
 
-            # We use the time coordinate for binning, therefore we set it as index:
+            # We use the time coordinate for binning, therefore we set it as
+            # index:
             if data[i].index.name != "time":
                 data[i] = data[i].set_index("time")
 
+        # Maybe one data is empty?
         if data[0].empty or data[1].empty:
-
-            # At least one of the data is empty
-            return empty
+            return self.algorithm.return_empty
 
         if max_distance is None and max_interval is None:
-            raise ValueError("Either max_distance or max_interval must be given!")
+            raise ValueError(
+                "Either max_distance or max_interval must be given!"
+            )
 
         if max_interval is not None:
             max_interval = to_timedelta(max_interval, numbers_as="seconds")
@@ -1005,7 +1006,7 @@ class Collocator:
         # https://github.com/scikit-learn/scikit-learn/pull/4009 (even it is
         # closed and merged, they have not improved the query_radius method
         # yet).
-        threads = 2 if threads is None else threads
+        threads = 1 if threads is None else threads
 
         # If the time matters (i.e. max_interval is not None), we split the
         # data into temporal bins. This produces an overhead that is only
@@ -1025,7 +1026,8 @@ class Collocator:
             end = min([data[0].index.max(), data[1].index.max()]) \
                 + max_interval
 
-            # Get the offset of the start date (so we can shift the indices later):
+            # Get the offset of the start date (so we can shift the indices
+            # later):
             offsets = [
                 data[0].index.searchsorted(start),
                 data[1].index.searchsorted(start)
@@ -1035,17 +1037,17 @@ class Collocator:
             data[0] = data[0].loc[start:end]
             data[1] = data[1].loc[start:end]
 
-            # Now let's split the two data data along their time coordinate so we
-            # avoid searching for spatial collocations that do not fulfill the
-            # temporal condition in the first place. However, the overhead of the
-            # finding algorithm must be considered too (for example the BallTree
-            # creation time).
+            # Now let's split the two data data along their time coordinate so
+            # we avoid searching for spatial collocations that do not fulfill
+            # the temporal condition in the first place. However, the overhead
+            # of the finding algorithm must be considered too (for example the
+            # BallTree creation time).
             chunks_with_args = (
                 [self, (max_interval, max_distance),
                  *self._get_chunk_pairs(chunk_start, chunk, data, max_interval),  # noqa
                 ]
                 for chunk_start, chunk in data[0].groupby(
-                    pd.Grouper(freq=2*max_interval))
+                    pd.Grouper(freq=bin_factor*max_interval))
             )
 
             with ThreadPoolExecutor(threads) as pool:
@@ -1057,7 +1059,7 @@ class Collocator:
 
             # No collocations were found.
             if not pairs.any():
-                return empty
+                return self.algorithm.return_empty
 
             # Stack the rest of the results together:
             intervals = np.hstack(intervals_list)
@@ -1107,7 +1109,7 @@ class Collocator:
         collocator, algorithm_args, offset1, data1, offset2, data2 = args
 
         if data1.empty or data2.empty:
-            return np.array([[], []])
+            return collocator.algorithm.return_empty
 
         pairs, intervals, distances = collocator.algorithm.run(
             data1, data2, *algorithm_args
@@ -1288,8 +1290,7 @@ def collapse(data, primary, secondary, collapser=None):
 
         # Create the dimension names for the data:
         dims = [
-            dim
-            for dim in var_data.dims
+            dim for dim in var_data.dims
         ]
 
         axis = var_data.dims.index(collapse_dim)
