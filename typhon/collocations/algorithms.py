@@ -24,6 +24,12 @@ class CollocatorAlgorithm(metaclass=abc.ABCMeta):
     # What fields are required for performing the collocation?
     required_fields = ("time", "lat", "lon")
 
+    # If no collocations are found, this will be returned:
+    return_empty = \
+        np.array([[], []]), \
+        np.array([], dtype='timedelta64[ns]'), \
+        np.array([])
+
     @abc.abstractmethod
     def run(
             self, primary_data, secondary_data, max_interval, max_distance,
@@ -166,9 +172,7 @@ class BallTree(CollocatorAlgorithm):
         # No collocations were found.
         if not pairs.any():
             # We return empty arrays to have consistent return values:
-            return np.array([[], []]), \
-                   np.array([], dtype='timedelta64[ns]'), \
-                   np.array([])
+            return self.return_empty
 
         distances = np.hstack([
             distances_with_primary
