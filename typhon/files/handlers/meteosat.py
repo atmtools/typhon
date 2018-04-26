@@ -1,15 +1,15 @@
 from datetime import datetime, timedelta
 
-from netCDF4 import Dataset
+import h5netcdf.legacyapi as netCDF4
 import numpy as np
 import xarray as xr
 
-from .common import NetCDF4, expects_file_info
+from .common import HDF5, expects_file_info
 
 __all__ = ['SEVIRI', ]
 
 
-class SEVIRI(NetCDF4):
+class SEVIRI(HDF5):
     """File handler for SEVIRI level 1.5 HDF files
     """
 
@@ -24,11 +24,11 @@ class SEVIRI(NetCDF4):
 
         self._grid = None
 
-        # This file handler always wants to return at least time, lat and lon
-        # fields. These fields are required for this:
+        # We are going to import those fields per default (not channel 12
+        # because it is awkward):
         self.standard_fields = {
             f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/IMAGE_DATA"
-            for ch in range(1, 13)
+            for ch in range(1, 12)
         }
 
         # Map the standard fields to standard names (make also the names of all
@@ -36,16 +36,20 @@ class SEVIRI(NetCDF4):
         self.mapping = {
             f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/IMAGE_DATA":
                 f"channel_{ch}"
-            for ch in range(1, 13)
+            for ch in range(1, 12)
         }
-        self.mapping.update({
-            f"phony_dim_{ch}": f"channel_{ch}"
-            for ch in range(1, 13)
-        })
+        # self.mapping.update({
+        #     f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/phony_dim00": f"line"
+        #     for ch in range(1, 13)
+        # })
+        # self.mapping.update({
+        #     f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/phony_dim01": f"column"
+        #     for ch in range(1, 13)
+        # })
 
     @expects_file_info()
     def get_info(self, file_info, **kwargs):
-        with Dataset(file_info.path, "r") as file:
+        with netCDF4.Dataset(file_info.path, "r") as file:
             file_info.times[0] = \
                 datetime(int(file.startdatayr[0]), 1, 1) \
                 + timedelta(days=int(file.startdatady[0]) - 1) \
@@ -59,13 +63,14 @@ class SEVIRI(NetCDF4):
             return file_info
 
     @expects_file_info()
-    def read(self, file_info, **kwargs):
+    def read(self, file_info, fields=None, **kwargs):
         """Read SEVIRI HDF5 files and load them to a xarray.Dataset
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk.
+            fields: ...
             **kwargs: Additional keyword arguments that are valid for
                 :class:`typhon.files.handlers.common.NetCDF4`.
 
@@ -73,9 +78,9 @@ class SEVIRI(NetCDF4):
             A xrarray.Dataset object.
         """
 
-        # Make sure that the standard fields are always gonna be imported:
-        user_fields = kwargs.pop("fields", {})
-        fields = self.standard_fields | set(user_fields)
+        # Here, the user fields overwrite the standard fields:
+        if fields is None:
+            fields = self.standard_fields
 
         # We catch the user mapping here, since we do not want to deal with
         # user-defined names in the further processing. Instead, we use our own
@@ -83,10 +88,16 @@ class SEVIRI(NetCDF4):
         user_mapping = kwargs.pop("mapping", None)
 
         # Load the dataset from the file:
-        print(fields)
-        dataset = super().read(
-            file_info, fields=fields, mapping=self.mapping, **kwargs
-        )
+        with netCDF4.Dataset(file_info.path, "r", invalid_netcdf=True) as file:
+            dataset = xr.Dataset()
+
+            for field in fields:
+                dataset[field] = \
+                    ("line", "column"), file[field], file[field].__dict__
+
+            xr.decode_cf(dataset, **kwargs)
+
+        dataset.rename(self.mapping, inplace=True)
 
         # Add the latitudes and longitudes of the grid points:
         dataset = xr.merge([dataset, self.grid])
@@ -101,6 +112,7 @@ class SEVIRI(NetCDF4):
 
     @staticmethod
     def _get_time_field(dataset):
+
         time = \
             (dataset["Data/scnlinyr"]-1970).astype('datetime64[Y]') \
             + (dataset["Data/scnlindy"]-1).astype('timedelta64[D]') \
