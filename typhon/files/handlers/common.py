@@ -9,7 +9,6 @@ import pickle
 import warnings
 
 import netCDF4
-import h5py
 import pandas as pd
 import xarray as xr
 
@@ -28,7 +27,6 @@ __all__ = [
     'FileHandler',
     'FileInfo',
     'HDF4',
-    'HDF5',
     'NetCDF4',
     'Plotter',
     'expects_file_info',
@@ -533,157 +531,6 @@ class HDF4(FileHandler):
         data = xr.DataArray(raw_data).squeeze()
         field_id.detach()
         return data
-
-
-class HDF5(FileHandler):
-    """File handler that can read / write data from / to a netCDF4 file
-    """
-
-    def __init__(self, **kwargs):
-        """Initializes a NetCDF4 file handler class.
-
-        Args:
-            info: You cannot use the :meth:`get_info` without giving a
-                function here that returns a FileInfo object.
-        """
-        # Call the base class initializer
-        super().__init__(**kwargs)
-
-    @expects_file_info()
-    def read(self, file_info, fields=None, mapping=None, **kwargs):
-        """Read and parse HDF5 files and load them to a xarray.Dataset
-
-        Args:
-            file_info: Path and name of the file as string or FileInfo object.
-                This can also be a tuple/list of file names or a path with
-                asterisk (this is still not implemented!).
-            groups: Groups that you want to import. Otherwise all groups are
-                going to be imported.
-            fields: List of field names that should be read. The other fields
-                will be ignored. If `mapping` is given, this should contain the
-                new field names.
-            mapping: A dictionary which is used for renaming the fields. If
-                given, `fields` must contain the old field names.
-            **kwargs: Additional keyword arguments for
-                :func:`xarray.decode_cf` such as `mask_and_scale`, etc.
-
-        Returns:
-            A xarray.Dataset object.
-        """
-        # xr.open_dataset does still not support loading all groups from a
-        # file except a very cumbersome (and expensive) way by using the
-        # parameter `group`. To avoid this, we load all groups and their
-        # variables by using the netCDF4 directly and load them later into a
-        # xarray dataset.
-
-        with netCDF4.Dataset(file_info.path, "r", invalid_netcdf=True) as root:
-            dataset = xr.Dataset()
-            HDF5._load_group(dataset, None, root, fields)
-
-            xr.decode_cf(dataset, **kwargs)
-
-        return _xarray_rename_fields(dataset, mapping)
-
-    @staticmethod
-    def _load_group(ds, path, group, fields):
-        if path is None:
-            # The current group is the root group
-            path = ""
-            ds.attrs = dict(group.__dict__)
-        else:
-            path += "/"
-
-        # Dimension (coordinate) mapping: A coordinate might be defined in a
-        # group, then it is valid for this group only. Otherwise, the
-        # coordinate from the parent group is taken.
-        try:
-            dim_map = {
-                dim: dim if dim not in group.variables else path + dim
-                for dim in group.dimensions
-            }
-        except ValueError:
-            dim_map = {}
-
-        # Load variables:
-        try:
-            for v, var in enumerate(group.variables.items()):
-                if fields is None or path + var[0] in fields:
-                    if dim_map:
-                        dims = [dim_map[dim] for dim in var[1].dimensions]
-                    else:
-                        dims = [
-                            f"{path}phony_dim{v}{d}"
-                            for d in range(len(var[1].shape))
-                        ]
-                    ds[path + var[0]] = dims, var[1][:], dict(var[1].__dict__)
-        except RuntimeError:
-            raise KeyError(f"Could not load the variable {path + var_name}!")
-
-        # Do the same for all sub groups:
-        for sub_group_name, sub_group in group.groups.items():
-            HDF5._load_group(
-                ds, path + sub_group_name, sub_group, fields
-            )
-
-    @staticmethod
-    def _add_prefix(prefix, data, global_coords):
-        # If we do not want to have global coords, we need to rename as well:
-        if global_coords:
-            names = data.data_vars
-        else:
-            names = data.variables
-
-        return data.rename({
-            name: name if prefix is None else "/".join([prefix, name])
-            for name in names
-        })
-
-    @expects_file_info(pos=2)
-    def write(self, data, filename, **kwargs):
-        """Save a xarray.Dataset to a NetCDF file
-
-        Args:
-            data: A xarray.Dataset object. It may contain 'pseudo' groups (i.e.
-                variables with */* in their names). Those variables will be
-                saved in subgroups.
-            filename:
-            **kwargs:
-
-        Returns:
-
-        """
-        full_names = defaultdict(list)
-
-        for full in data.variables:
-            group, _ = self._split_path(full)
-            full_names[group].append(full)
-
-        # If we ware writing out multiple groups, we do not want to overwrite
-        # the last file:
-        user_mode = kwargs.pop("mode", "w")
-        already_openend = False
-        for group, variables in full_names.items():
-            ds = data[variables]
-
-            # Remove the group name from all variables:
-            mapping = {
-                full: self._split_path(full)[1]
-                for full in ds.variables
-            }
-            ds.rename(mapping, inplace=True)
-
-            ds.to_netcdf(
-                filename.path, group=group,
-                mode="a" if already_openend else user_mode,
-                **kwargs
-            )
-            already_openend = True
-
-    @staticmethod
-    def _split_path(path):
-        if "/" not in path:
-            return None, path
-        return path.rsplit("/", 1)
 
 
 class NetCDF4(FileHandler):

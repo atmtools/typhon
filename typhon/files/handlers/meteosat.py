@@ -1,16 +1,25 @@
 from datetime import datetime, timedelta
 import warnings
 
-import h5py
+
 import numpy as np
 import xarray as xr
 
-from .common import HDF5, expects_file_info
+from .common import expects_file_info
+
+# The HDF5 file handler needs h5py, this might be very tricky to install if
+# you cannot use anaconda. Hence, I do not want it to be a hard dependency:
+h5py_is_installed = False
+try:
+    import h5py
+    h5py_is_installed = True
+except ImportError:
+    pass
 
 __all__ = ['SEVIRI', ]
 
 
-class SEVIRI(HDF5):
+class SEVIRI:
     """File handler for SEVIRI level 1.5 HDF files
     """
 
@@ -20,6 +29,10 @@ class SEVIRI(HDF5):
         Args:
             **kwargs: Additional key word arguments for base class.
         """
+        if not h5py_is_installed:
+            raise ImportError("Could not import h5py, which is necessary for "
+                              "reading HDF5 files!")
+
         # Call the base class initializer
         super().__init__(**kwargs)
 
@@ -50,6 +63,7 @@ class SEVIRI(HDF5):
 
     @expects_file_info()
     def get_info(self, file_info, **kwargs):
+        raise NotImplementedError("Not yet implemented!")
         with netCDF4.Dataset(file_info.path, "r") as file:
             file_info.times[0] = \
                 datetime(int(file.startdatayr[0]), 1, 1) \
@@ -95,7 +109,9 @@ class SEVIRI(HDF5):
             for field in fields:
                 dataset[field] = xr.DataArray(
                     file[field], dims=("line", "column"),
-                    attrs=dict(file[field].attrs)
+                    # The attributes contain byte-strings that are not nice for
+                    # further processing
+                    attrs={}, #dict(file[field].attrs)
                 )
 
             xr.decode_cf(dataset, **kwargs)

@@ -32,7 +32,7 @@ from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 
 from .handlers import expects_file_info, FileInfo
-from .handlers import CSV, HDF5, NetCDF4
+from .handlers import CSV, NetCDF4
 
 __all__ = [
     "FileSet",
@@ -221,7 +221,7 @@ class FileSet:
     # Default handler
     default_handler = {
         "nc": NetCDF4,
-        "h5": HDF5,
+        "h5": NetCDF4, #HDF5,
         "txt": CSV,
         "csv": CSV,
         "asc": CSV,
