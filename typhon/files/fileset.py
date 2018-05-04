@@ -8,7 +8,7 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import defaultdict, deque, OrderedDict
+from collections import Counter, defaultdict, deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
@@ -31,7 +31,8 @@ from typhon.trees import IntervalTree
 from typhon.utils import unique
 from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
 
-from .handlers import CSV, expects_file_info, FileInfo, NetCDF4
+from .handlers import expects_file_info, FileInfo
+from .handlers import CSV, NetCDF4
 
 __all__ = [
     "FileSet",
@@ -116,8 +117,8 @@ class PlaceholderRegexError(Exception):
         )
 
 
-class AsyncError(Exception):
-    """Should be raised if the regex of a placeholder is broken.
+class AlignError(Exception):
+    """Should be raised if two filesets could not be aligned to each other.
     """
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -220,7 +221,7 @@ class FileSet:
     # Default handler
     default_handler = {
         "nc": NetCDF4,
-        "h5": NetCDF4,
+        "h5": NetCDF4, #HDF5,
         "txt": CSV,
         "csv": CSV,
         "asc": CSV,
@@ -235,7 +236,7 @@ class FileSet:
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
-            compress=True, decompress=True, temp_dir=None,
+            post_reader=None, compress=True, decompress=True, temp_dir=None,
     ):
         """Initialize a FileSet object.
 
@@ -312,6 +313,10 @@ class FileSet:
                 always be passed to :meth:`read`.
             write_args: Additional keyword arguments in a dictionary that
                 should always be passed to :meth:`write`.
+            post_reader: A reference to a function that will be called *after*
+                reading a file. Can be used for post-processing or field
+                selection, etc. Its signature must be
+                `callable(file_info, file_data)`.
             temp_dir: You can set here your own temporary directory that this
                 FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
@@ -435,13 +440,14 @@ class FileSet:
             )
 
         # The default worker settings for map-like functions
-        self.max_threads = 3 if max_threads is None else max_threads
+        self.max_threads = 4 if max_threads is None else max_threads
         self.max_processes = 4 if max_processes is None else max_processes
         self.worker_type = "process" if worker_type is None else worker_type
 
         # The default settings for read and write methods
         self.read_args = {} if read_args is None else read_args
         self.write_args = {} if write_args is None else write_args
+        self.post_reader = post_reader
 
         self.compress = compress
         self.decompress = decompress
@@ -567,19 +573,18 @@ class FileSet:
             info += "\nUser placeholder:\t" + str(self._user_placeholder)
         return info
 
-    def align(self, filesets, start=None, end=None, max_interval=None):
-        """Collect the data from this and corresponding other filesets
+    def align(self, other, start=None, end=None, max_interval=None):
+        """Collect files from this fileset and a matching other fileset
 
         Warnings:
             The name of this method may change in future.
 
-        This generator collects each file from this fileset between `start` and
-        `end` and does the same with the corresponding files from other
-        filesets.
+        This generator finds the matches between two filesets (the files that
+        overlap each other in time), reads their content and yields them. The
+        reading is done in parallel threads to enhance the performance.
 
         Args:
-            filesets: A list of FileSet objects. Note: At the moment, only the
-                first fileset will be processed.
+            other: Another fileset object.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If not given, it is
@@ -599,66 +604,88 @@ class FileSet:
         end = None if end is None else to_datetime(end)
 
         # Find all overlapping files
-        matches = list(self.find_overlaps(filesets, start, end,
-                                          max_interval=max_interval))
+        matches = list(
+            self.match(other, start, end, max_interval=max_interval)
+        )
         primaries, secondaries = zip(*matches)
 
-        # We want to put all secondaries in a loading queue. Hence, we need the
-        # list flattened and without duplicates.
-        secondaries = unique(
+        # We have to consider the following to make the align method work
+        # properly:
+        # A) Load the files in parallel loading queues (done by icollect) and
+        # read them only once even if it might be used by multiple primaries.
+        # B) Secondaries that are going to be used by multiple primaries must
+        # be cached until we are sure that they won't be needed any longer.
+
+        # This deals with part A:
+        # Se need the list flattened and without duplicates.
+        unique_secondaries = unique(
             secondary for match in secondaries for secondary in match
         )
 
         # Prepare the loader for the primaries and secondaries:
         primary_loader = self.icollect(files=primaries)
-        secondary_loader = filesets[0].icollect(
-            files=secondaries, return_info=True
+        secondary_loader = other.icollect(
+            files=unique_secondaries, return_info=True
         )
 
-        files, data = defaultdict(list), defaultdict(list)
+        # Here we prepare part B:
+        # We count how often we need the secondaries (some primaries may need
+        # the same secondary). Later, we decrease the counter for the
+        # secondary for each use. If the counter reaches zero, we can delete it
+        # from the cache.
+        secondary_usage = Counter(
+            secondary for match in secondaries for secondary in match
+        )
+
+        # We will need this cache for secondaries that are used by multiple
+        # primaries:
+        cache = {}
+
         for match_id, primary_data in enumerate(primary_loader):
+            files, data = defaultdict(list), defaultdict(list)
             files[self.name] = [primaries[match_id]]
             data[self.name] = [primary_data]
 
-            # We only need to load the files that have not been loaded earlier:
-            for secondary in matches[match_id][1]:
+            to_delete = []
 
-                if secondary not in files[filesets[0].name]:
+            # We only need to load the secondary files that have not been
+            # cached earlier:
+            for secondary_to_yield in matches[match_id][1]:
+                if secondary_to_yield not in cache:
                     secondary_file, secondary_data = next(secondary_loader)
-                    if secondary != secondary_file:
-                        raise AsyncError(
-                            f"Expected the file {secondary}\nbut the file "
-                            f"{secondary_file} was loaded!\nDoes your fileset"
-                            f" '{self.name}' contain files that are "
-                            f"completely overlapping other files? Exclude them"
-                            " via `exclude`."
+                    if secondary_to_yield != secondary_file:
+                        raise AlignError(
+                            f"Expected '{secondary_to_yield}'\nbut "
+                            f"'{secondary_file}' was loaded!\nDoes your "
+                            f"fileset '{self.name}' contain files between that"
+                            f"are completely overlapped by other files? "
+                            f"Please exclude them via `exclude`."
                         )
-                    files[filesets[0].name].append(secondary)
-                    data[filesets[0].name].append(secondary_data)
 
-            # We still have some files cached that we used the last time but we
-            # do not need any longer. Find them all that we need:
-            files_to_keep = [
-                i for i, file in enumerate(files[filesets[0].name])
-                if file in matches[match_id][1]
-            ]
+                    # Add the loaded secondary to the cache
+                    cache[secondary_file] = secondary_data
 
-            # And delete the others from the cache:
-            files[filesets[0].name][:] = [
-                file for i, file in enumerate(files[filesets[0].name])
-                if i in files_to_keep
-            ]
-            data[filesets[0].name][:] = [
-                data for i, data in enumerate(data[filesets[0].name])
-                if i in files_to_keep
-            ]
+                files[other.name].append(secondary_to_yield)
+                data[other.name].append(cache[secondary_to_yield])
+
+                # Decrease the counter for this secondary:
+                secondary_usage[secondary_to_yield] -= 1
+
+                # Apparently, this secondary won't be needed any longer. Delete
+                # it from the cache after yielding it to the user
+                if not secondary_usage[secondary_to_yield]:
+                    to_delete.append(secondary_to_yield)
+
+            yield files, data
+
+            # Delete the files from the cache that we do not need any longer:
+            for file_to_delete in to_delete:
+                del cache[file_to_delete]
 
             # Tell the python interpreter explicitly to free up memory to
             # improve performance (see
             # https://stackoverflow.com/q/1316767/9144990):
             gc.collect()
-
-            yield files, data
 
     @staticmethod
     def _pseudo_passer(*args):
@@ -1199,7 +1226,7 @@ class FileSet:
             sort: If true, all found files will be sorted according to their
                 starting and ending times.
             bundle_size: See the documentation of the *bundle* argument in
-                :meth`find` method.
+                :meth:`find` method.
 
         Yields:
             Either one FileInfo object or - if bundle_size is set - a list of
@@ -1307,14 +1334,15 @@ class FileSet:
         intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
         return files[np.argmin(intervals)]
 
-    def find_overlaps(
-            self, filesets, start=None, end=None, max_interval=None,
+    def match(
+            self, other, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
-        """Find files between two filesets that overlap in time.
+        """Find matching files between two filesets
+
+        Matching files are files that overlap each in their time coverage.
 
         Args:
-            filesets: A list of other FileSet objects. Note: at the moment only
-                the first fileset will be processed.
+            other: Another FileSet object.
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional.
@@ -1323,11 +1351,15 @@ class FileSet:
                 two overlapping files. Must be an integer or float.
             filters: The same filter argument that is allowed for
                 :meth:`find`.
-            other_filters: The same filter argument that is allowed for
-                :meth:`find`.
+            other_filters: The same as `filter` but it will be applied to
+                `other`.
 
         Yields:
-            A tuple with the names of two files which correspond to each other.
+            A tuple with the :class:`FileInfo` object from this fileset and a
+            list with matching files from the other fileset.
+
+        Examples:
+            TODO: Add example
         """
         if max_interval is not None:
             max_interval = to_timedelta(max_interval)
@@ -1338,7 +1370,7 @@ class FileSet:
             self.find(start, end, filters=filters)
         )
         files2 = list(
-            filesets[0].find(start, end, filters=other_filters)
+            other.find(start, end, filters=other_filters)
         )
 
         # Convert the times (datetime objects) to seconds (integer)
@@ -1483,7 +1515,7 @@ class FileSet:
                 information from the filename.
 
         Returns:
-            A :meth`~typhon.files.handlers.common.FileInfo` object.
+            A :meth:`~typhon.files.handlers.common.FileInfo` object.
         """
         # We want to save time in this routine, therefore we first check
         # whether we cached this file already.
@@ -1621,7 +1653,7 @@ class FileSet:
             #worker_initializer=None, worker_initargs=None,
             return_info=False, **find_kwargs
     ):
-        """Apply a function on all files of this fileset between two dates
+        """Apply a function on files of this fileset with parallel workers
 
         This method can use multiple workers processes / threads to boost the
         procedure significantly. Depending on which system you work, you should
@@ -1676,7 +1708,7 @@ class FileSet:
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
             **find_kwargs: Additional keyword arguments that are allowed
-                for :meth`find` such as `start` or `end`.
+                for :meth:`find` such as `start` or `end`.
 
         Returns:
             A list with tuples of a FileInfo object and the return value of the
@@ -1747,7 +1779,7 @@ class FileSet:
             ))
 
     def imap(self, *args, **kwargs):
-        """Apply a function on all files of this fileset between two dates
+        """Apply a function on files and return the result immediately
 
         This method does exact the same as :meth:`map` but works as a generator
         and is therefore less memory space consuming.
@@ -1943,7 +1975,7 @@ class FileSet:
                 simply copied without converting.
             copy: If true, then all files will be copied instead of moved.
             **find_args: Additional keyword arguments that are allowed
-                for :meth`find` such as `start`, `end` or `files`.
+                for :meth:`find` such as `start`, `end` or `files`.
 
         Returns:
             New FileSet object with the new files.
@@ -2074,7 +2106,7 @@ class FileSet:
 
     @property
     def name(self):
-        """Gets or sets the fileset's name.
+        """Get or set the fileset's name.
 
         Returns:
             A string with the fileset's name.
@@ -2467,6 +2499,10 @@ class FileSet:
                 data = self.handler.read(decompressed_file, **read_args)
         else:
             data = self.handler.read(file_info, **read_args)
+
+        # Maybe the user wants to do some post-processing?
+        if self.post_reader is not None:
+            data = self.post_reader(file_info, data)
 
         # Add also data from linked filesets:
         # if self._link:

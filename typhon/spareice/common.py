@@ -5,10 +5,11 @@ except ImportError:
     pass
 
 import numpy as np
+import pandas as pd
 from scipy import stats
 from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPRegressor
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.svm import SVR
 from typhon.files import FileSet
@@ -67,17 +68,6 @@ class Retriever:
         if parameters_file is not None:
             self.load_parameters(parameters_file)
 
-    def _convert_data(self, data):
-        # We are running SPARE-ICE only with GroupedArrays:
-        if isinstance(data, dict):
-            return GroupedArrays.from_dict(data)
-        elif isinstance(data, xr.Dataset):
-            return GroupedArrays.from_xarray(data)
-        elif isinstance(data, GroupedArrays):
-            return data
-
-        raise ValueError(f"Unknown data type {type(data)}!")
-
     @staticmethod
     def _default_estimator(estimator):
         """Return the default estimator"""
@@ -94,14 +84,14 @@ class Retriever:
         else:
             raise ValueError(f"Unknown estimator type: {estimator}!")
 
-        return make_pipeline(
+        return Pipeline([
             # SVM or NN work better if we have scaled the data in the first
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
-            MinMaxScaler(feature_range=[0, 1]),
+            ("scaler", MinMaxScaler(feature_range=[0, 1])),
             # The "real" estimator:
-            estimator,
-        )
+            ("estimator", estimator),
+        ])
 
     def _default_trainer(self):
         """Return the default trainer for the current estimator
@@ -113,20 +103,20 @@ class Retriever:
 
         # To optimize the results, we try different hyper parameters by
         # using a grid search
-        if isinstance(self.estimator.steps[-1][1], MLPRegressor):
+        if isinstance(estimator.steps[-1][1], MLPRegressor):
             # Hyper parameter for Neural Network
             hidden_layer_sizes = [
                 (15, 10, 3,), (15, 5, 3, 5), (15, 10), (15, 3),
             ]
             common = {
-                'activation': ['relu',],
-                'hidden_layer_sizes': hidden_layer_sizes,
-                'random_state': [0, 1, 2, 4, 5, 9],
+                'estimator__activation': ['relu', 'tanh'],
+                'estimator__hidden_layer_sizes': hidden_layer_sizes,
+                'estimator__random_state': [0, 5, 9],
                 #'alpha': 10.0 ** -np.arange(1, 7),
             }
             hyper_parameter = [
                 {   # Hyper parameter for lbfgs solver
-                    'solver': ['lbfgs'],
+                    'estimator__solver': ['lbfgs'],
                     **common
                 },
                 # {  # Hyper parameter for adam solver
@@ -137,11 +127,11 @@ class Retriever:
                 #     **common
                 # },
             ]
-        elif isinstance(self.estimator.steps[-1][1], SVR):
+        elif isinstance(estimator.steps[-1][1], SVR):
             # Hyper parameter for Support Vector Machine
             hyper_parameter = {
-                "svr__gamma": 10.**np.arange(-3, 2),
-                "svr__C": 10. ** np.arange(-3, 2),
+                "estimator__gamma": 10.**np.arange(-3, 2),
+                "estimator__C": 10. ** np.arange(-3, 2),
             }
         else:
             raise ValueError(
@@ -209,7 +199,7 @@ class Retriever:
             if estimator is None:
                 raise ValueError("Found no coefficients for estimator!")
 
-            self.estimator = self._create_model(
+            estimator = self._create_model(
                 MLPRegressor, estimator["params"], estimator["coefs"],
             )
 
@@ -219,13 +209,17 @@ class Retriever:
             if scaler is None:
                 raise ValueError("Found no coefficients for scaler!")
 
-            self.scaler = self._create_model(
+            scaler = self._create_model(
                 MinMaxScaler, scaler["params"], scaler["coefs"],
             )
 
+            self.estimator = Pipeline([
+                ("scaler", scaler,),  ("estimator", estimator)
+            ])
+
             self.parameter.update(parameter)
 
-    def run(self, data, inputs=None, extra_fields=None, cleaner=None):
+    def run(self, inputs, extra_fields=None, cleaner=None):
         """Predict the target values for data coming from arrays
 
         Args:
@@ -257,34 +251,21 @@ class Retriever:
         if self.estimator is None:
             raise NotTrainedError()
 
-        data = self._convert_data(data)
-
-        if callable(cleaner):
-            data = data[cleaner(data)]
-
-        input_data = self._get_inputs(data, inputs)
-
         # Skip to small datasets
-        if not input_data.any():
+        if inputs.empty:
             print("Skip this data!")
             return None
 
         # Retrieve the data from the neural network:
-        output_data = self.estimator.predict(input_data)
+        output_data = self.estimator.predict(inputs)
 
-        if len(self.parameter["targets"]) == 1:
-            retrieved_data = GroupedArrays()
-            target_label = list(self.parameter["targets"].keys())[0]
-            retrieved_data[target_label] = output_data
-        else:
-            retrieved_data = GroupedArrays.from_dict({
-                name: output_data[:, i]
-                for i, name in enumerate(sorted(self.parameter["targets"]))
-            })
+        retrieved_data = pd.DataFrame()
+        target_label = self.parameter["targets"][0]
+        retrieved_data[target_label] = output_data
 
-        if extra_fields is not None:
-            for new_name, old_name in extra_fields.items():
-                retrieved_data[new_name] = data[old_name]
+        # if extra_fields is not None:
+        #     for new_name, old_name in extra_fields.items():
+        #         retrieved_data[new_name] = data[old_name]
 
         return retrieved_data
 
@@ -315,6 +296,8 @@ class Retriever:
             Otherwise an GroupedArrays / xarray.Dataset with the retrieved
             data.
         """
+
+        raise NotImplementedError()
 
         if self.estimator is None:
             raise NotTrainedError()
@@ -369,13 +352,17 @@ class Retriever:
 
         parameter = self.parameter.copy()
 
-        parameter["estimator"] = self._model_to_json(self.estimator)
-        parameter["scaler"] = self._model_to_json(self.scaler)
+        parameter["scaler"] = self._model_to_json(
+            self.estimator.steps[0][1]
+        )
+        parameter["estimator"] = self._model_to_json(
+            self.estimator.steps[-1][1]
+        )
 
         with open(filename, 'w') as outfile:
             json_tricks.dump(parameter, outfile)
 
-    def score(self, data, inputs=None, targets=None, metric=None):
+    def score(self, inputs, targets):
         """
 
         Args:
@@ -390,14 +377,9 @@ class Retriever:
         if self.estimator is None:
             raise NotTrainedError()
 
-        data = self._convert_data(data)
+        return self.estimator.score(inputs, targets.values.ravel())
 
-        input_data = self._get_inputs(data, inputs)
-        target_data = self._get_targets(data, targets)
-
-        return self.estimator.score(input_data, target_data)
-
-    def train(self, data, inputs, targets, cleaner=None, verbose=0):
+    def train(self, inputs, targets, verbose=0):
         """Train this retriever with data from arrays
 
         Args:
@@ -419,42 +401,24 @@ class Retriever:
             training target and testing target.
         """
 
-        if not isinstance(inputs, dict):
-            raise ValueError("inputs must be a dictionary of field names")
-        if not isinstance(targets, dict):
-            raise ValueError("targets must be a dictionary of field names")
-
-        data = self._convert_data(data)
-
         if self.trainer is None:
             self.trainer = self._default_trainer()
 
         # The input and target labels will be saved because they can be used in
         # other methods as well.
-        self.parameter["inputs"] = inputs
-        self.parameter["targets"] = targets
-
-        # Apply the cleaner if there is one
-        if callable(cleaner):
-            data = data[cleaner(data)]
-
-        train_input = self._get_inputs(data, inputs, fit_scaler=True)
-        train_target = self._get_targets(data, targets)
-
-        # Skip too small datasets
-        if train_input.shape[0] < 2 or train_target.shape[0] < 2:
-            raise ValueError("Not enough data for training!")
+        self.parameter["inputs"] = inputs.columns.tolist()
+        self.parameter["targets"] = targets.columns.tolist()
 
         # Unleash the trainer
         self.trainer.verbose = verbose
-        self.trainer.fit(train_input, train_target)
+        self.trainer.fit(inputs, targets.values.ravel())
 
         # Use the best estimator from now on:
         self.estimator = self.trainer.best_estimator_
 
-        return self.trainer.score(train_input, train_target)
+        return self.trainer.score(inputs, targets)
 
-    def _get_inputs(self, data, fields, fit_scaler=False):
+    def _get_inputs(self, data, fields):
 
         if fields is None:
             fields = self.parameter["inputs"]
@@ -464,13 +428,6 @@ class Retriever:
             data[field]
             for _, field in sorted(fields.items())
         ]).T
-
-        # We apply a scaler on the data.
-        if fit_scaler:
-            self.scaler = self._default_scaler()
-            input_data = self.scaler.fit_transform(input_data)
-        else:
-            input_data = self.scaler.transform(input_data)
 
         return input_data
 

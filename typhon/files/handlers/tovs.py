@@ -16,11 +16,11 @@ class MHSAAPP(NetCDF4):
         "Geolocation/Latitude": "lat",
         "Geolocation/Longitude": "lon",
         "Data/scnlin": "scnline",
-        "phony_dim_0": "scnline",
-        "phony_dim_1": "scnpos",
-        "phony_dim_2": "channel",
-        "phony_dim_3": "scnline",
-        "phony_dim_4": "scnpos",
+        "Data/phony_dim_0": "scnline",
+        "Data/phony_dim_1": "scnpos",
+        "Data/phony_dim_2": "channel",
+        "Geolocation/phony_dim_3": "scnline",
+        "Geolocation/phony_dim_4": "scnpos",
     }
 
     # This file handler always wants to return at least time, lat and lon
@@ -60,7 +60,7 @@ class MHSAAPP(NetCDF4):
 
     @expects_file_info()
     def read(self, paths, mask_and_scale=True, **kwargs):
-        """"Read and parse HDF4 files and load them to a xarray.Dataset
+        """Read and parse MHS HDF5 files and load them to a xarray.Dataset
 
         Args:
             paths: Path and name of the file as string or FileInfo object.
@@ -116,6 +116,9 @@ class MHSAAPP(NetCDF4):
                 if scaling is not None:
                     dataset[var] = dataset[var].astype(float) * scaling
 
+        # Make a fast check whether everything is alright
+        self._test_dataset(dataset)
+
         if user_mapping is not None:
             dataset.rename(user_mapping, inplace=True)
 
@@ -129,3 +132,13 @@ class MHSAAPP(NetCDF4):
             + dataset["Data/scnlintime"].astype("timedelta64[ms]")
 
         return time
+
+    def _test_dataset(self, dataset):
+        # Only these dimensions should be in the dataset:
+        wanted = ['channel', 'scnline', 'scnpos']
+        reality = list(sorted(dataset.dims.keys()))
+
+        if wanted != reality:
+            raise ValueError(
+                f"Unexpected dimension in MHS file! {set(reality)-set(wanted)}"
+            )
