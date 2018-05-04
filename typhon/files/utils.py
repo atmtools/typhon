@@ -141,7 +141,7 @@ def compress_as(filename, fmt, target=None, keep=True):
 
 
 @contextmanager
-def decompress(filename, tmpdir=None):
+def decompress(filename, tmpdir=None, target=None):
     """Temporarily decompress file for reading.
 
     Returns the full path to the uncompressed temporary file or the original
@@ -158,6 +158,9 @@ def decompress(filename, tmpdir=None):
         tmpdir (str): Path to directory for temporary storage of the
             uncompressed file. The directory must exist. The default is the
             temporary dir of the system.
+        target (str): With this you can set the name of the decompressed file
+            directly. Caution: this file will be overwritten with the
+            decompressed content and deleted after leaving the with-block.
 
     Yields:
         Generator containing the path to the input filename.
@@ -173,27 +176,32 @@ def decompress(filename, tmpdir=None):
     filebase = os.path.basename(filebase)
     fmt = fileext.lstrip(".")
 
-    if is_compression_format(fmt):
-        tmpfile = tempfile.NamedTemporaryFile(dir=tmpdir, delete=False)
-        # Read datafile in 100 MiB chunks for good performance/memory usage
-        chunksize = 100 * 1024 * 1024
-        compfile = get_compressor(fmt)
-        try:
-            if fmt == 'zip':
-                shutil.copyfileobj(compfile(filename, 'r').open(filebase, 'r'),
-                                   tmpfile,
-                                   chunksize)
-            else:
-                shutil.copyfileobj(compfile(filename, 'r'),
-                                   tmpfile,
-                                   chunksize)
-            tmpfile.close()
-            yield tmpfile.name
-        finally:
-            os.unlink(tmpfile.name)
-
-    else:
+    if not is_compression_format(fmt):
         yield filename
+        return
+
+    if target is None:
+        tmpfile = tempfile.NamedTemporaryFile(dir=tmpdir, delete=False)
+    else:
+        # The user has a own name for the temporary file:
+        tmpfile = open(target, "wb")
+
+    # Read datafile in 100 MiB chunks for good performance/memory usage
+    chunksize = 100 * 1024 * 1024
+    compfile = get_compressor(fmt)
+    try:
+        if fmt == 'zip':
+            shutil.copyfileobj(compfile(filename, 'r').open(filebase, 'r'),
+                               tmpfile,
+                               chunksize)
+        else:
+            shutil.copyfileobj(compfile(filename, 'r'),
+                               tmpfile,
+                               chunksize)
+        tmpfile.close()
+        yield tmpfile.name
+    finally:
+        os.unlink(tmpfile.name)
 
 
 def get_compressor(fmt):
