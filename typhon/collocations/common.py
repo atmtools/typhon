@@ -459,7 +459,7 @@ class Collocations(FileSet):
 
                 # Check whether something is left:
                 if not len(dataset[name]['time']):
-                    return None
+                    return None, None
 
                 # We want to select a common time window from both datasets,
                 # aligned to the primary's time coverage. Because xarray has a
