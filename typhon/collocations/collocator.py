@@ -541,7 +541,6 @@ class Collocator:
             return self.no_pairs, self.no_distances
 
         # Stack the rest of the results together:
-        print(distances_list)
         distances = np.hstack(distances_list)
 
         # We selected a common time window and cut off a part in the
@@ -590,7 +589,7 @@ class Collocator:
         self, max_distance, offset1, data1, offset2, data2 = args
 
         if data1.empty or data2.empty:
-            return self.no_pairs, self.no_intervals, self.no_distances
+            return self.no_pairs, self.no_distances
 
         pairs, distances = self.spatial_search(
             data1["lat"].values, data1["lon"].values,
