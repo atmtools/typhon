@@ -198,11 +198,6 @@ class Collocations(FileSet):
                 *9999-12-31* wil be taken.
             skip_overlaps: If the files of the primary fileset overlap in
                 time, the overlapping data is used only once for collocating.
-            is_gridded: If the data coming from one fileset is gridded (i.e. it
-                the data variables have *time*, *lat* and *lon* as coordinates
-                such as ERA-Interim, etc.), set its name here. So this can be
-                also a list of two names if the data from both filesets are
-                gridded.
             processes: The number of processes that should be used to
                 parallelize the collocation process. Default is 1.
             log_dir: If given, the log files for the processes will be stored
@@ -277,7 +272,7 @@ class Collocations(FileSet):
                 pool.submit(
                     Collocations._search, self, PROCESS_NAMES[i],
                     filesets, period[0], period[1], skip_overlaps,
-                    is_gridded, verbose=verbose, **collocate_args
+                    verbose=verbose, **collocate_args
                 )
                 for i, period in enumerate(periods)
             ]
@@ -405,7 +400,7 @@ class Collocations(FileSet):
 
     def _prepare_data(self, filesets, files, dataset,
                       global_start, global_end, max_interval,
-                      remove_overlaps, last_primary_end, is_gridded):
+                      remove_overlaps, last_primary_end):
         """Make the raw data almost ready for collocating
 
         Before we can collocate the data points, we need to flat them (if they
