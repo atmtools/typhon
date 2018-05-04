@@ -236,7 +236,7 @@ class FileSet:
             time_coverage=None, info_cache=None, exclude=None,
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
-            compress=True, decompress=True, temp_dir=None,
+            post_reader=None, compress=True, decompress=True, temp_dir=None,
     ):
         """Initialize a FileSet object.
 
@@ -313,6 +313,10 @@ class FileSet:
                 always be passed to :meth:`read`.
             write_args: Additional keyword arguments in a dictionary that
                 should always be passed to :meth:`write`.
+            post_reader: A reference to a function that will be called *after*
+                reading a file. Can be used for post-processing or field
+                selection, etc. Its signature must be
+                `callable(file_info, file_data)`.
             temp_dir: You can set here your own temporary directory that this
                 FileSet object should use for compressing and decompressing
                 files. Per default it uses the tempdir given by
@@ -443,6 +447,7 @@ class FileSet:
         # The default settings for read and write methods
         self.read_args = {} if read_args is None else read_args
         self.write_args = {} if write_args is None else write_args
+        self.post_reader = post_reader
 
         self.compress = compress
         self.decompress = decompress
@@ -2494,6 +2499,10 @@ class FileSet:
                 data = self.handler.read(decompressed_file, **read_args)
         else:
             data = self.handler.read(file_info, **read_args)
+
+        # Maybe the user wants to do some post-processing?
+        if self.post_reader is not None:
+            data = self.post_reader(file_info, data)
 
         # Add also data from linked filesets:
         # if self._link:
