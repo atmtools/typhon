@@ -8,7 +8,7 @@ import os
 import pickle
 import warnings
 
-import h5netcdf.legacyapi as netCDF4
+import netCDF4
 import h5py
 import pandas as pd
 import xarray as xr
@@ -751,7 +751,7 @@ class NetCDF4(FileHandler):
         # group, then it is valid for this group only. Otherwise, the
         # coordinate from the parent group is taken.
         dim_map = {
-            dim: dim if dim not in group.variables else path + dim
+            dim: dim if dim in group.variables else path + dim
             for dim in group.dimensions
         }
 
@@ -803,6 +803,13 @@ class NetCDF4(FileHandler):
                 for full in ds.variables
             }
             ds.rename(mapping, inplace=True)
+
+            # Do not forget the dimension names :-)
+            for var in ds.variables.values():
+                var.dims = [
+                    self._split_path(dim)[1]
+                    for dim in var.dims
+                ]
 
             ds.to_netcdf(
                 filename.path, group=group,
