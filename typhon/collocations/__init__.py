@@ -8,6 +8,7 @@ TODO: I would like to have this package as typhon.collocations.
 Created by John Mrziglod, June 2017
 """
 
+from .collocator import *  # noqa
 from .common import *  # noqa
 
 __all__ = [s for s in dir() if not s.startswith('_')]
