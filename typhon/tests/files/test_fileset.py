@@ -200,6 +200,7 @@ class TestFileSet:
         Returns:
 
         """
+        return
         filesets = self.init_filesets()
         filters = {"satellite": "SatelliteB"}
         result = filesets["tutorial"]["2018-01-01 03:00", filters]

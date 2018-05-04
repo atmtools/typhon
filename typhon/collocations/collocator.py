@@ -541,6 +541,7 @@ class Collocator:
             return self.no_pairs, self.no_distances
 
         # Stack the rest of the results together:
+        print(distances_list)
         distances = np.hstack(distances_list)
 
         # We selected a common time window and cut off a part in the

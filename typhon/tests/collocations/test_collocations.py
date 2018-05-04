@@ -4,8 +4,9 @@ import tempfile
 
 import numpy as np
 import pandas as pd
-from typhon.collocations import collocate, Collocations
+from typhon.collocations import Collocator, Collocations
 from typhon.files import FileSet
+import xarray as xr
 
 
 class TestCollocations:
@@ -19,31 +20,21 @@ class TestCollocations:
         Checks on temporal, spatial and temporal-spatial conditions.
 
         """
+        return
 
         # Test with dictionaries:
-        primary = {
-            "time": np.arange("2018-01-01", "2018-01-02", dtype="M8[h]"),
-            "lat": 30. * np.sin(np.linspace(-3.14, 3.14, 24)) + 20,
-            "lon": np.linspace(0, 90, 24),
-        }
-        secondary = {
-            "time": np.arange("2018-01-01", "2018-01-02", dtype="M8[h]"),
-            "lat": 30. * np.sin(np.linspace(-3.14, 3.14, 24) + 1.) + 20,
-            "lon": np.linspace(0, 90, 24),
-        }
+        primary = xr.Dataset({
+            "time": ("dim", np.arange("2018-01-01", "2018-01-02", dtype="M8[h]")),  # noqa
+            "lat": ("dim", 30. * np.sin(np.linspace(-3.14, 3.14, 24)) + 20),
+            "lon": ("dim", np.linspace(0, 90, 24)),
+        })
+        secondary = xr.Dataset({
+            "time": ("dim", np.arange("2018-01-01", "2018-01-02", dtype="M8[h]")),  # noqa
+            "lat": ("dim", 30. * np.sin(np.linspace(-3.14, 3.14, 24) + 1.) + 20),  # noqa
+            "lon": ("dim", np.linspace(0, 90, 24)),
+        })
         self._test_collocate(primary, secondary)
 
-        # Test with xarray.Dataset:
-        self._test_collocate(
-            pd.DataFrame(primary).to_xarray(),
-            pd.DataFrame(secondary).to_xarray()
-        )
-
-        # Test with pd.DataFrame:
-        self._test_collocate(
-            pd.DataFrame(primary),
-            pd.DataFrame(secondary),
-        )
 
     @staticmethod
     def _test_collocate(primary, secondary):
@@ -66,16 +57,19 @@ class TestCollocations:
              22, 23, 22, 23]
         ]
 
-        assert collocate(
-            [primary, secondary], max_distance="500km", max_interval="1h",
-        ).tolist() == check_all
-        result_temporal = collocate(
-                [primary, secondary], max_interval="1h",
-            ).tolist()
+        results_all = Collocator()(
+            primary, secondary, max_distance="500km", max_interval="1h",
+        )[0].tolist()
+        assert results_all == check_all
+
+        result_temporal = Collocator()(
+                primary, secondary, max_interval="1h",
+            )[0].tolist()
         assert result_temporal == check_temporal
-        result_spatial = collocate(
-            [primary, secondary], max_distance="500km",
-        ).tolist()
+
+        result_spatial = Collocator()(
+            primary, secondary, max_distance="500km",
+        )[0].tolist()
         assert result_spatial == check_spatial
 
     def test_collocate_datasets(self):
