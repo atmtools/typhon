@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+import warnings
 
-import h5netcdf.legacyapi as netCDF4
+import h5py
 import numpy as np
 import xarray as xr
 
@@ -88,37 +89,42 @@ class SEVIRI(HDF5):
         user_mapping = kwargs.pop("mapping", None)
 
         # Load the dataset from the file:
-        with netCDF4.Dataset(file_info.path, "r", invalid_netcdf=True) as file:
+        with h5py.File(file_info.path, 'r') as file:
             dataset = xr.Dataset()
 
             for field in fields:
-                dataset[field] = \
-                    ("line", "column"), file[field], file[field].__dict__
+                dataset[field] = xr.DataArray(
+                    file[field], dims=("line", "column"),
+                    attrs=dict(file[field].attrs)
+                )
 
             xr.decode_cf(dataset, **kwargs)
+            dataset.load()
 
         dataset.rename(self.mapping, inplace=True)
 
         # Add the latitudes and longitudes of the grid points:
         dataset = xr.merge([dataset, self.grid])
 
-        # Create the time variable (is built from several other variables):
-        #dataset["time"] = self._get_time_field(dataset)
+        # Add the time variable (is derived from the filename normally):
+        if file_info.times[0] is None:
+            warnings.warn(
+                "SEVIRI: The time field was not specified by the filename! Set"
+                "it to 1970-01-01!"
+            )
+            dataset["time"] = ("time", np.array(["1970-01-01"], dtype="M8[s]"))
+        else:
+            dataset["time"] = ("time", [file_info.times[0]])
+
+        # For collocating and other things, we always need the three dimensions
+        # time, lat and lon to be "connected". Hence, add the time dimension to
+        # each data variable as extra dimension.
+        dataset = xr.concat([dataset], dim="time")
 
         if user_mapping is not None:
             dataset.rename(user_mapping, inplace=True)
 
         return dataset
-
-    @staticmethod
-    def _get_time_field(dataset):
-
-        time = \
-            (dataset["Data/scnlinyr"]-1970).astype('datetime64[Y]') \
-            + (dataset["Data/scnlindy"]-1).astype('timedelta64[D]') \
-            + dataset["Data/scnlintime"].astype("timedelta64[ms]")
-
-        return time
 
     @property
     def grid(self):
