@@ -159,7 +159,7 @@ class Collocations(FileSet):
 
     def search(
             self, filesets, start=None, end=None, skip_overlaps=True,
-            is_gridded=None, processes=None, collocator=None, log_dir=None,
+            processes=None, collocator=None, log_dir=None,
             verbose=1, **collocate_args):
         """Find all collocations between two filesets and store them in files
 
@@ -250,14 +250,6 @@ class Collocations(FileSet):
         start = to_datetime(start)
         end = to_datetime(end)
 
-        # Convert the is_gridded parameter to a set:
-        if is_gridded is None:
-            is_gridded = set()
-        elif isinstance(is_gridded, str):
-            is_gridded = [is_gridded]
-        else:
-            is_gridded = set(is_gridded)
-
         # Set the number of processes per default to 1, the user shall
         # explicitly ask for parallel processing:
         if processes is None:
@@ -298,7 +290,7 @@ class Collocations(FileSet):
                     print(f"[{PROCESS_NAMES[i]}] {future.exception()}")
 
     @reraise_with_stack
-    def _search(self, pid, filesets, start, end, skip_overlaps, is_gridded,
+    def _search(self, pid, filesets, start, end, skip_overlaps,
                 verbose, **collocate_args):
 
         # Check the max_interval argument because we need it later
@@ -336,7 +328,7 @@ class Collocations(FileSet):
 
             primary, secondary = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
-                skip_overlaps, last_primary_end, is_gridded
+                skip_overlaps, last_primary_end
             )
 
             if primary is None:
