@@ -9,6 +9,6 @@ Collocations
    :toctree: generated
 
    collapse
-   collocate
+   Collocator
    Collocations
    expand
