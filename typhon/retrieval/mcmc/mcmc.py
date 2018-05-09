@@ -25,7 +25,7 @@ def r_factor(stats):
 
     Args:
         stats: A list of arrays of statistics (scalar summaries) computed from
-        serveral MCMC runs.
+            serveral MCMC runs.
     """
     n = stats[0].size
     m = len(stats)
@@ -42,8 +42,9 @@ def r_factor(stats):
 
 def variogram(stats, t):
     """
-    Helper function that computes the variogram for a given lag t. The variogram
-    is the mean of the mean squared sum of deviations of lag t of each sequence.
+    Helper function that computes the variogram for a given lag t. The
+    variogram is the mean of the mean squared sum of deviations of lag t of
+    each sequence.
 
     Args:
         stats: A list of sequences
@@ -56,8 +57,8 @@ def split(stats):
     """
     Splits a list of sequences in halves.
 
-    Sequences generated from MCMC runs should be split in half in order to be able to
-    properly diagnose mixing.
+    Sequences generated from MCMC runs should be split in half in order to be
+    able to properly diagnose mixing.
 
     Args:
         stats: A list of sequences
@@ -154,23 +155,20 @@ class MCMC:
 
         Args:
            vars: A list of triples (v,l,j) containing a triple of a variable
-           v, a prior likelihood function l so that `l(v)` yields a value
-           proportional to the logarithm of the prior probability of value
-           of v, and finally a jump function j, so that `v_new = j(ws, v_old)` 
-           yields a new value for the variable v and manipulates the 
-           `Workspace` object ws so that a subsequent call to the yCalc WSM
-           will compute the simulated measurement corresponding to the
-           new value `v_new` of the variable v.
-
+               v, a prior likelihood function l so that `l(v)` yields a value
+               proportional to the logarithm of the prior probability of value
+               of v, and finally a jump function j, so that
+               `v_new = j(ws, v_old)` yields a new value for the variable v
+               and manipulates the `Workspace` object ws so that a subsequent
+               call to the yCalc WSM will compute the simulated measurement
+               corresponding to the new value `v_new` of the variable v.
            y: The measured vector of brightness temperatures which must be
-           consistent with the ARTS WSV y
-
+               consistent with the ARTS WSV y
            ly: The measurement likelihood such that `ly(y, yf)` gives
-           the log of the probability that deviations between `y` and
-           `yf` are due to measurement errors.
-
+               the log of the probability that deviations between `y` and
+               `yf` are due to measurement errors.
            stats: This is a list of statstics such that for each element
-           s `s(ws)` is a scalar value computed on a given workspace.
+               s `s(ws)` is a scalar value computed on a given workspace.
         """
         MCMC._check_input(vars, ly, stats)
         self.y     = y
@@ -186,7 +184,7 @@ class MCMC:
 
         Args:
            ws: A `Workspace` object consistent with the current state
-           of the MCMC run.
+               of the MCMC run.
         """
         lxs = np.zeros(len(self.vars))
         ly  = self.ly(self.y, ws.y.value)
@@ -202,11 +200,11 @@ class MCMC:
 
         Args:
            ws: A `Workspace` object consistent with the current state
-           of the MCMC run.
+               of the MCMC run.
            ly_old: The measurement likelihood before the execution of
-           new step
+               new step
            lxs_old: The prior likelihoods for each of the variables
-           that are being retrieved.
+               that are being retrieved.
         """
         accepted = np.zeros((1, len(self.vars)), dtype=bool)
         lxs = np.zeros(lxs_old.shape)
@@ -239,7 +237,7 @@ class MCMC:
         Args:
             step: The number of the current step
             acceptance: The array of bools tracking the acceptances for
-            each simulation step.
+                each simulation step.
         """
         if step > 0:
             ar = sum(acceptance / step)
@@ -255,10 +253,10 @@ class MCMC:
 
         Args:
             ws: A `Workspace` object setup so that only a call to the `yCalc`
-            WSM is necessary to perform a simulation
+                WSM is necessary to perform a simulation
             x0s: A list of start values which is used to initialized the
-            workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
-            the jump function of the corresponding variable.
+                workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
+                the jump function of the corresponding variable.
         """
         ls    = np.zeros(n_steps + 1)
         stats = np.zeros((n_steps + 1, len(self.stats)))
@@ -303,10 +301,10 @@ class MCMC:
 
         Args:
             ws: A `Workspace` object setup so that only a call to the `yCalc`
-            WSM is necessary to perform a simulation
+                WSM is necessary to perform a simulation
             x0s: A list of start values which is used to initialized the
-            workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
-            the jump function of the corresponding variable.
+                workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
+                the jump function of the corresponding variable.
         """
         ls    = np.zeros(n_steps)
         stats = np.zeros((n_steps, len(self.stats)))
