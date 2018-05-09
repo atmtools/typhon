@@ -16,19 +16,6 @@ utils
    path_remove
    image2mpeg
 
-utils.metaclass
-===============
-
-.. automodule:: typhon.utils.metaclass
-
-.. currentmodule:: typhon.utils.metaclass
-
-.. autosummary::
-   :toctree: generated
-
-   AbstractDocStringInheritor
-   DocStringInheritor
-
 utils.cache
 ===========
 

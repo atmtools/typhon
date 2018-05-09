@@ -22,7 +22,6 @@ import pandas
 import numpy as np
 
 from . import cache
-from . import metaclass
 from . import sphinxext
 from time import *
 
