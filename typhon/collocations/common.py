@@ -12,14 +12,11 @@ import logging
 
 import random
 import time
-import traceback
-import warnings
 
 import numba
 import numpy as np
 import pandas as pd
-import scipy.stats
-from typhon.files import FileSet, NoHandlerError
+from typhon.files import FileSet
 from typhon.utils import reraise_with_stack
 from typhon.utils.time import to_datetime, to_timedelta
 import xarray as xr
@@ -56,6 +53,15 @@ PROCESS_NAMES = [
 random.shuffle(PROCESS_NAMES)
 
 
+class InvalidCollocationData(Exception):
+    """Error when trying to collapse / expand invalid collocation data
+
+    """
+
+    def __init__(self, message, *args):
+        Exception.__init__(self, message, *args)
+
+
 class Collocations(FileSet):
     """Class for finding and storing collocations between FileSet objects
 
@@ -63,30 +69,31 @@ class Collocations(FileSet):
     instead.
     """
     def __init__(
-            self, *args, primary=None, secondary=None, mode=None,
+            self, *args, reference=None, read_mode=None,
             collapser=None, **kwargs):
         """Initialize a Collocation object
 
         This :class:`~typhon.files.fileset.FileSet`
 
         Args:
-            *args:
-            primary: Name of fileset which has the largest footprint. All
-                other filesets will be collapsed to its data points.
-            secondary: Name of fileset which has the smaller footprints.
-            mode: The collocations can be collapsed or expanded after
+            *args: Positional arguments for
+                :class:`~typhon.files.fileset.FileSet`.
+            read_mode: The collocations can be collapsed or expanded after
                 collecting. Set this either to *collapse* (default) or
                 *expand*.
-            collapser: If the mode is *collapse*, here you can give your
+            reference: If `read_mode` is *collapse*, here you can set the name
+                of the dataset to that the others should be collapsed. Default
+                is the primary dataset.
+            collapser: If `read_mode` is *collapse*, here you can give your
                 dictionary with additional collapser functions.
-            **kwargs:
+            **kwargs: Keyword arguments for
+                :class:`~typhon.files.fileset.FileSet`.
         """
         # Call the base class initializer
         super().__init__(*args, **kwargs)
 
-        self.primary = primary
-        self.secondary = secondary
-        self.mode = mode
+        self.read_mode = read_mode
+        self.reference = reference
         self.collapser = collapser
         self.collocator = None
 
@@ -137,24 +144,20 @@ class Collocations(FileSet):
         """
         data = super(Collocations, self).read(*args, **kwargs)
 
-        if self.mode == "fileset":
+        if self.read_mode == "fileset":
+            # Do nothing
             return data
-
-        if self.primary is None or self.secondary is None:
-            raise ValueError(
-                "You must set the primary and secondary properties before "
-                "using advanced reading modes!"
-            )
-
-        if self.mode == "collapse" or self.mode is None:
-            return collapse(data, self.primary, self.secondary, self.collapser)
-        elif self.mode == "expand":
-            return expand(data, self.primary, self.secondary)
+        elif self.read_mode == "collapse" or self.read_mode is None:
+            # Collapse the data (default)
+            return collapse(data, self.reference, self.collapser)
+        elif self.read_mode == "expand":
+            # Expand the data
+            return expand(data)
         else:
             raise ValueError(
-                f"Unknown reading mode for collocations: {self.mode}!\n"
-                "Allowed modes are: 'collapse' (default), 'expand' or "
-                "'fileset'."
+                f"Unknown reading read_mode for collocations: "
+                f"{self.read_mode}!\nAllowed read_modes are: 'collapse' "
+                f"(default), 'expand' or 'fileset'."
             )
 
     def search(
@@ -357,6 +360,10 @@ class Collocations(FileSet):
                 if verbose > 1:
                     print(f"[{pid}] Found no collocations!")
                 continue
+
+            # Check whether the collocation data is compatible and was build
+            # correctly
+            check_collocation_data(collocations)
 
             # Prepare the name for the output file:
             attributes = {
@@ -567,7 +574,7 @@ def _rows_for_secondaries(primary):
     return rows
 
 
-def collapse(data, primary=None, secondary=None, collapser=None):
+def collapse(data, reference=None, collapser=None):
     """Collapse all multiple collocation points to a single data point
 
     During searching for collocations, one might find multiple collocation
@@ -580,9 +587,8 @@ def collapse(data, primary=None, secondary=None, collapser=None):
 
     Args:
         data:
-        primary: Name of dataset which has the largest footprint. All
-            other dataset will be collapsed to its data points.
-        secondary:
+        reference: Normally the name of the dataset with the largest
+            footprints. All other dataset will be collapsed to its data points.
         collapser: Dictionary with names of collapser functions to apply and
             references to them. Defaults collpaser functions are *mean*, *std*
             and *number* (count of valid data points).
@@ -595,14 +601,30 @@ def collapse(data, primary=None, secondary=None, collapser=None):
 
             # TODO: Add examples
     """
-    if primary is None:
-        primary = "primary"
-    if secondary is None:
-        secondary = "secondary"
 
-    pairs = Collocator.get_meta_group(primary, secondary) + "/pairs"
-    primary_indices = data[pairs][0].values
-    secondary_indices = data[pairs][1].values
+    # Check whether the collocation data is compatible
+    check_collocation_data(data)
+
+    pairs = data["Collocations/pairs"].values
+    groups = data["Collocations/group"].values.tolist()
+
+    if reference is None:
+        # Take automatically the first member of the groups (was the primary
+        # while collocating)
+        reference = groups[0]
+
+    if reference not in groups:
+        raise ValueError(
+            f"The selected reference '{reference}' is not valid, because it "
+            f"was not collocated! Collocated groups were: {groups}."
+        )
+
+    # Find the index of the reference group. If it is the primary, it is 0
+    # otherwise 1.
+    reference_index = groups[0] != reference
+
+    primary_indices = pairs[int(reference_index)]
+    secondary_indices = pairs[int(not reference_index)]
 
     # THE GOAL: We want to bin the secondary data according to the
     # primary indices and apply a collapse function (e.g. mean) to it.
@@ -656,10 +678,11 @@ def collapse(data, primary=None, secondary=None, collapser=None):
     collapsed = xr.Dataset()
 
     for var_name, var_data in data.variables.items():
-        group, local_name = var_name.split("/")
+        group, local_name = var_name.split("/", 1)
 
-        # We copy the primaries, collapse the secondaries and ignore the rest
-        if group not in [primary, secondary]:
+        # We copy the reference, collapse the rest and ignore the meta data of
+        # the collocations (because they become useless now)
+        if group == "Collocations":
             continue
 
         # This is the name of the dimension along which we collapse:
@@ -678,14 +701,12 @@ def collapse(data, primary=None, secondary=None, collapser=None):
         dims[0] = "collocation"
         var_data.dims = dims
 
-        if group == primary:
+        if group == reference:
             # We want to make the resulting dataset collocation-friendly (so
             # that we might use it for a collocation search with another
-            # dataset)
-            if local_name in ("time", "lat", "lon"):
-                collapsed[local_name] = var_data
-            else:
-                collapsed[var_name] = var_data
+            # dataset). So the content of the reference group moves "upward"
+            # (group name vanishes from the path):
+            collapsed[local_name] = var_data
             continue
 
         # The standard fields (time, lat, lon) and the special fields to
@@ -726,7 +747,7 @@ def collapse(data, primary=None, secondary=None, collapser=None):
     return collapsed
 
 
-def expand(data, primary, secondary):
+def expand(dataset):
     """Repeat the primary data so they align with their secondary collocations
 
     During searching for collocations, one might find multiple collocation
@@ -737,37 +758,34 @@ def expand(data, primary, secondary):
     duplicated data values are stored even if they collocate multiple times.
 
     Args:
-        data:
-        primary:
-        secondary:
+        dataset:
 
     Returns:
-
+        A xarray.Dataset object.
     """
+    # Check whether the collocation data is compatible
+    check_collocation_data(dataset)
 
-    meta_group = Collocator.get_meta_group(primary, secondary)
-    pairs = meta_group + "/pairs"
-    primary_indices = data[pairs][0].values
-    secondary_indices = data[pairs][1].values
+    pairs = dataset["Collocations/pairs"].values
+    groups = dataset["Collocations/group"].values.tolist()
 
-    expanded = data.isel(
-        **{primary + "/collocation": primary_indices}
+    expanded = dataset.isel(
+        **{groups[0] + "/collocation": pairs[0]}
     )
     expanded = expanded.isel(
-        **{secondary + "/collocation": secondary_indices}
-    )
-
-    # The variable pairs is useless now:
-    expanded = expanded.drop(
-        pairs,  # primary + "/collocation", secondary + "/collocation"
+        **{groups[1] + "/collocation": pairs[1]}
     )
 
     # The collocation coordinate of all datasets are equal now:
-    for group in [primary, secondary, meta_group]:
-        expanded["collocation"] = \
-            group + "/collocation",  np.arange(data[pairs][0].size)
+    for i in range(2):
+        expanded["collocation"] = groups[i] + "/collocation", \
+                                  np.arange(pairs[i].size)
         expanded.swap_dims(
-            {group + "/collocation": "collocation"}, inplace=True)
+            {groups[i] + "/collocation": "collocation"}, inplace=True
+        )
+
+    # The variable pairs is useless now:
+    expanded = expanded.drop("Collocations/pairs")
 
     # expanded.reset_coords([
     #     primary + "/collocation",
@@ -775,3 +793,21 @@ def expand(data, primary, secondary):
     # )
 
     return expanded
+
+
+def check_collocation_data(dataset):
+    """Check whether the dataset fulfills the standard of collocated data
+
+    Args:
+        dataset: A xarray.Dataset object
+
+    Raises:
+        A InvalidCollocationData Error if the dataset did not pass the test.
+    """
+    mandatory_fields = ["Collocations/pairs", "Collocations/group"]
+
+    for mandatory_field in mandatory_fields:
+        if mandatory_field not in dataset.variables:
+            raise InvalidCollocationData(
+                f"Could not find the field '{mandatory_field}'!"
+            )
