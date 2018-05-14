@@ -1334,6 +1334,12 @@ class FileSet:
         intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
         return files[np.argmin(intervals)]
 
+    def make_dirs(self, filename):
+        os.makedirs(
+            os.path.dirname(filename),
+            exist_ok=True
+        )
+
     def match(
             self, other, start=None, end=None, max_interval=None,
             filters=None, other_filters=None):
@@ -1434,7 +1440,6 @@ class FileSet:
             # Returns "20160101-20161231.dat"
 
         """
-
         if isinstance(times, (tuple, list)):
             start_time = to_datetime(times[0])
             end_time = to_datetime(times[1])
@@ -2646,8 +2651,7 @@ class FileSet:
         # now
         self.info_cache = {}
 
-    def write(self, data, file_info=None, times=None, fill=None,
-              in_background=False, **write_args):
+    def write(self, data, file_info, in_background=False, **write_args):
         """Write content to a file by using the FileSet's file handler.
 
         If the filename extension is a compression format (such as *zip*,
@@ -2662,12 +2666,6 @@ class FileSet:
             data: An object that can be stored by the used file handler class.
             file_info: A string, path-alike object or a
                 :class:`~typhon.files.handlers.common.FileInfo` object.
-            times: If *file_info* is not given, this can be used to generate
-                the filename. Look at :meth:`get_filename` for more
-                information.
-            fill: If *file_info* is not given, this can be used to generate
-                the filename. Look at :meth:`get_filename` for more
-                information.
             in_background: If true (default), this runs the writing process in
                 a background thread so it does not pause the main process.
             **write_args: Additional key word arguments for the *write* method
@@ -2713,19 +2711,7 @@ class FileSet:
             do_other_stuff(...)
 
         """
-
-        if file_info is None:
-            if times is None:
-                raise ValueError(
-                    "Either the argument file_info or times must be given!")
-            else:
-                file_info = FileInfo(
-                    self.get_filename(times, fill=None), times, fill
-                )
-        elif times is not None:
-            raise ValueError(
-                "Either the argument file_info or times must be given!")
-        elif isinstance(file_info, str):
+        if isinstance(file_info, str):
             file_info = FileInfo(file_info)
 
         if self.handler is None:
@@ -2745,7 +2731,7 @@ class FileSet:
 
         # The users should not be bothered with creating directories by
         # themselves.
-        os.makedirs(os.path.dirname(file_info), exist_ok=True)
+        self.make_dirs(file_info.path)
 
         if self.compress:
             with typhon.files.compress(file_info.path, tmpdir=self.temp_dir) \
