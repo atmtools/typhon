@@ -602,7 +602,8 @@ def reraise_with_stack(func):
     gets lost, which makes it difficult to debug. This decorator solves the
     problem.
 
-    Taken from https://stackoverflow.com/a/29357032.
+    References:
+        Taken from https://stackoverflow.com/a/29357032.
     """
 
     @functools.wraps(func)
@@ -616,3 +617,23 @@ def reraise_with_stack(func):
             )
 
     return wrapped
+
+
+def get_xarray_groups(dataset):
+    """Get pseudo groups from xarray dataset object (only direct under root)
+
+    xarray.Dataset objects does not allow the use of groups, but you can
+    emulate them by using */* in the variable's name.
+
+    Args:
+        dataset: A xarray.Dataset object
+
+    Returns:
+        A set of group names.
+    """
+
+    return {
+        var_name.split("/", 1)[0]
+        for var_name in dataset.variables
+        if "/" in var_name
+    }

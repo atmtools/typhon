@@ -19,7 +19,7 @@ __all__ = [
 
 class Collocator:
     def __init__(
-            self, mode=None, threads=None, bin_factor=4, magnitude_factor=10,
+            self, mode=None, threads=None, bin_factor=1, magnitude_factor=10,
             tunnel_limit=None,
     ):
         """Initialize a collocator object that can find collocations
@@ -440,8 +440,7 @@ class Collocator:
 
         # This holds the collocation information (pairs, intervals and
         # distances):
-        meta_group = self.get_meta_group(primary_name, secondary_name)
-        output[meta_group + "/pairs"] = xr.DataArray(
+        output["Collocations/pairs"] = xr.DataArray(
             np.array(pairs, dtype=int), dims=("group", "collocation"),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -450,7 +449,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output[meta_group + "/interval"] = xr.DataArray(
+        output["Collocations/interval"] = xr.DataArray(
             intervals, dims=("collocation", ),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -459,7 +458,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output[meta_group + "/distance"] = xr.DataArray(
+        output["Collocations/distance"] = xr.DataArray(
             distances, dims=("collocation",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -469,7 +468,7 @@ class Collocator:
                 "units": "kilometers",
             }
         )
-        output[meta_group + "/group"] = xr.DataArray(
+        output["Collocations/group"] = xr.DataArray(
             [primary_name, secondary_name], dims=("group",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -485,8 +484,8 @@ class Collocator:
         return output
 
     @staticmethod
-    def get_meta_group(primary_name, secondary_name):
-        return f"{primary_name}.{secondary_name}"
+    def get_meta_group():
+        return f"Collocations"
 
     def spatial_search_with_temporal_binning(
             self, primary, secondary, max_distance, max_interval

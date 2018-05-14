@@ -312,19 +312,14 @@ class FileInfo(os.PathLike):
         return self.path
 
     def __hash__(self):
-        # With this we can use this FileInfo object also in a dictionary
+        # With this we can use this FileInfo object also as a key in a
+        # dictionary
         return hash(self.path)
 
     def __repr__(self):
-        if self.attr:
-            attr_string = "\n  Attributes:"
-            for k, v in self.attr.items():
-                attr_string += "\n    %s: %s" % (k, v)
-
-        return "{}\n  Start: {}\n  End: {}{}".format(
-            self.path, *self.times,
-            attr_string if self.attr else "",
-        )
+        return f"FileInfo(\n  '{self.path}',\n" \
+               f"  times={self.times},\n" \
+               f"  attr={self.attr}\n)"
 
     def __str__(self):
         return self.path
@@ -581,7 +576,7 @@ class NetCDF4(FileHandler):
             dataset = xr.Dataset()
             self._load_group(dataset, None, root, fields)
 
-            xr.decode_cf(dataset, **kwargs)
+            dataset = xr.decode_cf(dataset, **kwargs)
 
         return _xarray_rename_fields(dataset, mapping)
 
