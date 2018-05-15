@@ -112,6 +112,8 @@ class WorkspaceVariable:
             return group_ids["Tensor5"]
         elif type(value) == np.ndarray and value.ndim == 6:
             return group_ids["Tensor6"]
+        elif type(value) == np.ndarray and value.ndim == 7:
+            return group_ids["Tensor7"]
         elif type(value) == list:
             group_name = ""
             nested_value = value

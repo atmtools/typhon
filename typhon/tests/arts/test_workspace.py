@@ -116,3 +116,33 @@ class TestWorkspace:
             self.ws.NumericCreate("numeric_wsv")
             self.ws.StringCreate("string_wsv")
             self.ws.Copy(self.ws.string_wsv, self.ws.numeric_wsv)
+
+    def test_tensor_3(self):
+        t_0 = np.random.rand(*([3] * 3))
+        self.ws.Tensor3Create("tensor_3")
+        self.ws.tensor_3 = t_0
+        assert np.all(t_0 == self.ws.tensor_3.value)
+
+    def test_tensor_4(self):
+        t_0 = np.random.rand(*([3] * 4))
+        t_1 = self.ws.Tensor4Create("tensor_4")
+        self.ws.tensor_4 = t_0
+        assert np.all(t_0 == self.ws.tensor_4.value)
+
+    def test_tensor_5(self):
+        t_0 = np.random.rand(*([3] * 5))
+        t_1 = self.ws.Tensor5Create("tensor_5")
+        self.ws.tensor_5 = t_0
+        assert np.all(t_0 == self.ws.tensor_5.value)
+
+    def test_tensor_6(self):
+        t_0 = np.random.rand(*([3] * 6))
+        t_1 = self.ws.Tensor6Create("tensor_6")
+        self.ws.tensor_6 = t_0
+        assert np.all(t_0 == self.ws.tensor_6.value)
+
+    def test_tensor_7(self):
+        t_0 = np.random.rand(*([3] * 7))
+        self.ws.Tensor7Create("tensor_7")
+        self.ws.tensor_7 = t_0
+        assert np.all(t_0 == self.ws.tensor_7.value)

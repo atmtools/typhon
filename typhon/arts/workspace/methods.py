@@ -180,7 +180,7 @@ class WorkspaceMethod:
 
         # Add positional arguments to kwargs
         if (len(args)) and (len(args)) < self.n_g_out + self.n_in:
-            raise Exception("Only " + str(len(args)) + "positional arguments provided " +
+            raise Exception("Only " + str(len(args)) + " positional arguments provided " +
                             "but WSM " + self.name + "requires at least "
                             + str(self.n_g_out + self.n_in))
         for j in range(len(args)):

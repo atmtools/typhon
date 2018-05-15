@@ -32,7 +32,7 @@ from typhon.environment import environ
 
 arts_minimum_major    = 2
 arts_minimum_minor    = 3
-arts_minimum_revision = 973
+arts_minimum_revision = 1048
 
 ################################################################################
 # Load ARTS C API
@@ -165,7 +165,7 @@ class VariableValueStruct(c.Structure):
     """
     _fields_ = [("ptr", c.c_void_p),
                 ("initialized", c.c_bool),
-                ("dimensions", 6 * c.c_long),
+                ("dimensions", 7 * c.c_long),
                 (("inner_ptr"), c.POINTER(c.c_int)),
                 (("outer_ptr"), c.POINTER(c.c_int))]
 
@@ -194,7 +194,7 @@ class VariableValueStruct(c.Structure):
         """
         ptr = None
         initialized = True
-        dimensions  = [0] * 6
+        dimensions  = [0] * 7
 
         # Generic interface
         if hasattr(value, "_to_value_struct"):
@@ -236,7 +236,7 @@ class VariableValueStruct(c.Structure):
 
         self.ptr = ptr
         self.initialized = initialized
-        self.dimensions  = (c.c_long * 6)(*dimensions)
+        self.dimensions  = (c.c_long * 7)(*dimensions)
 
 class MethodStruct(c.Structure):
     """
