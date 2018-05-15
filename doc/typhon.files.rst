@@ -80,7 +80,9 @@ File handlers for satellite products
 .. autosummary::
    :toctree: generated
 
-   MHSAAPP
+   AAPP_HDF
+   AVHRR_GAC_HDF
+   MHS_HDF
 
 File handlers for other products
 ++++++++++++++++++++++++++++++++
