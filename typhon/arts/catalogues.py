@@ -18,6 +18,7 @@ __all__ = ['ArrayOfLineRecord',
            'Sparse',
            'SpeciesAuxData',
            'SpeciesTag',
+           'PropagationMatrix',
            ]
 
 
@@ -1195,6 +1196,116 @@ class LineMixingRecord:
         xmlwriter.write_xml(self.quantumnumberrecord)
         xmlwriter.write_xml(self.data.data)
         xmlwriter.close_tag()
+
+
+class PropagationMatrix:
+    """Represents a PropagationMatrix object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    def __init__(self, data=np.zeros((1))):
+        n = len(data.shape)
+        if n == 4:
+            self.aa = data.shape[0]
+            self.za = data.shape[1]
+            self.nf = data.shape[2]
+        elif n == 3:
+            self.aa = 1
+            self.za = data.shape[0]
+            self.nf = data.shape[1]
+        elif n == 2:
+            self.aa = 1
+            self.za = 1
+            self.nf = data.shape[0]
+        elif n != 1:
+            raise RuntimeError("Bad input")
+        else:
+            self.aa = 1
+            self.za = 1
+            self.nf = 1
+
+        if data.shape[-1] == 7:
+            self.stokes = 4
+        elif data.shape[-1] == 4:
+            self.stokes = 3
+        elif data.shape[-1] == 1 or data.shape[-1] == 2:
+            self.stokes = data.shape[-1]
+        else:
+            raise RuntimeError("Bad input")
+
+        self.data = data.reshape(self.aa, self.za, self.nf, data.shape[-1])
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a PropagationMatrix object from an existing file.
+        """
+        return cls(xmlelement[0].value())
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a PropagationMatrix object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag("PropagationMatrix", attr)
+        xmlwriter.write_xml(self.data)
+        xmlwriter.close_tag()
+
+
+class StokesVector:
+    """Represents a StokesVector object.
+
+    See online ARTS documentation for object details.
+
+    """
+
+    def __init__(self, data=np.zeros((1))):
+        n = len(data.shape)
+        if n == 4:
+            self.aa = data.shape[0]
+            self.za = data.shape[1]
+            self.nf = data.shape[2]
+        elif n == 3:
+            self.aa = 1
+            self.za = data.shape[0]
+            self.nf = data.shape[1]
+        elif n == 2:
+            self.aa = 1
+            self.za = 1
+            self.nf = data.shape[0]
+        elif n != 1:
+            raise RuntimeError("Bad input")
+        else:
+            self.aa = 1
+            self.za = 1
+            self.nf = 1
+
+        if data.shape[-1] == 1 or data.shape[-1] == 2 or \
+           data.shape[-1] == 3 or data.shape[-1] == 4:
+            self.stokes = data.shape[-1]
+        else:
+            raise RuntimeError("Bad input")
+
+        self.data = data.reshape(self.aa, self.za, self.nf, data.shape[-1])
+
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads a StokesVector object from an existing file.
+        """
+        return cls(xmlelement[0].value())
+
+    def write_xml(self, xmlwriter, attr=None):
+        """Write a StokesVector object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag("StokesVector", attr)
+        xmlwriter.write_xml(self.data)
+        xmlwriter.close_tag()
+
 
 try:
     from .utils import return_if_arts_type
