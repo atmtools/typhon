@@ -25,6 +25,7 @@ from .catalogues import (ArrayOfLineRecord,
                          SpeciesAuxData,
                          SpeciesTag,
                          PropagationMatrix,
+                         StokesVector,
                          )
 from .internals import (ARTSCAT5,
                         Rational,
@@ -64,4 +65,5 @@ classes = {
     'PartitionFunctions': PartitionFunctions,
     'XsecRecord': XsecRecord,
     'PropagationMatrix': PropagationMatrix,
+    'StokesVector': StokesVector,
 }
