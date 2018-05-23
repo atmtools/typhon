@@ -19,6 +19,7 @@ __all__ = ['ArrayOfLineRecord',
            'SpeciesAuxData',
            'SpeciesTag',
            'PropagationMatrix',
+           'StokesVector',
            ]
 
 
