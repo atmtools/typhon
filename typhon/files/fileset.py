@@ -29,7 +29,7 @@ import typhon.files
 import typhon.plots
 from typhon.trees import IntervalTree
 from typhon.utils import unique
-from typhon.utils.time import set_time_resolution, to_datetime, to_timedelta
+from typhon.utils.timeutils import set_time_resolution, to_datetime, to_timedelta
 
 from .handlers import expects_file_info, FileInfo
 from .handlers import CSV, NetCDF4

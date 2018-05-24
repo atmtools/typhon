@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from typhon.files import FileSet
 from typhon.utils import reraise_with_stack
-from typhon.utils.time import to_datetime, to_timedelta
+from typhon.utils.timeutils import to_datetime, to_timedelta
 import xarray as xr
 
 from .collocator import Collocator

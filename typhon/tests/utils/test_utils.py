@@ -50,3 +50,15 @@ class TestUtils():
         assert (ds2["c"] == ds["c"]).all()
         assert ds2["c"].dtype == ds["c"].dtype
         assert ds2["b"].dtype == ds["b"].dtype
+
+    #TODO (lkluft): Consider to test if the Timer acutally works correctly.
+    def test_Timer_methods(self):
+        """Test initialization and basic methods of the `Timer` class."""
+        t = utils.Timer(verbose=False)
+        t.start()
+        t.stop()
+
+    def test_Timer_block(self):
+        """Test usage of a `Timer` object in a with-block."""
+        with utils.Timer(verbose=False):
+            ...

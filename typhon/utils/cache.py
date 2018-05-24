@@ -14,6 +14,11 @@ import logging
 import copy
 
 
+__all__ = [
+    'mutable_cache',
+]
+
+
 def mutable_cache(maxsize=10):
     """In-memory cache like functools.lru_cache but for any object
 
