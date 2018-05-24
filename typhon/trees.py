@@ -11,8 +11,11 @@ import pandas as pd
 import numba
 import numpy as np
 
+from sklearn.neighbors import BallTree, KDTree
+
 __all__ = [
-    "IntervalTree"
+    "IntervalTree",
+    "RangeTree",
 ]
 
 
@@ -198,3 +201,50 @@ class IntervalTree:
             intervals.extend(self._query_point(point, node))
 
         return intervals
+
+
+class RangeTree:
+    def __init__(self, points, shuffle=True, tree_class=None):
+        # KD- or ball trees have a very poor building performance for sorted
+        # data (such as from SEVIRI) as discussed in this issue:
+        # https://github.com/scikit-learn/scikit-learn/issues/7687
+        # Hence, we shuffle the data points before inserting them.
+        if shuffle:
+            self.shuffler = np.arange(points.shape[0])
+            np.random.shuffle(self.shuffler)
+
+            points = points[self.shuffler]
+        else:
+            # The user does not want to shuffle
+            self.shuffler = None
+
+        if tree_class is None or tree_class == "Ball":
+            tree_class = BallTree
+        elif tree_class == "KD":
+            tree_class = KDTree
+
+        tree_points = np.column_stack([points, np.zeros_like(points)])
+        self.tree = tree_class(tree_points)
+
+    def query_radius(self, points, r):
+        query_points = np.column_stack([points, np.zeros_like(points)])
+
+        jagged_pairs = self.tree.query_radius(query_points, r)
+
+        # Build the list of pairs:
+        pairs = np.array([
+            [build_point, query_point]
+            for query_point, build_points in enumerate(jagged_pairs)
+            for build_point in build_points
+        ]).T
+
+        if self.shuffler is None:
+            return pairs
+        else:
+
+            # We shuffled the build points in the beginning, so the current
+            # indices in the second row (the collocation indices from the build
+            # points) are not correct
+            pairs[0, :] = self.shuffler[pairs[0, :]]
+
+            return pairs
