@@ -137,7 +137,7 @@ class FileSet:
 
         .. code-block:: python
 
-            from typhon.spareice import FileSet
+            from typhon.files import FileSet
 
             # Define a fileset consisting of multiple files:
             files = FileSet(
@@ -169,6 +169,24 @@ class FileSet:
                 # can define the time coverage here directly:
                 time_coverage=("2007-01-01 13:00:00", "2007-01-14 13:00:00")
             )
+
+        FileSet to open MHS files:
+
+        .. code-block:: python
+
+            from typhon.files import FileSet, MHS_HDF
+
+            # Define a fileset consisting of multiple files:
+            files = FileSet(
+                path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+                name="MHS",
+                handler=MHS_HDF,
+            )
+
+            # Find some files of the fileset:
+            for file in files.find("2017-01-01", "2017-01-02"):
+                # Should print the path of the file and its time coverage:
+                print(file)
 
     References:
         This is inspired by the implemented dataset classes in atmlab_ written
@@ -254,7 +272,7 @@ class FileSet:
             handler: An object which can handle the fileset files.
                 This fileset class does not care which format its files have
                 when this file handler object is given. You can use a file
-                handler class from typhon.handlers, use
+                handler class from typhon.files, use
                 :class:`~typhon.files.handlers.common.FileHandler` or write 
                 your own class. If no file handler is given, an adequate one is
                 automatically selected for the most common filename suffixes.
