@@ -24,6 +24,8 @@ from .catalogues import (ArrayOfLineRecord,
                          Sparse,
                          SpeciesAuxData,
                          SpeciesTag,
+                         PropagationMatrix,
+                         StokesVector,
                          )
 from .internals import (ARTSCAT5,
                         Rational,
@@ -62,4 +64,6 @@ classes = {
     'LineMixing': LineMixing,
     'PartitionFunctions': PartitionFunctions,
     'XsecRecord': XsecRecord,
+    'PropagationMatrix': PropagationMatrix,
+    'StokesVector': StokesVector,
 }
