@@ -40,7 +40,7 @@ except ImportError:
         file=sys.stderr)
     
 from . import dataset
-from ..utils import (metaclass, safe_eval)
+from ..utils import safe_eval
 from .. import utils
  
 # from .. import physics
@@ -54,7 +54,7 @@ from . import filters
 
 from . import _tovs_defs
 
-class Radiometer(metaclass=metaclass.AbstractDocStringInheritor):
+class Radiometer(metaclass=abc.ABCMeta):
     srf_dir = ""
     srf_backend_response = ""
     srf_backend_f = ""

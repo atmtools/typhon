@@ -257,7 +257,7 @@ sophisticated dictionary that holds numpy arrays; have a look at xarray_). And
 all this by using only one single expression! We can also read all files from a
 time period:
 
-. _xarray: http://xarray.pydata.org/en/stable/
+.. _xarray: http://xarray.pydata.org/en/stable/
 
 .. code-block:: python
 
@@ -318,7 +318,7 @@ ourselves. Let's demonstrate this by using another fileset, e.g. data from
 
 .. _fig-example-dataset_c:
 
-.. figure:: _figures/example_dataset_c.png
+.. figure:: _figures/example_fileset_c.png
    :scale: 50 %
    :alt: screen shot of dataset directory structure
 

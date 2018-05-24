@@ -10,7 +10,6 @@
 # in typhon, and the GNU General Public License version 3.
 
 import abc
-import functools
 import itertools
 import logging
 import pathlib
@@ -23,7 +22,6 @@ import datetime
 import sys
 import collections
 import warnings
-import math
 
 import numpy
 import numpy.lib.arraysetops
@@ -80,7 +78,7 @@ class InvalidDataError(DataFileError):
 
 all_datasets = {}
 
-class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
+class Dataset(metaclass=abc.ABCMeta):
     """Represents a dataset.
 
     This is an abstract class.  More specific subclasses are
@@ -100,29 +98,29 @@ class Dataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
 
     Attributes:
 
-        start_date (datetime.datetime or numpy.datetime64)
+        start_date (datetime.datetime or numpy.datetime64):
             Starting date for dataset.  May be used to search through ALL
             granules.  WARNING!  If this is set at a time t_0 before the
             actual first measurement t_1, then the collocation algorith (see
             CollocatedDataset) will conclude that there are 0 collocations
             in [t_0, t_1], and will not realise if data in [t_0, t_1] are
             actually added later!
-        end_date (datetime.datetime or numpy.datetime64)
+        end_date (datetime.datetime or numpy.datetime64):
             Similar to start_date, but for ending.
-        name (str)
+        name (str):
             Name for the dataset.  Used to make sure there is only a
             single dataset with the same name for any particular dataset.
             If a dataset is initiated with a pre-exisitng name, the
             previous product is called.
-        aliases (Mapping[str, str])
+        aliases (Mapping[str, str]):
             Aliases for field.  Dictionary can be useful if you want to
             programmatically loop through the same field for many different
             datasets, but they are named differently.  For example, an alias
             could be "ch4_profile".
-        unique_fields (Container[str])
+        unique_fields (Container[str]):
             Set of fields that make any individual measurement unique.  For
             example, the default value is {"time", "lat", "lon"}.
-        related (Mapping[str, Dataset])
+        related (Mapping[str, Dataset]):
             Dictionary whose keys may refer to other datasets with related
             information, such as DMPs or flags.
 
@@ -1854,7 +1852,7 @@ class HomemadeDataset(NetCDFDataset, MultiFileDataset):
         p.parent.mkdir(parents=True, exist_ok=True)
         numpy.savez_compressed(str(path), M)
 
-class MultiSatelliteDataset(metaclass=utils.metaclass.AbstractDocStringInheritor):
+class MultiSatelliteDataset(metaclass=abc.ABCMeta):
     satellites = set()
     @property
     def valid_field_values(self):
