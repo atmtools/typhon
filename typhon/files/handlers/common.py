@@ -22,11 +22,21 @@ try:
 except ImportError:
     pass
 
+# The HDF5 file handler needs h5py, this might be very tricky to install if
+# you cannot use anaconda. Hence, I do not want it to be a hard dependency:
+h5py_is_installed = False
+try:
+    import h5py
+    h5py_is_installed = True
+except ImportError:
+    pass
+
 __all__ = [
     'CSV',
     'FileHandler',
     'FileInfo',
     'HDF4',
+    'HDF5',
     'NetCDF4',
     'Plotter',
     'expects_file_info',
@@ -526,6 +536,79 @@ class HDF4(FileHandler):
         data = xr.DataArray(raw_data).squeeze()
         field_id.detach()
         return data
+
+
+class HDF5(FileHandler):
+    """File handler for SEVIRI level 1.5 HDF files
+    """
+
+    def __init__(self, **kwargs):
+        """
+
+        Args:
+            **kwargs: Additional key word arguments for base class.
+        """
+        if not h5py_is_installed:
+            raise ImportError("Could not import h5py, which is necessary for "
+                              "reading HDF5 files!")
+
+        # Call the base class initializer
+        super().__init__(**kwargs)
+
+    @expects_file_info()
+    def read(self, file_info, fields=None, mapping=None, **kwargs):
+        """Read SEVIRI HDF5 files and load them to a xarray.Dataset
+
+        Args:
+            file_info: Path and name of the file as string or FileInfo object.
+                This can also be a tuple/list of file names or a path with
+                asterisk.
+            fields: ...
+            **kwargs: Additional keyword arguments that are valid for
+                :class:`typhon.files.handlers.common.NetCDF4`.
+
+        Returns:
+            A xrarray.Dataset object.
+        """
+
+        # Here, the user fields overwrite the standard fields:
+        if fields is None:
+            raise NotImplementedError(
+                "Loading complete HDF5 files without giving explicit field "
+                "names is not yet implemented!"
+            )
+
+        # keys are dimension size, values are dimension names
+        dim_dict = {}
+
+        # Load the dataset from the file:
+        with h5py.File(file_info.path, 'r') as file:
+            dataset = xr.Dataset()
+
+            for field in fields:
+                if field not in file:
+                    raise KeyError(f"No field named '{field}'!")
+
+                dims = []
+                for dim_size in file[field].shape:
+                    dim_name = dim_dict.get(dim_size, None)
+                    if dim_name is None:
+                        dim_name = f"dim_{len(dim_dict)}"
+                        dim_dict[dim_size] = dim_name
+
+                    dims.append(dim_name)
+
+                dataset[field] = xr.DataArray(
+                    file[field], dims=dims,
+                    # Currently, some attributes may contain byte-strings that
+                    # are not nice for further processing
+                    attrs={}, #dict(file[field].attrs)
+                )
+
+            xr.decode_cf(dataset, **kwargs)
+            dataset.load()
+
+        return _xarray_rename_fields(dataset, mapping)
 
 
 class NetCDF4(FileHandler):
