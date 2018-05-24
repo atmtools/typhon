@@ -304,6 +304,7 @@ class Timer:
         self.starttime = time.time()
         return self
 
+    #TODO (lkluft): The method could also return an actual `timedelta` object.
     def stop(self):
         """Stop timer."""
         self.endtime = time.time()
