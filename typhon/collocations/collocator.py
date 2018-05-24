@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from typhon.geodesy import great_circle_distance
 from typhon.geographical import GeoIndex
-from typhon.utils.time import to_timedelta
+from typhon.utils.timeutils import to_timedelta
 import xarray as xr
 
 __all__ = [

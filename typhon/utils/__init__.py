@@ -23,7 +23,7 @@ import numpy as np
 
 from . import cache
 from . import sphinxext
-from time import *
+from . timeutils import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]
 
