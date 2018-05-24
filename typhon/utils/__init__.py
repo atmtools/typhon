@@ -9,7 +9,6 @@ import operator
 import os
 import shutil
 import subprocess
-import time
 import collections
 import itertools
 import traceback
@@ -84,105 +83,6 @@ def extract_block_diag(M, n):
 
     """
     return [np.split(m, n, axis=1)[i] for i, m in enumerate(np.split(M, n))]
-
-
-class Timer:
-    """Provide a simple time profiling utility.
-
-    Timer class adapted from blog entry [0].
-
-    [0] https://www.huyng.com/posts/python-performance-analysis
-
-    Parameters:
-        verbose: Print results after stopping the timer.
-        info (str): Allows to add additional information to output.
-            The given string is printed before the measured time.
-            If `None`, default information is added depending on the use case.
-        timefmt (str): Format string to control the output of the measured time.
-            The names 'minutes' and 'seconds' can be used.
-
-    Examples:
-        Timer in with statement:
-
-        >>> import time
-        >>> with Timer():
-        ...     time.sleep(1)
-        elapsed time: 0m 1.001s
-
-        Timer as object:
-
-        >>> import time
-        >>> t = Timer().start()
-        >>> time.sleep(1)
-        >>> t.stop()
-        elapsed time: 0m 1.001s
-
-        As function decorator:
-
-        >>> @Timer()
-        ... def own_function(s):
-        ...     import time
-        ...     time.sleep(s)
-        >>> own_function(1)
-        own_function: 0m 1.001s
-
-    """
-    def __init__(self, info=None, timefmt='{minutes:d}m {seconds:.3f}s',
-                 verbose=True):
-        self.verbose = verbose
-        self.timefmt = timefmt
-        self.info = info
-
-        # Define variables to store start and end time, assigned during runtime.
-        self.starttime = None
-        self.endtime = None
-
-    def __call__(self, func):
-        """Allows to use a Timer object as a decorator."""
-        # When no additional information is given, add the function name is
-        # Timer is used as decorator.
-        if self.info is None:
-            self.info = func.__name__
-
-        @functools.wraps(func)  # Preserve the original signature and docstring.
-        def wrapper(*args, **kwargs):
-            with self:
-                # Call the original function in a Timer context.
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    def __enter__(self):
-        return self.start()
-
-    def __exit__(self, *args):
-        self.stop()
-
-    def start(self):
-        """Start timer."""
-        self.starttime = time.time()
-        return self
-
-    def stop(self):
-        """Stop timer."""
-        self.endtime = time.time()
-        secs = self.endtime - self.starttime
-
-        # Build a string containing the measured time for output.
-        timestr = self.timefmt.format(
-            minutes=int(secs // 60),
-            seconds=secs % 60,
-        )
-
-        # If no additional information is specified add default information
-        # to make the output more readable.
-        if self.info is None:
-            self.info = 'elapsed time'
-
-        if self.verbose:
-            # Connect additional information and measured time for output.
-            print('{info}: {time}'.format(info=self.info, time=timestr))
-
 
 # This code, or a previous version thereof, was posted by user 'J. F.
 # Sebastian' on http://stackoverflow.com/a/9558001/974555 on 2012-03-04
