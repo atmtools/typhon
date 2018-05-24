@@ -226,6 +226,8 @@ class AVHRR_GAC_HDF(AAPP_HDF):
             scnline=dataset["scnline"]
         )
 
+        dataset["scnline"] = np.arange(1, dataset["scnline"].size+1)
+
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
 
@@ -267,9 +269,10 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         right = left + 1
 
         # And the pixel number for left and right
-        all_pixels_ratio = \
-            (all_pixels - grid_pixel[left]) \
+        all_pixels_ratio = (
+            (all_pixels - grid_pixel[left])
             / (grid_pixel[right] - grid_pixel[left])
+        )
 
         for var_name, var in dataset.data_vars.items():
             if "packed_pixels" not in var.dims:
