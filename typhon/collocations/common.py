@@ -69,8 +69,8 @@ class Collocations(FileSet):
     instead.
     """
     def __init__(
-            self, *args, reference=None, read_mode=None,
-            collapser=None, **kwargs):
+            self, *args, reference=None, read_mode=None, collapser=None,
+            **kwargs):
         """Initialize a Collocation object
 
         This :class:`~typhon.files.fileset.FileSet`
@@ -343,6 +343,11 @@ class Collocations(FileSet):
             # iteration:
             last_primary_end = current_end
 
+            if verbose > 1:
+                print(
+                    f"[{pid}] {time.time()-verbose_timer:.2f}s for preparing"
+                )
+
             verbose_timer = time.time()
             collocations = self.collocator.run(
                 (filesets[0].name, primary),
@@ -425,9 +430,11 @@ class Collocations(FileSet):
             # What is the main dimension? Well, we simply use the first
             # dimension of the time variable.
             main_dimension = dataset[name][0].time.dims[0]
+            timer = time.time()
             dataset[name] = self._add_identifiers(
                 files[name], dataset[name], main_dimension
             )
+            print(f"{time.time()-timer:.2f} seconds for adding identifiers")
 
             # Concatenate all data: Since the data may come from multiple files
             # we have to concatenate them along their main dimension before
@@ -439,7 +446,9 @@ class Collocations(FileSet):
             # where we can flat multiple dimensions to one. Which dimensions do
             # we have to stack together? We need the fields *time*, *lat* and
             # *lon* to be flat. So we choose their dimensions to be stacked.
+            timer = time.time()
             dataset[name] = Collocator.flat_to_main_coord(dataset[name])
+            print(f"{time.time()-timer:.2f} seconds for flatting data")
 
             # The user may not want to collocate overlapping data twice since
             # it might contain duplicates
@@ -472,6 +481,7 @@ class Collocations(FileSet):
                 )
 
                 if start > end:
+                    print(f"Start: {start}, end: {end}.")
                     raise ValueError(
                         "The time coverage of the content of the following "
                         "files is not identical with the time coverage given "
@@ -482,23 +492,29 @@ class Collocations(FileSet):
             # We do not have to collocate everything, just the common time
             # period expanded by max_interval and limited by the global start
             # and end parameter:
+            timer = time.time()
             dataset[name] = dataset[name].isel(
                 collocation=(dataset[name]['time'] >= np.datetime64(start))
                              & (dataset[name]['time'] <= np.datetime64(end))
             )
+            print(f"{time.time()-timer:.2f} seconds for selecting time")
 
             # Filter out NaNs:
+            timer = time.time()
             not_nans = \
                 dataset[name].time.notnull() \
                 & dataset[name].lat.notnull() \
                 & dataset[name].lon.notnull()
             dataset[name] = dataset[name].isel(collocation=not_nans)
+            print(f"{time.time()-timer:.2f} seconds to filter nans")
 
             # Check whether something is left:
             if not len(dataset[name].time):
                 return None, None
 
+            timer = time.time()
             dataset[name] = dataset[name].sortby("time")
+            print(f"{time.time()-timer:.2f} seconds to sort")
 
         return dataset[primary.name], dataset[secondary.name]
 
