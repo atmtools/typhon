@@ -1,25 +1,19 @@
 from datetime import datetime, timedelta
+from os.path import dirname, join
 import warnings
 
-
 import numpy as np
+import pandas as pd
+from scipy.interpolate import interp1d
 import xarray as xr
 
-from .common import expects_file_info
+from .common import expects_file_info, HDF5
 
-# The HDF5 file handler needs h5py, this might be very tricky to install if
-# you cannot use anaconda. Hence, I do not want it to be a hard dependency:
-h5py_is_installed = False
-try:
-    import h5py
-    h5py_is_installed = True
-except ImportError:
-    pass
 
 __all__ = ['SEVIRI', ]
 
 
-class SEVIRI:
+class SEVIRI(HDF5):
     """File handler for SEVIRI level 1.5 HDF files
     """
 
@@ -29,9 +23,6 @@ class SEVIRI:
         Args:
             **kwargs: Additional key word arguments for base class.
         """
-        if not h5py_is_installed:
-            raise ImportError("Could not import h5py, which is necessary for "
-                              "reading HDF5 files!")
 
         # Call the base class initializer
         super().__init__(**kwargs)
@@ -39,11 +30,16 @@ class SEVIRI:
         self._grid = None
 
         # We are going to import those fields per default (not channel 12
-        # because it is awkward):
+        # because it has a different resolution):
         self.standard_fields = {
             f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/IMAGE_DATA"
             for ch in range(1, 12)
         }
+
+        # The field with the scale and offset parameters for the channels
+        self.standard_fields.add(
+            "U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"  # noqa
+        )
 
         # Map the standard fields to standard names (make also the names of all
         # dimensions more meaningful):
@@ -52,30 +48,7 @@ class SEVIRI:
                 f"channel_{ch}"
             for ch in range(1, 12)
         }
-        # self.mapping.update({
-        #     f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/phony_dim00": f"line"
-        #     for ch in range(1, 13)
-        # })
-        # self.mapping.update({
-        #     f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/phony_dim01": f"column"
-        #     for ch in range(1, 13)
-        # })
-
-    @expects_file_info()
-    def get_info(self, file_info, **kwargs):
-        raise NotImplementedError("Not yet implemented!")
-        with netCDF4.Dataset(file_info.path, "r") as file:
-            file_info.times[0] = \
-                datetime(int(file.startdatayr[0]), 1, 1) \
-                + timedelta(days=int(file.startdatady[0]) - 1) \
-                + timedelta(
-                    milliseconds=int(file.startdatatime_ms[0]))
-            file_info.times[1] = \
-                datetime(int(file.enddatayr), 1, 1) \
-                + timedelta(days=int(file.enddatady) - 1) \
-                + timedelta(milliseconds=int(file.enddatatime_ms))
-
-            return file_info
+        self.mapping["U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"] = "counts_to_rad"  # noqa
 
     @expects_file_info()
     def read(self, file_info, fields=None, **kwargs):
@@ -102,22 +75,19 @@ class SEVIRI:
         # mapping at the moment, and apply the user mapping later.
         user_mapping = kwargs.pop("mapping", None)
 
-        # Load the dataset from the file:
-        with h5py.File(file_info.path, 'r') as file:
-            dataset = xr.Dataset()
+        dataset = super(SEVIRI, self).read(
+            file_info, fields=fields, mapping=self.mapping
+        )
 
-            for field in fields:
-                dataset[field] = xr.DataArray(
-                    file[field], dims=("line", "column"),
-                    # The attributes contain byte-strings that are not nice for
-                    # further processing
-                    attrs={}, #dict(file[field].attrs)
-                )
+        # We set the names of each channel variable explicitly:
+        for name, var in dataset.variables.items():
+            if name.startswith("channel_"):
+                dataset[name] = ["line", "column"], var.values
 
-            xr.decode_cf(dataset, **kwargs)
-            dataset.load()
+        #print(dataset)
 
-        dataset.rename(self.mapping, inplace=True)
+        # Convert the counts to brightness temperatures:
+        dataset = self.counts_to_bt(dataset)
 
         # Add the latitudes and longitudes of the grid points:
         dataset = xr.merge([dataset, self.grid])
@@ -191,8 +161,8 @@ class SEVIRI:
 
         # We cache the grid
         self._grid = xr.Dataset({
-            "lat": (("line", "column"), lat),
-            "lon": (("line", "column"), lon),
+            "lat": (("line", "column"), -lat),
+            "lon": (("line", "column"), -lon),
         })
 
         self._grid["lat"].attrs = {
@@ -205,3 +175,44 @@ class SEVIRI:
         }
 
         return self._grid
+
+    def counts_to_bt(self, dataset):
+        """Convert the counts to brightness temperatures
+
+        Cold channels (4, 5, 6, 7, 8, 9, 10, 11) are converted to brightness
+        temperatures while warm channels are converted to radiances.
+
+        Args:
+            dataset:
+
+        Returns:
+
+        """
+        # We have to convert in two steps:
+        # 1) Convert the counts into radiances with the given offset and scale
+        # parameters (these are stored in the SEVIRI HDF file).
+        # 2) Convert the radiances into brightness temperatures (only
+        # applicable to the warm channels).
+        conversion_table = pd.read_csv(
+            join(dirname(__file__), "seviri_radiances_to_bt.csv")
+        )
+        for channel in range(1, 12):
+            coeffs = dataset["counts_to_rad"][channel-1].item(0)
+            dataset[f"channel_{channel}"] = \
+                coeffs[0]*dataset[f"channel_{channel}"] + coeffs[1]
+
+            if channel < 4:
+                continue
+
+            # Build the converter function
+            converter = interp1d(
+                conversion_table[f"ch{channel}"], conversion_table["BT"],
+                fill_value=np.nan, bounds_error=False
+            )
+            dataset[f"channel_{channel}"] = xr.DataArray(
+                converter(dataset[f"channel_{channel}"]),
+                dims=dataset[f"channel_{channel}"].dims
+            )
+
+        # Drop the conversion variable:
+        return dataset.drop("counts_to_rad")
