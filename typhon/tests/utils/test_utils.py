@@ -4,13 +4,15 @@
 import warnings
 import numpy
 import xarray
+from time import sleep
+from datetime import timedelta
 
 import pytest
 
 from typhon import utils
 
 
-class TestUtils():
+class TestUtils:
     """Testing the typhon.utils functions."""
     def test_deprecated(self):
         """Test deprecation warning."""
@@ -43,7 +45,7 @@ class TestUtils():
         ds["c"].encoding = {"dtype": numpy.dtype("i8"),
                             "_FillValue": 12345}
         ds2 = utils.undo_xarray_floatification(ds)
-        assert ds is not ds2 # has to be a copy
+        assert ds is not ds2  # has to be a copy
         assert ds["a"].encoding == ds2["a"].encoding
         assert numpy.allclose(ds["a"], ds2["a"])
         assert ds2["a"].dtype == ds2["a"].encoding["dtype"]
@@ -51,14 +53,24 @@ class TestUtils():
         assert ds2["c"].dtype == ds["c"].dtype
         assert ds2["b"].dtype == ds["b"].dtype
 
-    #TODO (lkluft): Consider to test if the Timer acutally works correctly.
     def test_Timer_methods(self):
         """Test initialization and basic methods of the `Timer` class."""
         t = utils.Timer(verbose=False)
         t.start()
-        t.stop()
+        sleep(0.05)
+        dt = t.stop()
+
+        assert timedelta(seconds=0.04) < dt < timedelta(seconds=0.06)
 
     def test_Timer_block(self):
         """Test usage of a `Timer` object in a with-block."""
         with utils.Timer(verbose=False):
             ...
+
+    def test_Timer_decorator(self):
+        """Test usage of a `Timer` object as function decorator."""
+        @utils.Timer(verbose=False)
+        def foo():
+            return
+
+        foo()
