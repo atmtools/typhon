@@ -4,7 +4,6 @@
 """
 import functools
 import time
-
 from datetime import datetime, timedelta
 from numbers import Number
 
@@ -230,17 +229,14 @@ def num2date(times, units, calendar=None):
 class Timer:
     """Provide a simple time profiling utility.
 
-    Timer class adapted from blog entry [0].
-
-    [0] https://www.huyng.com/posts/python-performance-analysis
-
     Parameters:
-        verbose: Print results after stopping the timer.
+        verbose (bool): Print measured duration after stopping the timer.
         info (str): Allows to add additional information to output.
             The given string is printed before the measured time.
             If `None`, default information is added depending on the use case.
-        timefmt (str): Format string to control the output of the measured time.
-            The names 'minutes' and 'seconds' can be used.
+
+    Returns:
+        datetime.timedelta: The duration between start and end time.
 
     Examples:
         Timer in with statement:
@@ -248,15 +244,15 @@ class Timer:
         >>> import time
         >>> with Timer():
         ...     time.sleep(1)
-        elapsed time: 0m 1.001s
+        elapsed time: 0:00:01.003186
 
-        Timer as object:
+        Timer as object (allows to store :class:`datetime.timedelta`):
 
         >>> import time
         >>> t = Timer().start()
         >>> time.sleep(1)
-        >>> t.stop()
-        elapsed time: 0m 1.001s
+        >>> dt = t.stop()
+        elapsed time: 0:00:01.004756
 
         As function decorator:
 
@@ -265,27 +261,25 @@ class Timer:
         ...     import time
         ...     time.sleep(s)
         >>> own_function(1)
-        own_function: 0m 1.001s
+        own_function: 0:00:01.004667
 
     """
-    def __init__(self, info=None, timefmt='{minutes:d}m {seconds:.3f}s',
-                 verbose=True):
+    def __init__(self, info=None, verbose=True):
+        """Create a timer object."""
         self.verbose = verbose
-        self.timefmt = timefmt
         self.info = info
 
-        # Define variables to store start and end time, assigned during runtime.
         self.starttime = None
         self.endtime = None
 
     def __call__(self, func):
         """Allows to use a Timer object as a decorator."""
-        # When no additional information is given, add the function name is
+        # When no additional information is given, add the function name if
         # Timer is used as decorator.
         if self.info is None:
             self.info = func.__name__
 
-        @functools.wraps(func)  # Preserve the original signature and docstring.
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             with self:
                 # Call the original function in a Timer context.
@@ -304,17 +298,11 @@ class Timer:
         self.starttime = time.time()
         return self
 
-    #TODO (lkluft): The method could also return an actual `timedelta` object.
     def stop(self):
         """Stop timer."""
         self.endtime = time.time()
-        secs = self.endtime - self.starttime
 
-        # Build a string containing the measured time for output.
-        timestr = self.timefmt.format(
-            minutes=int(secs // 60),
-            seconds=secs % 60,
-        )
+        dt = timedelta(seconds=self.endtime - self.starttime)
 
         # If no additional information is specified add default information
         # to make the output more readable.
@@ -323,4 +311,6 @@ class Timer:
 
         if self.verbose:
             # Connect additional information and measured time for output.
-            print('{info}: {time}'.format(info=self.info, time=timestr))
+            print('{info}: {time}'.format(info=self.info, time=dt))
+
+        return dt
