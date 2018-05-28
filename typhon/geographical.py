@@ -144,7 +144,6 @@ class GeoIndex:
             np.random.shuffle(self.shuffler)
 
             points = points[self.shuffler]
-
         else:
             # The user does not want to shuffle
             self.shuffler = None

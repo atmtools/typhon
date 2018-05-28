@@ -19,13 +19,12 @@ __all__ = [
 
 class Collocator:
     def __init__(
-            self, mode=None, threads=None, bin_factor=1, magnitude_factor=10,
+            self, threads=None, bin_factor=1, magnitude_factor=10,
             tunnel_limit=None,
     ):
         """Initialize a collocator object that can find collocations
 
         Args:
-            mode: *compressed* (default), *collapsed* or *expanded*.
             tunnel_limit: Maximum distance in kilometers at which to switch
                 from tunnel to haversine distance metric. Per default this
                 algorithm uses the tunnel metric, which simply transform all
@@ -158,8 +157,12 @@ class Collocator:
         # where we can flat multiple dimensions to one. Which dimensions do
         # we have to stack together? We need the fields *time*, *lat* and
         # *lon* to be flat. So we choose their dimensions to be stacked.
+        timer = time.time()
         primary = self.flat_to_main_coord(primary)
+        print(f"{time.time()-timer:.2f} seconds to flat {primary_name}")
+        timer = time.time()
         secondary = self.flat_to_main_coord(secondary)
+        print(f"{time.time()-timer:.2f} seconds to flat {secondary_name}")
 
         # Maybe one data object is empty?
         if not primary["time"].size or not secondary["time"].size:
@@ -309,179 +312,30 @@ class Collocator:
             return data.rename({
                 data.time.dims[0]: "collocation"
             })
-        else:
-            # The coordinates are gridded:
-            # Some field might be more deeply stacked than another. Choose the
-            # dimensions of the most deeply stacked variable:
-            dims = max(
-                data["time"].dims, data["lat"].dims, data["lon"].dims,
-                key=lambda x: len(x)
-            )
-        return data.stack(collocation=dims)
 
-    def _create_return(
-            self, primary, secondary, primary_name, secondary_name,
-            original_pairs, intervals, distances,
-            max_interval, max_distance
-    ):
-        if not original_pairs.any():
-            return self.empty
-
-        pairs = []
-        output = {}
-
-        # We are going to save the time coverage of the data as attributes in
-        # the output dataset
-        start, end = None, None
-
-        names = [primary_name, secondary_name]
-        for i, dataset in enumerate([primary, secondary]):
-            # name of the current dataset (primary or secondary)
-            name = names[i]
-
-            # These are the indices of the points in the original data that
-            # have collocations. We remove the duplicates since we want to copy
-            # the required data only once:
-            original_indices = pd.unique(original_pairs[i])
-
-            # After selecting the collocated data, the original indices cannot
-            # be applied any longer. We need new indices that indicate the
-            # pairs in the collocated data.
-            new_indices = pd.Series(
-                np.arange(len(original_indices)),
-                index=original_indices,
-            )
-
-            collocation_indices = new_indices.loc[original_pairs[i]].values
-
-            # Save the collocation indices in the metadata group:
-            pairs.append(collocation_indices)
-
-            output[names[i]] = dataset.isel(collocation=original_indices)
-
-            # xarrays does not really handle grouped data (actually, not at
-            # all). Until this has changed, I do not want to have subgroups in
-            # the output data (this makes things complicated when it comes to
-            # coordinates). Therefore, we 'flat' each group before continuing:
-            output[names[i]].rename(
-                {
-                    old_name: old_name.replace("/", "_")
-                    for old_name in output[name].variables
-                    if "/" in old_name
-                }, inplace=True
-            )
-
-            # We need the total time coverage of all datasets for the name of
-            # the output file
-            data_start = pd.Timestamp(
-                output[name]["time"].min().item(0)
-            )
-            data_end = pd.Timestamp(
-                output[name]["time"].max().item(0)
-            )
-            if start is None or start > data_start:
-                start = data_start
-            if end is None or end < data_end:
-                end = data_end
-
-            # We have to convert the MultiIndex to a normal index because we
-            # cannot store it to a file otherwise. We can convert it by simply
-            # setting it to new values, but we are losing the sub-level
-            # coordinates (the dimenisons that we stacked to create the
-            # multi-index in the first place) with that step. Hence, we store
-            # the sub-level coordinates in additional dataset to preserve them.
-            main_coord_is_multiindex = isinstance(
-                output[name].get_index("collocation"),
-                pd.core.indexes.multi.MultiIndex
-            )
-            if main_coord_is_multiindex:
-                stacked_dims_data = xr.merge([
-                    xr.DataArray(
-                        output[name][dim].values,
-                        name=dim, dims=["collocation"]
-                    )
-                    for dim in output[name].get_index("collocation").names
-                ])
-
-            # Okay, actually we want to get rid of the main coordinate. It
-            # should stay as a dimension name but without own labels. I.e. we
-            # want to drop it. Because it still may a MultiIndex, we cannot
-            # drop it directly but we have to set it to something different.
-            output[name]["collocation"] = \
-                np.arange(output[name]["collocation"].size)
-
-            if main_coord_is_multiindex:
-                # Now, since we unstacked the multi-index, we can add the
-                # stacked dimensions back to the dataset:
-                output[name] = xr.merge(
-                    [output[name], stacked_dims_data],
-                )
-
-            # Now, we can rename it (to make it to a member of this group) and
-            # then we can drop it.
-            output[name].rename(
-                {"collocation": f"{name}/collocation"}, inplace=True
-            )
-            output[name] = output[name].drop(f"{name}/collocation")
-
-            # We want to merge all datasets together (but as subgroups). Hence,
-            # add the fileset name to each dataset as prefix:
-            output[name].rename(
-                {
-                    var_name: "/".join([name, var_name])
-                    for var_name in output[name].variables
-                }, inplace=True
-            )
-
-        # Merge all datasets into one:
-        output = xr.merge(
-            [data for data in output.values()]
+        # The coordinates are gridded:
+        # Some field might be more deeply stacked than another. Choose the
+        # dimensions of the most deeply stacked variable:
+        dims = max(
+            data["time"].dims, data["lat"].dims, data["lon"].dims,
+            key=lambda x: len(x)
         )
 
-        # This holds the collocation information (pairs, intervals and
-        # distances):
-        output["Collocations/pairs"] = xr.DataArray(
-            np.array(pairs, dtype=int), dims=("group", "collocation"),
-            attrs={
-                "max_interval": f"Max. interval in secs: {max_interval}",
-                "max_distance": f"Max. distance in kilometers: {max_distance}",
-                "primary": primary_name,
-                "secondary": secondary_name,
-            }
-        )
-        output["Collocations/interval"] = xr.DataArray(
-            intervals, dims=("collocation", ),
-            attrs={
-                "max_interval": f"Max. interval in secs: {max_interval}",
-                "max_distance": f"Max. distance in kilometers: {max_distance}",
-                "primary": primary_name,
-                "secondary": secondary_name,
-            }
-        )
-        output["Collocations/distance"] = xr.DataArray(
-            distances, dims=("collocation",),
-            attrs={
-                "max_interval": f"Max. interval in secs: {max_interval}",
-                "max_distance": f"Max. distance in kilometers: {max_distance}",
-                "primary": primary_name,
-                "secondary": secondary_name,
-                "units": "kilometers",
-            }
-        )
-        output["Collocations/group"] = xr.DataArray(
-            [primary_name, secondary_name], dims=("group",),
-            attrs={
-                "max_interval": f"Max. interval in secs: {max_interval}",
-                "max_distance": f"Max. distance in kilometers: {max_distance}",
-            }
-        )
+        # We might have a problems if the dimensions are also coordinates (i.e.
+        # they have values). For example, we opened multiple MHS files and
+        # concatenated them, then the coordinate scnline contains the same
+        # values multiple times. xarray cannot stack them together and build a
+        # multi index from them because the coordinate values are not unique.
+        # Hence, we need to replace the former coordinates with new coordinates
+        # that have unique values.
+        new_dims = []
+        for dim in dims:
+            new_dim = f"{dim}_replacement"
+            data[new_dim] = dim, np.arange(data.dims[dim])
+            data.swap_dims({dim: new_dim}, inplace=True)
+            new_dims.append(new_dim)
 
-        output.attrs = {
-            "start_time": str(start),
-            "end_time": str(end),
-        }
-
-        return output
+        return data.stack(collocation=new_dims)
 
     @staticmethod
     def get_meta_group():
@@ -503,10 +357,19 @@ class Collocator:
         # we avoid searching for spatial collocations that do not fulfill
         # the temporal condition in the first place. However, the overhead
         # of the finding algorithm must be considered too (for example the
-        # BallTree creation time).
+        # BallTree creation time). This can be adjusted by the parameter
+        # bin_factor:
+        bin_duration = self.bin_factor * max_interval
+
+        # The binning is more efficient if we use the largest dataset as
+        # primary:
+        swapped_datasets = secondary.size > primary.size
+        if swapped_datasets:
+            print("Swap datasets!")
+            primary, secondary = secondary, primary
+
         # Let's bin the primaries along their time axis and search for the
         # corresponding secondary bins:
-        bin_duration = self.bin_factor * max_interval
         bin_pairs = (
             self._bin_pairs(start, chunk, primary, secondary, max_interval)
             for start, chunk in primary.groupby(pd.Grouper(freq=bin_duration))
@@ -524,14 +387,17 @@ class Collocator:
         # does not release the GIL. Maybe there will be a new version coming
         # that solves this problem in the future? See the scikit-learn issue:
         # https://github.com/scikit-learn/scikit-learn/pull/4009 (even it is
-        # closed and merged, they have not improved the query_radius method
+        # closed and merged, they have not revised the query_radius method
         # yet).
-        threads = 1 if self.threads is None else self.threads
-
-        with ThreadPoolExecutor(threads) as pool:
-            results = pool.map(
-                Collocator._spatial_search_bin, bins_with_args
-            )
+        # threads = 1 if self.threads is None else self.threads
+        #
+        # with ThreadPoolExecutor(threads) as pool:
+        #     results = pool.map(
+        #         Collocator._spatial_search_bin, bins_with_args
+        #     )
+        results = list(map(
+            Collocator._spatial_search_bin, bins_with_args
+        ))
         pairs_list, distances_list = zip(*results)
         pairs = np.hstack(pairs_list)
 
@@ -541,6 +407,11 @@ class Collocator:
 
         # Stack the rest of the results together:
         distances = np.hstack(distances_list)
+
+        if swapped_datasets:
+            # Swap the rows of the results
+            pairs[[0, 1]] = pairs[[1, 0]]
+            distances[[0, 1]] = distances[[1, 0]]
 
         # We selected a common time window and cut off a part in the
         # beginning, do you remember? Now we shift the indices so that they
@@ -632,6 +503,7 @@ class Collocator:
     def _build_spatial_index(self, lat, lon):
         # Find out whether the cached index still works with the new points:
         if self._spatial_is_cached(lat, lon):
+            print("Spatial index is cached and can be reused")
             return self.index
 
         return GeoIndex(lat, lon)
@@ -719,3 +591,168 @@ class Collocator:
     @staticmethod
     def _get_distances(lat1, lon1, lat2, lon2):
         return great_circle_distance(lat1, lon1, lat2, lon2)
+
+    def _create_return(
+            self, primary, secondary, primary_name, secondary_name,
+            original_pairs, intervals, distances,
+            max_interval, max_distance
+    ):
+        if not original_pairs.any():
+            return self.empty
+
+        pairs = []
+        output = {}
+
+        # We are going to save the time coverage of the data as attributes in
+        # the output dataset
+        start, end = None, None
+
+        names = [primary_name, secondary_name]
+        for i, dataset in enumerate([primary, secondary]):
+            # name of the current dataset (primary or secondary)
+            name = names[i]
+
+            # These are the indices of the points in the original data that
+            # have collocations. We remove the duplicates since we want to copy
+            # the required data only once:
+            original_indices = pd.unique(original_pairs[i])
+
+            # After selecting the collocated data, the original indices cannot
+            # be applied any longer. We need new indices that indicate the
+            # pairs in the collocated data.
+            new_indices = pd.Series(
+                np.arange(len(original_indices)),
+                index=original_indices,
+            )
+
+            collocation_indices = new_indices.loc[original_pairs[i]].values
+
+            # Save the collocation indices in the metadata group:
+            pairs.append(collocation_indices)
+
+            output[names[i]] = dataset.isel(collocation=original_indices)
+
+            # xarrays does not really handle grouped data (actually, not at
+            # all). Until this has changed, I do not want to have subgroups in
+            # the output data (this makes things complicated when it comes to
+            # coordinates). Therefore, we 'flat' each group before continuing:
+            output[names[i]].rename(
+                {
+                    old_name: old_name.replace("/", "_")
+                    for old_name in output[name].variables
+                    if "/" in old_name
+                }, inplace=True
+            )
+
+            # We need the total time coverage of all datasets for the name of
+            # the output file
+            data_start = pd.Timestamp(
+                output[name]["time"].min().item(0)
+            )
+            data_end = pd.Timestamp(
+                output[name]["time"].max().item(0)
+            )
+            if start is None or start > data_start:
+                start = data_start
+            if end is None or end < data_end:
+                end = data_end
+
+            # We have to convert the MultiIndex to a normal index because we
+            # cannot store it to a file otherwise. We can convert it by simply
+            # setting it to new values, but we are losing the sub-level
+            # coordinates (the dimenisons that we stacked to create the
+            # multi-index in the first place) with that step. Hence, we store
+            # the sub-level coordinates in additional dataset to preserve them.
+            # main_coord_is_multiindex = isinstance(
+            #     output[name].get_index("collocation"),
+            #     pd.core.indexes.multi.MultiIndex
+            # )
+            # if main_coord_is_multiindex:
+            #     stacked_dims_data = xr.merge([
+            #         xr.DataArray(
+            #             output[name][dim].values,
+            #             name=dim, dims=["collocation"]
+            #         )
+            #         for dim in output[name].get_index("collocation").names
+            #     ])
+
+            # Okay, actually we want to get rid of the main coordinate. It
+            # should stay as a dimension name but without own labels. I.e. we
+            # want to drop it. Because it still may a MultiIndex, we cannot
+            # drop it directly but we have to set it to something different.
+            output[name]["collocation"] = \
+                np.arange(output[name]["collocation"].size)
+
+            # if main_coord_is_multiindex:
+            #     # Now, since we unstacked the multi-index, we can add the
+            #     # stacked dimensions back to the dataset:
+            #     output[name] = xr.merge(
+            #         [output[name], stacked_dims_data],
+            #     )
+
+            # Now, we can rename it (to make it to a member of this group) and
+            # then we can drop it.
+            output[name].rename(
+                {"collocation": f"{name}/collocation"}, inplace=True
+            )
+            output[name] = output[name].drop(f"{name}/collocation")
+
+            # We want to merge all datasets together (but as subgroups). Hence,
+            # add the fileset name to each dataset as prefix:
+            output[name].rename(
+                {
+                    var_name: "/".join([name, var_name])
+                    for var_name in output[name].variables
+                }, inplace=True
+            )
+
+        # Merge all datasets into one:
+        output = xr.merge(
+            [data for data in output.values()]
+        )
+
+        # This holds the collocation information (pairs, intervals and
+        # distances):
+        output["Collocations/pairs"] = xr.DataArray(
+            np.array(pairs, dtype=int), dims=("group", "collocation"),
+            attrs={
+                "max_interval": f"Max. interval in secs: {max_interval}",
+                "max_distance": f"Max. distance in kilometers: {max_distance}",
+                "primary": primary_name,
+                "secondary": secondary_name,
+            }
+        )
+        output["Collocations/interval"] = xr.DataArray(
+            intervals, dims=("collocation", ),
+            attrs={
+                "max_interval": f"Max. interval in secs: {max_interval}",
+                "max_distance": f"Max. distance in kilometers: {max_distance}",
+                "primary": primary_name,
+                "secondary": secondary_name,
+            }
+        )
+        output["Collocations/distance"] = xr.DataArray(
+            distances, dims=("collocation",),
+            attrs={
+                "max_interval": f"Max. interval in secs: {max_interval}",
+                "max_distance": f"Max. distance in kilometers: {max_distance}",
+                "primary": primary_name,
+                "secondary": secondary_name,
+                "units": "kilometers",
+            }
+        )
+        output["Collocations/group"] = xr.DataArray(
+            [primary_name, secondary_name], dims=("group",),
+            attrs={
+                "max_interval": f"Max. interval in secs: {max_interval}",
+                "max_distance": f"Max. distance in kilometers: {max_distance}",
+            }
+        )
+
+        output.attrs = {
+            "start_time": str(start),
+            "end_time": str(end),
+        }
+
+        return output
+
