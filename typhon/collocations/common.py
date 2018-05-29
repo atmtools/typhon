@@ -803,10 +803,7 @@ def expand(dataset):
     # The variable pairs is useless now:
     expanded = expanded.drop("Collocations/pairs")
 
-    # expanded.reset_coords([
-    #     primary + "/collocation",
-    #     secondary + "/collocation"], drop=True, inplace=True
-    # )
+    expanded.rename({"Collocations/collocation"}, inplace=True)
 
     return expanded
 
