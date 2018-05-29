@@ -150,6 +150,9 @@ class MHS_HDF(AAPP_HDF):
             scnline=dataset["scnline"]
         )
 
+        dataset["scnline"] = np.arange(1, dataset["scnline"].size + 1)
+        dataset["scnpos"] = np.arange(1, 91)
+
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
 
@@ -227,6 +230,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         )
 
         dataset["scnline"] = np.arange(1, dataset["scnline"].size+1)
+        dataset["scnpos"] = np.arange(1, 91)
 
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
