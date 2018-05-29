@@ -12,3 +12,4 @@ atmosphere
    moist_lapse_rate
    relative_humidity
    vmr
+   standard_atmosphere

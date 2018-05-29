@@ -2,6 +2,9 @@
 
 """Functions directly related to atmospheric sciences.
 """
+import numpy as np
+from scipy.interpolate import interp1d
+
 from . import constants
 from . import math
 from .physics import thermodynamics
@@ -12,6 +15,7 @@ __all__ = [
     'moist_lapse_rate',
     'relative_humidity',
     'vmr',
+    'standard_atmosphere',
 ]
 
 
@@ -137,3 +141,39 @@ def vmr(RH, p, T):
         0.026185323887350429
     """
     return RH * thermodynamics.e_eq_water_mk(T) / p
+
+
+def standard_atmosphere(z, fill_value='extrapolate'):
+    """International Standard Atmosphere (ISA) as a function of height.
+
+    Parameters:
+        z (float or ndarray): Geopotential height above MSL [m].
+        fill_value (str): See :func:`~scipy.interpolate.interp1d` for
+            available options.
+
+    Returns:
+        ndarray: Atmospheric temperature [K].
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        from typhon.plots import profile_z
+        from typhon.atmosphere import standard_atmosphere
+
+
+        z = np.linspace(0, 80_000, 100)
+        T = standard_atmosphere(z)
+
+        fig, ax = plt.subplots()
+        profile_z(z, T)
+
+        plt.show()
+
+    """
+    h = np.array([-610, 11000, 20000, 32000, 47000, 51000, 71000, 84852])
+    temp = np.array([+19.0, -56.5, -56.5, -44.5, -2.5, -2.5, -58.5, -86.28])
+
+    return interp1d(h, temp + constants.K, fill_value=fill_value)(z)
