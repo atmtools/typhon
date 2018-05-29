@@ -58,3 +58,13 @@ class TestAtmosphere:
         gamma = atmosphere.moist_lapse_rate(1000e2, 300)
 
         assert np.isclose(gamma, 0.00367349)
+
+    def test_standard_atmosphere(self):
+        """Test International Standard Atmosphere."""
+        isa = atmosphere.standard_atmosphere
+
+        assert np.isclose(isa(0), 288.1831)  # Surface temperature
+        assert np.isclose(isa(81e3), 194.5951)  # Test extrapolation
+        # Test call with ndarray.
+        assert np.allclose(isa(np.array([0, 15e3])),
+                           np.array([288.1831, 216.65]))
