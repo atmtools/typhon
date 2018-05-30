@@ -6,19 +6,11 @@ atmlab implemented by Gerrit Holl.
 Created by John Mrziglod, June 2017
 """
 
-from concurrent.futures import ProcessPoolExecutor, wait
-from datetime import datetime, timedelta
-import logging
-
 import random
-import time
 
 import numba
 import numpy as np
-import pandas as pd
 from typhon.files import FileSet
-from typhon.utils import reraise_with_stack
-from typhon.utils.timeutils import to_datetime, to_timedelta
 import xarray as xr
 
 from .collocator import Collocator
@@ -29,6 +21,7 @@ __all__ = [
     "Collocations",
     "expand",
 ]
+
 
 # The names for the processes. This started as an easter egg, but it actually
 # helps to identify different processes during debugging.
@@ -215,15 +208,9 @@ class Collocations(FileSet):
 
             # TODO Add examples
         """
-
         if len(filesets) != 2:
             raise ValueError("Only collocating two filesets at once is allowed"
                              "at the moment!")
-
-        # Set the primary and secondary names (will be needed when reading from
-        # the collocation files):
-        self.primary = filesets[0].name
-        self.secondary = filesets[1].name
 
         # Check the max_interval argument because we need it later
         max_interval = collocate_args.get("max_interval", None)
@@ -231,13 +218,6 @@ class Collocations(FileSet):
             raise ValueError("Collocating filesets without max_interval is"
                              " not yet implemented!")
         # max_interval = to_timedelta(max_interval, numbers_as="seconds")
-
-        # We create the collocator object now and use it multiple times,
-        # since it may cache internally things to speed up the process.
-        if collocator is None:
-            self.collocator = Collocator()
-        else:
-            self.collocator = collocator
 
         # Encourage the user to set the start and end timestamps explicitly
         # (otherwise splitting onto multiple processes may not be very
@@ -287,282 +267,6 @@ class Collocations(FileSet):
                 if future.exception() is not None:
                     print(f"[{PROCESS_NAMES[i]}] {future.exception()}")
 
-    @reraise_with_stack
-    def _search(self, pid, filesets, start, end, skip_overlaps,
-                verbose, **collocate_args):
-
-        # Check the max_interval argument because we need it later
-        max_interval = to_timedelta(
-            collocate_args["max_interval"], numbers_as="seconds"
-        )
-
-        if verbose:
-            print(f"[{pid}] Collocate from {start} to {end}")
-
-        total_collocations = [0, 0]
-
-        # The primaries may overlap. So we use the end timestamp of the last
-        # primary as starting point for this search:
-        last_primary_end = None
-
-        # Get all primary and secondary data that overlaps with each other
-        file_pairs = filesets[0].align(filesets[1], start, end, max_interval)
-
-        start, end = pd.Timestamp(start), pd.Timestamp(end)
-
-        # Use a timer for profiling.
-        timer = time.time()
-        verbose_timer = time.time()
-        for files, raw_data in file_pairs:
-            if verbose:
-                self._print_collocating_status(
-                    pid, timer, start, end, last_primary_end
-                )
-            if verbose > 1:
-                print(
-                    f"[{pid}] {time.time() - verbose_timer:.2f}s for reading"
-                )
-                verbose_timer = time.time()
-
-            primary, secondary = self._prepare_data(
-                filesets, files, raw_data.copy(), start, end, max_interval,
-                skip_overlaps, last_primary_end
-            )
-
-            if primary is None:
-                if verbose > 1:
-                    print(f"[{pid}] Skipping because data is empty!")
-                continue
-
-            current_start = np.datetime64(primary["time"].min().item(0), "ns")
-            current_end = np.datetime64(primary["time"].max().item(0), "ns")
-            print(f"[{pid}] Collocating {current_start} to {current_end}")
-
-            # Maybe we have overlapping primary files? Let's save always the
-            # end of our last search to use it as starting point for the next
-            # iteration:
-            last_primary_end = current_end
-
-            if verbose > 1:
-                print(
-                    f"[{pid}] {time.time()-verbose_timer:.2f}s for preparing"
-                )
-
-            verbose_timer = time.time()
-            collocations = self.collocator.run(
-                (filesets[0].name, primary),
-                (filesets[1].name, secondary), **collocate_args,
-            )
-
-            if verbose > 1:
-                print(
-                    f"[{pid}] {time.time()-verbose_timer:.2f}s for collocating"
-                )
-
-            verbose_timer = time.time()
-
-            if not collocations.variables:
-                if verbose > 1:
-                    print(f"[{pid}] Found no collocations!")
-                continue
-
-            # Check whether the collocation data is compatible and was build
-            # correctly
-            check_collocation_data(collocations)
-
-            # Prepare the name for the output file:
-            attributes = {
-                p: v
-                for file in files.values()
-                for p, v in file[0].attr.items()
-            }
-            filename = self.get_filename(
-                [to_datetime(collocations.attrs["start_time"]),
-                 to_datetime(collocations.attrs["end_time"])], fill=attributes
-            )
-
-            # Write the data to the file.
-            self.write(collocations, filename)
-
-            found = [
-                collocations[f"{filesets[0].name}/lat"].size,
-                collocations[f"{filesets[1].name}/lat"].size
-            ]
-
-            if verbose > 1:
-                print(
-                    f"[{pid}] Store {found[0]} ({filesets[0].name}) and "
-                    f"{found[1]} ({filesets[1].name}) collocations to"
-                    f"\n[{pid}] {filename}"
-                )
-                print(f"[{pid}] {time.time()-verbose_timer:.2f}s for storing")
-
-            total_collocations[0] += found[0]
-            total_collocations[1] += found[1]
-
-            verbose_timer = time.time()
-
-        if verbose:
-            print(
-                f"[{pid}] {time.time()-timer:.2f} s to find "
-                f"{total_collocations[0]} ({filesets[0].name}) and "
-                f"{total_collocations[1]} ({filesets[1].name}) "
-                f"collocations."
-            )
-
-    def _prepare_data(self, filesets, files, dataset,
-                      global_start, global_end, max_interval,
-                      remove_overlaps, last_primary_end):
-        """Make the raw data almost ready for collocating
-
-        Before we can collocate the data points, we need to flat them (if they
-        are stored in a structured representation).
-        """
-        primary, secondary = filesets
-
-        for fileset in filesets:
-            name = fileset.name
-
-            # Add identifiers: Maybe we want to add more data after
-            # collocating? To make this possible, we add the start and end
-            # timestamp of the original file and the index of each data point
-            # to the data. We need the length of the main dimension for this.
-            # What is the main dimension? Well, we simply use the first
-            # dimension of the time variable.
-            main_dimension = dataset[name][0].time.dims[0]
-            timer = time.time()
-            dataset[name] = self._add_identifiers(
-                files[name], dataset[name], main_dimension
-            )
-            print(f"{time.time()-timer:.2f} seconds for adding identifiers")
-
-            # Concatenate all data: Since the data may come from multiple files
-            # we have to concatenate them along their main dimension before
-            # moving on.
-            dataset[name] = xr.concat(dataset[name], dim=main_dimension)
-
-            # Flat the data: For collocating, we need a flat data structure.
-            # Fortunately, xarray provides the very convenient stack method
-            # where we can flat multiple dimensions to one. Which dimensions do
-            # we have to stack together? We need the fields *time*, *lat* and
-            # *lon* to be flat. So we choose their dimensions to be stacked.
-            timer = time.time()
-            dataset[name] = Collocator.flat_to_main_coord(dataset[name])
-            print(f"{time.time()-timer:.2f} seconds for flatting data")
-
-            # The user may not want to collocate overlapping data twice since
-            # it might contain duplicates
-            # TODO: This checks only for overlaps in primaries. What about
-            # TODO: overlapping secondaries?
-            if name == primary.name:
-                if remove_overlaps and last_primary_end is not None:
-                    dataset[name] = dataset[name].isel(
-                        collocation=dataset[name]['time'] > last_primary_end
-                    )
-
-                # Check whether something is left:
-                if not len(dataset[name]['time']):
-                    return None, None
-
-                # We want to select a common time window from both datasets,
-                # aligned to the primary's time coverage. Because xarray has a
-                # very annoying bug in time retrieving
-                # (https://github.com/pydata/xarray/issues/1240), this is a
-                # little bit cumbersome:
-                start = max(
-                    global_start,
-                    pd.Timestamp(dataset[name]['time'].min().item(0))
-                    - max_interval
-                )
-                end = min(
-                    global_end,
-                    pd.Timestamp(dataset[name]['time'].max().item(0))
-                    + max_interval
-                )
-
-                if start > end:
-                    print(f"Start: {start}, end: {end}.")
-                    raise ValueError(
-                        "The time coverage of the content of the following "
-                        "files is not identical with the time coverage given "
-                        "by get_info. Actual time coverage:\n"
-                        + "\n".join(repr(file) for file in files[name])
-                    )
-
-            # We do not have to collocate everything, just the common time
-            # period expanded by max_interval and limited by the global start
-            # and end parameter:
-            timer = time.time()
-            dataset[name] = dataset[name].isel(
-                collocation=(dataset[name]['time'] >= np.datetime64(start))
-                             & (dataset[name]['time'] <= np.datetime64(end))
-            )
-            print(f"{time.time()-timer:.2f} seconds for selecting time")
-
-            # Filter out NaNs:
-            timer = time.time()
-            not_nans = \
-                dataset[name].time.notnull() \
-                & dataset[name].lat.notnull() \
-                & dataset[name].lon.notnull()
-            dataset[name] = dataset[name].isel(collocation=not_nans)
-            print(f"{time.time()-timer:.2f} seconds to filter nans")
-
-            # Check whether something is left:
-            if not len(dataset[name].time):
-                return None, None
-
-            timer = time.time()
-            dataset[name] = dataset[name].sortby("time")
-            print(f"{time.time()-timer:.2f} seconds to sort")
-
-        return dataset[primary.name], dataset[secondary.name]
-
-    @staticmethod
-    def _add_identifiers(files, data, dimension):
-        """Add identifiers (file start and end time, original index) to
-        each data point.
-        """
-        for index, file in enumerate(files):
-            if "__file_start" in data[index]:
-                # Apparently, we collocated and tagged this dataset
-                # already.
-                # TODO: Nevertheless, should we add new identifiers now?
-                continue
-
-            length = data[index][dimension].shape[0]
-            data[index]["__file_start"] = \
-                dimension, np.repeat(np.datetime64(file.times[0]), length)
-            data[index]["__file_end"] = \
-                dimension, np.repeat(np.datetime64(file.times[1]), length)
-
-            # TODO: This gives us only the index per main dimension but what if
-            # TODO: the data is more deeply stacked?
-            data[index]["__index"] = dimension, np.arange(length)
-
-        return data
-
-    @staticmethod
-    def _print_collocating_status(pid, timer, start, end, current_end):
-        if start == datetime.min and end == datetime.max:
-            return
-
-        if current_end is None:
-            progress = 0
-            expected_time = "unknown"
-        else:
-            # Annoying bug! The order of the calculation is important,
-            # otherwise we get a TypeError!
-            current = abs((start - current_end).total_seconds())
-            progress = current / (end - start).total_seconds()
-
-            elapsed_time = time.time() - timer
-            expected_time = timedelta(
-                seconds=int(elapsed_time * (1 / progress - 1))
-            )
-
-        print(f"[{pid}] {100*progress:.0f}% done ({expected_time} "
-              f"hours remaining)")
 
 
 @numba.jit
