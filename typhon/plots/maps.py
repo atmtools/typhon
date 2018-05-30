@@ -36,7 +36,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         **kwargs:
 
     Returns:
-        Axis and scatter plot objects.
+        Scatter plot objects.
     """
     # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
@@ -70,9 +70,8 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     else:
         scatter_plot = ax.scatter(
             lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults)
-        ax.colorbar(scatter_plot)
 
-    return ax, scatter_plot
+    return scatter_plot
 
 
 def get_cfeatures_at_scale(scale='110m'):
