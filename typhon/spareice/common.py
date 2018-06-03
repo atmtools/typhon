@@ -71,6 +71,7 @@ class SPAREICE:
     ):
         if collocations is None:
             # The user does not want to save the collocations to disk
+            ...
         else:
             # The user wants to save the collocations to disk
             # Search for collocations and store them
