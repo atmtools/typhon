@@ -3,6 +3,7 @@ from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 import logging
+from multiprocessing import Process, Queue
 import time
 
 import numpy as np
@@ -13,14 +14,15 @@ from typhon.utils.timeutils import to_datetime, to_timedelta
 import xarray as xr
 
 __all__ = [
-        "Collocator",
-    ]
+    "Collocator",
+    "check_collocation_data"
+]
 
 
 class Collocator:
     def __init__(
             self, threads=None, bin_factor=1, magnitude_factor=10,
-            tunnel_limit=None, verbose=1, name=None,
+            tunnel_limit=None, verbose=1, name=None, log_dir=None
     ):
         """Initialize a collocator object that can find collocations
 
@@ -83,52 +85,102 @@ class Collocator:
         if self.verbose > 0:
             print(f"[{self.name}] {msg}")
 
-    def do_filesets(
-        self, filesets, start=None, end=None, skip_overlaps=True,
-        **collocate_args
+    def collocate_filesets(
+            self, filesets, start=None, end=None, skip_overlaps=True,
+            processes=None, **kwargs
     ):
-
         if len(filesets) != 2:
             raise ValueError("Only collocating two filesets at once is allowed"
                              "at the moment!")
 
         # Check the max_interval argument because we need it later
-        max_interval = collocate_args.get("max_interval", None)
+        max_interval = kwargs.get("max_interval", None)
         if max_interval is None:
             raise ValueError("Collocating filesets without max_interval is"
                              " not yet implemented!")
-        # max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
-        # Encourage the user to set the start and end timestamps explicitly
-        # (otherwise splitting onto multiple processes may not be very
-        # efficient):
-        if start is None or end is None:
-            raise ValueError("The collocation search needs explicit start and "
-                             "end timestamps")
-        start = to_datetime(start)
-        end = to_datetime(end)
-
-        # Check the max_interval argument because we need it later
-        max_interval = to_timedelta(
-            collocate_args["max_interval"], numbers_as="seconds"
-        )
+        if start is None:
+            start = datetime.min
+        else:
+            start = to_datetime(start)
+        if end is None:
+            end = datetime.max
+        else:
+            end = to_datetime(end)
 
         self.info(f"Collocate from {start} to {end}")
 
-        total_collocations = [0, 0]
+        matches = filesets[0].match(
+            filesets[1], start=start, end=end, max_interval=max_interval
+        )
+
+        processes = 1
+
+        # MAGIC with processes
+        # Each process gets a list with matches. Important: the matches should
+        # be continuous to guarantee a good performance. After finishing one
+        # match, the process yields the results.
+        # How to combine the results of all processes and yield them to the
+        # user?
+
+        # This queue collects all results:
+        queue = Queue()
+
+        # This contains all running processes
+        process_list = [
+            Process(
+                target=Collocator._process_caller,
+                args=(
+                    self, queue, filesets, matches_chunk, start, end,
+                    skip_overlaps
+                ),
+                kwargs=kwargs,
+            )
+            for matches_chunk in np.array_split(matches, processes)
+        ]
+
+        # Start all processes:
+        for process in process_list:
+            process.start()
+
+        # As long as some processes are still running, wait for their
+        # results:
+        while process_list:
+            # Filter out all processes that are dead:
+            process_list = [
+                process for process in process_list if process.is_alive()
+            ]
+
+            # Yield all results that are currently in the queue:
+            while queue.full():
+                yield queue.get()
+
+    @staticmethod
+    def _process_caller(collocator, queue, *args, **kwargs):
+        for result in collocator.collocate_files(*args, **kwargs):
+            queue.put(result)
+
+    def collocate_files(
+        self, filesets, matches, start, end, skip_overlaps,
+            **kwargs
+    ):
+
+        # Check the max_interval argument because we need it later
+        max_interval = to_timedelta(
+            kwargs["max_interval"], numbers_as="seconds"
+        )
 
         # The primaries may overlap. So we use the end timestamp of the last
         # primary as starting point for this search:
         last_primary_end = None
 
         # Get all primary and secondary data that overlaps with each other
-        file_pairs = filesets[0].align(filesets[1], start, end, max_interval)
+        file_pairs = filesets[0].align(filesets[1], matches=matches)
 
         start, end = pd.Timestamp(start), pd.Timestamp(end)
 
         # Use a timer for profiling.
         timer = time.time()
-        verbose_timer = time.time()
         for files, raw_data in file_pairs:
             if self.verbose:
                 self._print_collocating_status(
@@ -136,9 +188,9 @@ class Collocator:
                 )
 
             self.debug(
-                f"{time.time() - verbose_timer:.2f}s for reading"
+                f"{time.time() - timer:.2f}s for reading"
             )
-                verbose_timer = time.time()
+            timer = time.time()
 
             primary, secondary = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
@@ -146,8 +198,7 @@ class Collocator:
             )
 
             if primary is None:
-                if verbose > 1:
-                    print(f"Skipping because data is empty!")
+                self.debug(f"Skipping because data is empty!")
                 continue
 
             current_start = np.datetime64(primary["time"].min().item(0), "ns")
@@ -159,74 +210,44 @@ class Collocator:
             # iteration:
             last_primary_end = current_end
 
-            if verbose > 1:
-                print(
-                    f"{time.time()-verbose_timer:.2f}s for preparing"
-                )
+            self.debug(f"{time.time()-timer:.2f}s for preparing")
 
-            verbose_timer = time.time()
-            collocations = self.collocator.run(
+            timer = time.time()
+            collocations = self.collocate(
                 (filesets[0].name, primary),
-                (filesets[1].name, secondary), **collocate_args,
+                (filesets[1].name, secondary), **kwargs,
             )
 
-            if verbose > 1:
-                print(
-                    f"{time.time()-verbose_timer:.2f}s for collocating"
-                )
-
-            verbose_timer = time.time()
+            self.debug(f"{time.time()-timer:.2f}s for collocating")
 
             if not collocations.variables:
-                if verbose > 1:
-                    print(f"Found no collocations!")
+                self.info("Found no collocations!")
                 continue
 
             # Check whether the collocation data is compatible and was build
             # correctly
             check_collocation_data(collocations)
 
-            # Prepare the name for the output file:
+            found = [
+                collocations[f"{filesets[0].name}/time"].size,
+                collocations[f"{filesets[1].name}/time"].size
+            ]
+
+            self.info(
+                f"Found {found[0]} ({filesets[0].name}) and "
+                f"{found[1]} ({filesets[1].name}) collocations"
+            )
+
+            # Collect the attributes of the input files
             attributes = {
                 p: v
                 for file in files.values()
                 for p, v in file[0].attr.items()
             }
-            filename = self.get_filename(
-                [to_datetime(collocations.attrs["start_time"]),
-                 to_datetime(collocations.attrs["end_time"])], fill=attributes
-            )
 
-            # Write the data to the file.
-            self.write(collocations, filename)
+            yield collocations, attributes
 
-            found = [
-                collocations[f"{filesets[0].name}/lat"].size,
-                collocations[f"{filesets[1].name}/lat"].size
-            ]
-
-            if verbose > 1:
-                print(
-                    f"Store {found[0]} ({filesets[0].name}) and "
-                    f"{found[1]} ({filesets[1].name}) collocations to"
-                    f"\n{filename}"
-                )
-                print(f"{time.time()-verbose_timer:.2f}s for storing")
-
-            total_collocations[0] += found[0]
-            total_collocations[1] += found[1]
-
-            verbose_timer = time.time()
-
-            yield collocations
-
-        if verbose:
-            print(
-                f"{time.time()-timer:.2f} s to find "
-                f"{total_collocations[0]} ({filesets[0].name}) and "
-                f"{total_collocations[1]} ({filesets[1].name}) "
-                f"collocations."
-            )
+            timer = time.time()
 
     def _prepare_data(self, filesets, files, dataset,
                       global_start, global_end, max_interval,
@@ -381,7 +402,8 @@ class Collocator:
         print(f"{100*progress:.0f}% done ({expected_time} "
               f"hours remaining)")
 
-    def do(self, primary, secondary, max_interval=None, max_distance=None):
+    def collocate(
+            self, primary, secondary, max_interval=None, max_distance=None):
         """Find collocations between two data objects
 
         Collocations are two or more data points that are located close to each
@@ -448,7 +470,7 @@ class Collocator:
                 # Find collocations with a maximum distance of 300 kilometers
                 # and a maximum interval of 1 hour
                 collocator = Collocator()
-                indices = collocator.run(
+                indices = collocator.collocate(
                     primary, secondary,
                     max_distance="300km", max_interval="1h"
                 )
@@ -1065,3 +1087,19 @@ class Collocator:
 
         return output
 
+def check_collocation_data(dataset):
+    """Check whether the dataset fulfills the standard of collocated data
+
+    Args:
+        dataset: A xarray.Dataset object
+
+    Raises:
+        A InvalidCollocationData Error if the dataset did not pass the test.
+    """
+    mandatory_fields = ["Collocations/pairs", "Collocations/group"]
+
+    for mandatory_field in mandatory_fields:
+        if mandatory_field not in dataset.variables:
+            raise InvalidCollocationData(
+                f"Could not find the field '{mandatory_field}'!"
+            )

@@ -7,13 +7,15 @@ Created by John Mrziglod, June 2017
 """
 
 import random
+import time
 
 import numba
 import numpy as np
 from typhon.files import FileSet
+from typhon.utils.timeutils import to_datetime
 import xarray as xr
 
-from .collocator import Collocator
+from .collocator import check_collocation_data, Collocator
 
 __all__ = [
     "collapse",
@@ -154,9 +156,8 @@ class Collocations(FileSet):
             )
 
     def search(
-            self, filesets, start=None, end=None, skip_overlaps=True,
-            processes=None, collocator=None, log_dir=None,
-            verbose=1, **collocate_args):
+            self, filesets, collocator=None, log_dir=None, verbose=1,
+            **kwargs):
         """Find all collocations between two filesets and store them in files
 
         Collocations are two or more data points that are located close to each
@@ -192,6 +193,7 @@ class Collocations(FileSet):
                 the *0000-01-01* wil be taken.
             end: End date. Same format as `start`. If no date is given, the
                 *9999-12-31* wil be taken.
+            collocator:
             skip_overlaps: If the files of the primary fileset overlap in
                 time, the overlapping data is used only once for collocating.
             processes: The number of processes that should be used to
@@ -199,7 +201,7 @@ class Collocations(FileSet):
             log_dir: If given, the log files for the processes will be stored
                 in this directory.
             verbose: If true, it prints logging messages.
-            **collocate_args: Additional keyword arguments that are allowed for
+            **kwargs: Additional keyword arguments that are allowed for
                 :func:`collocate` except `data`.
 
         Examples:
@@ -208,65 +210,33 @@ class Collocations(FileSet):
 
             # TODO Add examples
         """
-        if len(filesets) != 2:
-            raise ValueError("Only collocating two filesets at once is allowed"
-                             "at the moment!")
+        if collocator is None:
+            collocator = Collocator(
+                verbose=verbose,
+                log_dir=log_dir,
+            )
 
-        # Check the max_interval argument because we need it later
-        max_interval = collocate_args.get("max_interval", None)
-        if max_interval is None:
-            raise ValueError("Collocating filesets without max_interval is"
-                             " not yet implemented!")
-        # max_interval = to_timedelta(max_interval, numbers_as="seconds")
+        results = collocator.collocate_filesets(
+            filesets, **kwargs
+        )
 
-        # Encourage the user to set the start and end timestamps explicitly
-        # (otherwise splitting onto multiple processes may not be very
-        # efficient):
-        if start is None or end is None:
-            raise ValueError("The collocation search needs explicit start and "
-                             "end timestamps")
-        start = to_datetime(start)
-        end = to_datetime(end)
+        for collocations, attributes in results:
+            filename = self.get_filename(
+                [to_datetime(collocations.attrs["start_time"]),
+                 to_datetime(collocations.attrs["end_time"])], fill=attributes
+            )
 
-        # Set the number of processes per default to 1, the user shall
-        # explicitly ask for parallel processing:
-        if processes is None:
-            processes = 1
+            timer = time.time()
 
-        if processes > 1:
-            verbose = min(verbose, 1)
+            # Write the data to the file.
+            self.write(collocations, filename)
 
-        # We split up the whole search period into chunks and search in each
-        # chunk with an individual process.
-        diff = (end - start) / processes
-        periods = [
-            [start + diff * i, start + diff * (i + 1)]
-            for i in range(processes)
-        ]
-
-        if verbose:
-            print(f"Start {processes} processes to collocate "
-                  f"{filesets[0].name} and {filesets[1].name}\nfrom {start} to"
-                  f" {end}")
-            print("-" * 79)
-
-        with ProcessPoolExecutor(processes) as pool:
-            futures = [
-                pool.submit(
-                    Collocations._search, self, PROCESS_NAMES[i],
-                    filesets, period[0], period[1], skip_overlaps,
-                    verbose=verbose, **collocate_args
-                )
-                for i, period in enumerate(periods)
-            ]
-
-            # Wait for all processes to end
-            wait(futures)
-
-            for i, future in enumerate(futures):
-                if future.exception() is not None:
-                    print(f"[{PROCESS_NAMES[i]}] {future.exception()}")
-
+            collocator.info(
+                f"Store {found[0]} ({filesets[0].name}) and "
+                f"{found[1]} ({filesets[1].name}) collocations to"
+                f"\n{filename}"
+            )
+            collocator.debug(f"{time.time()-timer:.2f}s for storing")
 
 
 @numba.jit
@@ -510,21 +480,3 @@ def expand(dataset):
     expanded.rename({"Collocations/collocation"}, inplace=True)
 
     return expanded
-
-
-def check_collocation_data(dataset):
-    """Check whether the dataset fulfills the standard of collocated data
-
-    Args:
-        dataset: A xarray.Dataset object
-
-    Raises:
-        A InvalidCollocationData Error if the dataset did not pass the test.
-    """
-    mandatory_fields = ["Collocations/pairs", "Collocations/group"]
-
-    for mandatory_field in mandatory_fields:
-        if mandatory_field not in dataset.variables:
-            raise InvalidCollocationData(
-                f"Could not find the field '{mandatory_field}'!"
-            )
