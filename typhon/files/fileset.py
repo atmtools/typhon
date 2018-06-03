@@ -591,7 +591,8 @@ class FileSet:
             info += "\nUser placeholder:\t" + str(self._user_placeholder)
         return info
 
-    def align(self, other, start=None, end=None, max_interval=None):
+    def align(self, other, start=None, end=None, matches=None,
+              max_interval=None):
         """Collect files from this fileset and a matching other fileset
 
         Warnings:
@@ -609,6 +610,10 @@ class FileSet:
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
+            matches: A list of matches between this fileset and `other`.
+                Normally, this is just the return value of :meth:`match`. These
+                matches will be used for aligning. If `matches` is given,
+                `start`, `end` and `max_interval` will be ignored.
             max_interval: A time interval (as string, number or timedelta
                 object) that expands the search time period for secondaries.
 
@@ -621,10 +626,12 @@ class FileSet:
         start = None if start is None else to_datetime(start)
         end = None if end is None else to_datetime(end)
 
-        # Find all overlapping files
-        matches = list(
-            self.match(other, start, end, max_interval=max_interval)
-        )
+        # Find all overlapping files. Or has the user already given some
+        # matches to us?
+        if matches is None:
+            matches = list(
+                self.match(other, start, end, max_interval=max_interval)
+            )
         primaries, secondaries = zip(*matches)
 
         # We have to consider the following to make the align method work
@@ -1352,77 +1359,6 @@ class FileSet:
         intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
         return files[np.argmin(intervals)]
 
-    def make_dirs(self, filename):
-        os.makedirs(
-            os.path.dirname(filename),
-            exist_ok=True
-        )
-
-    def match(
-            self, other, start=None, end=None, max_interval=None,
-            filters=None, other_filters=None):
-        """Find matching files between two filesets
-
-        Matching files are files that overlap each in their time coverage.
-
-        Args:
-            other: Another FileSet object.
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            max_interval: Maximal time interval in seconds between
-                two overlapping files. Must be an integer or float.
-            filters: The same filter argument that is allowed for
-                :meth:`find`.
-            other_filters: The same as `filter` but it will be applied to
-                `other`.
-
-        Yields:
-            A tuple with the :class:`FileInfo` object from this fileset and a
-            list with matching files from the other fileset.
-
-        Examples:
-            TODO: Add example
-        """
-        if max_interval is not None:
-            max_interval = to_timedelta(max_interval)
-            start = to_datetime(start) - max_interval
-            end = to_datetime(end) + max_interval
-
-        files1 = list(
-            self.find(start, end, filters=filters)
-        )
-        files2 = list(
-            other.find(start, end, filters=other_filters)
-        )
-
-        # Convert the times (datetime objects) to seconds (integer)
-        times1 = np.asarray([
-            file.times
-            for file in files1
-        ]).astype("M8[s]").astype(int).tolist()
-        times2 = np.asarray([
-            file.times
-            for file in files2
-        ]).astype("M8[s]").astype(int)
-
-        if max_interval is not None:
-            # Expand the intervals of the secondary fileset to close-in-time
-            # intervals.
-            times2[:, 0] -= int(max_interval.total_seconds())
-            times2[:, 1] += int(max_interval.total_seconds())
-
-        tree = IntervalTree(times2)
-
-        # Search for all overlapping intervals:
-        results = tree.query(times1)
-
-        for i, overlapping_files in enumerate(results):
-            matches = [files2[oi] for oi in sorted(overlapping_files)]
-            if matches:
-                yield files1[i], matches
-
     def get_filename(
             self, times, template=None, fill=None):
         """Generate the full path and name of a file for a time period
@@ -1668,6 +1604,12 @@ class FileSet:
                     f"Could not load the file information from cache file "
                     "'{filename}':\n{err}."
                 )
+
+    def make_dirs(self, filename):
+        os.makedirs(
+            os.path.dirname(filename),
+            exist_ok=True
+        )
 
     def map(
             self, func, args=None, kwargs=None, files=None, on_content=False,
@@ -1978,6 +1920,72 @@ class FileSet:
         output.write(return_value, new_filename, in_background=False)
 
         return _return(file_info, True)
+
+    def match(
+            self, other, start=None, end=None, max_interval=None,
+            filters=None, other_filters=None):
+        """Find matching files between two filesets
+
+        Matching files are files that overlap each in their time coverage.
+
+        Args:
+            other: Another FileSet object.
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            max_interval: Maximal time interval between two overlapping files.
+                If it is an integer or float, it will be interpreted as
+                seconds.
+            filters: The same filter argument that is allowed for
+                :meth:`find`.
+            other_filters: The same as `filter` but it will be applied to
+                `other`.
+
+        Yields:
+            A tuple with the :class:`FileInfo` object from this fileset and a
+            list with matching files from the other fileset.
+
+        Examples:
+            TODO: Add example
+        """
+        if max_interval is not None:
+            max_interval = to_timedelta(max_interval, numbers_as="seconds")
+            start = to_datetime(start) - max_interval
+            end = to_datetime(end) + max_interval
+
+        files1 = list(
+            self.find(start, end, filters=filters)
+        )
+        files2 = list(
+            other.find(start, end, filters=other_filters)
+        )
+
+        # Convert the times (datetime objects) to seconds (integer)
+        times1 = np.asarray([
+            file.times
+            for file in files1
+        ]).astype("M8[s]").astype(int).tolist()
+        times2 = np.asarray([
+            file.times
+            for file in files2
+        ]).astype("M8[s]").astype(int)
+
+        if max_interval is not None:
+            # Expand the intervals of the secondary fileset to close-in-time
+            # intervals.
+            times2[:, 0] -= int(max_interval.total_seconds())
+            times2[:, 1] += int(max_interval.total_seconds())
+
+        tree = IntervalTree(times2)
+
+        # Search for all overlapping intervals:
+        results = tree.query(times1)
+
+        for i, overlapping_files in enumerate(results):
+            matches = [files2[oi] for oi in sorted(overlapping_files)]
+            if matches:
+                yield files1[i], matches
 
     def move(
             self, target=None, convert=None, copy=True, **find_args,
