@@ -25,29 +25,6 @@ __all__ = [
 ]
 
 
-# The names for the processes. This started as an easter egg, but it actually
-# helps to identify different processes during debugging.
-PROCESS_NAMES = [
-    'Newton', 'Einstein', 'Bohr', 'Darwin', 'Pasteur', 'Freud', 'Galilei',
-    'Lavoisier', 'Kepler', 'Copernicus', 'Faraday', 'Maxwell', 'Bernard',
-    'Boas', 'Heisenberg', 'Pauling', 'Virchow', 'Schrodinger', 'Rutherford',
-    'Dirac', 'Vesalius', 'Brahe', 'Buffon', 'Boltzmann', 'Planck', 'Curie',
-    'Herschel', 'Lyell', 'Laplace', 'Hubble', 'Thomson', 'Born', 'Crick',
-    'Fermi', 'Euler', 'Liebig', 'Eddington', 'Harvey', 'Malpighi', 'Huygens',
-    'Gauss', 'Haller', 'Kekule', 'Koch', 'Gell-Mann', 'Fischer', 'Mendeleev',
-    'Glashow', 'Watson', 'Bardeen', 'Neumann', 'Feynman', 'Wegener', 'Hawking',
-    'Leeuwenhoek', 'Laue', 'Kirchhoff', 'Bethe', 'Euclid', 'Mendel', 'Onnes',
-    'Morgan', 'Helmholtz', 'Ehrlich', 'Mayr', 'Sherrington', 'Dobzhansky',
-    'Delbruck', 'Lamarck', 'Bayliss', 'Chomsky', 'Sanger', 'Lucretius',
-    'Dalton', 'Broglie', 'Linnaeus', 'Piaget', 'Simpson', 'Levi-Strauss',
-    'Margulis', 'Landsteiner', 'Lorenz', 'Wilson', 'Hopkins', 'Elion', 'Selye',
-    'Oppenheimer', 'Teller', 'Libby', 'Haeckel', 'Salk', 'Kraepelin',
-    'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
-    'Archimedes'
-]
-random.shuffle(PROCESS_NAMES)
-
-
 class InvalidCollocationData(Exception):
     """Error when trying to collapse / expand invalid collocation data
 
@@ -231,11 +208,7 @@ class Collocations(FileSet):
             # Write the data to the file.
             self.write(collocations, filename)
 
-            collocator.info(
-                f"Store {found[0]} ({filesets[0].name}) and "
-                f"{found[1]} ({filesets[1].name}) collocations to"
-                f"\n{filename}"
-            )
+            collocator.info(f"Store collocations to \n{filename}")
             collocator.debug(f"{time.time()-timer:.2f}s for storing")
 
 
@@ -477,6 +450,9 @@ def expand(dataset):
     # The variable pairs is useless now:
     expanded = expanded.drop("Collocations/pairs")
 
-    expanded.rename({"Collocations/collocation"}, inplace=True)
+    expanded.rename(
+        {"Collocations/collocation": "collocation"},
+        inplace=True
+    )
 
     return expanded

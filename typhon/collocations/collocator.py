@@ -4,6 +4,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 import logging
 from multiprocessing import Process, Queue
+import random
 import time
 
 import numpy as np
@@ -17,6 +18,29 @@ __all__ = [
     "Collocator",
     "check_collocation_data"
 ]
+
+
+# The names for the processes. This started as an easter egg, but it actually
+# helps to identify different processes during debugging.
+PROCESS_NAMES = [
+    'Newton', 'Einstein', 'Bohr', 'Darwin', 'Pasteur', 'Freud', 'Galilei',
+    'Lavoisier', 'Kepler', 'Copernicus', 'Faraday', 'Maxwell', 'Bernard',
+    'Boas', 'Heisenberg', 'Pauling', 'Virchow', 'Schrodinger', 'Rutherford',
+    'Dirac', 'Vesalius', 'Brahe', 'Buffon', 'Boltzmann', 'Planck', 'Curie',
+    'Herschel', 'Lyell', 'Laplace', 'Hubble', 'Thomson', 'Born', 'Crick',
+    'Fermi', 'Euler', 'Liebig', 'Eddington', 'Harvey', 'Malpighi', 'Huygens',
+    'Gauss', 'Haller', 'Kekule', 'Koch', 'Gell-Mann', 'Fischer', 'Mendeleev',
+    'Glashow', 'Watson', 'Bardeen', 'Neumann', 'Feynman', 'Wegener', 'Hawking',
+    'Leeuwenhoek', 'Laue', 'Kirchhoff', 'Bethe', 'Euclid', 'Mendel', 'Onnes',
+    'Morgan', 'Helmholtz', 'Ehrlich', 'Mayr', 'Sherrington', 'Dobzhansky',
+    'Delbruck', 'Lamarck', 'Bayliss', 'Chomsky', 'Sanger', 'Lucretius',
+    'Dalton', 'Broglie', 'Linnaeus', 'Piaget', 'Simpson', 'Levi-Strauss',
+    'Margulis', 'Landsteiner', 'Lorenz', 'Wilson', 'Hopkins', 'Elion', 'Selye',
+    'Oppenheimer', 'Teller', 'Libby', 'Haeckel', 'Salk', 'Kraepelin',
+    'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
+    'Archimedes'
+]
+random.shuffle(PROCESS_NAMES)
 
 
 class Collocator:
@@ -72,7 +96,7 @@ class Collocator:
         self.tunnel_limit = tunnel_limit
 
         self.verbose = verbose
-        self.name = name if name is not None else str(id(self))
+        self.name = name if name is not None else "Collocator"
 
     def __call__(self, *args, **kwargs):
         return self.do(*args, **kwargs)
@@ -110,11 +134,12 @@ class Collocator:
 
         self.info(f"Collocate from {start} to {end}")
 
-        matches = filesets[0].match(
+        matches = list(filesets[0].match(
             filesets[1], start=start, end=end, max_interval=max_interval
-        )
+        ))
 
-        processes = 1
+        if processes is None:
+            processes = 1
 
         # MAGIC with processes
         # Each process gets a list with matches. Important: the matches should
@@ -126,17 +151,20 @@ class Collocator:
         # This queue collects all results:
         queue = Queue()
 
+        matches_chunks = np.array_split(matches, processes)
+
         # This contains all running processes
         process_list = [
             Process(
                 target=Collocator._process_caller,
                 args=(
-                    self, queue, filesets, matches_chunk, start, end,
+                    self, queue, PROCESS_NAMES[i],
+                    filesets, matches_chunk, start, end,
                     skip_overlaps
                 ),
                 kwargs=kwargs,
             )
-            for matches_chunk in np.array_split(matches, processes)
+            for i, matches_chunk in enumerate(matches_chunks)
         ]
 
         # Start all processes:
@@ -145,18 +173,25 @@ class Collocator:
 
         # As long as some processes are still running, wait for their
         # results:
-        while process_list:
+        running = process_list.copy()
+
+        while running:
+
             # Filter out all processes that are dead:
-            process_list = [
-                process for process in process_list if process.is_alive()
+            running = [
+                process for process in running if process.is_alive()
             ]
 
             # Yield all results that are currently in the queue:
-            while queue.full():
+            while not queue.empty():
                 yield queue.get()
 
+        for process in process_list:
+            process.join()
+
     @staticmethod
-    def _process_caller(collocator, queue, *args, **kwargs):
+    def _process_caller(collocator, queue, name, *args, **kwargs):
+        collocator.name = name
         for result in collocator.collocate_files(*args, **kwargs):
             queue.put(result)
 
@@ -181,16 +216,15 @@ class Collocator:
 
         # Use a timer for profiling.
         timer = time.time()
-        for files, raw_data in file_pairs:
-            if self.verbose:
-                self._print_collocating_status(
-                    timer, start, end, last_primary_end
-                )
+        debug_timer = time.time()
+        for i, match in enumerate(file_pairs):
+            files, raw_data = match
+            self._print_progress(timer, len(matches), i)
 
             self.debug(
-                f"{time.time() - timer:.2f}s for reading"
+                f"{time.time() - debug_timer:.2f}s for reading"
             )
-            timer = time.time()
+            debug_timer = time.time()
 
             primary, secondary = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
@@ -210,15 +244,15 @@ class Collocator:
             # iteration:
             last_primary_end = current_end
 
-            self.debug(f"{time.time()-timer:.2f}s for preparing")
+            self.debug(f"{time.time()-debug_timer:.2f}s for preparing")
+            debug_timer = time.time()
 
-            timer = time.time()
             collocations = self.collocate(
                 (filesets[0].name, primary),
                 (filesets[1].name, secondary), **kwargs,
             )
 
-            self.debug(f"{time.time()-timer:.2f}s for collocating")
+            self.debug(f"{time.time()-debug_timer:.2f}s for collocating")
 
             if not collocations.variables:
                 self.info("Found no collocations!")
@@ -247,7 +281,7 @@ class Collocator:
 
             yield collocations, attributes
 
-            timer = time.time()
+            debug_timer = time.time()
 
     def _prepare_data(self, filesets, files, dataset,
                       global_start, global_end, max_interval,
@@ -273,7 +307,9 @@ class Collocator:
             dataset[name] = self._add_identifiers(
                 files[name], dataset[name], main_dimension
             )
-            print(f"{time.time()-timer:.2f} seconds for adding identifiers")
+            self.debug(
+                f"{time.time()-timer:.2f} seconds for adding identifiers"
+            )
 
             # Concatenate all data: Since the data may come from multiple files
             # we have to concatenate them along their main dimension before
@@ -287,7 +323,7 @@ class Collocator:
             # *lon* to be flat. So we choose their dimensions to be stacked.
             timer = time.time()
             dataset[name] = Collocator.flat_to_main_coord(dataset[name])
-            print(f"{time.time()-timer:.2f} seconds for flatting data")
+            self.debug(f"{time.time()-timer:.2f} seconds for flatting data")
 
             # The user may not want to collocate overlapping data twice since
             # it might contain duplicates
@@ -336,7 +372,7 @@ class Collocator:
                 collocation=(dataset[name]['time'] >= np.datetime64(start))
                             & (dataset[name]['time'] <= np.datetime64(end))
             )
-            print(f"{time.time()-timer:.2f} seconds for selecting time")
+            self.debug(f"{time.time()-timer:.2f} seconds for selecting time")
 
             # Filter out NaNs:
             timer = time.time()
@@ -345,7 +381,7 @@ class Collocator:
                 & dataset[name].lat.notnull() \
                 & dataset[name].lon.notnull()
             dataset[name] = dataset[name].isel(collocation=not_nans)
-            print(f"{time.time()-timer:.2f} seconds to filter nans")
+            self.debug(f"{time.time()-timer:.2f} seconds to filter nans")
 
             # Check whether something is left:
             if not len(dataset[name].time):
@@ -353,7 +389,7 @@ class Collocator:
 
             timer = time.time()
             dataset[name] = dataset[name].sortby("time")
-            print(f"{time.time()-timer:.2f} seconds to sort")
+            self.debug(f"{time.time()-timer:.2f} seconds to sort")
 
         return dataset[primary.name], dataset[secondary.name]
 
@@ -381,26 +417,21 @@ class Collocator:
 
         return data
 
-    def _print_collocating_status(self, timer, start, end, current_end):
-        if start == datetime.min and end == datetime.max:
-            return
-
-        if current_end is None:
+    def _print_progress(self, timer, total, current):
+        if current == 0:
             progress = 0
             expected_time = "unknown"
         else:
-            # Annoying bug! The order of the calculation is important,
-            # otherwise we get a TypeError!
-            current = abs((start - current_end).total_seconds())
-            progress = current / (end - start).total_seconds()
+            progress = current / total
 
             elapsed_time = time.time() - timer
             expected_time = timedelta(
                 seconds=int(elapsed_time * (1 / progress - 1))
             )
 
-        print(f"{100*progress:.0f}% done ({expected_time} "
-              f"hours remaining)")
+        self.info(
+            f"{100*progress:.0f}% done ({expected_time} hours remaining)"
+        )
 
     def collocate(
             self, primary, secondary, max_interval=None, max_distance=None):
@@ -490,10 +521,10 @@ class Collocator:
         # *lon* to be flat. So we choose their dimensions to be stacked.
         timer = time.time()
         primary = self.flat_to_main_coord(primary)
-        print(f"{time.time()-timer:.2f} seconds to flat {primary_name}")
+        self.debug(f"{time.time()-timer:.2f} seconds to flat {primary_name}")
         timer = time.time()
         secondary = self.flat_to_main_coord(secondary)
-        print(f"{time.time()-timer:.2f} seconds to flat {secondary_name}")
+        self.debug(f"{time.time()-timer:.2f} seconds to flat {secondary_name}")
 
         # Maybe one data object is empty?
         if not primary["time"].size or not secondary["time"].size:
@@ -696,7 +727,6 @@ class Collocator:
         # primary:
         swapped_datasets = secondary.size > primary.size
         if swapped_datasets:
-            print("Swap datasets!")
             primary, secondary = secondary, primary
 
         # Let's bin the primaries along their time axis and search for the
