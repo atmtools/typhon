@@ -21,6 +21,8 @@ Examples:
     data = spareice.prepare_training_data(
         # Do we have already collocations with all instruments? Put them here:
         collocations=...,
+        # and set collocate to False
+        collocate=False,
         # OR
         cloudsat=cloudsat, mhs=mhs, avhrr=avhrr,
         # Which time period should be used for training?
@@ -36,10 +38,12 @@ Examples:
     spareice.train(data, test_ratio=0.2)
 
     # After training, we can use the SPARE-ICE retrieval:
-    spareice.run(
+    spareice.retrieve(
         # Do we have already collocations with MHS and AVHRR? Put them here:
         collocations=...,
-        # Otherwise we can put here each and create collocations on-the-fly
+        collocate=False,
+        # Otherwise we can put here each fileset and create collocations
+        # on-the-fly
         mhs=mhs, avhrr=avhrr,
         # Which time period should be used for retrieving?
         start=..., end=...,
@@ -47,17 +51,30 @@ Examples:
     )
 """
 
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 from typhon.collocations import Collocator
 from typhon.retrieval import RetrievalProduct
-
-import pandas as pd
 import xarray as xr
 
 
 class SPAREICE:
 
-    def __init__(self, file=None):
-        self.retrieval = RetrievalProduct(parameters_file=file)
+    def __init__(self, file=None, verbose=1):
+        self.retrieval = RetrievalProduct(
+            parameters_file=file,
+            #verbose=verbose
+        )
+        self.verbose = verbose
+
+    def debug(self, msg):
+        if self.verbose > 1:
+            print(f"[{self.name}] {msg}")
+
+    def info(self, msg):
+        if self.verbose > 0:
+            print(f"[{self.name}] {msg}")
 
     def load_training(self, filename):
         self.retrieval.load_parameters(filename)
@@ -66,7 +83,7 @@ class SPAREICE:
         self.retrieval.save_parameters(filename)
 
     @staticmethod
-    def find_training_collocations(
+    def get_training_collocations(
         collocations, cloudsat, mhs, avhrr, start, end
     ):
         if collocations is None:
@@ -76,8 +93,7 @@ class SPAREICE:
             # The user wants to save the collocations to disk
             # Search for collocations and store them
             collocations.search(
-                [mhs, cloudsat], start="2007-03-10T13:33:51", end="2009",
-                processes=1,
+                [mhs, cloudsat], start=start, end=end, processes=1,
                 max_interval="5 min", max_distance="7.5 km", verbose=2,
             )
 
@@ -99,7 +115,7 @@ class SPAREICE:
         else:
             print("No collocations given or no collocations found in the given"
                   "time period. Start collocation toolkit to find them.")
-            data = SPAREICE.find_training_collocations(
+            data = SPAREICE.get_training_collocations(
                 collocations, cloudsat, mhs, avhrr, start, end
             )
 
@@ -143,23 +159,55 @@ class SPAREICE:
         inputs_train, inputs_test, targets_train, targets_test \
             = train_test_split(inputs, targets)
 
-        if True:
-            print("Train SPARE-ICE")
-            # If we have not trained it already, let's train it here:
-            train_score = retriever.train(
-                # The input fields for the training. The keys are the names of the input
-                # fields, the values define where the values for this input come from.
-                inputs_train,
-                # The target fields for the training. The keys are the names of the
-                # target/output fields, the values define where the values for this target
-                # come from.
-                targets_train,
-                verbose=2,
-            )
+        print("Train SPARE-ICE")
+        # If we have not trained it already, let's train it here:
+        train_score = retriever.train(
+            # The input fields for the training. The keys are the names of the input
+            # fields, the values define where the values for this input come from.
+            inputs_train,
+            # The target fields for the training. The keys are the names of the
+            # target/output fields, the values define where the values for this target
+            # come from.
+            targets_train,
+            verbose=2,
+        )
             print(f"Training score: {train_score:.2f}")
         test_score = retriever.score(inputs_test, targets_test)
         print(f"Testing score: {test_score:.2f}")
 
-    def run(self, collocations=None, mhs=None, avhrr=None, start=None, end=None
-            ):
-        ...
+    def _get_retrieve_data(self, collocations, mhs, avhrr, output, start, end):
+        yield None
+
+    def _prepare_retrieve_inputs(self, data):
+        inputs = pd.DataFrame({
+            "mhs_channel3": data["MHS/Data_btemps"].isel(channel=2),
+            "mhs_channel4": data["MHS/Data_btemps"].isel(channel=3),
+            "mhs_channel5": data["MHS/Data_btemps"].isel(channel=4),
+            "lat": data["lat"],
+            "mhs_scnpos": data["MHS/scnpos"],
+        })
+
+        return inputs
+
+    def retrieve(
+            self, collocations=None, mhs=None, avhrr=None, output=None,
+            start=None, end=None
+    ):
+
+        data_iterator = self._get_retrieve_data(
+            collocations, mhs, avhrr, output, start, end
+        )
+
+        for data in data_iterator:
+            inputs = self._prepare_retrieve_inputs(data)
+
+            retrieved = self.retrieval.run(inputs)
+
+            # Add geolocation and time information:
+            retrieved["lat"] = data["lat"]
+            retrieved["lon"] = data["lon"]
+            retrieved["time"] = data["time"]
+
+            # Store the output:
+            output[date1:date2] = retrieved
+
