@@ -121,8 +121,6 @@ def arts_agenda(func):
         "workspace argument " + arg_name + " or INCLUDE statements.")
 
     for e in func_ast.body:
-
-
         try:
             call = e.value
         except:
@@ -421,6 +419,8 @@ class Workspace:
         if not name in imports:
             agenda = Agenda.parse(name)
             imports[name] = agenda
+        else:
+            agenda = imports[name]
 
         self.execute_agenda(agenda)
 

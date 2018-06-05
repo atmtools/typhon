@@ -158,6 +158,7 @@ class TestWorkspace:
 
         @arts_agenda
         def execute(ws):
+            ws.FlagOff(ws.jacobian_do)
             ws.StringSet(ws.foo, "still not bar")
             INCLUDE("controlfile.arts")
             INCLUDE(agenda)
