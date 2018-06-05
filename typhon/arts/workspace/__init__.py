@@ -100,7 +100,7 @@ from typhon.environment import environ
 if environ.get('ARTS_BUILD_PATH') is None:
     warn("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 else:
-    from typhon.arts.workspace.workspace import Workspace, arts_agenda
+    from typhon.arts.workspace.workspace import Workspace, arts_agenda, Include
     from typhon.arts.workspace.variables import WorkspaceVariable
     from typhon.arts.workspace.methods   import WorkspaceMethod
     from typhon.arts.workspace.api       import arts_include_path   \

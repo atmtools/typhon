@@ -101,9 +101,7 @@ class TestWorkspace:
     def test_execute_controlfile(self):
 
         dir = os.path.dirname(os.path.realpath(__file__))
-        print(dir)
         test_dir = os.path.join(dir, "test_files")
-        print(test_dir)
         self.ws.WriteXML("ascii", np.array([1.0]),
                          os.path.join(test_dir, "vector.xml"))
         os.chdir(test_dir)
@@ -146,3 +144,25 @@ class TestWorkspace:
         self.ws.Tensor7Create("tensor_7")
         self.ws.tensor_7 = t_0
         assert np.all(t_0 == self.ws.tensor_7.value)
+
+    def test_execute_controlfile(self):
+
+        dir = os.path.dirname(os.path.realpath(__file__))
+        test_dir = os.path.join(dir, "test_files")
+        self.ws.WriteXML("ascii", np.array([1.0]),
+                         os.path.join(test_dir, "vector.xml"))
+        os.chdir(test_dir)
+
+        agenda = self.ws.execute_controlfile("controlfile.arts")
+        self.ws.foo = "not bar"
+
+        @arts_agenda
+        def execute(ws):
+            ws.StringSet(ws.foo, "still not bar")
+            INCLUDE("controlfile.arts")
+            INCLUDE(agenda)
+
+        self.ws.execute_agenda(execute)
+
+        assert self.ws.foo.value == "bar"
+        os.remove(os.path.join(test_dir, "vector.xml"))

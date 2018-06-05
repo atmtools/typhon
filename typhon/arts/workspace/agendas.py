@@ -69,6 +69,13 @@ class Agenda:
     @staticmethod
     def parse(name):
         """Parse controlfile and return agenda representing the agenda.
+
+        Due to the way how ARTS works, agendas may not define WSVs with
+        the same name. In this case, parsing of the agenda will fail.
+        It is therefore not possible to parse an agenda twice which defines
+        new workspace variables. In this case the user will have to keep track
+        of the fist parsed agenda object.
+
         Args:
             name(str): Name of the control file. Is looked up recursively in the path
             specified by the ARTS_INCLUDE_PATH environmental variable.

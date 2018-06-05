@@ -14,8 +14,8 @@ import numpy  as np
 
 import ast
 from   ast      import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
-                       Expression, FunctionDef
-from   inspect  import getsource, getsourcelines
+                       Expression, Expr, FunctionDef
+from   inspect  import getsource, getclosurevars
 from contextlib import contextmanager
 from copy       import copy
 from functools  import wraps
@@ -30,6 +30,7 @@ from typhon.arts.workspace.variables import WorkspaceVariable, group_names, grou
 from typhon.arts.workspace.agendas   import Agenda
 from typhon.arts.workspace import variables as V
 from typhon.arts.workspace.output import CoutCapture
+from typhon.arts.workspace.utility import unindent
 
 imports = dict()
 
@@ -37,6 +38,35 @@ imports = dict()
 ################################################################################
 # ARTS Agenda Macro
 ################################################################################
+
+class Include:
+    """Simple helper class to handle INCLUDE statements in agenda definitions.
+
+    Attributes:
+
+        agenda: The included controlfile or agenda as
+            typhon.arts.workspace.agenda.Agenda object.
+    """
+    def __init__(self, agenda):
+        """ Create include from argument.
+
+        Args:
+
+            agenda (str, Agenda): Argument to the INCLUDE statement. This can
+                either be a string or an Agenda object.
+        """
+        if type(agenda) == str:
+            if not agenda in imports:
+                self.agenda = Agenda.parse(agenda)
+                imports[agenda] = self.agenda
+            else:
+                self.agenda = imports[agenda]
+        elif type(agenda) == Agenda:
+            self.agenda = agenda
+        else:
+            raise Exception("agenda argument must be either a controlfile"
+            " name or a typhon.arts.workspace.agenda.Agenda object.")
+
 def arts_agenda(func):
     """
     Parse python method as ARTS agenda
@@ -60,6 +90,7 @@ def arts_agenda(func):
     >>> ws.Copy(ws.inversion_iterate_agenda, inversion_iterate_agenda)
     """
     source = getsource(func)
+    source = unindent(source)
     ast = parse(source)
 
     func_ast = ast.body[0]
@@ -77,47 +108,62 @@ def arts_agenda(func):
 
     context = copy(func.__globals__)
     context.update({arg_name : ws})
+    # Add resolved non-local variables from closure.
+    nls, _, _, _ = getclosurevars(func)
+    context.update(nls)
 
     # Create agenda
     a_ptr = arts_api.create_agenda(func.__name__.encode())
     agenda = Agenda(a_ptr)
 
-    for e in func_ast.body:
-        if not type(e.value) == Call:
-            raise Exception("Agendas may only contain call expressions.")
+    illegal_statement_exception = Exception(
+        "Agenda definitions may only contain calls to WSMs of the"
+        "workspace argument " + arg_name + " or INCLUDE statements.")
 
-        # Extract workspace object.
+    for e in func_ast.body:
+
+
         try:
             call = e.value
+        except:
+            raise Exception("Agendas may only contain call expressions.")
+
+        # Include statement
+        if type(call.func) == Name:
+            if not call.func.id == "INCLUDE":
+                raise illegal_statement_exception
+            else:
+                args = []
+                for a in call.args:
+                    args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
+                    include = Include(*args)
+                    arts_api.agenda_append(agenda.ptr, include.agenda.ptr)
+        else:
             att  = call.func.value
             if not att.id == arg_name:
-                raise(Exception("Agenda definition may only contain call to WSMs of the "
-                                + "workspace argument " + arg_name + "."))
-        except:
-            raise(Exception("Agenda definition may only contain call to WSMs of the "
-                                + "workspace argument " + arg_name + "."))
+                raise illegal_statement_exception
 
-        # Extract method name.
-        try:
-            name = call.func.attr
-            m    = workspace_methods[name]
-            if not type(m) == WorkspaceMethod:
+            # Extract method name.
+            try:
+                name = call.func.attr
+                m    = workspace_methods[name]
+                if not type(m) == WorkspaceMethod:
+                    raise Exception(name + " is not a known WSM.")
+            except:
                 raise Exception(name + " is not a known WSM.")
-        except:
-            raise Exception(name + " is not a known WSM.")
 
-        # Extract positional arguments
-        args = [ws, m]
-        for a in call.args:
-            args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
+            # Extract positional arguments
+            args = [ws, m]
+            for a in call.args:
+                args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
 
-        # Extract keyword arguments
-        kwargs = dict()
-        for k in call.keywords:
-            kwargs[k.arg] = eval(compile(Expression(k.value), "<unknown>", 'eval'), context)
+            # Extract keyword arguments
+            kwargs = dict()
+            for k in call.keywords:
+                kwargs[k.arg] = eval(compile(Expression(k.value), "<unknown>", 'eval'), context)
 
-        # Add function to agenda
-        agenda.add_method(*args, **kwargs)
+            # Add function to agenda
+            agenda.add_method(*args, **kwargs)
     return agenda
 
 
@@ -247,6 +293,7 @@ class Workspace:
         # Set WSV value using the ARTS C API
         s  = VariableValueStruct(var)
         if s.ptr:
+
             e = arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
             if e:
                 arts_api.erase_variable(self.ptr, ws_id, group_id)
@@ -326,8 +373,32 @@ class Workspace:
         if not type(value) == WorkspaceVariable:
             t.erase()
 
+    def execute_agenda(self, agenda):
+        """ Execute agenda on workspace.
+
+        Args:
+
+            agenda (typhon.arts.workspace.agenda.Agenda): Agenda object to execute.
+
+        Raises:
+
+            ValueError: If argument is not of type typhon.arts.workspace.agenda.Agenda
+        """
+
+        value_error = ValueError("Argument must be of type agenda.")
+        if not type(agenda) is Agenda:
+            raise value_error
+
+        include_path_push(os.getcwd())
+        data_path_push(os.getcwd())
+
+        agenda.execute(self)
+
+        include_path_pop()
+        data_path_pop()
+
     def execute_controlfile(self, name):
-        """ Execute a given controlfile on the workspace.
+        """ Execute controlfile or agenda on workspace.
 
         This method looks recursively for a controlfile with the given name in the current
         directory and the arts include path. If such a file has been found it will be parsed
@@ -341,14 +412,16 @@ class Workspace:
 
             Exception: If parsing of the controlfile fails.
 
+        Returns:
+
+            The controlfile as parsed Agenda object.
+
         """
+
         if not name in imports:
-            imports[name] = Agenda.parse(name)
+            agenda = Agenda.parse(name)
+            imports[name] = agenda
 
-        include_path_push(os.getcwd())
-        data_path_push(os.getcwd())
+        self.execute_agenda(agenda)
 
-        imports[name].execute(self)
-
-        include_path_pop()
-        data_path_pop()
+        return agenda
