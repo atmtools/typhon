@@ -316,6 +316,14 @@ class Collocator:
             # moving on.
             dataset[name] = xr.concat(dataset[name], dim=main_dimension)
 
+            # How long is the time variable? Maybe it is just one value? We
+            # flat the dataset in the next steps and this one value might be
+            # repeated many times. Later, we have to sort and select the
+            # dataset according to its time coordinate. If we know that is
+            # actually just one value but repeated, we can speed-up the later
+            # processing.
+            one_time_step = dataset[name].time.size == 1
+
             # Flat the data: For collocating, we need a flat data structure.
             # Fortunately, xarray provides the very convenient stack method
             # where we can flat multiple dimensions to one. Which dimensions do
@@ -368,10 +376,17 @@ class Collocator:
             # period expanded by max_interval and limited by the global start
             # and end parameter:
             timer = time.time()
-            dataset[name] = dataset[name].isel(
-                collocation=(dataset[name]['time'] >= np.datetime64(start))
-                            & (dataset[name]['time'] <= np.datetime64(end))
-            )
+
+            # Maybe we had originally only one timestamp?
+            if one_time_step:
+                if dataset[name].time[0] < np.datetime64(start) \
+                        or dataset[name].time[0] > np.datetime64(end):
+                    return None, None
+            else:
+                dataset[name] = dataset[name].isel(
+                    collocation=(dataset[name]['time'] >= np.datetime64(start))
+                                & (dataset[name]['time'] <= np.datetime64(end))
+                )
             self.debug(f"{time.time()-timer:.2f} seconds for selecting time")
 
             # Filter out NaNs:
@@ -388,7 +403,11 @@ class Collocator:
                 return None, None
 
             timer = time.time()
-            dataset[name] = dataset[name].sortby("time")
+            # Only sort if the dataset consists of more than one timestamp and
+            # they are not already sorted.
+            if not (one_time_step
+                    or np.all(np.diff(dataset[name]["time"].values) >= 0)):
+                dataset[name] = dataset[name].sortby("time")
             self.debug(f"{time.time()-timer:.2f} seconds to sort")
 
         return dataset[primary.name], dataset[secondary.name]
