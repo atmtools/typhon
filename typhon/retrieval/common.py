@@ -35,7 +35,7 @@ class RetrievalProduct:
 
     def __init__(
             self, parameter=None, parameters_file=None, estimator=None,
-            trainer=None, ):
+            trainer=None, verbose=False):
         """Initialize a Retriever object
 
         Args:
@@ -64,6 +64,8 @@ class RetrievalProduct:
         # The trainer and/or model for this retriever:
         self.estimator = estimator
         self.trainer = trainer
+
+        self.verbose = verbose
 
         if parameters_file is not None:
             self.load_parameters(parameters_file)
@@ -142,7 +144,7 @@ class RetrievalProduct:
 
         return GridSearchCV(
             estimator, hyper_parameter, n_jobs=4,
-            refit=True, cv=3, verbose=2,
+            refit=True, cv=3, verbose=self.verbose,
         )
 
     @staticmethod
@@ -221,7 +223,7 @@ class RetrievalProduct:
 
             self.parameter.update(parameter)
 
-    def run(self, inputs):
+    def retrieve(self, inputs):
         """Predict the target values for data coming from arrays
 
         Args:
