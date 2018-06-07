@@ -6,7 +6,6 @@ atmlab implemented by Gerrit Holl.
 Created by John Mrziglod, June 2017
 """
 
-import random
 import time
 
 import numba
@@ -197,19 +196,21 @@ class Collocations(FileSet):
             filesets, **kwargs
         )
 
+        timer = time.time()
         for collocations, attributes in results:
             filename = self.get_filename(
                 [to_datetime(collocations.attrs["start_time"]),
                  to_datetime(collocations.attrs["end_time"])], fill=attributes
             )
 
-            timer = time.time()
-
             # Write the data to the file.
             self.write(collocations, filename)
 
             collocator.info(f"Store collocations to \n{filename}")
-            collocator.debug(f"{time.time()-timer:.2f}s for storing")
+
+        collocator.info(
+            f"{time.time()-timer:.2f}s for finding all collocations"
+        )
 
 
 @numba.jit
