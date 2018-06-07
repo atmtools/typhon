@@ -176,22 +176,31 @@ class SPAREICE:
 
         # Make the training and testing data:
         inputs_train, inputs_test, targets_train, targets_test \
-            = train_test_split(inputs, targets)
+            = train_test_split(inputs, targets, test_size=test_ratio)
 
-        print("Train SPARE-ICE")
+        self.info("Train SPARE-ICE")
         # If we have not trained it already, let's train it here:
         train_score = self.retrieval.train(
             inputs_train,
             targets_train,
         )
-        print(f"Training score: {train_score:.2f}")
+        self.info(f"Training score: {train_score:.2f}")
 
         test_score = self.retrieval.score(inputs_test, targets_test)
-        print(f"Testing score: {test_score:.2f}")
+        self.info(f"Testing score: {test_score:.2f}")
 
-    def _get_retrieval_data(self, collocations, collocate, mhs, avhrr,
-                            start, end):
-        if collocate:
+    def _get_retrieval_data(self, collocations, mhs, avhrr, start, end):
+        # We need all original data (mhs, avhrr) if we do not have
+        # collocations:
+        if (mhs is None or avhrr is None) and collocations is None:
+            raise ValueError(
+                "If no collocations are given, you need to pass the original "
+                "data of MHS and AVHRR!"
+            )
+
+        if mhs is None:
+            yield from collocations.icollect(start=start, end=end)
+        else:
             data_iterator = self.collocator.collocate_filesets(
                 [avhrr, mhs], start=start, end=end, processes=10,
                 max_interval="5 min", max_distance="7.5 km",
@@ -213,20 +222,14 @@ class SPAREICE:
                 # Write the data to the file.
                 self.debug(f"Store collocations to \n{filename}")
                 collocations.write(data, filename)
-        elif collocations is None:
-            raise ValueError(
-                "You must pass a Collocations object via `collocations`."
-            )
-        else:
-            yield from collocations.icollect(start=start, end=end)
 
     def retrieve(
-            self, collocations=None, collocate=True, mhs=None, avhrr=None,
+            self, collocations=None, mhs=None, avhrr=None,
             output=None, start=None, end=None,
     ):
 
         data_iterator = self._get_retrieval_data(
-            collocations, collocate, mhs, avhrr, start, end
+            collocations, mhs, avhrr, start, end
         )
 
         for data, attributes in data_iterator:
