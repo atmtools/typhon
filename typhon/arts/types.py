@@ -10,9 +10,10 @@ from .griddedfield import (GriddedField1,
                            GriddedField6,
                            GriddedField7,
                            )
+from .covariancematrix import (CovarianceMatrix)
 from .scattering import (SingleScatteringData,
                          ScatteringMetaData,
-                         )
+                        )
 from .retrieval import (RetrievalQuantity)
 from .catalogues import (ArrayOfLineRecord,
                          CIARecord,
@@ -40,6 +41,7 @@ __all__ = []
 classes = {
     'ArrayOfLineRecord': ArrayOfLineRecord,
     'CIARecord': CIARecord,
+    'CovarianceMatrix' : CovarianceMatrix,
     'GasAbsLookup': GasAbsLookup,
     'GriddedField1': GriddedField1,
     'GriddedField2': GriddedField2,

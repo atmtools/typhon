@@ -41,6 +41,7 @@ class Agenda:
                                        len(args_out), arg_out_ptr,
                                        len(args_in), arg_in_ptr)
         else:
+            ws.Copy()
             group_id = arts_api.get_variable(args_out[0]).group
             arts_api.agenda_insert_set(ws.ptr, self.ptr, args_out[0], group_id)
 
