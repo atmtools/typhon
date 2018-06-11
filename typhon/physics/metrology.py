@@ -59,34 +59,6 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
     rv = sympy.sympify(0)
     sensitivities = {}
     components = {}
-    # the derivative to an indexed value inside a summation needs to be
-    # considered explicitly.  When we have \sum_n=1^N a_n, a naive u(y)
-    # will consider (d/da_n \sum_n=1^N a_n)^2 (u(a_n)^2 = N u(a_n)^2,
-    # which takes a_n out of the summation and is wrong.  It should be
-    # \sum_n=1^N (d/da_n a_n)^2 u(a_n)^2 = \sum_n=1^N u(a_n)^2, i.e., we
-    # need to explicitly take the expression of uncertainty inside the
-    # summation.
-    #
-    # Any other expression with limits that is not a sum, such as a
-    # product, is currently not supported.
-    # Nor are nested sums.
-    for ewl in recursive_args(expr,
-            stop_at=sympy.concrete.expr_with_limits.ExprWithLimits):
-        if isinstance(ewl, sympy.Sum):
-            # FIXME: THIS IS WRONG?  This is correct if and only if the
-            # Sum is at the top-level.  If the sum is inside anything
-            # else, then THIS IS WRONG?  NO IT IS NOT WRONG!  In the
-            # expression of uncertainty we ALWAYS get a summation on the
-            # outside.  But it needs to be squared and all.  Need to
-            # check.  But may not be wrong??
-            rv += sympy.Sum(express_uncertainty(
-                        ewl.args[0], aliases, on_failure,
-                        collect_failures), ewl.args[1])
-            # FIXME: sensitivities and components!
-        else:
-            raise ValueError(f"Failed to express uncertainty in {expr!s}. "
-                "Uncertainty in {ewl!s} not supported.  The "
-                "only expression with limits supported is the summation.")
     recargs = recursive_args(expr,
             stop_at=(sympy.Symbol, sympy.Indexed,
                      sympy.concrete.expr_with_limits.ExprWithLimits))
@@ -94,7 +66,9 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
         recargs.add(expr) # probably a loose Symbol or Indexed
     for sym in recargs:
         if isinstance(sym, sympy.concrete.expr_with_limits.ExprWithLimits):
-            continue # already considered above
+            raise ValueError(f"Failed to express uncertainty in {expr!s}. "
+                f"Uncertainty in {sym!s} not supported.  You must "
+                "substitute limits and expand summation fully.")
         sym = aliases.get(sym, sym)
         try:
             sigma = sympy.diff(expr, sym)
