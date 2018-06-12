@@ -24,15 +24,6 @@ __all__ = [
 ]
 
 
-class InvalidCollocationData(Exception):
-    """Error when trying to collapse / expand invalid collocation data
-
-    """
-
-    def __init__(self, message, *args):
-        Exception.__init__(self, message, *args)
-
-
 class Collocations(FileSet):
     """Class for finding and storing collocations between FileSet objects
 
