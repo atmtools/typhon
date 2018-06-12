@@ -1,8 +1,9 @@
 try:
     import json_tricks
+    json_tricks_loaded = True
 except ImportError:
     # Loading and saving of the retriever is not possible
-    pass
+    json_tricks_loaded = False
 
 import numpy as np
 import pandas as pd
@@ -182,7 +183,7 @@ class RetrievalProduct:
             setattr(sklearn_obj, attr, value)
 
     def load_parameters(self, filename):
-        """ Loads the training parameters from a JSON file.
+        """ Load the training parameters from a JSON file.
 
         Training parameters are:
         * weights of the neural networks (classifier and regressor)
@@ -195,6 +196,12 @@ class RetrievalProduct:
         Returns:
             None
         """
+
+        if not json_tricks_loaded:
+            raise ImportError(
+                "Could not load the json_tricks module, which is required to "
+                "load retrievals from json files."
+            )
 
         with open(filename, 'r') as infile:
             parameter = json_tricks.load(infile)
@@ -214,7 +221,7 @@ class RetrievalProduct:
                 raise ValueError("Found no coefficients for scaler!")
 
             scaler = self._create_model(
-                MinMaxScaler, scaler["params"], scaler["coefs"],
+                RobustScaler, scaler["params"], scaler["coefs"],
             )
 
             self.estimator = Pipeline([
@@ -261,7 +268,7 @@ class RetrievalProduct:
         return retrieved_data
 
     def save_parameters(self, filename):
-        """ Saves the training parameters as a JSON file.
+        """ Save the training parameters to a JSON file.
 
         Training parameters are:
             * configuration of the used estimator
@@ -275,6 +282,12 @@ class RetrievalProduct:
         Returns:
             None
         """
+
+        if not json_tricks_loaded:
+            raise ImportError(
+                "Could not load the json_tricks module, which is required to "
+                "save retrievals to json files."
+            )
 
         parameter = self.parameter.copy()
 
