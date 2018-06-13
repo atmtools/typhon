@@ -59,7 +59,16 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
     rv = sympy.sympify(0)
     sensitivities = {}
     components = {}
-    for sym in recursive_args(expr):
+    recargs = recursive_args(expr,
+            stop_at=(sympy.Symbol, sympy.Indexed,
+                     sympy.concrete.expr_with_limits.ExprWithLimits))
+    if recargs == set() and expr.args != (): # does not mean uncertainty is zero...!
+        recargs.add(expr) # probably a loose Symbol or Indexed
+    for sym in recargs:
+        if isinstance(sym, sympy.concrete.expr_with_limits.ExprWithLimits):
+            raise ValueError(f"Failed to express uncertainty in {expr!s}. "
+                f"Uncertainty in {sym!s} not supported.  You must "
+                "substitute limits and expand summation fully.")
         sym = aliases.get(sym, sym)
         try:
             sigma = sympy.diff(expr, sym)
@@ -119,9 +128,12 @@ def recursive_args(expr, stop_at=None, partial_at=None):
             # arg=Sum(T_PRT[n], (n, 0, N)), then arg.args[0]=T_PRT[n],
             # recursive_args(arg.args[0]) = set() (if sympy.Indexed is in
             # stop_at, such as by default), and neither gets added.
+            # We should also make sure that any variable that is summed
+            # over (stored in arg.args[1][0]) is excluded in any case.
             args.update((
                 {arg.args[0]} if isinstance(arg.args[0], stop_at) else set()) |
-                recursive_args(arg.args[0], stop_at=stop_at))
+                (recursive_args(arg.args[0], stop_at=stop_at)
+                 - {arg.args[1][0]}))
         else:
             args.update(recursive_args(arg, stop_at=stop_at))
     return args
