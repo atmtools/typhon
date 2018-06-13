@@ -480,13 +480,17 @@ class HIRSBestLineFilter(OverlapFilter):
         scores = self.ds.flagscore(rep)
         return numpy.argmin(scores)
 
-    def finalise(self, arr):
+    def finalise(self, arr, verify_overlap_consistency=False):
         """For all sets of duplicates, select optimal one
 
         Arguments:
 
             arr [ndarray], dtype with structured ndarray according to what
             the HIRS reading routine produces
+
+            verify_overlap_consistency [bool].  Verify that overlapping
+            scanlines have consistent information.  Defaults to False
+            because this can be very slow.
 
         Returns:
 
@@ -528,4 +532,3 @@ class HIRSBestLineFilter(OverlapFilter):
             # will thus be the index of our scanline of choice
             ii[multcnt_i] += self.select_winner(rep)
         return arrsrt[ii]
-
