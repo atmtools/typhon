@@ -375,15 +375,17 @@ class Collocator:
                 common_period = \
                     (dataset[name].time.values >= np.datetime64(common_start)) \
                     & (dataset[name].time.values <= np.datetime64(common_end))
+                common_period &= dataset[name].time.notnull()
 
             with Timer("select time"):
                 dataset[name] = dataset[name].isel(**{
-                    time_dim: common_period
+                    time_dim: common_period.values
                 })
             self.debug(f"{time.time()-timer:.2f} seconds for selecting time")
 
             timer = time.time()
-            dataset[name] = dataset[name].sortby("time")
+            if not np.all(np.diff(dataset[name].time.values) == 0):
+                dataset[name] = dataset[name].sortby("time")
             self.debug(f"{time.time()-timer:.2f} seconds to sort")
 
             # Flat the data: For collocating, we need a flat data structure.
@@ -397,11 +399,13 @@ class Collocator:
 
             # Filter out NaNs:
             timer = time.time()
-            not_nans = \
-                dataset[name].time.notnull() \
-                & dataset[name].lat.notnull() \
-                & dataset[name].lon.notnull()
-            dataset[name] = dataset[name].isel(collocation=not_nans)
+            with Timer("NaN - filter"):
+                not_nans = dataset[name].lat.notnull() \
+                           & dataset[name].lon.notnull()
+            with Timer("NaN - selection"):
+                dataset[name] = dataset[name].isel(
+                    collocation=not_nans.values
+                )
             self.debug(f"{time.time()-timer:.2f} seconds to filter nans")
 
             # Check whether something is left:
@@ -1003,6 +1007,8 @@ class Collocator:
             # name of the current dataset (primary or secondary)
             name = names[i]
 
+            print(dataset)
+
             # These are the indices of the points in the original data that
             # have collocations. We remove the duplicates since we want to copy
             # the required data only once. They are called original_indices
@@ -1055,18 +1061,18 @@ class Collocator:
             # coordinates (the dimenisons that we stacked to create the
             # multi-index in the first place) with that step. Hence, we store
             # the sub-level coordinates in additional dataset to preserve them.
-            # main_coord_is_multiindex = isinstance(
-            #     output[name].get_index("collocation"),
-            #     pd.core.indexes.multi.MultiIndex
-            # )
-            # if main_coord_is_multiindex:
-            #     stacked_dims_data = xr.merge([
-            #         xr.DataArray(
-            #             output[name][dim].values,
-            #             name=dim, dims=["collocation"]
-            #         )
-            #         for dim in output[name].get_index("collocation").names
-            #     ])
+            main_coord_is_multiindex = isinstance(
+                output[name].get_index("collocation"),
+                pd.core.indexes.multi.MultiIndex
+            )
+            if main_coord_is_multiindex:
+                stacked_dims_data = xr.merge([
+                    xr.DataArray(
+                        output[name][dim].values,
+                        name=dim, dims=["collocation"]
+                    )
+                    for dim in output[name].get_index("collocation").names
+                ])
 
             # Okay, actually we want to get rid of the main coordinate. It
             # should stay as a dimension name but without own labels. I.e. we
@@ -1075,12 +1081,12 @@ class Collocator:
             output[name]["collocation"] = \
                 np.arange(output[name]["collocation"].size)
 
-            # if main_coord_is_multiindex:
-            #     # Now, since we unstacked the multi-index, we can add the
-            #     # stacked dimensions back to the dataset:
-            #     output[name] = xr.merge(
-            #         [output[name], stacked_dims_data],
-            #     )
+            if main_coord_is_multiindex:
+                # Now, since we unstacked the multi-index, we can add the
+                # stacked dimensions back to the dataset:
+                output[name] = xr.merge(
+                    [output[name], stacked_dims_data],
+                )
 
             # Now, we can rename it (to make it to a member of this group) and
             # then we can drop it.
@@ -1097,6 +1103,8 @@ class Collocator:
                     for var_name in output[name].variables
                 }, inplace=True
             )
+
+            print("Rename:", output[name])
 
         # Merge all datasets into one:
         output = xr.merge(
