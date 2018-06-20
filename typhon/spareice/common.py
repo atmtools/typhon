@@ -57,6 +57,11 @@ from typhon.utils.timeutils import to_datetime
 import xarray as xr
 
 
+__all__ = [
+    'SPAREICE',
+]
+
+
 class SPAREICE:
 
     def __init__(self, file=None, collocator=None, verbose=1):
@@ -64,7 +69,9 @@ class SPAREICE:
             self.collocator = Collocator(
                 verbose=verbose,
             )
+        else:
             self.collocator = collocator
+
         self.retrieval = RetrievalProduct(
             parameters_file=file,
             verbose=verbose
@@ -119,6 +126,8 @@ class SPAREICE:
     @staticmethod
     def _get_inputs(data):
         """Get the input fields for SPARE-ICE training / retrieval"""
+        print(data)
+
         inputs = pd.DataFrame({
             "mhs_channel3": data["Data_btemps"].isel(
                 **{"MHS/channel": 2}
@@ -204,10 +213,9 @@ class SPAREICE:
             data_iterator = self.collocator.collocate_filesets(
                 [avhrr, mhs], start=start, end=end, processes=10,
                 max_interval="5 min", max_distance="7.5 km",
-                verbose=self.verbose,
             )
             for data, attributes in data_iterator:
-                yield collapse(data), attributes
+                yield collapse(data, reference="MHS"), attributes
 
                 # Shall we save the collocations to disk?
                 if collocations is None:
