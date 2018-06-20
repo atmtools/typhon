@@ -879,7 +879,7 @@ class FileSet:
         """
         return deepcopy(self)
 
-    def delete(self, verbose=True, **kwargs):
+    def delete(self, verbose=True, dry_run=False, **kwargs):
         """Remove files in this fileset from the disk
 
         Warnings:
@@ -888,6 +888,7 @@ class FileSet:
 
         Args:
             verbose: If true, debug messages will be printed.
+            dry_run: If true, all files that would be deleted are printed.
             **kwargs: Additional keyword arguments that are allowed
                 for :meth:`find` such as `start`, `end` or `files`.
 
@@ -906,11 +907,14 @@ class FileSet:
             fileset.delete()
         """
 
-        # Delete the files
-        self.map(
-            FileSet._delete_single_file,
-            kwargs={"verbose": verbose}, **kwargs
-        )
+        if dry_run:
+            self.map(FileSet._dry_delete, **kwargs)
+        else:
+            # Delete the files
+            self.map(
+                FileSet._delete_single_file,
+                kwargs={"verbose": verbose}, **kwargs
+            )
 
     @staticmethod
     def _delete_single_file(file, verbose=False):
@@ -918,6 +922,10 @@ class FileSet:
             print(f"Delete '{file}'!")
 
         os.remove(file)
+
+    @staticmethod
+    def _dry_delete(file):
+        print(f"[Dry] Delete '{file}'!")
 
     def detect(self, test, *args, **kwargs):
         """Search for anomalies in fileset
