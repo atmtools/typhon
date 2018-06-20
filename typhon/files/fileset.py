@@ -717,7 +717,7 @@ class FileSet:
         return args[0]
 
     def collect(self, start=None, end=None, files=None, return_info=False,
-                **map_args):
+                **kwargs):
         """Load all files between two dates sorted by their starting time
 
         Notes
@@ -743,7 +743,7 @@ class FileSet:
                 allowed to set `start` and `end` then.
             return_info: If true, return a FileInfo object with each content
                 value indicating to which file the function was applied.
-            **map_args: Additional keyword arguments that are allowed
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`map`. Some might be overwritten by this method.
 
         Returns:
@@ -776,7 +776,7 @@ class FileSet:
         # Actually, this method is nothing else than a customized alias for the
         # map method:
         map_args = {
-            **map_args,
+            **kwargs,
             "files": files,
             "start": start,
             "end": end,
@@ -812,12 +812,12 @@ class FileSet:
         else:
             return list(data)
 
-    def icollect(self, start=None, end=None, files=None, **map_args):
+    def icollect(self, start=None, end=None, files=None, **kwargs):
         """Load all files between two dates sorted by their starting time
 
         Does the same as :meth:`collect` but works as a generator. Instead of
         loading all files at the same time, it loads them in chunks (the chunk
-        size is defined by `max_workers). Hence, this method is less memory
+        size is defined by `max_workers`). Hence, this method is less memory
         space consuming but slower than :meth:`collect`. Simple hint: use this
         in for-loops but if you need all files at once, use :meth:`collect`
         instead.
@@ -829,7 +829,7 @@ class FileSet:
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
                 allowed to set *start* and *end* then.
-            **map_args: Additional keyword arguments that are allowed
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`imap`. Some might be overwritten by this method.
 
         Yields:
@@ -854,7 +854,7 @@ class FileSet:
         # Actually, this method is nothing else than a customized alias for the
         # imap method:
         map_args = {
-            **map_args,
+            **kwargs,
             "files": files,
             "start": start,
             "end": end,
@@ -878,6 +878,46 @@ class FileSet:
             The copied fileset object
         """
         return deepcopy(self)
+
+    def delete(self, verbose=True, **kwargs):
+        """Remove files in this fileset from the disk
+
+        Warnings:
+            The deleting of the files cannot be undone! There is no prompt
+            before deleting the files. Use this function with caution!
+
+        Args:
+            verbose: If true, debug messages will be printed.
+            **kwargs: Additional keyword arguments that are allowed
+                for :meth:`find` such as `start`, `end` or `files`.
+
+        Returns:
+            Nothing
+
+        Examples:
+
+        .. code-block:: python
+
+            fileset = FileSet(
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+            )
+
+            # Delete all files in this fileset:
+            fileset.delete()
+        """
+
+        # Delete the files
+        self.map(
+            FileSet._delete_single_file,
+            kwargs={"verbose": verbose}, **kwargs
+        )
+
+    @staticmethod
+    def _delete_single_file(file, verbose=False):
+        if verbose:
+            print(f"Delete '{file}'!")
+
+        os.remove(file)
 
     def detect(self, test, *args, **kwargs):
         """Search for anomalies in fileset
@@ -1988,7 +2028,7 @@ class FileSet:
                 yield files1[i], matches
 
     def move(
-            self, target=None, convert=None, copy=True, **find_args,
+            self, target=None, convert=None, copy=False, **kwargs,
     ):
         """Move (or copy) files from this fileset to another location
 
@@ -1997,15 +2037,16 @@ class FileSet:
                 placeholders) where the files should be moved to.
             convert: If true, the files will be read by the old fileset's file
                 handler and written to their new location by using the new file
-                handler from *to*. Both file handlers must be compatible, i.e.
-                the object that the old file handler's read method returns must
-                handable for the new file handler's write method. You
+                handler from `target`. Both file handlers must be compatible,
+                i.e. the object that the old file handler's read method returns
+                must handable for the new file handler's write method. You
                 can also set this to a function that converts the return value
                 of the read method into something else before it will be passed
                 to the write method. Default is false, i.e. the file will be
-                simply copied without converting.
-            copy: If true, then all files will be copied instead of moved.
-            **find_args: Additional keyword arguments that are allowed
+                simply moved without converting.
+            copy: If true, then the original files will be copied instead of
+                moved.
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`find` such as `start`, `end` or `files`.
 
         Returns:
@@ -2086,7 +2127,7 @@ class FileSet:
             }
 
             # Copy the files
-            self.map(FileSet._move_single_file, kwargs=move_args, **find_args)
+            self.map(FileSet._move_single_file, kwargs=move_args, **kwargs)
 
         return destination
 
