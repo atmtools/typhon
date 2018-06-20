@@ -84,8 +84,6 @@ class SEVIRI(HDF5):
             if name.startswith("channel_"):
                 dataset[name] = ["line", "column"], var.values
 
-        #print(dataset)
-
         # Convert the counts to brightness temperatures:
         dataset = self.counts_to_bt(dataset)
 
