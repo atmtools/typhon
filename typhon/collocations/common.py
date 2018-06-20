@@ -142,8 +142,8 @@ class Collocations(FileSet):
             the original files.
         * *fileset_name/__file_start* - Start time of the original file.
         * *fileset_name/__file_end* - End time of the original file.
-        * *collocations/{primary}.{secondary}/pairs* - Tells you which data
-            points are collocated with each other by giving their indices.
+        * *collocations/pairs* - Tells you which data points are collocated
+            with each other by giving their indices.
 
         And all additional fields that were loaded from the original files (you
         can control which fields should be loaded by the `read_args` parameter
@@ -154,28 +154,55 @@ class Collocations(FileSet):
 
         Args:
             filesets: A list of FileSet objects.
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional. If no date is given,
-                the *0000-01-01* wil be taken.
-            end: End date. Same format as `start`. If no date is given, the
-                *9999-12-31* wil be taken.
-            collocator:
-            skip_overlaps: If the files of the primary fileset overlap in
-                time, the overlapping data is used only once for collocating.
-            processes: The number of processes that should be used to
-                parallelize the collocation process. Default is 1.
+            collocator: If you want to use your own collocator, you can pass it
+                here. It must behave like
+                :class:`~typhon.collocations.collocator.Collocator`.
             log_dir: If given, the log files for the processes will be stored
                 in this directory.
             verbose: If true, it prints logging messages.
             **kwargs: Additional keyword arguments that are allowed for
-                :func:`collocate` except `data`.
+                :meth:`~typhon.collocations.collocator.Collocator.collocate_filesets`.
 
         Examples:
 
         .. :code-block:: python
 
-            # TODO Add examples
+            from typhon.collocations import Collocations
+            from typhon.files import FileSet, MHS_HDF, SEVIRI
+
+
+            # Define a fileset with the files from MHS / NOAA18:
+            mhs = FileSet(
+                name="MHS",
+                path="/path/to/files/{year}/{month}/{day}/*NSS.MHSX.*."
+                     "S{hour}{minute}.E{end_hour}{end_minute}.*.h5",
+                handler=MHS_HDF(),
+                read_args={
+                    "fields": ["Data/btemps"],
+                }
+            )
+
+            # Define a fileset with files from SEVIRI
+            seviri = FileSet(
+                name="SEVIRI",
+                path="/path/{year}/{month}/{day}/{hour}{minute}{second}.*.h5.gz",  # noqa
+                handler=SEVIRI(),
+                # Each file of CloudSat covers exactly 15 minutes.
+                time_coverage="15 minutes",
+            )
+
+            # Define where the collocations should be stored:
+            collocations = Collocations(
+                path="/path/MHS-{satname}_SEVIRI/{year}/{month}/{day}/"
+                     "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
+            )
+
+            # Search for collocations and store them
+            collocations.search(
+                [seviri, mhs], start="2013-12-10", end="20 Dec 2013",
+                processes=10, max_interval="5 min", max_distance="5 km",
+                verbose=2,
+            )
         """
         if collocator is None:
             collocator = Collocator(
