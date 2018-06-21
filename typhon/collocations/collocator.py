@@ -724,7 +724,7 @@ class Collocator:
         # that have unique values.
         new_dims = []
         for dim in dims:
-            new_dim = f"{dim}_replacement"
+            new_dim = f"__replacement_{dim}"
             data[new_dim] = dim, np.arange(data.dims[dim])
             data.swap_dims({dim: new_dim}, inplace=True)
             new_dims.append(new_dim)
@@ -788,9 +788,13 @@ class Collocator:
         #     results = pool.map(
         #         Collocator._spatial_search_bin, bins_with_args
         #     )
+        t = Timer(verbose=False).start()
         results = list(map(
             Collocator._spatial_search_bin, bins_with_args
         ))
+
+        self.debug(f"Collocated {len(results)} bins in {t.stop()}")
+
         pairs_list, distances_list = zip(*results)
         pairs = np.hstack(pairs_list)
 
@@ -1007,8 +1011,6 @@ class Collocator:
             # name of the current dataset (primary or secondary)
             name = names[i]
 
-            print(dataset)
-
             # These are the indices of the points in the original data that
             # have collocations. We remove the duplicates since we want to copy
             # the required data only once. They are called original_indices
@@ -1093,7 +1095,17 @@ class Collocator:
             output[name].rename(
                 {"collocation": f"{name}/collocation"}, inplace=True
             )
-            output[name] = output[name].drop(f"{name}/collocation")
+
+            # For the flattening we might have created temporal variables,
+            # delete them here:
+            vars_to_drop = [
+                var for var in output[name].variables.keys()
+                if var.startswith("__replacement_")
+            ]
+
+            output[name] = output[name].drop(
+                [f"{name}/collocation", *vars_to_drop],
+            )
 
             # We want to merge all datasets together (but as subgroups). Hence,
             # add the fileset name to each dataset as prefix:
@@ -1103,8 +1115,6 @@ class Collocator:
                     for var_name in output[name].variables
                 }, inplace=True
             )
-
-            print("Rename:", output[name])
 
         # Merge all datasets into one:
         output = xr.merge(
