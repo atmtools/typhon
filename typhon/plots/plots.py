@@ -24,6 +24,7 @@ __all__ = [
     'binned_statistic',
     'plot_distribution_as_percentiles',
     'heatmap',
+    'histogram',
     'scatter_density_plot_matrix',
     'diff_histogram',
     'profile_p',
@@ -224,6 +225,64 @@ def heatmap(x, y, bins=20, bisectrix=True, ax=None, **kwargs):
                 color='red', linestyle='--', linewidth=2)
 
     return img
+
+
+def histogram(data, kind=None, ax=None, **kwargs):
+    """Plot a histogram of a data array
+
+    Args:
+        data: A np.ndarray or xr.DataArray with the data that should be binned.
+        kind: Kind of histogram that should be plotted. Can be *standard*
+            (plot with bars, is default), *points* (scatter plot) or *line*
+            (line plot).
+        ax: Axes to plot in.
+        **kwargs: Additional keyword arguments passed to
+            :func:`matplotlib.pyplot.hist`.
+
+    Returns:
+        AxesImage.
+
+    Examples:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon.plots import histogram
+
+
+        x = np.random.randn(500)
+
+        fig, axes = plt.subplots(nrows=3)
+        kinds = ["standard", "points", "line"]
+        for i, kind in enumerate(kinds):
+            histogram(x, ax=axes[i], kind=kind)
+
+        plt.tight_layout()
+        plt.show()
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    if kind == "points" or kind == "line":
+        hist_keys = {"bins", "range", "normed", "weights", "density"}
+        hist_kwargs = {key: value for key, value in kwargs.items() if
+                       key in hist_keys}
+        y, bin_edges = np.histogram(data, **hist_kwargs)
+        bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+
+        plot_kwargs = {key: value for key, value in kwargs.items() if
+                       key not in hist_keys}
+        if kind == "points":
+            ax.scatter(bin_centers, y, **plot_kwargs)
+        elif kind == "line":
+            ax.plot(bin_centers, y, '-', **plot_kwargs)
+    elif kind is None or kind == "standard":
+        ax.hist(data, **kwargs)
+    else:
+        raise ValueError(f"Unknown kind of histogram: {kind}!")
+
 
 # Any commits made to this module between 2015-05-01 and 2017-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and

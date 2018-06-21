@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import time
 
 import numpy as np
+import numexpr as ne
 from netCDF4 import Dataset
 import xarray as xr
 
@@ -230,7 +231,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         )
 
         dataset["scnline"] = np.arange(1, dataset["scnline"].size+1)
-        dataset["scnpos"] = np.arange(1, 91)
+        dataset["scnpos"] = np.arange(1, 2049)
 
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
@@ -303,4 +304,6 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         # the left grid point. The ratio is between 0 and 1 and describes
         # whether the pixel is closer to its left grid point or to its right
         # one.
-        return all_pixels_ratio * (grid_right - grid_left) + grid_left
+        return ne.evaluate(
+            "all_pixels_ratio * (grid_right - grid_left) + grid_left"
+        )

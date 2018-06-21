@@ -591,7 +591,8 @@ class FileSet:
             info += "\nUser placeholder:\t" + str(self._user_placeholder)
         return info
 
-    def align(self, other, start=None, end=None, max_interval=None):
+    def align(self, other, start=None, end=None, matches=None,
+              max_interval=None):
         """Collect files from this fileset and a matching other fileset
 
         Warnings:
@@ -609,6 +610,10 @@ class FileSet:
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
+            matches: A list of matches between this fileset and `other`.
+                Normally, this is just the return value of :meth:`match`. These
+                matches will be used for aligning. If `matches` is given,
+                `start`, `end` and `max_interval` will be ignored.
             max_interval: A time interval (as string, number or timedelta
                 object) that expands the search time period for secondaries.
 
@@ -621,10 +626,12 @@ class FileSet:
         start = None if start is None else to_datetime(start)
         end = None if end is None else to_datetime(end)
 
-        # Find all overlapping files
-        matches = list(
-            self.match(other, start, end, max_interval=max_interval)
-        )
+        # Find all overlapping files. Or has the user already given some
+        # matches to us?
+        if matches is None:
+            matches = list(
+                self.match(other, start, end, max_interval=max_interval)
+            )
         primaries, secondaries = zip(*matches)
 
         # We have to consider the following to make the align method work
@@ -710,7 +717,7 @@ class FileSet:
         return args[0]
 
     def collect(self, start=None, end=None, files=None, return_info=False,
-                **map_args):
+                **kwargs):
         """Load all files between two dates sorted by their starting time
 
         Notes
@@ -736,7 +743,7 @@ class FileSet:
                 allowed to set `start` and `end` then.
             return_info: If true, return a FileInfo object with each content
                 value indicating to which file the function was applied.
-            **map_args: Additional keyword arguments that are allowed
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`map`. Some might be overwritten by this method.
 
         Returns:
@@ -769,7 +776,7 @@ class FileSet:
         # Actually, this method is nothing else than a customized alias for the
         # map method:
         map_args = {
-            **map_args,
+            **kwargs,
             "files": files,
             "start": start,
             "end": end,
@@ -805,12 +812,12 @@ class FileSet:
         else:
             return list(data)
 
-    def icollect(self, start=None, end=None, files=None, **map_args):
+    def icollect(self, start=None, end=None, files=None, **kwargs):
         """Load all files between two dates sorted by their starting time
 
         Does the same as :meth:`collect` but works as a generator. Instead of
         loading all files at the same time, it loads them in chunks (the chunk
-        size is defined by `max_workers). Hence, this method is less memory
+        size is defined by `max_workers`). Hence, this method is less memory
         space consuming but slower than :meth:`collect`. Simple hint: use this
         in for-loops but if you need all files at once, use :meth:`collect`
         instead.
@@ -822,7 +829,7 @@ class FileSet:
                 process, pass it here. The list can contain filenames or lists
                 (bundles) of filenames. If this parameter is given, it is not
                 allowed to set *start* and *end* then.
-            **map_args: Additional keyword arguments that are allowed
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`imap`. Some might be overwritten by this method.
 
         Yields:
@@ -847,7 +854,7 @@ class FileSet:
         # Actually, this method is nothing else than a customized alias for the
         # imap method:
         map_args = {
-            **map_args,
+            **kwargs,
             "files": files,
             "start": start,
             "end": end,
@@ -871,6 +878,54 @@ class FileSet:
             The copied fileset object
         """
         return deepcopy(self)
+
+    def delete(self, verbose=True, dry_run=False, **kwargs):
+        """Remove files in this fileset from the disk
+
+        Warnings:
+            The deleting of the files cannot be undone! There is no prompt
+            before deleting the files. Use this function with caution!
+
+        Args:
+            verbose: If true, debug messages will be printed.
+            dry_run: If true, all files that would be deleted are printed.
+            **kwargs: Additional keyword arguments that are allowed
+                for :meth:`find` such as `start`, `end` or `files`.
+
+        Returns:
+            Nothing
+
+        Examples:
+
+        .. code-block:: python
+
+            fileset = FileSet(
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+            )
+
+            # Delete all files in this fileset:
+            fileset.delete()
+        """
+
+        if dry_run:
+            self.map(FileSet._dry_delete, **kwargs)
+        else:
+            # Delete the files
+            self.map(
+                FileSet._delete_single_file,
+                kwargs={"verbose": verbose}, **kwargs
+            )
+
+    @staticmethod
+    def _delete_single_file(file, verbose=False):
+        if verbose:
+            print(f"Delete '{file}'!")
+
+        os.remove(file)
+
+    @staticmethod
+    def _dry_delete(file):
+        print(f"[Dry] Delete '{file}'!")
 
     def detect(self, test, *args, **kwargs):
         """Search for anomalies in fileset
@@ -1352,77 +1407,6 @@ class FileSet:
         intervals = np.min(np.abs(np.asarray(times) - timestamp), axis=1)
         return files[np.argmin(intervals)]
 
-    def make_dirs(self, filename):
-        os.makedirs(
-            os.path.dirname(filename),
-            exist_ok=True
-        )
-
-    def match(
-            self, other, start=None, end=None, max_interval=None,
-            filters=None, other_filters=None):
-        """Find matching files between two filesets
-
-        Matching files are files that overlap each in their time coverage.
-
-        Args:
-            other: Another FileSet object.
-            start: Start date either as datetime object or as string
-                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
-                Hours, minutes and seconds are optional.
-            end: End date. Same format as "start".
-            max_interval: Maximal time interval in seconds between
-                two overlapping files. Must be an integer or float.
-            filters: The same filter argument that is allowed for
-                :meth:`find`.
-            other_filters: The same as `filter` but it will be applied to
-                `other`.
-
-        Yields:
-            A tuple with the :class:`FileInfo` object from this fileset and a
-            list with matching files from the other fileset.
-
-        Examples:
-            TODO: Add example
-        """
-        if max_interval is not None:
-            max_interval = to_timedelta(max_interval)
-            start = to_datetime(start) - max_interval
-            end = to_datetime(end) + max_interval
-
-        files1 = list(
-            self.find(start, end, filters=filters)
-        )
-        files2 = list(
-            other.find(start, end, filters=other_filters)
-        )
-
-        # Convert the times (datetime objects) to seconds (integer)
-        times1 = np.asarray([
-            file.times
-            for file in files1
-        ]).astype("M8[s]").astype(int).tolist()
-        times2 = np.asarray([
-            file.times
-            for file in files2
-        ]).astype("M8[s]").astype(int)
-
-        if max_interval is not None:
-            # Expand the intervals of the secondary fileset to close-in-time
-            # intervals.
-            times2[:, 0] -= int(max_interval.total_seconds())
-            times2[:, 1] += int(max_interval.total_seconds())
-
-        tree = IntervalTree(times2)
-
-        # Search for all overlapping intervals:
-        results = tree.query(times1)
-
-        for i, overlapping_files in enumerate(results):
-            matches = [files2[oi] for oi in sorted(overlapping_files)]
-            if matches:
-                yield files1[i], matches
-
     def get_filename(
             self, times, template=None, fill=None):
         """Generate the full path and name of a file for a time period
@@ -1668,6 +1652,12 @@ class FileSet:
                     f"Could not load the file information from cache file "
                     "'{filename}':\n{err}."
                 )
+
+    def make_dirs(self, filename):
+        os.makedirs(
+            os.path.dirname(filename),
+            exist_ok=True
+        )
 
     def map(
             self, func, args=None, kwargs=None, files=None, on_content=False,
@@ -1979,8 +1969,74 @@ class FileSet:
 
         return _return(file_info, True)
 
+    def match(
+            self, other, start=None, end=None, max_interval=None,
+            filters=None, other_filters=None):
+        """Find matching files between two filesets
+
+        Matching files are files that overlap each in their time coverage.
+
+        Args:
+            other: Another FileSet object.
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional.
+            end: End date. Same format as "start".
+            max_interval: Maximal time interval between two overlapping files.
+                If it is an integer or float, it will be interpreted as
+                seconds.
+            filters: The same filter argument that is allowed for
+                :meth:`find`.
+            other_filters: The same as `filter` but it will be applied to
+                `other`.
+
+        Yields:
+            A tuple with the :class:`FileInfo` object from this fileset and a
+            list with matching files from the other fileset.
+
+        Examples:
+            TODO: Add example
+        """
+        if max_interval is not None:
+            max_interval = to_timedelta(max_interval, numbers_as="seconds")
+            start = to_datetime(start) - max_interval
+            end = to_datetime(end) + max_interval
+
+        files1 = list(
+            self.find(start, end, filters=filters)
+        )
+        files2 = list(
+            other.find(start, end, filters=other_filters)
+        )
+
+        # Convert the times (datetime objects) to seconds (integer)
+        times1 = np.asarray([
+            file.times
+            for file in files1
+        ]).astype("M8[s]").astype(int).tolist()
+        times2 = np.asarray([
+            file.times
+            for file in files2
+        ]).astype("M8[s]").astype(int)
+
+        if max_interval is not None:
+            # Expand the intervals of the secondary fileset to close-in-time
+            # intervals.
+            times2[:, 0] -= int(max_interval.total_seconds())
+            times2[:, 1] += int(max_interval.total_seconds())
+
+        tree = IntervalTree(times2)
+
+        # Search for all overlapping intervals:
+        results = tree.query(times1)
+
+        for i, overlapping_files in enumerate(results):
+            matches = [files2[oi] for oi in sorted(overlapping_files)]
+            if matches:
+                yield files1[i], matches
+
     def move(
-            self, target=None, convert=None, copy=True, **find_args,
+            self, target=None, convert=None, copy=False, **kwargs,
     ):
         """Move (or copy) files from this fileset to another location
 
@@ -1989,15 +2045,16 @@ class FileSet:
                 placeholders) where the files should be moved to.
             convert: If true, the files will be read by the old fileset's file
                 handler and written to their new location by using the new file
-                handler from *to*. Both file handlers must be compatible, i.e.
-                the object that the old file handler's read method returns must
-                handable for the new file handler's write method. You
+                handler from `target`. Both file handlers must be compatible,
+                i.e. the object that the old file handler's read method returns
+                must handable for the new file handler's write method. You
                 can also set this to a function that converts the return value
                 of the read method into something else before it will be passed
                 to the write method. Default is false, i.e. the file will be
-                simply copied without converting.
-            copy: If true, then all files will be copied instead of moved.
-            **find_args: Additional keyword arguments that are allowed
+                simply moved without converting.
+            copy: If true, then the original files will be copied instead of
+                moved.
+            **kwargs: Additional keyword arguments that are allowed
                 for :meth:`find` such as `start`, `end` or `files`.
 
         Returns:
@@ -2078,7 +2135,7 @@ class FileSet:
             }
 
             # Copy the files
-            self.map(FileSet._move_single_file, kwargs=move_args, **find_args)
+            self.map(FileSet._move_single_file, kwargs=move_args, **kwargs)
 
         return destination
 
