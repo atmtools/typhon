@@ -8,4 +8,4 @@ spareice
 .. autosummary::
    :toctree: generated
 
-   Retriever
+   SPAREICE
