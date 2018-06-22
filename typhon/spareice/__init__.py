@@ -2,7 +2,7 @@
 
 """Implementation of SPARE-ICE
 
-This is a reimplementation of the toolkit developed by Gerit Holl for atmlab.
+This is a reimplementation of the toolkit developed by Gerrit Holl for atmlab.
 
 TODO: Extend documentation and credits.
 """
