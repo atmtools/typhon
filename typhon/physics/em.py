@@ -585,3 +585,100 @@ def zeeman_transitions(ju, jl, type):
             return np.arange(-ju+1, ju+1), np.arange(-ju, ju)
         else:
             return np.arange(-ju+2, ju+1), np.arange(-ju+1, ju)
+
+
+def zeeman_theta(u, v, w, z=0, a=0):
+    """ Find Zeeman angle along the magnetic field
+    """
+
+    try:
+        import sympy as sp
+    except ModuleNotFoundError:
+        raise RuntimeError("Must have sympy installed to use")
+
+    U, V, W, Z, A = np.meshgrid(u, v, w, z, a, copy=False)
+    N = len(U.flatten())
+
+    if type(sp.symbols('u')) == type(u):
+        sin = sp.sin
+        cos = sp.cos
+        acos = sp.acos
+        sqrt = sp.sqrt
+        d = np.empty((N), type(u))
+    else:
+        sin = np.sin
+        cos = np.cos
+        acos = np.arccos
+        sqrt = np.sqrt
+        d = np.empty((N), float)
+
+    for i in range(N):
+        H = np.array([U.flat[i], V.flat[i], W.flat[i]])
+        L = np.array([sin(Z.flat[i])*cos(A.flat[i]),
+                      sin(Z.flat[i])*sin(A.flat[i]), cos(Z.flat[i])])
+        d[i] = acos(H.dot(L) / sqrt(H.dot(H)))
+
+    if type(sp.symbols('u')) == type(u):
+        return d[0]
+
+    shape = []
+    for input in [u, v, w, z, a]:
+        if np.isscalar(input):
+            continue
+        shape.append(len(input))
+
+    if shape:
+        d = d.reshape(shape)
+    else:
+        d = d[0]
+
+    return d
+
+
+def zeeman_eta(u, v, w, z=0, a=0):
+
+    """ Find Zeeman angle along the magnetic field
+    """
+
+    try:
+        import sympy as sp
+    except ModuleNotFoundError:
+        raise RuntimeError("Must have sympy installed to use")
+
+    U, V, W, Z, A = np.meshgrid(u, v, w, z, a, copy=False)
+    N = len(U.flatten())
+
+    if type(sp.symbols('u')) == type(u):
+        sin = sp.sin
+        cos = sp.cos
+        atan2 = sp.atan2
+        d = np.empty((N), dtype=type(u))
+    else:
+        sin = np.sin
+        cos = np.cos
+        atan2 = np.arctan2
+        d = np.empty((N), dtype=float)
+
+    for i in range(N):
+        H = np.array([U.flat[i], V.flat[i], W.flat[i]])
+        L = np.array([sin(Z.flat[i])*cos(A.flat[i]),
+                      sin(Z.flat[i])*sin(A.flat[i]), cos(Z.flat[i])])
+        R = np.array([-sin(A.flat[i]), cos(A.flat[i]), 0])
+        p = H - L.dot(H) * H
+        d[i] = atan2(np.cross(R, p).dot(L), p.dot(R))
+
+    if type(sp.symbols('u')) == type(u):
+        return d[0]
+
+    shape = []
+    for input in [u, v, w, z, a]:
+        if np.isscalar(input):
+            continue
+        shape.append(len(input))
+
+    if shape:
+        d = d.reshape(shape)
+    else:
+        d = d[0]
+
+    return d

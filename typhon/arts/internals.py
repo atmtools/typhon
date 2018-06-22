@@ -60,6 +60,8 @@ class ARTSCAT5:
     _pb_ind = 9
     _qn_ind = 10
     _lm_ind = 11
+    _ze_ind = 12
+    _lsm_ind = 13
 
     def __init__(self, init_data=None):
         self._dictionaries = np.array([], dtype=dict)
@@ -95,8 +97,8 @@ class ARTSCAT5:
                                                "Data": np.array([])},
                                         "LM": {"Type": None,
                                                "Data": np.array([])},
-                                        "LSM": {"Type": None,
-                                                "Data": np.array([])}})
+                                        "ZE": None,
+                                        "LSM": {}})
 
         spec = lr[1].split('-')
         self.LineRecordData['spec'] = np.append(self.LineRecordData['spec'],
@@ -122,14 +124,18 @@ class ARTSCAT5:
         key = lr[9]
         i = 10
         qnr = ''
+        ze = {"POL": None}
         while i < len_lr:
             this = lr[i]
-            if this in ['QN', 'PB', 'LM']:
+            if this in ['QN', 'PB', 'LM', 'ZE', 'LSM']:
                 key = this
             elif key == 'QN':
                 qnr += ' ' + this
-            elif this == 'LSM':
-                i += 1
+            elif key == 'ZE':
+                ze = {"POL": lr[i], "GU": float(lr[i+1]),
+                      "GL": float(lr[i+2])}
+                i += 2
+            elif key == 'LSM':
                 x = int(lr[i])
                 i += 1
                 for nothing in range(x):
@@ -147,6 +153,7 @@ class ARTSCAT5:
         self._dictionaries[-1]['LM'] = LineMixing(self._dictionaries[-1]['LM'])
         self._dictionaries[-1]['PB'] = \
             PressureBroadening(self._dictionaries[-1]['PB'])
+        self._dictionaries[-1]['ZE'] = ze
 
     def _append_line_(self, line):
         """Appends a line from data
@@ -172,7 +179,9 @@ class ARTSCAT5:
         self._dictionaries = np.append(self._dictionaries,
                                        {'PB': line[self._pb_ind],
                                         'QN': line[self._qn_ind],
-                                        'LM': line[self._lm_ind]})
+                                        'LM': line[self._lm_ind],
+                                        'ZE': line[self._ze_ind],
+                                        'LSM': line[self._lsm_ind]})
         self._n += 1
 
     @property
@@ -442,7 +451,9 @@ class ARTSCAT5:
                 self.LineRecordData['gupp'][index],
                 self.pressurebroadening(index),
                 self.quantumnumbers(index),
-                self.linemixing(index))
+                self.linemixing(index),
+                self.zeemandata(index),
+                self.lineshapemodifiers(index))
 
     def get_arts_str(self, index):
         """Returns the arts-xml catalog string for line at index
@@ -465,6 +476,15 @@ class ARTSCAT5:
         text = str(self.linemixing(index))
         if len(text) > 0:
             s += ' LM ' + text
+        if self.zeemandata(index)['POL']:
+            s += ' ZE ' + str(self.zeemandata(index)['POL']) + ' '
+            s += str(self.zeemandata(index)['GU']) + ' '
+            s += str(self.zeemandata(index)['GL'])
+
+        if len(self.lineshapemodifiers(index)):
+            s += ' LSM ' + str(len(self.lineshapemodifiers(index)))
+            for i in self.lineshapemodifiers(index):
+                s += ' ' + i + ' ' + str(self.lineshapemodifiers(index)[i])
         return s
 
     def pressurebroadening(self, index):
@@ -482,16 +502,29 @@ class ARTSCAT5:
         """
         return self._dictionaries[index]['LM']
 
+    def zeemandata(self, index):
+        """Return line mixing entries for line at index
+        """
+        return self._dictionaries[index]['ZE']
+
+    def lineshapemodifiers(self, index):
+        """Return line mixing entries for line at index
+        """
+        return self._dictionaries[index]['LSM']
+
     def _error_in_length_message(self):
         return "Mis-matching length of vectors/lists storing line information"
 
-    def as_ArrayOfLineRecord(self):
+    def as_ArrayOfLineRecord(self, index=None):
         """Turns ARTSCAT5 into ArrayOfLineRecord that can be stored to file
         """
         out = []
-        for i in range(self._n):
-            out.append(self.get_arts_str(i))
-        if self._n == 0:
+        if index is None:
+            for i in range(self._n):
+                out.append(self.get_arts_str(i))
+        else:
+            out.append(self.get_arts_str(index))
+        if out == []:
             return ArrayOfLineRecord(data=[''], version='ARTSCAT-5')
         else:
             return ArrayOfLineRecord(data=out, version='ARTSCAT-5')
