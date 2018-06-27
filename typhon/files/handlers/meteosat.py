@@ -36,10 +36,11 @@ class SEVIRI(HDF5):
             for ch in range(1, 12)
         }
 
-        # The field with the scale and offset parameters for the channels
-        self.standard_fields.add(
+        # Standard fields can be overwritten by the user. However, we always
+        # need the field with the scale and offset parameters for the channels:
+        self.mandatory_fields = {
             "U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"  # noqa
-        )
+        }
 
         # Map the standard fields to standard names (make also the names of all
         # dimensions more meaningful):
@@ -47,6 +48,10 @@ class SEVIRI(HDF5):
             f"U-MARF/MSG/Level1.5/DATA/Channel {ch:02d}/IMAGE_DATA":
                 f"channel_{ch}"
             for ch in range(1, 12)
+        }
+        self.reverse_mapping = {
+            value: key
+            for key, value in self.mapping.items()
         }
         self.mapping["U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"] = "counts_to_rad"  # noqa
 
@@ -58,7 +63,8 @@ class SEVIRI(HDF5):
             file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk.
-            fields: ...
+            fields: Field names that you want to extract from this file as a
+                list.
             **kwargs: Additional keyword arguments that are valid for
                 :class:`typhon.files.handlers.common.NetCDF4`.
 
@@ -68,7 +74,13 @@ class SEVIRI(HDF5):
 
         # Here, the user fields overwrite the standard fields:
         if fields is None:
-            fields = self.standard_fields
+            fields = self.standard_fields | self.mandatory_fields
+        else:
+            fields = self.mandatory_fields | {
+                self.reverse_mapping[field]
+                for field in fields
+                if field not in ["time", "lat", "lon"]
+            }
 
         # We catch the user mapping here, since we do not want to deal with
         # user-defined names in the further processing. Instead, we use our own
@@ -165,26 +177,27 @@ class SEVIRI(HDF5):
 
         self._grid["lat"].attrs = {
             "long_name": "latitude",
-            "units": "degrees [-90 - 180]",
+            "units": "degrees [-90, 180]",
         }
         self._grid["lon"].attrs = {
             "long_name": "longitude",
-            "units": "degrees [-180 - 180]",
+            "units": "degrees [-180, 180]",
         }
 
         return self._grid
 
-    def counts_to_bt(self, dataset):
+    @staticmethod
+    def counts_to_bt(dataset):
         """Convert the counts to brightness temperatures
 
         Cold channels (4, 5, 6, 7, 8, 9, 10, 11) are converted to brightness
         temperatures while warm channels are converted to radiances.
 
         Args:
-            dataset:
+            dataset: A xarray.Dataset with counts
 
         Returns:
-
+            A xarray.Dataset with brightness temperatures.
         """
         # We have to convert in two steps:
         # 1) Convert the counts into radiances with the given offset and scale
@@ -194,7 +207,11 @@ class SEVIRI(HDF5):
         conversion_table = pd.read_csv(
             join(dirname(__file__), "seviri_radiances_to_bt.csv")
         )
-        for channel in range(1, 12):
+        for var in dataset.data_vars:
+            if not var.startswith("channel_"):
+                continue
+
+            channel = int(var.split("_")[1])
             coeffs = dataset["counts_to_rad"][channel-1].item(0)
             dataset[f"channel_{channel}"] = \
                 coeffs[0]*dataset[f"channel_{channel}"] + coeffs[1]
