@@ -180,7 +180,7 @@ class FileSet:
             files = FileSet(
                 path="/dir/{year}/{month}/{day}/{hour}{minute}{second}.nc",
                 name="MHS",
-                handler=MHS_HDF,
+                handler=MHS_HDF(),
             )
 
             # Find some files of the fileset:
@@ -576,7 +576,8 @@ class FileSet:
         else:
             start = end = time_args
 
-        self.write(value, times=(start, end), fill=fill)
+        filename = self.get_filename((start, end), fill=fill)
+        self.write(value, filename)
 
     def __repr__(self):
         return str(self)
@@ -1695,10 +1696,11 @@ class FileSet:
                 allowed to set `start` and `end` then.
             on_content: If true, the file will be read before `func` will be
                 applied. The content will then be passed to `func`.
-            pass_info: If `on_content` is true, this decides whether a FileInfo
-                object should be passed to `func`. Default is false.
+            pass_info: If `on_content` is true, this decides whether also the
+                `FileInfo` object of the read file should be passed to `func`.
+                Default is false.
             read_args: Additional keyword arguments that will be passed
-                to the reading function (see FileSet.read() for more
+                to the reading function (see :meth:`read` for more
                 information). Will be ignored if `on_content` is False.
             output: Set this to a path containing placeholders or a FileSet
                 object and the return value of `func` will be copied there if

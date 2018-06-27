@@ -2,9 +2,11 @@ Find collocations with typhon
 =============================
 
 .. Warning::
-   This tutorial is still under development and contains invalid code.
+   This tutorial is still under development and contains invalid code. It needs
+   to get updated to work under the new typhon versions.
 
 .. Hint::
+   NOTE: The code in the jupyter notebooks is old and needs to be updated!
    If you want to run the code from this tutorial on your machine as well,
    download
    :download:`spareice_tutorials.zip<_downloads/spareice_tutorials.zip>` and

@@ -1,5 +1,5 @@
-Using FileSet for data processing
-#################################
+Using filesets for data processing
+##################################
 
 .. contents:: :local:
 
@@ -36,6 +36,7 @@ filesets with different structures. Hence, save your time/energy/nerves and
 simply use the :class:`~typhon.files.fileset.FileSet` class.
 
 .. Hint::
+   NOTE: The code in the jupyter notebooks is old and needs to be updated!
    If you want to run the code from this tutorial on your machine as well,
    download
    :download:`spareice_tutorials.zip<_downloads/spareice_tutorials.zip>` and
@@ -126,7 +127,7 @@ Let's have a look at them:
    Times: [datetime.datetime(2018, 1, 3, 6, 0), datetime.datetime(2018, 1, 3, 12, 0)]
    Attributes: {}
 
-Surprisingly, *path* returns the path to the file and *times* is a list with
+The *path* returns the path to the file and *times* is a list with
 two datetime objects: the start and end time of the file. They are retrieved by
 the placeholders that were used in the `path` argument of the Dataset object.
 But what is about *attr* and why is it an empty dictionary? Additionally to the
@@ -685,10 +686,10 @@ TODO: The tutorial will be continued.
 Placeholders
 ============
 
-Standard placeholders
+Temporal placeholders
 +++++++++++++++++++++
 
-Allowed placeholders in the *path* argument are:
+Allowed temporal placeholders in the *path* argument are:
 
 +-------------+------------------------------------------+------------+
 | Placeholder | Description                              | Example    |
@@ -718,8 +719,8 @@ Allowed placeholders in the *path* argument are:
    99 = 1999)
 
 All those place holders are also allowed to have the prefix *end* (e.g.
-*end_year*). They will be used to retrieve the end of the time coverage from
-the filename.
+*end_year*). The FileSet will use them to retrieve the start and end of the
+time coverage from the file path.
 
 
 User-defined placeholders
@@ -728,19 +729,96 @@ User-defined placeholders
 Further recipes
 ===============
 
+TODO: Split this section and move it to FAQs.
 
-Use multiple processes
-++++++++++++++++++++++
+Use parallel processing
++++++++++++++++++++++++
 
+If you have many files in your fileset and you want to apply a function on all
+of them, you can use :meth:`~typhon.files.fileset.FileSet.map` to apply this
+function in parallel processes or threads.
+
+This simple example collects the start times from all files with parallel
+processes:
+
+.. code-block:: python
+
+   b_fileset = FileSet(
+       path="data/SatelliteB/{year}-{month}-{day}/"
+            "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
+   )
+
+   def get_start_time(file_info):
+       """Simple function to get the start time from each file"""
+       return file_info.times[0]
+
+   # Collect all start times in parallel processes:
+   start_times = b_fileset.map(get_start_time)
+
+You can control which type of parallel workers is used by setting `worker_type`
+to *process* or *thread*. The numbers of workers can be set via `max_workers`.
+
+How about processing the content from all files in a subroutine? For example,
+if we want to calculate the mean from all files. We can use the
+`on_content` option for doing this.
+
+.. code-block:: python
+
+   def get_mean(data):
+       """Simple function to get the average of the data"""
+       return data["data"].mean()
+
+   averaged_values = b_fileset.map(
+       get_mean,
+       # The on_content option passes the read content of the file instead its
+       # info object to the function:
+       on_content=True
+   )
+
+The `on_content` option passes the read content of the file instead of its info
+object to the function. If you need the file info object as well, you can set
+`pass_info` to *true*.
+
+You can limit the time period that should be processed, by passing `start` and
+`end`:
+
+.. code-block:: python
+
+   def get_mean(data):
+       """Simple function to get the average of the data"""
+       return data["data"].mean()
+
+   averaged_values = b_fileset.map(
+       get_mean, on_content=True, start="2018-01-01", end="2018-01-02",
+   )
+
+:meth:`~typhon.files.fileset.FileSet.map` always processes all files in the
+given time period, waits for all results and returns them after the last worker
+has finished. This might be very time-consuming for large filesets.
+:meth:`~typhon.files.fileset.FileSet.imap` allows to process just a chunk of
+the data and to get immediate results:
+
+.. code-block:: python
+
+   for mean in b_fileset.imap(get_mean, on_content=True):
+      # After the first worker has finished, this will be run immediately:
+      print(mean)
+
+You should consider this option if your RAM is limited.
 
 Copy or convert files
 +++++++++++++++++++++
 
+Use :meth:`~typhon.files.fileset.FileSet.move` to copy or convert files from a
+fileset.
 
 Use filters with magic indexing
 +++++++++++++++++++++++++++++++
+
+TODO
 
 
 Exclude or limit to time periods
 ++++++++++++++++++++++++++++++++
 
+TODO
