@@ -60,7 +60,7 @@ Datasets
 
    typhon.datasets
 
-File sets and handlers
+Filesets and handlers
 ----------------------
 
 .. toctree::

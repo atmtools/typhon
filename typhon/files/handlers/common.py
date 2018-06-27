@@ -132,10 +132,10 @@ def _xarray_rename_fields(dataset, mapping):
 class FileHandler:
     """Base file handler class.
 
-    This can be used alone or with the Dataset classes. You can
-    either initialize specific *reader* ,*info* or *writer* functions or
-    you can inherit from this class and override its methods. If you need a
-    very specialised and reusable file handler class, you should
+    This can be used alone or with the :class:`~typhon.files.fileset.FileSet`
+    classes. You can either initialize specific *reader* ,*info* or *writer*
+    functions or you can inherit from this class and override its methods. If
+    you need a very specialised and reusable file handler class, you should
     consider following the second approach.
     """
 
@@ -212,7 +212,7 @@ class FileHandler:
             **kwargs: Additional key word arguments.
 
         Returns:
-            An object containing the file's content.
+            An object containing the file's content (e.g. numpy array, etc.).
         """
         if self.reader is not None:
             # Some functions do not accept additional key word arguments (via
@@ -282,9 +282,9 @@ class FileInfo(os.PathLike):
 
         # If you need to access the path or other attributes directly, you can
         # do it like this:
-        file_info.path
-        file_info.times
-        file_info.attr
+        file_info.path   # "path/to/a/file.txt"
+        file_info.times  # [datetime(2018, 1, 1), datetime(2018, 1, 10)]
+        file_info.attr   # {}
     """
     def __init__(self, path=None, times=None, attr=None):
         """Initialise a FileInfo object.
