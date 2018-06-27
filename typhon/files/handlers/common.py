@@ -144,8 +144,7 @@ class FileHandler:
     reads_multiple_files = False
 
     def __init__(
-            self, reader=None, info=None, writer=None, data_merger=None,
-            data_concatenator=None, **kwargs):
+            self, reader=None, info=None, writer=None, **kwargs):
         """Initialize a filer handler object.
 
         Args:
@@ -159,17 +158,11 @@ class FileHandler:
             writer: Reference to a function that defines how to write the data
                 to a file. The function must accept the data object as first
                 and a :class:`FileInfo` object as second parameter.
-            data_merger: Reference to a function that can merge objects
-                returned by :meth:`read`.
-            data_concatenator: Reference to a function that can concatenate
-                objects returned by :meth:`read`.
         """
 
         self.reader = reader
         self.info = info
         self.writer = writer
-        self.data_merger = data_merger
-        self.data_concatenator = data_concatenator
 
         # If you want to ravel / flat the data coming from this file handler
         # (e.g., this is necessary for collocation routines), you need the
@@ -484,8 +477,8 @@ class HDF4(FileHandler):
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
-            fields: Field names that you want to extract from
-                this file as a list.
+            fields: Field names that you want to extract from this file as a
+                list.
             mapping: A dictionary that maps old field names to new field names.
                 If given, `fields` must contain the old field names.
 
