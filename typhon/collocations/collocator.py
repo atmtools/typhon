@@ -1,8 +1,4 @@
-import abc
-from collections import OrderedDict
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
-import logging
 from multiprocessing import Process, Queue
 import random
 import time
@@ -45,7 +41,7 @@ random.shuffle(PROCESS_NAMES)
 
 class Collocator:
     def __init__(
-            self, threads=None, verbose=1, name=None, log_dir=None
+            self, threads=None, verbose=1, name=None, #log_dir=None
     ):
         """Initialize a collocator object that can find collocations
 
@@ -55,6 +51,9 @@ class Collocator:
                 number of threads is the best, may be machine-dependent. So
                 this is a parameter that you can use to fine-tune the
                 performance.
+            verbose: The higher this integer value the more debug messages will
+                be printed. Integer value of 0 disable debug messages.
+            name: The name of this collocator.
         """
 
         # If no collocations are found, this will be returned. We need empty
@@ -90,8 +89,36 @@ class Collocator:
 
     def collocate_filesets(
             self, filesets, start=None, end=None, skip_overlaps=True,
-            processes=None, **kwargs
+            processes=None, add_identifiers=True, **kwargs
     ):
+        """Collocate two filesets with each other
+
+        Args:
+            filesets: A list of two FileSet objects
+            start: Start date either as datetime object or as string
+                ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
+                Hours, minutes and seconds are optional. If not given, it is
+                datetime.min per default.
+            end: End date. Same format as "start". If not given, it is
+                datetime.max per default.
+            skip_overlaps: Skip overlapping data in the first fileset.
+            processes: Collocating can be parallelised which improves the
+                performance significantly. Pass here the number of processes to
+                use.
+            add_identifiers: Add the original filename and index of the
+                collocated data to the output. This makes adding of additional
+                fields after collocating possible. Default is true.
+            **kwargs: Further keyword arguments that are allowed for
+                :meth:`collocate`.
+
+        Yields:
+            A xarray.Dataset with the collocated data. The results are not
+            ordered if you use more than one process. For more information
+            about the yielded value, have a look at :meth:`collocate`.
+
+        Examples:
+
+        """
         timer = time.time()
 
         if len(filesets) != 2:
@@ -146,7 +173,7 @@ class Collocator:
                 args=(
                     self, queue, PROCESS_NAMES[i],
                     filesets, matches_chunk, start, end,
-                    skip_overlaps
+                    skip_overlaps, add_identifiers
                 ),
                 kwargs=kwargs,
             )
@@ -206,7 +233,7 @@ class Collocator:
             queue.put(result)
 
     def collocate_files(
-        self, filesets, matches, start, end, skip_overlaps,
+        self, filesets, matches, start, end, skip_overlaps, add_identifiers,
             **kwargs
     ):
 
@@ -234,7 +261,7 @@ class Collocator:
 
             primary, secondary = self._prepare_data(
                 filesets, files, raw_data.copy(), start, end, max_interval,
-                skip_overlaps, last_primary_end
+                skip_overlaps, add_identifiers, last_primary_end
             )
 
             if primary is None:
@@ -293,7 +320,7 @@ class Collocator:
 
     def _prepare_data(self, filesets, files, dataset,
                       global_start, global_end, max_interval,
-                      remove_overlaps, last_primary_end):
+                      remove_overlaps, add_identifiers, last_primary_end):
         """Make the raw data almost ready for collocating
 
         Before we can collocate the data points, we need to flat them (if they
@@ -314,13 +341,14 @@ class Collocator:
             # What is the main dimension? Well, we simply use the first
             # dimension of the time variable.
             time_dim = dataset[name][0].time.dims[0]
-            timer = time.time()
-            dataset[name] = self._add_identifiers(
-                files[name], dataset[name], time_dim
-            )
-            self.debug(
-                f"{time.time()-timer:.2f} seconds for adding identifiers"
-            )
+            if add_identifiers:
+                timer = time.time()
+                dataset[name] = self._add_identifiers(
+                    files[name], dataset[name], time_dim
+                )
+                self.debug(
+                    f"{time.time()-timer:.2f} seconds for adding identifiers"
+                )
 
             # Concatenate all data: Since the data may come from multiple files
             # we have to concatenate them along their main dimension before
@@ -371,16 +399,14 @@ class Collocator:
             # and end parameter:
             timer = time.time()
 
-            with Timer("check time"):
-                common_period = \
-                    (dataset[name].time.values >= np.datetime64(common_start)) \
-                    & (dataset[name].time.values <= np.datetime64(common_end))
-                common_period &= dataset[name].time.notnull()
+            common_period = \
+                (dataset[name].time.values >= np.datetime64(common_start)) \
+                & (dataset[name].time.values <= np.datetime64(common_end))
+            common_period &= dataset[name].time.notnull()
 
-            with Timer("select time"):
-                dataset[name] = dataset[name].isel(**{
-                    time_dim: common_period.values
-                })
+            dataset[name] = dataset[name].isel(**{
+                time_dim: common_period.values
+            })
             self.debug(f"{time.time()-timer:.2f} seconds for selecting time")
 
             timer = time.time()
@@ -399,13 +425,11 @@ class Collocator:
 
             # Filter out NaNs:
             timer = time.time()
-            with Timer("NaN - filter"):
-                not_nans = dataset[name].lat.notnull() \
-                           & dataset[name].lon.notnull()
-            with Timer("NaN - selection"):
-                dataset[name] = dataset[name].isel(
-                    collocation=not_nans.values
-                )
+            not_nans = dataset[name].lat.notnull() \
+                       & dataset[name].lon.notnull()
+            dataset[name] = dataset[name].isel(
+                collocation=not_nans.values
+            )
             self.debug(f"{time.time()-timer:.2f} seconds to filter nans")
 
             # Check whether something is left:
@@ -416,21 +440,22 @@ class Collocator:
 
     @staticmethod
     def _add_identifiers(files, data, dimension):
-        """Add identifiers (file start and end time, original index) to
-        each data point.
+        """Add identifiers (file name and original index) to each data point
         """
         for index, file in enumerate(files):
-            if "__file_start" in data[index]:
+            if "__file_name" in data[index]:
                 # Apparently, we collocated and tagged this dataset
                 # already.
                 # TODO: Nevertheless, should we add new identifiers now?
                 continue
 
             length = data[index][dimension].shape[0]
-            data[index]["__file_start"] = \
-                dimension, np.repeat(np.datetime64(file.times[0]), length)
-            data[index]["__file_end"] = \
-                dimension, np.repeat(np.datetime64(file.times[1]), length)
+            # data[index]["__file_start"] = \
+            #     dimension, np.repeat(np.datetime64(file.times[0]), length)
+            # data[index]["__file_end"] = \
+            #     dimension, np.repeat(np.datetime64(file.times[1]), length)
+            data[index]["__file_name"] = \
+                dimension, np.repeat(file.path, length)
 
             # TODO: This gives us only the index per main dimension but what if
             # TODO: the data is more deeply stacked?
@@ -866,7 +891,6 @@ class Collocator:
         pairs[1] += offset2
         return pairs, distances
 
-    @Timer()
     def spatial_search(self, lat1, lon1, lat2, lon2, max_distance):
         # Finding collocations is expensive, therefore we want to optimize it
         # and have to decide which points to use for the index building.
@@ -990,7 +1014,6 @@ class Collocator:
     def _get_distances(lat1, lon1, lat2, lon2):
         return great_circle_distance(lat1, lon1, lat2, lon2)
 
-    @Timer()
     def _create_return(
             self, primary, secondary, primary_name, secondary_name,
             original_pairs, intervals, distances,
