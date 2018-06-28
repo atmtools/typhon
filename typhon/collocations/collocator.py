@@ -314,6 +314,15 @@ class Collocator:
                 for p, v in file[0].attr.items()
             }
 
+            for index, group in enumerate(map(lambda x: x.name, filesets)):
+                filenames = np.array([
+                    file_info.path for file_info in files[group]
+                ])
+                collocations[f"{group}/__file_name"] = \
+                    f"{group}/collocation", \
+                    filenames[collocations[f"{group}/__file_id"].values]
+                collocations = collocations.drop(f"{group}/__file_id")
+
             yield collocations, attributes
 
             debug_timer = time.time()
@@ -454,8 +463,7 @@ class Collocator:
             #     dimension, np.repeat(np.datetime64(file.times[0]), length)
             # data[index]["__file_end"] = \
             #     dimension, np.repeat(np.datetime64(file.times[1]), length)
-            data[index]["__file_name"] = \
-                dimension, np.repeat(file.path, length)
+            data[index]["__file_id"] = dimension, np.repeat(index, length)
 
             # TODO: This gives us only the index per main dimension but what if
             # TODO: the data is more deeply stacked?

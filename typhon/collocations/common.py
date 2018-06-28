@@ -205,10 +205,7 @@ class Collocations(FileSet):
             )
         """
         if collocator is None:
-            collocator = Collocator(
-                verbose=verbose,
-                log_dir=log_dir,
-            )
+            collocator = Collocator(verbose=verbose)
 
         results = collocator.collocate_filesets(
             filesets, **kwargs
