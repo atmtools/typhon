@@ -759,8 +759,8 @@ You can control which type of parallel workers is used by setting `worker_type`
 to *process* or *thread*. The numbers of workers can be set via `max_workers`.
 
 How about processing the content from all files in a subroutine? For example,
-if we want to calculate the mean from all files. We can use the
-`on_content` option for doing this.
+if we want to calculate the mean from all files. We can use the `on_content`
+option for doing this.
 
 .. code-block:: python
 
