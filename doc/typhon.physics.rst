@@ -14,8 +14,10 @@ physics
    frequency2wavelength
    frequency2wavenumber
    fresnel
+   integrate_water_vapor
    mixing_ratio2specific_humidity
    mixing_ratio2vmr
+   moist_lapse_rate
    planck
    planck_wavelength
    planck_wavenumber
@@ -23,11 +25,14 @@ physics
    radiance2rayleighjeansTb
    rayleighjeans
    rayleighjeans_wavelength
+   relative_humidity2vmr
    snell
    specific_humidity2mixing_ratio
    specific_humidity2vmr
+   standard_atmosphere
    stefan_boltzmann_law
    vmr2mixing_ratio
+   vmr2relative_humidity
    vmr2specific_humidity
    wavelength2frequency
    wavelength2wavenumber
