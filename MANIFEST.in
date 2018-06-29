@@ -1,10 +1,15 @@
 include DESCRIPTION.rst
 include LICENSE
+include KNOWN_ISSUES.md
 include typhon/VERSION
 recursive-include typhon *.act
+recursive-include typhon *.arts
 recursive-include typhon *.cpt
+recursive-include typhon *.dat
+recursive-include typhon *.gz
 recursive-include typhon *.mplstyle
 recursive-include typhon *.nc
+recursive-include typhon *.jpg
 recursive-include typhon *.tex
 recursive-include typhon *.txt
 recursive-include typhon *.xml
