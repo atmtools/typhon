@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
 
-from typhon.plots import mpl_colors
+from typhon.plots import cmap2rgba
 
 
 x = np.linspace(-2, 7, 100)
 
 fig, ax = plt.subplots()
-ax.set_prop_cycle(color=mpl_colors('max_planck'))
+ax.set_prop_cycle(color=cmap2rgba('max_planck'))
 for i in range(1, 5):
     ax.fill_between(x, norm.pdf(x, loc=i) / i, edgecolor='black')
 ax.set_ylim(bottom=0)

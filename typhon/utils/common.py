@@ -41,7 +41,7 @@ __all__ = [
 ]
 
 
-def deprecated(func=None, message=None):
+def deprecated(func=None, new_name=None, message=None):
     """Decorator which can be used to mark functions as deprecated.
 
     Examples:
@@ -60,21 +60,37 @@ def deprecated(func=None, message=None):
     # Return partial when no arguments are passed.
     # This allows a plain call of the decorator.
     if func is None:
-        return partial(deprecated, message=message)
+        return partial(deprecated, new_name=new_name, message=message)
 
     # Build warning message (with optional information).
-    msg = 'Call to deprecated function {name}.'
+    msg = f'\nCall to deprecated function `{func.__name__}`.'
+
+    if new_name is not None:
+        msg += f' Use `{new_name}` instead.'
+
     if message is not None:
-        msg = '\n'.join((msg, message))
+        msg += f'\n{message}'
 
     # Wrapper that prints the warning before calling the deprecated function.
     @wraps(func)
     def wrapper(*args, **kwargs):
-        warn(msg.format(name=func.__name__, message=message),
-             category=DeprecationWarning,
-             stacklevel=2,  # This ensures more useful stack information.
-             )
+        warn(msg, category=DeprecationWarning, stacklevel=2)
         return func(*args, **kwargs)
+
+    if wrapper.__doc__ is None:
+        wrapper.__doc__ = ''
+
+    wrapper.__doc__ += (
+        '\n\n    .. warning::\n       Function is deprecated'
+        ' and will be removed in a future version.'
+    )
+
+    if new_name is not None:
+        wrapper.__doc__ += f' Use :func:`{new_name}` instead.'
+
+    if message is not None:
+        wrapper.__doc__ += f'\n\n       {message}'
+
     return wrapper
 
 

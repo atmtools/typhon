@@ -5,24 +5,75 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-from . import constants
-from . import math
-from .physics import thermodynamics
-
-from typhon.utils import deprecated
+from typhon import constants
+from typhon import math
+from typhon.physics import thermodynamics
 
 
 __all__ = [
-    'iwv',
+    'relative_humidity2vmr',
+    'vmr2relative_humidity',
+    'integrate_water_vapor',
     'moist_lapse_rate',
-    'relative_humidity',
-    'vmr',
     'standard_atmosphere',
 ]
 
 
-@deprecated(new_name='typhon.physics.integrate_water_vapor')
-def iwv(vmr, p, T, z, axis=0):
+def relative_humidity2vmr(RH, p, T):
+    r"""Convert relative humidity into water vapor VMR.
+
+    .. math::
+        VMR = \frac{RH \cdot e_s(T)}{p}
+
+    Parameters:
+        RH (float or ndarray): Relative humidity.
+        p (float or ndarray): Pressue [Pa].
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float or ndarray: Volume mixing ratio [unitless].
+
+    See also:
+        :func:`~typhon.physics.vmr2relative_humidity`
+            Complement function (returns RH for given VMR).
+        :func:`~typhon.physics.e_eq_water_mk`
+            Used to calculate the equilibrium water vapor pressure.
+
+    Examples:
+        >>> relative_humidity2vmr(0.75, 101300, 300)
+        0.026185323887350429
+    """
+    return RH * thermodynamics.e_eq_water_mk(T) / p
+
+
+def vmr2relative_humidity(vmr, p, T):
+    r"""Convert water vapor VMR into relative humidity.
+
+    .. math::
+        RH = \frac{VMR \cdot p}{e_s(T)}
+
+    Parameters:
+        vmr (float or ndarray): Volume mixing ratio,
+        p (float or ndarray): Pressure [Pa].
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float or ndarray: Relative humiditity [unitless].
+
+    See also:
+        :func:`~typhon.physics.relative_humidity2vmr`
+            Complement function (returns VMR for given RH).
+        :func:`~typhon.physics.e_eq_water_mk`
+            Used to calculate the equilibrium water vapor pressure.
+
+    Examples:
+        >>> vmr2relative_humidity(0.025, 1013e2, 300)
+        0.71604995533615401
+    """
+    return vmr * p / thermodynamics.e_eq_water_mk(T)
+
+
+def integrate_water_vapor(vmr, p, T, z, axis=0):
     """Calculate the integrated water vapor (IWV).
 
     Parameters:
@@ -41,7 +92,6 @@ def iwv(vmr, p, T, z, axis=0):
     return math.integrate_column(vmr * rho, z, axis=axis)
 
 
-@deprecated(new_name='typhon.physics.moist_lapse_rate')
 def moist_lapse_rate(p, T, e_eq=None):
     r"""Calculate the moist-adiabatic temperature lapse rate.
 
@@ -93,63 +143,6 @@ def moist_lapse_rate(p, T, e_eq=None):
     return lapse
 
 
-@deprecated(new_name='typhon.physics.vmr2relative_humidity')
-def relative_humidity(vmr, p, T):
-    r"""Calculate relative humidity (RH).
-
-    .. math::
-        RH = \frac{VMR \cdot p}{e_s(T)}
-
-    Parameters:
-        vmr (float or ndarray): Volume mixing ratio,
-        p (float or ndarray): Pressure [Pa].
-        T (float or ndarray): Temperature [K].
-
-    Returns:
-        float or ndarray: Relative humiditity [unitless].
-
-    See also:
-        :func:`~typhon.atmosphere.vmr`
-            Complement function (returns VMR for given RH).
-        :func:`~typhon.physics.e_eq_water_mk`
-            Used to calculate the equilibrium water vapor pressure.
-
-    Examples:
-        >>> relative_humidity(0.025, 1013e2, 300)
-        0.71604995533615401
-    """
-    return vmr * p / thermodynamics.e_eq_water_mk(T)
-
-
-@deprecated(new_name='typhon.physics.relative_humidity2vmr')
-def vmr(RH, p, T):
-    r"""Calculate the volume mixing ratio (VMR).
-
-    .. math::
-        VMR = \frac{RH \cdot e_s(T)}{p}
-
-    Parameters:
-        RH (float or ndarray): Relative humidity.
-        p (float or ndarray): Pressue [Pa].
-        T (float or ndarray): Temperature [K].
-
-    Returns:
-        float or ndarray: Volume mixing ratio [unitless].
-
-    See also:
-        :func:`~typhon.atmosphere.relative_humidity`
-            Complement function (returns RH for given VMR).
-        :func:`~typhon.physics.e_eq_water_mk`
-            Used to calculate the equilibrium water vapor pressure.
-
-    Examples:
-        >>> vmr(0.75, 101300, 300)
-        0.026185323887350429
-    """
-    return RH * thermodynamics.e_eq_water_mk(T) / p
-
-
-@deprecated(new_name='typhon.physics.standard_atmosphere')
 def standard_atmosphere(z, fill_value='extrapolate'):
     """International Standard Atmosphere (ISA) as a function of height.
 

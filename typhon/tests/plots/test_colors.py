@@ -23,6 +23,14 @@ class TestColors:
         """Delete temporary file."""
         os.remove(self.f)
 
+    def test_cmap2rgba(self):
+        """Check colormap to RGB conversion."""
+        ref = np.loadtxt(os.path.join(self.ref_dir, 'viridis.txt'),
+                         comments='%')
+        rgb = colors.cmap2rgba('viridis', 256)[:, :3]  # ignore alpha
+
+        assert np.allclose(ref, rgb)
+
     def test_cmap2cpt(self):
         """Export colormap to cpt file."""
         colors.cmap2cpt('viridis', filename=self.f)
