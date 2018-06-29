@@ -14,6 +14,7 @@ plots
    cmap2c3g
    cmap2cpt
    cmap2ggr
+   cmap2rgba
    cmap2txt
    cmap_from_act
    cmap_from_txt

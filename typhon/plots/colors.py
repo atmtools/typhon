@@ -10,18 +10,23 @@ from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 from warnings import warn
 
-__all__ = ['mpl_colors',
-           'colors2cmap',
-           'cmap2txt',
-           'cmap2cpt',
-           'cmap2act',
-           'cmap2c3g',
-           'cmap2ggr',
-           'cmap_from_act',
-           'cmap_from_txt',
-           ]
+from typhon.utils import deprecated
+
+__all__ = [
+    'mpl_colors',
+    'cmap2rgba',
+    'colors2cmap',
+    'cmap2txt',
+    'cmap2cpt',
+    'cmap2act',
+    'cmap2c3g',
+    'cmap2ggr',
+    'cmap_from_act',
+    'cmap_from_txt',
+]
 
 
+@deprecated(new_name='typhon.plots.cmap2rgba')
 def mpl_colors(cmap=None, N=None):
     """Return a list of RGB values.
 
@@ -35,6 +40,34 @@ def mpl_colors(cmap=None, N=None):
 
     Examples:
         >>> mpl_colors('viridis', 5)
+        array([[ 0.267004,  0.004874,  0.329415,  1.      ],
+            [ 0.229739,  0.322361,  0.545706,  1.      ],
+            [ 0.127568,  0.566949,  0.550556,  1.      ],
+            [ 0.369214,  0.788888,  0.382914,  1.      ],
+            [ 0.993248,  0.906157,  0.143936,  1.      ]])
+    """
+    if cmap is None:
+        cmap = plt.rcParams['image.cmap']
+
+    if N is None:
+        N = plt.get_cmap(cmap).N
+
+    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
+
+
+def cmap2rgba(cmap=None, N=None):
+    """Convert a colormap into a list of RGBA values.
+
+    Parameters:
+        cmap (str): Name of a registered colormap.
+        N (int): Number of RGBA-values to return.
+            If ``None`` use the number of colors defined in the colormap.
+
+    Returns:
+        ndarray: RGBA-values.
+
+    Examples:
+        >>> cmap2rgba('viridis', 5)
         array([[ 0.267004,  0.004874,  0.329415,  1.      ],
             [ 0.229739,  0.322361,  0.545706,  1.      ],
             [ 0.127568,  0.566949,  0.550556,  1.      ],
@@ -104,7 +137,7 @@ def cmap2txt(cmap, filename=None, N=None, comments='%'):
         comments (str): Character to start comments with.
 
     """
-    colors = mpl_colors(cmap, N)
+    colors = cmap2rgba(cmap, N)
     header = 'Colormap "{}"'.format(cmap)
 
     if filename is None:
@@ -123,7 +156,7 @@ def cmap2cpt(cmap, filename=None, N=None):
         N (int): Number of colors.
 
     """
-    colors = mpl_colors(cmap, N)
+    colors = cmap2rgba(cmap, N)
     header = ('# GMT palette "{}"\n'
               '# COLOR_MODEL = RGB\n'.format(cmap))
 
@@ -167,7 +200,7 @@ def cmap2act(cmap, filename=None, N=None):
         N = 256
         warn('Maximum number of colors is 256.')
 
-    colors = mpl_colors(cmap, N)[:, :3]
+    colors = cmap2rgba(cmap, N)[:, :3]
 
     rgb = np.zeros(256 * 3 + 2)
     rgb[:colors.size] = (colors.flatten() * 255).astype(np.uint8)
@@ -189,7 +222,7 @@ def cmap2c3g(cmap, filename=None, N=None):
     if filename is None:
         filename = cmap + '.c3g'
 
-    colors = mpl_colors(cmap, N)
+    colors = cmap2rgba(cmap, N)
 
     header = (
         '/*'
@@ -227,7 +260,7 @@ def cmap2ggr(cmap, filename=None, N=None):
     if filename is None:
         filename = cmap + '.ggr'
 
-    colors = mpl_colors(cmap, N)
+    colors = cmap2rgba(cmap, N)
     header = ('GIMP Gradient\n'
               'Name: {}\n'
               '{}\n').format(cmap, len(colors) - 1)
