@@ -319,7 +319,7 @@ class FileSet:
                 parallelising some methods (e.g. writing in background). This
                 sets also the default for
                 :meth:`~typhon.files.fileset.FileSet.map`-like methods
-                (default is 4).
+                (default is 3).
             max_processes: Maximal number of processes that will be used for
                 parallelising some methods. This sets also the default for
                 :meth:`~typhon.files.fileset.FileSet.map`-like methods
@@ -458,7 +458,7 @@ class FileSet:
             )
 
         # The default worker settings for map-like functions
-        self.max_threads = 4 if max_threads is None else max_threads
+        self.max_threads = 3 if max_threads is None else max_threads
         self.max_processes = 4 if max_processes is None else max_processes
         self.worker_type = "process" if worker_type is None else worker_type
 
@@ -1822,8 +1822,7 @@ class FileSet:
                 workers = 1
 
             for func_args in worker_args:
-                if len(worker_queue) >= workers:
-                    yield worker_queue.popleft().result()
+                new_result = len(worker_queue) >= workers
 
                 worker_queue.append(
                     pool.submit(
@@ -1831,6 +1830,9 @@ class FileSet:
                         func_args,
                     )
                 )
+
+                if new_result:
+                    yield worker_queue.popleft().result()
 
             # Flush the rest:
             while worker_queue:

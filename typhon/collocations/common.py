@@ -437,7 +437,7 @@ def expand(dataset):
     duplicated data values are stored even if they collocate multiple times.
 
     Args:
-        dataset:
+        dataset: A xarray.Dataset object with collocated data.
 
     Returns:
         A xarray.Dataset object.

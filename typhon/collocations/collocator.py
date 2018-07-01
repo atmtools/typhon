@@ -212,6 +212,7 @@ class Collocator:
     def _print_progress(timer, total, current):
         if current == 0:
             progress = 0
+            elapsed_time = time.time() - timer
             expected_time = "unknown"
         else:
             progress = current / total
@@ -221,8 +222,13 @@ class Collocator:
                 seconds=int(elapsed_time * (1 / progress - 1))
             )
 
+        elapsed_time = timedelta(
+            seconds=int(elapsed_time)
+        )
+
         msg = "-"*79 + "\n"
-        msg += f"{100*progress:.0f}% done ({expected_time} hours remaining)\n"
+        msg += f"{100*progress:.0f}% done ({elapsed_time} hours, " \
+               f"{expected_time} hours remaining)\n"
         msg += "-"*79 + "\n"
         print(msg)
 
@@ -315,6 +321,8 @@ class Collocator:
             }
 
             for index, group in enumerate(map(lambda x: x.name, filesets)):
+                if f"{group}/__file_id" not in collocations:
+                    continue
                 filenames = np.array([
                     file_info.path for file_info in files[group]
                 ])
