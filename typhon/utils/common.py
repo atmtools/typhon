@@ -80,6 +80,11 @@ def deprecated(func=None, new_name=None, message=None):
     if wrapper.__doc__ is None:
         wrapper.__doc__ = ''
 
+    # Lines added to the docstring need to be indented with four spaces as this
+    # is technically the case for all lines except the first one.
+    # If this is not done, the Sphinx build will produce wrong results as the
+    # relative indentation of the added lines and the original docstring does
+    # not match.
     wrapper.__doc__ += (
         '\n\n    .. warning::\n       Function is deprecated'
         ' and will be removed in a future version.'
