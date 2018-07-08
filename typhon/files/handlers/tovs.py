@@ -4,9 +4,12 @@ import time
 import numpy as np
 import numexpr as ne
 from netCDF4 import Dataset
+from scipy.interpolate import interp1d
+from typhon.utils import Timer
 import xarray as xr
 
 from .common import NetCDF4, expects_file_info
+from .testers import check_lat_lon
 
 __all__ = [
     'AAPP_HDF',
@@ -163,6 +166,9 @@ class MHS_HDF(AAPP_HDF):
         # Make a fast check whether everything is alright
         self._test_coords(dataset)
 
+        # Check the latitudes and longitudes:
+        check_lat_lon(dataset)
+
         if user_mapping is not None:
             dataset.rename(user_mapping, inplace=True)
 
@@ -191,7 +197,8 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         }
 
     @expects_file_info()
-    def read(self, paths, mask_and_scale=True, **kwargs):
+    def read(self, paths, mask_and_scale=True, interpolate_packed_pixels=True,
+             **kwargs):
         """Read and parse MHS AAPP HDF5 files and load them to xarray
 
         Args:
@@ -201,6 +208,8 @@ class AVHRR_GAC_HDF(AAPP_HDF):
             mask_and_scale: Where the data contains missing values, it will be
                 masked with NaNs. Furthermore, data with scaling attributes
                 will be scaled with them.
+            interpolate_packed_pixels: Geo-location data is packed and must be
+                interpolated to use them as reference for each pixel.
             **kwargs: Additional keyword arguments that are valid for
                 :class:`~typhon.files.handlers.common.NetCDF4`.
 
@@ -233,6 +242,12 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         dataset["scnline"] = np.arange(1, dataset["scnline"].size+1)
         dataset["scnpos"] = np.arange(1, 2049)
 
+        # Currently, the AAPP converting tool seems to have a bug. Instead of
+        # retrieving 409 pixels per scanline, one gets 2048 pixels. The
+        # additional values are simply duplicates (or rather quintuplicates):
+        dataset = dataset.sel(scnpos=slice(4, None, 5))
+        dataset["scnpos"] = np.arange(1, 410)
+
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
 
@@ -240,10 +255,19 @@ class AVHRR_GAC_HDF(AAPP_HDF):
             self._mask_and_scale(dataset)
 
         # All geolocation fields are packed in the AVHRR GAC files:
-        self._interpolate_packed_pixels(dataset)
+        if interpolate_packed_pixels:
+            with Timer("interpolate pixels"):
+                self._interpolate_packed_pixels(dataset)
+            allowed_coords = {'channel', 'calib', 'scnline', 'scnpos'}
+        else:
+            allowed_coords = {'channel', 'calib', 'scnline', 'scnpos',
+                              'packed_pixels'}
 
         # Make a fast check whether everything is alright
-        self._test_coords(dataset, {'channel', 'calib', 'scnline', 'scnpos'})
+        self._test_coords(dataset, allowed_coords)
+
+        # Check the latitudes and longitudes:
+        check_lat_lon(dataset)
 
         if user_mapping is not None:
             dataset.rename(user_mapping, inplace=True)
@@ -252,58 +276,88 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
     @staticmethod
     def _interpolate_packed_pixels(dataset):
-        # We have 51 lat/lon pairs for each scanline starting from the 25th and
-        # ending at the 2025th pixel, i.e. we have to interpolate all pixels
-        # between them and extrapolate the pixels 1-24 and 2026-2048. We could
-        # apply scipy.interpolate.interp1d to each scanline but this would take
-        # around 6-7 seconds. This approach is faster:
+        given_pos = np.arange(5, 409, 8)
+        new_pos = np.arange(1, 410)
 
-        # The pixel number of each grid point (including the boundaries)
-        grid_pixel = np.zeros(53, dtype=int)
-        grid_pixel[1:-1] = np.arange(1, 52) * 40 - 16
-        grid_pixel[0] = 0
-        grid_pixel[-1] = 2047
+        lat_in = np.deg2rad(dataset["lat"].values)
+        lon_in = np.deg2rad(dataset["lon"].values)
 
-        # The pixels for that we want to have the interpolated grid values,
-        # i.e. actually all pixels
-        all_pixels = np.arange(2048)
+        x_in = np.cos(lon_in) * np.cos(lat_in)
+        y_in = np.sin(lon_in) * np.cos(lat_in)
+        z_in = np.sin(lat_in)
 
-        # The index of the closest grid point on the left side
-        left = all_pixels // 40
-        # The index of the closest grid point on the right side
-        right = left + 1
+        xf = interp1d(given_pos, x_in, fill_value="extrapolate")(new_pos)
+        yf = interp1d(given_pos, y_in, fill_value="extrapolate")(new_pos)
+        zf = interp1d(given_pos, z_in, fill_value="extrapolate")(new_pos)
+        lon = np.rad2deg(np.arctan2(yf, xf))
+        lat = np.rad2deg(np.arctan2(zf, np.sqrt(xf ** 2 + yf ** 2)))
 
-        # And the pixel number for left and right
-        all_pixels_ratio = (
-            (all_pixels - grid_pixel[left])
-            / (grid_pixel[right] - grid_pixel[left])
-        )
+        dataset["lat"] = ("scnline", "scnpos"), lat
+        dataset["lon"] = ("scnline", "scnpos"), lon
 
+        # The other packed variables will be simply padded:
         for var_name, var in dataset.data_vars.items():
             if "packed_pixels" not in var.dims:
                 continue
-            data = AVHRR_GAC_HDF._interpolate(
-                var.values, left, right, all_pixels_ratio
+
+            dataset[var_name] = xr.DataArray(
+                interp1d(
+                    given_pos, var.values, kind='nearest',
+                    fill_value="extrapolate"
+                )(new_pos), dims=("scnline", "scnpos")
             )
-            dataset[var_name] = ("scnline", "scnpos"), data
 
-    @staticmethod
-    def _interpolate(grid, left, right, all_pixels_ratio):
-        # Add the boundary values (we extrapolate here):
-        left_boundary = grid[:, 0] + (grid[:, 0] - grid[:, 1]) / 40 * 25
-        right_boundary = grid[:, -1] + (grid[:, -1] - grid[:, -2]) / 40 * 23
-        grid = np.column_stack([left_boundary, grid, right_boundary])
 
-        # And the values of the grid for the left and right point (we select
-        # here the values once, so we do not have to do it multiple times):
-        grid_left = grid[:, left]
-        grid_right = grid[:, right]
-
-        # Calculate the gradient between the closest left and right grid point,
-        # multiply it with the ratio of each pixel and add it to the value of
-        # the left grid point. The ratio is between 0 and 1 and describes
-        # whether the pixel is closer to its left grid point or to its right
-        # one.
-        return ne.evaluate(
-            "all_pixels_ratio * (grid_right - grid_left) + grid_left"
-        )
+    # @staticmethod
+    # def _interpolate_packed_pixels(dataset):
+    #     # We have 51 lat/lon pairs for each scanline starting from the 25th and
+    #     # ending at the 2025th pixel, i.e. we have to interpolate all pixels
+    #     # between them and extrapolate the pixels 1-24 and 2026-2048. We could
+    #     # apply scipy.interpolate.interp1d to each scanline but this would take
+    #     # around 6-7 seconds. This approach is faster:
+    #
+    #     # The pixel index of each grid point (including the boundaries)
+    #     grid_pixel = np.zeros(53, dtype=int)
+    #     grid_pixel[1:-1] = np.arange(1, 52) * 40 - 16
+    #     grid_pixel[0] = 0
+    #     grid_pixel[-1] = 409
+    #
+    #     # The pixels for that we want to have the interpolated grid values,
+    #     # i.e. actually all pixels
+    #     all_pixels = np.arange(409)
+    #
+    #     # The index of the closest grid point on the left side
+    #     left = ((all_pixels - 24) // 40) + 1
+    #     # The index of the closest grid point on the right side
+    #     right = left + 1
+    #
+    #     # Later, we need to know how much of the gradient between two grid
+    #     # points we have to add to obtain a new pixel in between. Therefore we
+    #     # need the position of new pixel as ratio: 0 means it lays on its left
+    #     # grid point, 1 means it lays on its right grid point.
+    #     all_pixels_ratio = (
+    #             (all_pixels - grid_pixel[left])
+    #             / (grid_pixel[right] - grid_pixel[left])
+    #     )
+    #
+    #     for var_name, var in dataset.data_vars.items():
+    #         if "packed_pixels" not in var.dims:
+    #             continue
+    #         data = AVHRR_GAC_HDF._interpolate(
+    #             var.values, left, right, all_pixels_ratio, var_name == "lat"
+    #         )
+    #         # Limit the latitudes and longitudes:
+    #         data = AVHRR_GAC_HDF._extend_periodically(data, var_name == "lat")
+    #
+    #         dataset[var_name] = ("scnline", "scnpos"), data
+    #
+    #
+    # @staticmethod
+    # def _extend_periodically(data, var_is_lat):
+    #     if var_is_lat:
+    #         data[data > 90] -= 180
+    #         data[data < -90] += 180
+    #     else:
+    #         data[data > 180] -= 360
+    #         data[data < -180] += 360
+    #     return data
