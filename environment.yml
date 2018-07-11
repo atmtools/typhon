@@ -2,14 +2,21 @@ name: typhon
 dependencies:
         - python>=3.6
         - cartopy
+        - cython
         - matplotlib>=1.4
         - netCDF4>=1.1.1
         - numba
         - numexpr
         - numpy>=1.13
         - pandas
+        - pint
         - pytest
         - scikit-learn
         - scipy>=0.15.1
         - setuptools>=0.7.2
+        - sphinx
+        - sphinx_rtd_theme
         - xarray>=0.10.2
+channels:
+        - conda-forge
+        - defaults
