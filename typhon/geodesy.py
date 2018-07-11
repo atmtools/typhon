@@ -987,7 +987,7 @@ def geometric_limb_zenith_angle(ellipsoid, r, lat, lon,
             D = d[:, 0] - d[:, 1]
 
             # These are the points of interest
-            these = np.logical_and(D > 0, np.logical_not(np.isnan(D)))
+            these = np.nan_to_num(D) > 0
 
             # The first of the zenith angles hitting the atmosphere is updated
             za_max = zenith_angles[these][0]
