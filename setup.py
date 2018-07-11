@@ -104,14 +104,16 @@ setup(
         'xarray>=0.10.2',
     ],
 
-    # List additional groups of dependencies here (e.g. development
-    # dependencies). You can install these using the following syntax,
-    # for example:
-    # $ pip install -e .[dev,test]
+    # Dependencies for additional features of the project (e.g. documentation).
+    # You can install these using the following syntax:
+    # >>> pip install .[docs]
+    # or for multiple features:
+    # >>> pip install .[docs,tests]
     extras_require={
         'docs': [
             'cartopy',
             'pint',
+            'sphinx_rtd_theme',
         ],
         'tests': [
             'pytest',
