@@ -116,11 +116,9 @@ $ git branch -D BRANCH_NAME
 $ git push origin --delete BRANCH_NAME
 ```
 # Anaconda development environment
-
 We strongly recommend to use
 [Anaconda](https://conda.io/docs/user-guide/install/download.html) for your
-Python development. Follow the instructions on the
-[linked page](https://conda.io/docs/user-guide/install/download.html) to set up
+Python development. Follow the instructions on the linked page to set up
 a working Anaconda system.
 
 For the development of typhon, you need to have a few more dependencies
@@ -139,7 +137,7 @@ typhon directory:
 conda env create -f environment.yml -n typhondev
 ```
 
-This will take awhile as packages are downloaded and installed.
+This will take a while as packages are downloaded and installed.
 In a current version of Anaconda, you can now activate this environment with:
 
 ```bash

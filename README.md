@@ -52,14 +52,7 @@ ARTS_BUILD_PATH: /path/to/arts/build/
 ```
 
 ## Documentation
-The documentation of the project is created with [Sphinx]. You can use the
-enclose Makefile to build your own documentation:
-```bash
-$ cd doc
-$ make html
-```
-
-A daily build version of the documentation is accessible
+A daily build of the documentation is accessible
 [online](http://radiativetransfer.org/misc/typhon/doc-trunk).
 Kindly note that bleeding edge features might not be covered.
 
