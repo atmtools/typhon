@@ -9,7 +9,10 @@ In order to contribute to typhon you need to be registered on
 [GitHub](https://github.com/join).
 
 ## Checklist
-This checklist also serves as table of contents.
+This checklist is closely based on a
+[blog post](http://blog.davidecoppola.com/2016/11/howto-contribute-to-open-source-project-on-github/)
+by Davide Coppola. It also serves as a table of contents.
+
 1. [Fork the project](#fork-the-project)
 2. [Clone your fork](#clone-the-forked-project)
 3. [Set up your fork](#set-up-cloned-fork)
@@ -82,6 +85,9 @@ The current active branch is the one with a ``*`` on the left.
 
 ## Work on your contribution
 Now you can start with the development of your new feature (or bug fix).
+We recommend to do this in a separate Anaconda environment. See the instructions
+further down on [how to set this up](#anaconda-development-environment).
+
 During the work you can use git's commit and push mechanism to save and track
 your changes.
 
@@ -109,8 +115,52 @@ To delete the branch in your local repository and on GitHub:
 $ git branch -D BRANCH_NAME
 $ git push origin --delete BRANCH_NAME
 ```
+# Anaconda development environment
 
-# Credits
-This file is closely based on a
-[blog post](http://blog.davidecoppola.com/2016/11/howto-contribute-to-open-source-project-on-github/)
-by Davide Coppola
+We strongly recommend to use
+[Anaconda](https://conda.io/docs/user-guide/install/download.html) for your
+Python development. Follow the instructions on the
+[linked page](https://conda.io/docs/user-guide/install/download.html) to set up
+a working Anaconda system.
+
+For the development of typhon, you need to have a few more dependencies
+installed than the average user. To make it as easy as possible for typhon
+developers, an `environment.yml` file is distributed in the toplevel directory
+of the typhon package. This can be used to install all needed dependencies for
+typhon development in a separate Anaconda environment.
+If you would like to know more about Python environments, check the
+[Managing environments](https://conda.io/docs/user-guide/tasks/manage-environments.html)
+section of the Anaconda documentation.
+
+To setup a typhon environment, execute the following command in the toplevel
+typhon directory:
+
+```bash
+conda env create -f environment.yml -n typhondev
+```
+
+This will take awhile as packages are downloaded and installed.
+In a current version of Anaconda, you can now activate this environment with:
+
+```bash
+conda activate typhondev
+```
+
+If the environment was successfully activated, your terminal prompt should be
+preceeded by the string `(typhondev)`.
+
+Now install typhon as usual:
+
+```bash
+pip install -e .
+```
+
+With all the dependencies available you can now also build the documentation in
+the `doc/` subdirectory:
+
+```bash
+cd doc
+make clean html
+```
+
+The documentation is now available as HTML files in `_build/html/`.
