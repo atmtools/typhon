@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 
-def get_cloud_properties(cloudmask, connectivity=4):
+def get_cloud_properties(cloudmask, connectivity=1):
     """Calculate basic cloud properties from binary cloudmask.
 
     Note:
@@ -37,7 +37,7 @@ def get_cloud_properties(cloudmask, connectivity=4):
     """
     cloudmask[np.isnan(cloudmask)] = 0
 
-    labels = measure.label(cloudmask, connecivity=connectivity)
+    labels = measure.label(cloudmask, connectivity=connectivity)
 
     return measure.regionprops(labels)
 
@@ -57,15 +57,17 @@ def neighbor_distance(cloudproperties):
     Returns: 
         list: List of nearest neighbor distances
     """
-    neighbor_distance = []
+    #neighbor_distance = []
     centroids = [prop.centroid for prop in cloudproperties]
+    indices = np.arange(len(centroids))
+    neighbor_distance = np.zeros(len(centroids))
+    centroids_array = np.asarray(centroids)
 
-    for point in centroids:
+    for n, point in enumerate(centroids):
         # use all center of mass coordinates, but the one from the point
-        mytree = sc.spatial.cKDTree(np.asarray(
-            centroids)[np.arange(len(centroids)) != centroids.index(point)])
+        mytree = sc.spatial.cKDTree(centroids_array[indices != n])
         dist, indexes = mytree.query(point)
-        neighbor_distance.append(dist)
+        neighbor_distance[n] = dist
 
     return neighbor_distance
 
@@ -92,28 +94,20 @@ def iorg(neighbor_distance, cloudmask):
         J. Adv. Model. Earth Syst., 9, 1046–1068, doi: 10.1002/2016MS000802.
         
     """
-    bins = np.arange(0, 200, 4)
-    bins_mid = bins[:-1] + .5
+    nn_sorted = np.sort(neighbor_distance)
+    
+    nncdf = np.array(range(len(neighbor_distance))) / len(neighbor_distance)
+    
+    # theoretical nearest neighbor cumulative frequency
+    # distribution (nncdf) of a random point process (Poisson)
+    lamb = (len(neighbor_distance) /
+            (cloudmask.shape[0] * cloudmask.shape[1]))
+    nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted**2)
 
-    try:
-        # nearest neighbor cumulative frequency distribution (nncdf)
-        nncdf, bins = np.histogram(neighbor_distance, bins=bins, normed=True,
-                                   cumulative=True)
-
-        # theoretical nearest neighbor cumulative frequency
-        # distribution (nncdf) of a random point process (Poisson)
-        lamb = (len(neighbor_distance) /
-                (cloudmask.shape[0] * cloudmask.shape[1]))
-        nncdf_poisson = 1 - np.exp(-lamb * np.pi * bins_mid**2)
-
-        iorg = sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
-    except:
-        iorg = np.nan
-
-    return iorg
+    return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
 
 
-def scai(cloudproperties, cloudmask, connectivity=4, NaNmask=None):
+def scai(cloudproperties, cloudmask, connectivity=1, NaNmask=None):
     """Calculate the cloud cluster index 'Simple Convective Aggregation 
         Index (SCAI)' following Tobin et al., 2012.  
 
@@ -150,7 +144,7 @@ def scai(cloudproperties, cloudmask, connectivity=4, NaNmask=None):
     N = len(centroids)
 
     # potential maximum of N depending on cloud connectivity
-    if connectivity == 4:
+    if connectivity == 1:
         chessboard = np.ones(cloudmask.shape).flatten()
         # assign every second element with "0"
         chessboard[np.arange(1, len(chessboard), 2)] = 0
@@ -159,13 +153,13 @@ def scai(cloudproperties, cloudmask, connectivity=4, NaNmask=None):
         # inlcude NaNmask
         chessboard[NaNmask == np.nan] = np.nan
         N_max = np.nansum(chessboard)
-    elif connectivity == 8:
+    elif connectivity == 2:
         chessboard[np.arange(1, cloudmask.shape[0], 2), :] = 0
         chessboard = np.reshape(chessboard, cloudmask.shape)
         chessboard[NaNmask == np.nan] = np.nan
         N_max = np.sum(chessboard)
     else:
-        raise ValueError('Connectivity argument can only be {4,8}')
+        raise ValueError('Connectivity argument not valid.')
 
     # distance between points (center of mass of clouds) in pairs
     di = pdist(centroids, 'euclidean')
@@ -173,6 +167,6 @@ def scai(cloudproperties, cloudmask, connectivity=4, NaNmask=None):
     D0 = sc.stats.mstats.gmean(di)
 
     # characteristic length of the domain (in pixels): diagonal of box
-    L = np.sqrt(cloudmask.shpae[0]**2 + cloudmask.shape[1]**2)
+    L = np.sqrt(cloudmask.shape[0]**2 + cloudmask.shape[1]**2)
 
     return N / N_max * D0 / L * 1000
