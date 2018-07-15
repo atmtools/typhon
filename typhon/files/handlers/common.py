@@ -139,10 +139,6 @@ class FileHandler:
     consider following the second approach.
     """
 
-    # Flag whether this file handler supports reading from multiple files at
-    # once, i.e. the read method accepts a list of file info objects as well.
-    reads_multiple_files = False
-
     def __init__(
             self, reader=None, info=None, writer=None, **kwargs):
         """Initialize a filer handler object.
