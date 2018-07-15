@@ -78,6 +78,7 @@ class SPAREICE:
         )
 
         self.verbose = verbose
+        self.name = "SPARE-ICE"
 
     def debug(self, msg):
         if self.verbose > 1:
@@ -126,7 +127,6 @@ class SPAREICE:
     @staticmethod
     def _get_inputs(data):
         """Get the input fields for SPARE-ICE training / retrieval"""
-        print(data)
 
         inputs = pd.DataFrame({
             "mhs_channel3": data["Data_btemps"].isel(
@@ -151,19 +151,19 @@ class SPAREICE:
             "relative_azimuth_angle":
                 data["AVHRR/Geolocation_Relative_azimuth_angle_mean"],
             "avhrr_channel1": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 1}
+                **{"AVHRR/channel": 0}
             ),
             "avhrr_channel2": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 2}
+                **{"AVHRR/channel": 1}
             ),
             "avhrr_channel3": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 3}
+                **{"AVHRR/channel": 2}
             ),
             "avhrr_channel4": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 4}
+                **{"AVHRR/channel": 3}
             ),
             "avhrr_channel5": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 5}
+                **{"AVHRR/channel": 4}
             ),
             "avhrr_scnpos": data["AVHRR/scnpos_mean"],
         })
@@ -198,7 +198,8 @@ class SPAREICE:
         test_score = self.retrieval.score(inputs_test, targets_test)
         self.info(f"Testing score: {test_score:.2f}")
 
-    def _get_retrieval_data(self, collocations, mhs, avhrr, start, end):
+    def _get_retrieval_data(self, collocations, mhs, avhrr, start, end,
+                            processes):
         # We need all original data (mhs, avhrr) if we do not have
         # collocations:
         if (mhs is None or avhrr is None) and collocations is None:
@@ -211,8 +212,8 @@ class SPAREICE:
             yield from collocations.icollect(start=start, end=end)
         else:
             data_iterator = self.collocator.collocate_filesets(
-                [avhrr, mhs], start=start, end=end, processes=10,
-                max_interval="5 min", max_distance="7.5 km",
+                [avhrr, mhs], start=start, end=end, processes=processes,
+                max_interval="30s", max_distance="7.5 km",
             )
             for data, attributes in data_iterator:
                 yield collapse(data, reference="MHS"), attributes
@@ -231,21 +232,74 @@ class SPAREICE:
                 self.debug(f"Store collocations to \n{filename}")
                 collocations.write(data, filename)
 
-    def retrieve(
+    def retrieve(self, data, from_collocations=False, as_log10=False):
+        """Retrieve SPARE-ICE for the input variables
+
+        Args:
+            data: A pandas.DataFrame object with required input fields (see
+                below).
+            from_collocations: If `data` comes from collocations, the fields
+                will be correctly transformed.
+            as_log10: If true, the retrieved IWP will be returned as logarithm
+                of base 10.
+
+        Returns:
+            A pandas DataFrame object with the retrieved IWP.
+        """
+        # We have to rename the variables when they come from collocations:
+        if from_collocations:
+            inputs = self._get_inputs(data)
+        else:
+            inputs = data
+
+        retrieved = self.retrieval.retrieve(inputs)
+        if not as_log10:
+            retrieved.rename(columns={"iwp_log10": "iwp"}, inplace=True)
+            retrieved["iwp"] = 10**retrieved["iwp"]
+
+        return retrieved
+
+    def retrieve_from_filesets(
             self, collocations=None, mhs=None, avhrr=None,
-            output=None, start=None, end=None,
+            output=None, start=None, end=None, processes=None,
     ):
+        """Retrieve SPARE-ICE from all files in a fileset
+
+        You can use this either with already collocated MHS and AVHRR data
+        (then use the parameter `collocations`) or can let MHS and AVHRR
+        collocate on-the-fly by passing the filesets with the raw data (use
+        `mhs` and `avhrr` then).
+
+        Args:
+            collocations:
+            mhs:
+            avhrr:
+            output:
+            start:
+            end:
+            processes:
+
+        Returns:
+            None
+        """
+        if processes is None:
+            processes = 1
 
         data_iterator = self._get_retrieval_data(
-            collocations, mhs, avhrr, start, end
+            collocations, mhs, avhrr, start, end, processes
         )
 
         for data, attributes in data_iterator:
-            inputs = self._get_inputs(data)
+            retrieved = self.retrieve(data, from_collocations=True)
+            retrieved = retrieved.to_xarray()
+            retrieved.rename({"index": "collocation"}, inplace=True)
 
-            retrieved = self.retrieval.retrieve(inputs)
-
-            # Add geolocation and time information:
+            # Add more information:
+            retrieved["iwp"].attrs = {
+                "units": "g/m^2",
+                "name": "Ice Water Path",
+                "description": "Ice Water Path retrieved from SPARE-ICE"
+            }
             retrieved["lat"] = data["lat"]
             retrieved["lon"] = data["lon"]
             retrieved["time"] = data["time"]
@@ -256,5 +310,5 @@ class SPAREICE:
             )
 
             # Write the data to the file.
-            self.debug(f"Store SPARE-ICE to \n{filename}")
+            self.info(f"Store SPARE-ICE to \n{filename}")
             output.write(retrieved, filename)
