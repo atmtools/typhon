@@ -1,9 +1,6 @@
 """
 This module contains classes to handle datasets consisting of many files.
 
-Have a look at this tutorial:
-http://radiativetransfer.org/misc/typhon/doc-trunk/tutorials/fileset.html
-
 Created by John Mrziglod, June 2017
 """
 
@@ -189,8 +186,8 @@ class FileSet:
                 print(file)
 
     References:
-        This is inspired by the implemented dataset classes in atmlab_ written
-        by Gerrit Holl.
+        The FileSet class is inspired by the implemented dataset classes in
+        atmlab_ developed by Gerrit Holl.
 
         .. _atmlab: http://www.radiativetransfer.org/tools/
 
@@ -315,13 +312,13 @@ class FileSet:
                 regular expression matching its content. These are user-defined
                 placeholders, the standard temporal placeholders do not have to
                 be defined.
-            max_threads: Maximal number of threads that will be used for
-                parallelising some methods (e.g. writing in background). This
+            max_threads: Maximal number of threads that will be used to
+                parallelise some methods (e.g. writing in background). This
                 sets also the default for
                 :meth:`~typhon.files.fileset.FileSet.map`-like methods
                 (default is 3).
-            max_processes: Maximal number of processes that will be used for
-                parallelising some methods. This sets also the default for
+            max_processes: Maximal number of processes that will be used to
+                parallelise some methods. This sets also the default for
                 :meth:`~typhon.files.fileset.FileSet.map`-like methods
                 (default is 8).
             worker_type: The type of the workers that will be used to
@@ -384,7 +381,8 @@ class FileSet:
         All those place holders are also allowed to have the prefix *end*
         (e.g. *end_year*). They represent the end of the time coverage.
 
-        Moreover, you are allowed do define your own placeholders. Their names
+        Moreover, you are allowed do define your own placeholders by using the
+        parameter `placeholder` or :meth:`set_placeholders`. Their names
         must consist of alphanumeric signs (underscores are also allowed).
         """
 
@@ -562,6 +560,9 @@ class FileSet:
 
             return self.read(filename)
 
+    def __len__(self):
+        return sum(1 for _ in self.find())
+
     def __setitem__(self, key, value):
         if isinstance(key, (tuple, list)):
             time_args = key[0]
@@ -593,7 +594,7 @@ class FileSet:
         return info
 
     def align(self, other, start=None, end=None, matches=None,
-              max_interval=None):
+              max_interval=None, return_info=True, compact=False):
         """Collect files from this fileset and a matching other fileset
 
         Warnings:
@@ -617,8 +618,14 @@ class FileSet:
                 `start`, `end` and `max_interval` will be ignored.
             max_interval: A time interval (as string, number or timedelta
                 object) that expands the search time period for secondaries.
+            return_info: Additionally, to the file content also its info object
+                will be returned.
+            compact: Not yet implemented. Decides how the collected data will
+                be returned.
 
         Yields:
+            If `return_info` False, it yields two objects: the primary and
+            secondary file content.
             Two dictionaries where the keys are always the name of the
             filesets. The values from the first are lists with
             :class:`FileInfo` objects of the opened files. The values from the
@@ -643,7 +650,7 @@ class FileSet:
         # be cached until we are sure that they won't be needed any longer.
 
         # This deals with part A:
-        # Se need the list flattened and without duplicates.
+        # We need the list flattened and without duplicates.
         unique_secondaries = unique(
             secondary for match in secondaries for secondary in match
         )
@@ -672,17 +679,21 @@ class FileSet:
             files[self.name] = [primaries[match_id]]
             data[self.name] = [primary_data]
 
-            to_delete = []
+            if return_info:
+                primary = [primaries[match_id], primary_data]
+            else:
+                primary = primary_data
 
             # We only need to load the secondary files that have not been
             # cached earlier:
-            for secondary_to_yield in matches[match_id][1]:
-                if secondary_to_yield not in cache:
-                    secondary_file, secondary_data = next(secondary_loader)
-                    if secondary_to_yield != secondary_file:
+            for secondary_file in matches[match_id][1]:
+
+                if secondary_file not in cache:
+                    secondary_loaded, secondary_data = next(secondary_loader)
+                    if secondary_file != secondary_loaded:
                         raise AlignError(
-                            f"Expected '{secondary_to_yield}'\nbut "
-                            f"'{secondary_file}' was loaded!\nDoes your "
+                            f"Expected '{secondary_file}'\nbut "
+                            f"'{secondary_loaded}' was loaded!\nDoes your "
                             f"fileset '{self.name}' contain files between that"
                             f"are completely overlapped by other files? "
                             f"Please exclude them via `exclude`."
@@ -690,28 +701,29 @@ class FileSet:
 
                     # Add the loaded secondary to the cache
                     cache[secondary_file] = secondary_data
+                else:
+                    secondary_data = cache[secondary_file]
 
-                files[other.name].append(secondary_to_yield)
-                data[other.name].append(cache[secondary_to_yield])
+                if return_info:
+                    secondary = [secondary_file, secondary_data]
+                else:
+                    secondary = secondary_data
+
+                # Yield the primary and secondary to the user:
+                yield primary, secondary
 
                 # Decrease the counter for this secondary:
-                secondary_usage[secondary_to_yield] -= 1
+                secondary_usage[secondary_file] -= 1
 
                 # Apparently, this secondary won't be needed any longer. Delete
-                # it from the cache after yielding it to the user
-                if not secondary_usage[secondary_to_yield]:
-                    to_delete.append(secondary_to_yield)
+                # it from the cache:
+                if not secondary_usage[secondary_file]:
+                    del cache[secondary_file]
 
-            yield files, data
-
-            # Delete the files from the cache that we do not need any longer:
-            for file_to_delete in to_delete:
-                del cache[file_to_delete]
-
-            # Tell the python interpreter explicitly to free up memory to
-            # improve performance (see
-            # https://stackoverflow.com/q/1316767/9144990):
-            gc.collect()
+                    # Tell the python interpreter explicitly to free up memory
+                    # to improve performance (see
+                    # https://stackoverflow.com/q/1316767/9144990):
+                    gc.collect()
 
     @staticmethod
     def _pseudo_passer(*args):
@@ -985,8 +997,8 @@ class FileSet:
         return file.times in self._exclude_times
 
     def find(
-            self, start=None, end=None, sort=True, bundle=None, filters=None,
-            no_files_error=True, verbose=False,
+            self, start=None, end=None, sort=True, only_path=False,
+            bundle=None, filters=None, no_files_error=True, verbose=False,
     ):
         """ Find all files of this fileset in a given time period.
 
@@ -1006,6 +1018,9 @@ class FileSet:
                 datetime.max per default.
             sort: If true, all files will be yielded sorted by their starting
                 and ending time. Default is true.
+            only_path: If true, only the paths of the files will be returned
+                not their :class:`~typhon.files.handlers.common.FileInfo`
+                object.
             bundle: Instead of only yielding one file at a time, you can get a
                 bundle of files. There are two possibilities: by setting this
                 to an integer, you can define the size of the bundle directly
@@ -1136,7 +1151,9 @@ class FileSet:
 
         # Even if no files were found, the user does not want to know.
         if not no_files_error:
-            yield from self._prepare_find_return(file_finder, sort, bundle)
+            yield from self._prepare_find_return(
+                file_finder, sort, only_path, bundle
+            )
             return
 
         # The users wants an error to be raised if no files were found. Since
@@ -1149,7 +1166,9 @@ class FileSet:
             next(check_files)
 
             # We have found some files and can return them
-            yield from self._prepare_find_return(return_files, sort, bundle)
+            yield from self._prepare_find_return(
+                return_files, sort, only_path, bundle
+            )
         except StopIteration as err:
             raise NoFilesError(self, start, end)
 
@@ -1292,13 +1311,14 @@ class FileSet:
         return True
 
     @staticmethod
-    def _prepare_find_return(file_iterator, sort, bundle_size):
+    def _prepare_find_return(file_iterator, sort, only_path, bundle_size):
         """Prepares the return value of the find method.
 
         Args:
             file_iterator: Generator function that yields the found files.
             sort: If true, all found files will be sorted according to their
                 starting and ending times.
+            only_path:
             bundle_size: See the documentation of the *bundle* argument in
                 :meth:`find` method.
 
@@ -1310,7 +1330,8 @@ class FileSet:
         if sort or isinstance(bundle_size, int):
             # Sort the files by starting and ending time:
             file_iterator = sorted(
-                file_iterator, key=lambda x: (x.times[0], x.times[1]))
+                file_iterator, key=lambda x: (x.times[0], x.times[1])
+            )
 
         if bundle_size is None:
             yield from file_iterator
@@ -2029,9 +2050,8 @@ class FileSet:
             times2[:, 0] -= int(max_interval.total_seconds())
             times2[:, 1] += int(max_interval.total_seconds())
 
-        tree = IntervalTree(times2)
-
         # Search for all overlapping intervals:
+        tree = IntervalTree(times2)
         results = tree.query(times1)
 
         for i, overlapping_files in enumerate(results):
@@ -2588,26 +2608,6 @@ class FileSet:
         if self.post_reader is not None:
             data = self.post_reader(file_info, data)
 
-        # Add also data from linked filesets:
-        # if self._link:
-        #     linked_data = []
-        #     for link in self._link.values():
-        #         if link["linker"] is None:
-        #             # Simply try to find the corresponding file by generating a
-        #             # filename:
-        #             other_file = link["target"].get_filename(
-        #                 times=file_info.times, fill=file_info.attr
-        #             )
-        #         else:
-        #             # Find the corresponding file via the given linker function
-        #             other_file = link["linker"](link["target"], file_info)
-        #
-        #         linked_data.append(
-        #             self._link["target"].read(other_file)
-        #         )
-        #
-        #     return self._merge_data([data, *linked_data])
-
         return data
 
     def _retrieve_time_coverage(self, filled_placeholder,):
@@ -2820,14 +2820,6 @@ class FileSet:
                 self.handler.write(data, compressed_file, **write_args)
         else:
             self.handler.write(data, file_info, **write_args)
-
-    def writing_complete(self):
-        """Check whether all writing threads are finished.
-
-        Returns:
-            True if all writing threads are done.
-        """
-        return self._write_queue.empty()
 
 
 class FileSetManager(dict):

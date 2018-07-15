@@ -227,7 +227,7 @@ def num2date(times, units, calendar=None):
 
 
 class Timer:
-    """Provide a simple time profiling utility.
+    """Provide a simple time profiling utility
 
     Parameters:
         verbose (bool): Print measured duration after stopping the timer.
@@ -263,6 +263,12 @@ class Timer:
         >>> own_function(1)
         own_function: 0:00:01.004667
 
+        Use it in format strings:
+
+        >>> from typhon.utils import Timer
+        >>> timer = Timer().start()
+        >>> print(f"{timer} elapsed")
+        0:00:00.000111 hours elapsed
     """
     def __init__(self, info=None, verbose=True):
         """Create a timer object."""
@@ -293,13 +299,36 @@ class Timer:
     def __exit__(self, *args):
         self.stop()
 
+    def __repr__(self):
+        return repr(self.elapsed)
+
+    def __str__(self):
+        return str(self.elapsed) + " hours"
+
+    @property
+    def elapsed(self):
+        """Get the elapsed time as timedelta object"""
+        if self.starttime is None:
+            raise ValueError("Timer has not been started yet!")
+
+        return timedelta(seconds=time.time() - self.starttime)
+
     def start(self):
         """Start timer."""
         self.starttime = time.time()
         return self
 
     def stop(self):
-        """Stop timer."""
+        """Stop timer and print info message
+
+        The info message will be only printed if `Timer.verbose` is *true*.
+
+        Returns:
+            A timedelta object.
+        """
+        if self.starttime is None:
+            raise ValueError("Timer has not been started yet!")
+
         self.endtime = time.time()
 
         dt = timedelta(seconds=self.endtime - self.starttime)

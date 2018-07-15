@@ -234,7 +234,7 @@ class RetrievalProduct:
         """Predict the target values for data coming from arrays
 
         Args:
-            inputs: A pandas.DataFrame object The keys must be the
+            inputs: A pandas.DataFrame object. The keys must be the
                 same labels as used in :meth:`train`. The values are the field
                 names in the original data coming from *data*. If not given,
                 the same input field names are taken as during training with

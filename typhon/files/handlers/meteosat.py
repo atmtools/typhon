@@ -56,7 +56,7 @@ class SEVIRI(HDF5):
         self.mapping["U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"] = "counts_to_rad"  # noqa
 
     @expects_file_info()
-    def read(self, file_info, fields=None, **kwargs):
+    def read(self, file_info, fields=None, calibration=True, **kwargs):
         """Read SEVIRI HDF5 files and load them to a xarray.Dataset
 
         Args:
@@ -97,7 +97,8 @@ class SEVIRI(HDF5):
                 dataset[name] = ["line", "column"], var.values
 
         # Convert the counts to brightness temperatures:
-        dataset = self.counts_to_bt(dataset)
+        if calibration:
+            dataset = self.counts_to_bt(dataset)
 
         # Add the latitudes and longitudes of the grid points:
         dataset = xr.merge([dataset, self.grid])
