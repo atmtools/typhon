@@ -11,7 +11,7 @@ import time
 import numba
 import numpy as np
 from typhon.files import FileSet
-from typhon.utils.timeutils import to_datetime
+from typhon.utils.timeutils import Timer
 import xarray as xr
 
 from .collocator import check_collocation_data, Collocator
@@ -207,24 +207,15 @@ class Collocations(FileSet):
         if collocator is None:
             collocator = Collocator(verbose=verbose)
 
-        results = collocator.collocate_filesets(
-            filesets, **kwargs
+        collocated_files = collocator.collocate_filesets(
+            filesets, output=self, **kwargs
         )
 
-        timer = time.time()
-        for collocations, attributes in results:
-            filename = self.get_filename(
-                [to_datetime(collocations.attrs["start_time"]),
-                 to_datetime(collocations.attrs["end_time"])], fill=attributes
-            )
-
-            # Write the data to the file.
-            self.write(collocations, filename)
-
-            collocator.info(f"Store collocations to \n{filename}")
-
+        timer = Timer().start()
+        for _ in collocated_files:
+            pass
         collocator.info(
-            f"{time.time()-timer:.2f}s for finding all collocations"
+            f"{timer} for finding all collocations"
         )
 
 
@@ -354,7 +345,9 @@ def collapse(data, reference=None, collapser=None):
         **collapser,
     }
 
-    collapsed = xr.Dataset()
+    collapsed = xr.Dataset(
+        attrs=data.attrs,
+    )
 
     for var_name, var_data in data.variables.items():
         group, local_name = var_name.split("/", 1)
@@ -366,6 +359,16 @@ def collapse(data, reference=None, collapser=None):
 
         # This is the name of the dimension along which we collapse:
         collapse_dim = group + "/collocation"
+
+        if collapse_dim not in var_data.dims:
+            # This variable does not depend on the collocation coordinate.
+            # Hence, we cannot collapse it but we simply copy it.
+            if group == reference:
+                collapsed[local_name] = var_data
+            else:
+                collapsed[var_name] = var_data
+
+            continue
 
         # Make sure that our collapsing dimension is the first dimension of the
         # array. Otherwise we get problems, when converting the DataArray to a
