@@ -21,22 +21,23 @@ __all__ = [
 
 
 def e_eq_ice_mk(T):
-    r"""Calculate the equilibrium water vapor pressure over ice.
-
-    Equilibrium water vapor pressure over ice using Murphy and Koop 2005
-    parameterization formula.
+    r"""Calculate the equilibrium vapor pressure of water over ice.
 
     .. math::
-        \ln(e_i) = 9.550426
+        \ln(e_\mathrm{ice}) = 9.550426
                    - \frac{5723.265}{T}
                    + 3.53068 \cdot \ln(T)
                    - 0.00728332 \cdot T
 
     Parameters:
-        T (float or ndarray): Temperature in [K].
+        T (float or ndarray): Temperature [K].
 
     Returns:
-        float or ndarray: Equilibrium water vapor pressure over ice in [Pa].
+        float or ndarray: Equilibrium vapor pressure [Pa].
+
+    See also:
+        :func:`~typhon.physics.e_eq_water_mk`
+            Calculate the equilibrium vapor pressure over liquid water.
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
@@ -55,13 +56,11 @@ def e_eq_ice_mk(T):
 
 
 def e_eq_water_mk(T):
-    r"""Calculate the equilibrium water vapor pressure over water.
-
-    Equilibrium water vapor pressure over water using Murphy and
-    Koop 2005 parameterization formula.
+    r"""Calculate the equilibrium vapor pressure of water over liquid water.
 
     .. math::
-        \ln(e_w) &= 54.842763 - \frac{6763.22}{T} - 4.21 \cdot \ln(T) \\
+        \ln(e_\mathrm{liq}) &=
+                    54.842763 - \frac{6763.22}{T} - 4.21 \cdot \ln(T) \\
                     &+ 0.000367 \cdot T
                     + \tanh \left(0.0415 \cdot (T - 218.8)\right) \\
                     &\cdot \left(53.878 - \frac{1331.22}{T}
@@ -69,10 +68,14 @@ def e_eq_water_mk(T):
                                  + 0.014025 \cdot T \right)
 
     Parameters:
-        T (float or ndarray): Temperature in [K].
+        T (float or ndarray): Temperature [K].
 
     Returns:
-        float or ndarray: Equilibrium water vapor pressure over water in [Pa].
+        float or ndarray: Equilibrium vapor pressure [Pa].
+
+    See also:
+        :func:`~typhon.physics.e_eq_ice_mk`
+            Calculate the equilibrium vapor pressure of water over ice.
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of

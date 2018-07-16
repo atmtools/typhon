@@ -19,7 +19,7 @@ __all__ = [
 ]
 
 
-def relative_humidity2vmr(RH, p, T):
+def relative_humidity2vmr(RH, p, T, e_eq=None):
     r"""Convert relative humidity into water vapor VMR.
 
     .. math::
@@ -29,6 +29,11 @@ def relative_humidity2vmr(RH, p, T):
         RH (float or ndarray): Relative humidity.
         p (float or ndarray): Pressue [Pa].
         T (float or ndarray): Temperature [K].
+        e_eq (callable): Function to calculate the equilibrium vapor
+            pressure of water in Pa. The function must implement the
+            signature ``e_eq = f(T)`` where ``T`` is temperature in Kelvin.
+            If ``None`` the function :func:`~typhon.physics.e_eq_water_mk` is
+            used.
 
     Returns:
         float or ndarray: Volume mixing ratio [unitless].
@@ -43,10 +48,13 @@ def relative_humidity2vmr(RH, p, T):
         >>> relative_humidity2vmr(0.75, 101300, 300)
         0.026185323887350429
     """
-    return RH * thermodynamics.e_eq_water_mk(T) / p
+    if e_eq is None:
+        e_eq = thermodynamics.e_eq_water_mk
+
+    return RH * e_eq(T) / p
 
 
-def vmr2relative_humidity(vmr, p, T):
+def vmr2relative_humidity(vmr, p, T, e_eq=None):
     r"""Convert water vapor VMR into relative humidity.
 
     .. math::
@@ -56,9 +64,14 @@ def vmr2relative_humidity(vmr, p, T):
         vmr (float or ndarray): Volume mixing ratio,
         p (float or ndarray): Pressure [Pa].
         T (float or ndarray): Temperature [K].
+        e_eq (callable): Function to calculate the equilibrium vapor
+            pressure of water in Pa. The function must implement the
+            signature ``e_eq = f(T)`` where ``T`` is temperature in Kelvin.
+            If ``None`` the function :func:`~typhon.physics.e_eq_water_mk` is
+            used.
 
     Returns:
-        float or ndarray: Relative humiditity [unitless].
+        float or ndarray: Relative humidity [unitless].
 
     See also:
         :func:`~typhon.physics.relative_humidity2vmr`
@@ -70,7 +83,10 @@ def vmr2relative_humidity(vmr, p, T):
         >>> vmr2relative_humidity(0.025, 1013e2, 300)
         0.71604995533615401
     """
-    return vmr * p / thermodynamics.e_eq_water_mk(T)
+    if e_eq is None:
+        e_eq = thermodynamics.e_eq_water_mk
+
+    return vmr * p / e_eq(T)
 
 
 def integrate_water_vapor(vmr, p, T, z, axis=0):
@@ -104,10 +120,10 @@ def moist_lapse_rate(p, T, e_eq=None):
     Parameters:
         p (float or ndarray): Pressure [Pa].
         T (float or ndarray): Temperature [K].
-        e_eq (callable): Function object which is used to calculate the
-            equilibrium water vapor pressure in Pa. The function must implement
-            the signature ``e_eq = f(T)`` where ``T`` is temperature in Kelvin.
-            If ``None`` the function :func:`typhon.physics.e_eq_water_mk` is
+        e_eq (callable): Function to calculate the equilibrium vapor
+            pressure of water in Pa. The function must implement the
+            signature ``e_eq = f(T)`` where ``T`` is temperature in Kelvin.
+            If ``None`` the function :func:`~typhon.physics.e_eq_water_mk` is
             used.
 
     Returns:
