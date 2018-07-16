@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Functions for calculating cloud field statistics from binary cloud mask 
-arrays.
-"""
+"""Statistical functions for binary cloud masks. """
 import numpy as np
 import scipy as sc
 
@@ -10,27 +8,29 @@ from scipy.spatial.distance import pdist
 
 
 __all__ = [
-    'get_cloud_properties',
+    'get_cloudproperties',
     'neighbor_distance',
     'iorg',
     'scai',
 ]
 
 
-def get_cloud_properties(cloudmask, connectivity=1):
+def get_cloudproperties(cloudmask, connectivity=1):
     """Calculate basic cloud properties from binary cloudmask.
 
     Note:
         All parameters are calculated in pixels!!
 
     See also:
-        `skimage.measure.labels`: Used to find different clouds. 
-        `skimage.measure.regionprops`: Used to calculate cloud properties.
+        :func:`skimage.measure.labels`:
+            Used to find different clouds. 
+        :func:`skimage.measure.regionprops`:
+            Used to calculate cloud properties.
 
     Parameters:
         cloudmask (ndarray): 2d binary cloud mask.
         connectivity (int):  Maximum number of orthogonal hops to consider
-            a pixel/voxel as a neighbor (see `skimage.measure.labels`).
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.labels`).
 
     Returns:
         list: List of `RegionProperties`
@@ -46,18 +46,20 @@ def neighbor_distance(cloudproperties):
     """Calculate nearest neighbor distance for each cloud.
 
     Note: 
-        distance is given in pixels!!
+        Distance is given in pixels.
 
     See also: 
-        `scipy.spatial.cKDTree`: Used to calculate nearest neighbor distances. 
+        :class:`scipy.spatial.cKDTree`:
+            Used to calculate nearest neighbor distances. 
 
     Parameters: 
-        cloudproperties (object): Output of function get_cloud_properties. 
+        cloudproperties (list[RegionProperties]): List of
+            :class:`RegionProperties` as returned by
+            :func:`get_cloudproperties`. 
 
     Returns: 
-        list: List of nearest neighbor distances
+        ndarray: Nearest neighbor distances in pixels.
     """
-    #neighbor_distance = []
     centroids = [prop.centroid for prop in cloudproperties]
     indices = np.arange(len(centroids))
     neighbor_distance = np.zeros(len(centroids))
@@ -73,16 +75,16 @@ def neighbor_distance(cloudproperties):
 
 
 def iorg(neighbor_distance, cloudmask):
-    """Calculate the cloud cluster index 'I_org' following Tompkins and Semie, 
-        2017. 
+    """Calculate the cloud cluster index 'I_org'.
 
     See also: 
-        `scipy.integrate.trapez`: Used to calculate the integral along the 
-            given axis using the composite trapezoidal rule.
+        :func:`scipy.integrate.trapz`:
+            Used to calculate the integral along the given axis using
+            the composite trapezoidal rule.
 
     Parameters: 
-        neighbor_distance (list): nearest neighbor distances. 
-            Output of function neighbor_distance. 
+        neighbor_distance (list or ndarray): Nearest neighbor distances. 
+            Output of :func:`neighbor_distance`. 
         cloudmask (ndarray): 2d binary cloud mask.
 
     Returns:
@@ -107,26 +109,28 @@ def iorg(neighbor_distance, cloudmask):
     return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
 
 
-def scai(cloudproperties, cloudmask, connectivity=1, NaNmask=None):
-    """Calculate the cloud cluster index 'Simple Convective Aggregation 
-        Index (SCAI)' following Tobin et al., 2012.  
+def scai(cloudproperties, cloudmask, connectivity=1):
+    """Calculate the 'Simple Convective Aggregation Index (SCAI)'.  
+
+    The SCAI is defined as the ratio of convective disaggregation
+    to a potential maximal disaggregation.
 
     See also: 
-        `scipy.spatial.distance.pdist`: Used to calculate pairwise distances 
-            between cloud entities. 
-        `scipy.stats.mstats.gmean`: Used to calculate the geometric mean of 
-            all clouds in pairs. 
+        :func:`scipy.spatial.distance.pdist`:
+            Used to calculate pairwise distances between cloud entities. 
+        :func:`scipy.stats.mstats.gmean`:
+            Used to calculate the geometric mean of all clouds in pairs. 
 
     Parameters:
-        cloudproperties (object): Output of function get_cloud_properties. 
+        cloudproperties (list[:class:`RegionProperties`]):
+            Output of function :func:`get_cloudproperties`. 
         cloudmask (ndarray): 2d binary cloud mask.
         connectivity (int):  Maximum number of orthogonal hops to consider
-            a pixel/voxel as a neighbor (see `skimage.measure.labels`).
-        NaNmask (ndarray): 2d mask of non valid edge pixels.
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.labels`).
+        mask (ndarray): 2d mask of non valid pixels.
 
     Returns:
-        float: ratio of convective disaggregation to a potential maximal 
-            disaggregation.
+        float: SCAI.
 
     References: 
         Tobin, I., S. Bony, and R. Roca, 2012: Observational Evidence for 
@@ -135,9 +139,6 @@ def scai(cloudproperties, cloudmask, connectivity=1, NaNmask=None):
         https://doi.org/10.1175/JCLI-D-11-00258.1
 
     """
-    if NaNmask is None:
-        NaNmask = np.ones(cloudmask.shape)
-
     centroids = [prop.centroid for prop in cloudproperties]
 
     # number of cloud clusters
@@ -151,15 +152,15 @@ def scai(cloudproperties, cloudmask, connectivity=1, NaNmask=None):
         # reshape to original cloudmask.shape
         chessboard = np.reshape(chessboard, cloudmask.shape)
         # inlcude NaNmask
-        chessboard[NaNmask == np.nan] = np.nan
+        chessboard[np.isnan(cloudmask)] = np.nan
         N_max = np.nansum(chessboard)
     elif connectivity == 2:
         chessboard[np.arange(1, cloudmask.shape[0], 2), :] = 0
         chessboard = np.reshape(chessboard, cloudmask.shape)
-        chessboard[NaNmask == np.nan] = np.nan
+        chessboard[np.isnan(cloudmask)] = np.nan
         N_max = np.sum(chessboard)
     else:
-        raise ValueError('Connectivity argument not valid.')
+        raise ValueError('Connectivity argument should be `1` or `2`.')
 
     # distance between points (center of mass of clouds) in pairs
     di = pdist(centroids, 'euclidean')

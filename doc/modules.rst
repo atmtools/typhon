@@ -27,6 +27,14 @@ Atmosphere
 
    typhon.atmosphere
 
+Cloud mask
+----------
+
+.. toctree::
+   :maxdepth: 2
+
+   typhon.cloudmask
+
 Collocations
 ------------
 
