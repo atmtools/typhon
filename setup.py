@@ -98,6 +98,7 @@ setup(
         'numexpr',
         'numpy>=1.13',
         'pandas',
+        'scikit-image',
         'scikit-learn',
         'scipy>=0.15.1',
         'setuptools>=0.7.2',
