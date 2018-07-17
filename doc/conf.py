@@ -326,6 +326,7 @@ autosummary_generate = True
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.6', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+    'skimage': ('http://scikit-image.org/docs/stable', None),
     'numpy': ('https://docs.scipy.org/doc/numpy', None),
     'matplotlib': ('https://matplotlib.org', None)
 }

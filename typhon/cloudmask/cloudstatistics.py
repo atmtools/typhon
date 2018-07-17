@@ -22,7 +22,7 @@ def get_cloudproperties(cloudmask, connectivity=1):
         All parameters are calculated in pixels!!
 
     See also:
-        :func:`skimage.measure.labels`:
+        :func:`skimage.measure.label`:
             Used to find different clouds. 
         :func:`skimage.measure.regionprops`:
             Used to calculate cloud properties.
@@ -30,10 +30,12 @@ def get_cloudproperties(cloudmask, connectivity=1):
     Parameters:
         cloudmask (ndarray): 2d binary cloud mask.
         connectivity (int):  Maximum number of orthogonal hops to consider
-            a pixel/voxel as a neighbor (see :func:`skimage.measure.labels`).
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
 
     Returns:
-        list: List of `RegionProperties`
+        list:
+            List of :class:`RegionProperties`
+            (see :func:`skimage.measure.regionprops`)
     """
     cloudmask[np.isnan(cloudmask)] = 0
 
@@ -53,9 +55,10 @@ def neighbor_distance(cloudproperties):
             Used to calculate nearest neighbor distances. 
 
     Parameters: 
-        cloudproperties (list[RegionProperties]): List of
-            :class:`RegionProperties` as returned by
-            :func:`get_cloudproperties`. 
+        cloudproperties (list[:class:`RegionProperties`]):
+            List of :class:`RegionProperties`
+            (see :func:`skimage.measure.regionprops` or
+            :func:`get_cloudproperties`).
 
     Returns: 
         ndarray: Nearest neighbor distances in pixels.
@@ -126,7 +129,7 @@ def scai(cloudproperties, cloudmask, connectivity=1):
             Output of function :func:`get_cloudproperties`. 
         cloudmask (ndarray): 2d binary cloud mask.
         connectivity (int):  Maximum number of orthogonal hops to consider
-            a pixel/voxel as a neighbor (see :func:`skimage.measure.labels`).
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
         mask (ndarray): 2d mask of non valid pixels.
 
     Returns:
