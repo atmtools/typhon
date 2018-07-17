@@ -412,8 +412,11 @@ def hund_case_b_landau_g_factor(n, j, s, l, gs, gl):
     Returns:
         g (float): Landau g-factor for Hund case B
     """
-    return gs * (j(j+1) + s(s+1) - n(n+1)) / (2 * j * (j + 1)) + \
-        l * gl * (j(j+1) - s(s+1) + n(n+1)) / (2 * j * n * (j + 1) * (n + 1))
+    if n != 0:
+        return gs * (j * (j+1) + s * (s+1) - n * (n+1)) / (2 * j * (j + 1)) + \
+            l * gl * (j * (j+1) - s * (s+1) + n * (n+1)) / (2 * j * n * (j + 1) * (n + 1))
+    else:
+        return gs * (j * (j+1) + s * (s+1) - n * (n+1)) / (2 * j * (j + 1))
 
 
 def landau_g_factor(x, j, s, l=None, gs=2, gl=1, case=None):
@@ -449,7 +452,7 @@ def landau_g_factor(x, j, s, l=None, gs=2, gl=1, case=None):
     elif case.lower() == 'b':
         return hund_case_b_landau_g_factor(x, j, s, l, gs, gl)
     else:
-        raise RuntimeError("Unknown case-type: " + case)
+        raise RuntimeError("Unknown case-type: " + str(case))
 
 
 def zeeman_splitting(gu, gl, mu, ml, H=1):
