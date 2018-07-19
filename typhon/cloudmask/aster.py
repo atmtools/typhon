@@ -5,13 +5,26 @@ import gdal
 import numpy as np
 
 from datetime import datetime
+from skimage.measure import block_reduce
+
 
 __all__ = [
     'cloudmask_ASTER',
     'read_ASTER_channel',
     'convert_ASTERdn2ref',
     'convert_ASTERdn2bt',
+    'lapserate_modis',
+    'cloudtopheight',
 ]
+
+
+def multiple_logical(*args, func=None):
+    if func is None:
+        func = np.logical_or
+    mask = args[0]
+    for arg in args[1:]:
+        mask = func(mask, arg)
+    return mask
 
 
 def cloudmask_ASTER(filename):
@@ -117,15 +130,15 @@ def cloudmask_ASTER(filename):
         Tb14_p05 = np.nanpercentile(
             Tb14_hres[np.logical_or(clmask == 3, clmask == 2)], 5)
 
-    # Cloud mask including Test 5.
+    # Cloud mask including Test 5
     clmask_Tb14 = clmask.copy()
     clmask_Tb14[Tb14_hres > Tb14_p05] = 3
     clmask_Tb14[np.logical_or(np.isnan(clmask), np.isnan(Tb14_hres))] = np.nan
 
-    # Final binary cloud mask.
+    # Final binary cloud mask
     cloudmask = clmask_Tb14.copy()
     cloudmask[cloudmask == 0] = 1
-    cloudmask[np.logical_or(cloudmask == 2, cloudmask == 3)] = 0
+    cloudmask[np.logical_or(cloudmask == 2, cloudmask == 3)] = 0  # clear
 
     return cloudmask
 
@@ -310,3 +323,164 @@ def convert_ASTERdn2bt(dn, channel):
     Tb = K2[channel] / np.log((K1[channel] / rad) + 1)
 
     return Tb
+
+
+def lapserate_modis(month, latitude):
+    """Estimate of the apparent lapse rate in [K/km].
+    Typical lapse rates are assumed for each month and depending on the
+    location on Earth, i.e. southern hemisphere, tropics, or northern
+    hemisphere. For a specific case the lapse rate is estimated by a 4th order
+    polynomial and polynomial coefficients given in the look-up table.
+    This approach is based on the MODIS cloud top height retrieval and applies
+    to data recorded at 11 microns.
+    
+    Note:
+        Southern hemisphere is not yet included!
+    
+    Parameters:
+        month (int): month of the year.
+        latitude (float): latitude.
+    
+    Returns:
+        float: lapse rate.
+    
+    References:
+        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
+        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
+        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
+        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
+    """ 
+    lapserate_lut = {'month': np.arange(1,13),
+        'lat_split': np.array([22.1, 12.8, 10.7, 29.4, 14.9, 16.8,
+                               15.0, 19.5, 17.4, 27.0, 22.0, 19.0]), 
+        'a0': np.array([(2.9426577,1.9009563), (2.6499606,2.4878736),
+                        (2.3652047,3.1251275), (2.5433158,13.3931707),
+                        (2.4994028,1.6432070), (2.7641496, -5.2366360), 
+                        (3.1202043,-4.7396481), (3.4331195,-1.4424843),
+                        (3.4539390,-3.7140186), (3.6013337,8.2237401),
+                        (3.1947419,-0.4502047), (3.1276377,9.3930897) ]),
+        'a1': np.array([(-0.0510674,0.0236905), (-0.0105152, -0.0076514),
+                        (0.0141129,-0.1214572), (-0.0046876,-1.2206948),
+                        (-0.0364706,0.1151207), (-0.0728625, 1.0105575), 
+                        (-0.1002375,0.9625734), (-0.1021766,0.4769307),
+                        (-0.1158262,0.6720954), (-0.0775800,-0.5127533),
+                        (-0.1045316,0.2629680), (-0.0707628,-0.8836682) ]),
+        'a2': np.array([(0.0052420,0.0086504), (0.0042896,0.0079444),
+                        (0.0059242,0.0146488), (0.0059325,0.0560381),
+                        (0.0082002,0.0033131), (0.0088878,-0.0355440), 
+                        (0.0064054,-0.0355847), (0.0010499,-0.0139027),
+                        (0.0015450,-0.0210550), (0.0041940,0.0205285),
+                        (0.0049986,-0.0018419), (0.0055533,0.0460453) ]),
+        'a3': np.array([(0.0001097,-0.0002167), (0.0000720,-0.0001774),
+                        (-0.0000159,-0.0003188), (0.0000144,-0.0009874),
+                        (0.0000844,-0.0001458), (0.0001768,0.0005188), 
+                        (0.0002620,0.0005522), (0.0001616,0.0001759),
+                        (0.00017117,0.0002974),(0.0000941,-0.0003016),
+                        (0.0001911,-0.0000369), (0.0001550,-0.0008450) ]),
+        'a4': np.array([(-0.00000372,0.00000151), (-0.0000067,0.00000115),
+                        (-0.00000266,0.00000210), (-0.00000346,0.00000598),
+                        (-0.00000769,0.00000129), (-0.00001168,-0.00000262), 
+                        (-0.00001079,-0.00000300), (0.00000510,-0.00000080),
+                        (0.00000248,-0.00000150), (-0.0000041,0.00000158), 
+                        (-0.00000506,0.00000048), (-0.00000571,0.00000518) ])}
+    
+    month -= 1
+    
+    if latitude < lapserate_lut['lat_split'][month]:
+        region_flag = 0
+    else:
+        region_flag = 1
+    
+    lapserate = (lapserate_lut['a0'][month][region_flag]
+            + lapserate_lut['a1'][month][region_flag] * latitude 
+            + lapserate_lut['a2'][month][region_flag] * latitude**2 
+            + lapserate_lut['a3'][month][region_flag] * latitude**3 
+            + lapserate_lut['a4'][month][region_flag] * latitude**4)
+
+    return lapserate
+
+
+def lapserate_moist_adiabate():
+    """Moist adiabatic lapse rate in [K/km].
+    """
+    return 6.5
+    
+    
+def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
+                      month=None):
+    """Cloud Top Height (CTH) from 11 micron channel. 
+    ASTER brightness temperatures from channel 14 are converted to CTHs using 
+    the IR window approach: (Tb_clear - Tb_cloudy) / lapse_rate. 
+    
+    Note:
+        `cloudmask` argument has to have the same resolution as the thermal
+        channel, i.e. (700,830) at 90 m resolution.
+    
+    See also:
+        :func:`block_reduce`:
+        :func:`lapserate_modis`
+        
+    Parameters:
+        cloudmask (ndarray): binary ASTER cloud mask image.
+        Tb14 (ndarray): brightness temperatures form ASTER channel 14.
+        method (str): approach used to derive CTH.
+        latitudes (ndarray):
+        month (int): moneth of the year.
+    
+    Returns:
+        ndarray: cloud top height.
+    """    
+    # Lapse rate
+    if method=='simple':
+        lapserate = lapserate_moist_adiabate()
+        
+    elif method=='modis':
+        latitude = latitudes[np.shape(latitudes)[0] // 2,
+                             np.shape(latitudes)[1] // 2] #[2100, 2490]
+        lapserate = lapserate_modis(month=month, latitude=latitude)
+    
+    # 
+    #Tb_clear_avg = np.nanmean(Tb14[np.asarray(cloudmask, dtype=bool) == False])
+    #Tb_cloudy = Tb14[np.asarray(cloudmask, dtype=bool) == True]
+    #cloudmask[np.isnan(cloudmask)] = 0
+    
+    resolution_ratio = np.shape(cloudmask)[0] // np.shape(Tb14)[0]
+
+    cloudmask_inverted = cloudmask.copy()
+    cloudmask_inverted[np.isnan(cloudmask_inverted)] = 1
+    cloudmask_inverted = np.asarray(np.invert(np.asarray(
+                                cloudmask_inverted, dtype=bool)), dtype=int)
+    
+    cloudmask[np.isnan(cloudmask)] = 0
+    cloudmask = np.asarray(cloudmask, dtype=int)
+    
+    # match cloudmask resolution and Tb14 resolution.
+    if resolution_ratio > 1:
+        # on Tb14 resolution, flag pixels as cloudy only if all subgrid pixels
+        # are cloudy in the original cloud mask.
+        mask_cloudy = block_reduce(cloudmask,
+                                        (resolution_ratio, resolution_ratio),
+                                        func=np.alltrue)
+        # search for 90 m only clear pixels to derive a Tb clearsky/ocean value
+        mask_clear = block_reduce(cloudmask_inverted, 
+                                        (resolution_ratio, resolution_ratio),
+                                        func=np.alltrue)
+    elif resolution_ratio < 1:
+        try:
+            mask_cloudy = np.repeat(np.repeat(cloudmask, resolution_ratio,
+                                        axis=0), resolution_ratio, axis=1)
+            mask_clear = np.repeat(np.repeat(cloudmask_inverted, 
+                                                  resolution_ratio, axis=0),
+                                                  resolution_ratio, axis=1)
+        except ValueError:
+            print('Problems matching the shapes of cloudmask and Tb14.')
+    else:
+        mask_cloudy = cloudmask.copy()
+        mask_clear = cloudmask_inverted.copy()
+        
+    Tb_cloudy = np.ones(np.shape(Tb14)) * np.nan
+    Tb_cloudy[mask_cloudy] = Tb14[mask_cloudy]
+    
+    Tb_clear_avg = np.nanmean(Tb14[mask_clear])
+
+    return (Tb_clear_avg - Tb_cloudy) / lapserate
