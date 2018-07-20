@@ -92,8 +92,8 @@ class RetrievalProduct:
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
             #("scaler", MinMaxScaler(feature_range=[0, 1])),
-            ("scaler", StandardScaler()),
-            #("scaler", RobustScaler(quantile_range=(25, 75))),
+            #("scaler", StandardScaler()),
+            ("scaler", RobustScaler(quantile_range=(25, 75))),
             # The "real" estimator:
             ("estimator", estimator),
         ])
@@ -347,30 +347,4 @@ class RetrievalProduct:
         self.estimator = self.trainer.best_estimator_
 
         return self.estimator.score(inputs, targets)
-
-    def _get_inputs(self, data, fields):
-
-        if fields is None:
-            fields = self.parameter["inputs"]
-
-        # Prepare the input data (we need the original order):
-        input_data = np.asmatrix([
-            data[field]
-            for _, field in sorted(fields.items())
-        ]).T
-
-        return input_data
-
-    def _get_targets(self, data, fields):
-
-        if fields is None:
-            fields = self.parameter["targets"]
-
-        # Prepare the target data:
-        target_data = np.asmatrix([
-            data[field]
-            for _, field in sorted(fields.items())
-        ]).T
-
-        return target_data
 

@@ -625,8 +625,6 @@ class NetCDF4(FileHandler):
             file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk (this is still not implemented!).
-            groups: Groups that you want to import. Otherwise all groups are
-                going to be imported.
             fields: List of field names that should be read. The other fields
                 will be ignored. If `mapping` is given, this should contain the
                 new field names.
@@ -716,6 +714,8 @@ class NetCDF4(FileHandler):
                 full: self._split_path(full)[1]
                 for full in ds.variables
             }
+
+            # Filter out all
             ds.rename(mapping, inplace=True)
 
             # Do not forget the dimension names :-)

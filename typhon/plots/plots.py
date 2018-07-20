@@ -46,7 +46,8 @@ def binned_statistic(
 
     Args:
         x: The values which should be binned and plotted on the x-axis.
-        y: The values on which the statistics should be applied.
+        y: The values on which the statistics should be applied. The results
+            will be plotted on the y-axis.
         bins: Number of bins. Default is 20.
         ax (AxesSubplot, optional): Axes to plot in.
         ptype: Plot type. Can be *scatter* or *boxplot*.
@@ -55,7 +56,13 @@ def binned_statistic(
             `scipy.stats.binned_statistic`.
 
     Returns:
-        The axis and the plot object.
+        The plot object.
+
+    Examples:
+
+    .. :code-block:: python
+
+
     """
 
     if ax is None:
@@ -93,7 +100,7 @@ def binned_statistic(
     else:
         raise ValueError(f"Unknown plot type {ptype}!")
 
-    return ax, plot
+    return plot
 
 
 def plot_distribution_as_percentiles(ax, x, y,
