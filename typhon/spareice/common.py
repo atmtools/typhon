@@ -80,7 +80,7 @@ class SPAREICE:
         self.verbose = verbose
         self.name = "SPARE-ICE"
 
-    def debug(self, msg):
+    def _debug(self, msg):
         if self.verbose > 1:
             print(f"[{self.name}] {msg}")
 
@@ -125,18 +125,18 @@ class SPAREICE:
         return data
 
     @staticmethod
-    def _get_inputs(data):
+    def get_inputs(data):
         """Get the input fields for SPARE-ICE training / retrieval"""
 
-        inputs = pd.DataFrame({
+        fields = {
             "mhs_channel3": data["Data_btemps"].isel(
-                **{"MHS/channel": 2}
+                **{"channel": 2}
             ),
             "mhs_channel4": data["Data_btemps"].isel(
-                **{"MHS/channel": 3}
+                **{"channel": 3}
             ),
             "mhs_channel5": data["Data_btemps"].isel(
-                **{"MHS/channel": 4}
+                **{"channel": 4}
             ),
             "lat": data["lat"],
             "mhs_scnpos": data["scnpos"],
@@ -151,44 +151,43 @@ class SPAREICE:
             "relative_azimuth_angle":
                 data["AVHRR/Geolocation_Relative_azimuth_angle_mean"],
             "avhrr_channel1": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 0}
+                **{"channel": 0}
             ),
             "avhrr_channel2": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 1}
+                **{"channel": 1}
             ),
             "avhrr_channel3": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 2}
+                **{"channel": 2}
             ),
             "avhrr_channel4": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 3}
+                **{"channel": 3}
             ),
             "avhrr_channel5": data["AVHRR/Data_btemps_mean"].isel(
-                **{"AVHRR/channel": 4}
+                **{"channel": 4}
             ),
             "avhrr_scnpos": data["AVHRR/scnpos_mean"],
-        })
+        }
 
-        return inputs
+        return pd.DataFrame(fields)
 
     @staticmethod
-    def _get_targets(data):
+    def get_targets(data):
         """Get the target fields for SPARE-ICE training"""
         targets = pd.DataFrame({
-            "IWP_log10": np.log10(data["2C-ICE_ice_water_path_mean"])
+            "iwp_log10": np.log10(data["2C-ICE_ice_water_path_mean"])
         })
         return targets
 
     def train(self, data, test_ratio=None):
 
-        inputs = self._get_inputs(data)
-        targets = self._get_targets(data)
+        inputs = self.get_inputs(data)
+        targets = self.get_targets(data)
 
         # Make the training and testing data:
         inputs_train, inputs_test, targets_train, targets_test \
             = train_test_split(inputs, targets, test_size=test_ratio)
 
         self.info("Train SPARE-ICE")
-        # If we have not trained it already, let's train it here:
         train_score = self.retrieval.train(
             inputs_train,
             targets_train,
@@ -229,7 +228,7 @@ class SPAREICE:
                 )
 
                 # Write the data to the file.
-                self.debug(f"Store collocations to \n{filename}")
+                self._debug(f"Store collocations to \n{filename}")
                 collocations.write(data, filename)
 
     def retrieve(self, data, from_collocations=False, as_log10=False):
@@ -237,9 +236,9 @@ class SPAREICE:
 
         Args:
             data: A pandas.DataFrame object with required input fields (see
-                below).
-            from_collocations: If `data` comes from collocations, the fields
-                will be correctly transformed.
+                above) or a xarray.Dataset
+            from_collocations: Set this to true if `data` comes from
+                collocations and the fields will be correctly transformed.
             as_log10: If true, the retrieved IWP will be returned as logarithm
                 of base 10.
 
@@ -248,7 +247,7 @@ class SPAREICE:
         """
         # We have to rename the variables when they come from collocations:
         if from_collocations:
-            inputs = self._get_inputs(data)
+            inputs = self.get_inputs(data)
         else:
             inputs = data
 
@@ -310,5 +309,5 @@ class SPAREICE:
             )
 
             # Write the data to the file.
-            self.info(f"Store SPARE-ICE to \n{filename}")
+            self._info(f"Store SPARE-ICE to \n{filename}")
             output.write(retrieved, filename)
