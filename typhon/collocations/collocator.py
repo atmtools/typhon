@@ -2,7 +2,9 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from multiprocessing import Process, Queue
 import random
+import textwrap
 import time
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -51,9 +53,9 @@ class Collocator:
                 here the maximum number of threads that you want to use. Which
                 number of threads is the best, may be machine-dependent. So
                 this is a parameter that you can use to fine-tune the
-                performance.
-            verbose: The higher this integer value the more debug messages will
-                be printed. Integer value of 0 disable debug messages.
+                performance. Note: Not yet implemented.
+            verbose: The higher this integer value the more _debug messages will
+                be printed. Integer value of 0 disable _debug messages.
             name: The name of this collocator.
         """
 
@@ -81,13 +83,16 @@ class Collocator:
     def __call__(self, *args, **kwargs):
         return self.do(*args, **kwargs)
 
-    def debug(self, msg):
+    def _debug(self, msg):
         if self.verbose > 1:
             print(f"[{self.name}] {msg}")
 
-    def info(self, msg):
+    def _info(self, msg):
         if self.verbose > 0:
             print(f"[{self.name}] {msg}")
+
+    def _error(self, msg):
+        print(f"[{self.name}] {msg}")
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
@@ -107,6 +112,7 @@ class Collocator:
                 performance significantly. Pass here the number of processes to
                 use.
             output: Fileset object where the collocated data should be stored.
+            compact: Not yet implemented.
             **kwargs: Further keyword arguments that are allowed for
                 :meth:`collocate`.
 
@@ -139,12 +145,7 @@ class Collocator:
         else:
             end = to_datetime(end)
 
-        # Add the start and end parameters to kwargs because we might need them
-        # later in collocate:
-        kwargs["start"] = start
-        kwargs["end"] = end
-
-        self.info(f"Collocate from {start} to {end}")
+        self._info(f"Collocate from {start} to {end}")
 
         matches = list(filesets[0].match(
             filesets[1], start=start, end=end, max_interval=max_interval,
@@ -156,7 +157,7 @@ class Collocator:
         # Make sure that there are never more processes than matches
         processes = min(processes, len(matches))
 
-        self.info(f"using {processes} process(es) on {len(matches)} matches")
+        self._info(f"using {processes} process(es) on {len(matches)} matches")
 
         # MAGIC with processes
         # Each process gets a list with matches. Important: the matches should
@@ -164,19 +165,31 @@ class Collocator:
         # match, the process yields the results.
 
         # This queue collects all results:
-        queue = Queue()
+        results = Queue()
+
+        # This queue collects all error exceptions
+        errors = Queue()
 
         matches_chunks = np.array_split(matches, processes)
+
+        # Extend the keyword arguments that we are going to pass to
+        # _collocate_files:
+        kwargs.update({
+            "start": start,
+            "end": end,
+            "filesets": filesets,
+            "output": output,
+            "compact": compact,
+        })
 
         # This contains all running processes
         process_list = [
             Process(
                 target=Collocator._process_caller,
                 args=(
-                    self, queue, PROCESS_NAMES[i],
-                    filesets, matches_chunk, output, compact
+                    self, results, errors, PROCESS_NAMES[i],
                 ),
-                kwargs=kwargs,
+                kwargs={**kwargs, "matches": matches_chunk},
             )
             for i, matches_chunk in enumerate(matches_chunks)
         ]
@@ -185,8 +198,7 @@ class Collocator:
         for process in process_list:
             process.start()
 
-        # As long as some processes are still running, wait for their
-        # results:
+        # As long as some processes are still running, wait for their results:
         running = process_list.copy()
 
         processed_matches = 0
@@ -200,12 +212,27 @@ class Collocator:
             ]
 
             # Yield all results that are currently in the queue:
-            while not queue.empty():
+            while not results.empty():
                 processed_matches += 1
                 self._print_progress(timer, total_matches, processed_matches)
-                result = queue.get()
+                result = results.get()
                 if result is not None:
                     yield result
+
+        if not errors.empty():
+            self._error("Some processes terminated due to errors:")
+
+        while not errors.empty():
+            error = errors.get()
+            pid = PROCESS_NAMES.index(error[0])
+            # The time period that should have be processed:
+            p_start = matches_chunks[pid][0][0].times[0]
+            p_end = matches_chunks[pid][-1][0].times[1]
+            print("-"*79)
+            print(f"Failed process: {error[0]} ({p_start} - {p_end})")
+            print(error[2])
+            print("".join(traceback.format_tb(error[1])))
+            print("-" * 79 + "\n")
 
         for process in process_list:
             process.join()
@@ -235,10 +262,44 @@ class Collocator:
         print(msg)
 
     @staticmethod
-    def _process_caller(collocator, queue, name, *args, **kwargs):
+    def _process_caller(collocator, results, errors, name, *args, **kwargs):
         collocator.name = name
-        for result in collocator._collocate_files(*args, **kwargs):
-            queue.put(result)
+
+        # We keep track of how many file pairs we have already processed to
+        # make the error debugging easier:
+        processed = 0
+        try:
+            for result in collocator._collocate_files(*args, **kwargs):
+                results.put(result)
+                processed += 1
+        except Exception as exception:
+            collocator.error("I got a problem and terminate!")
+
+            # Build a message that contains all important information for
+            # debugging:
+            msg = ""
+            i = 0
+            print(kwargs['matches'])
+            for primary, secondaries in zip(*kwargs['matches']):
+                print(primary, secondaries)
+                continue
+                for secondary in enumerate(secondaries):
+                    if processed == i:
+                        msg = f"Failed to collocate {primary} with {secondary}"
+                        break
+                    i += 1
+
+                if msg is not None:
+                    break
+
+            # The main process needs to know about this exception!
+            error = [name, exception.__traceback__, msg, processed]
+            errors.put(error)
+
+            # Finally, raise the exception to terminate this process:
+            raise exception
+
+        collocator._info(f"Finished all {processed} matches")
 
     def _collocate_files(
         self, filesets, matches, output, compact, **kwargs
@@ -254,21 +315,21 @@ class Collocator:
             files = file_pair[1][0], file_pair[1][0]
             primary, secondary = file_pair[0][1].copy(), file_pair[1][1].copy()
 
-            self.debug(f"{time.time() - debug_timer:.2f}s for reading")
+            self._debug(f"{time.time() - debug_timer:.2f}s for reading")
 
             current_start = np.datetime64(primary["time"].min().item(0), "ns")
             current_end = np.datetime64(primary["time"].max().item(0), "ns")
-            self.debug(f"Collocating {current_start} to {current_end}")
+            self._debug(f"Collocating {current_start} to {current_end}")
 
             debug_timer = time.time()
             collocations = self.collocate(
                 (filesets[0].name, primary),
                 (filesets[1].name, secondary), **kwargs,
             )
-            self.debug(f"{time.time()-debug_timer:.2f}s for collocating")
+            self._debug(f"{time.time()-debug_timer:.2f}s for collocating")
 
             if not collocations.variables:
-                self.debug("Found no collocations!")
+                self._debug("Found no collocations!")
                 yield None
                 continue
 
@@ -281,19 +342,17 @@ class Collocator:
                 collocations[f"{filesets[1].name}/time"].size
             ]
 
-            self.debug(
+            self._debug(
                 f"Found {found[0]} ({filesets[0].name}) and "
                 f"{found[1]} ({filesets[1].name}) collocations"
             )
 
             # Add the names of the processed files:
             for f in range(2):
-                if f"{filesets[f].name}/__file" in collocations.variables:
+                if f"{filesets[f].name}__file" in collocations.attrs:
                     continue
 
-                collocations[f"{filesets[f].name}/__file"] = xr.DataArray(
-                    [files[f].path], dims=["__file"],
-                )
+                collocations.attrs[f"{filesets[f].name}__file"] = files[f].path
 
             # Collect the attributes of the input files
             attributes = {
@@ -314,76 +373,12 @@ class Collocator:
 
                 # Write the data to the file.
                 output.write(collocations, filename)
-                self.debug(f"{time.time()-debug_timer:.2f}s for storing to\n"
-                           f"{filename}")
+                self._debug(
+                    f"{time.time()-debug_timer:.2f}s for storing to {filename}"
+                )
                 yield filename
 
             debug_timer = time.time()
-
-    # def _prepare_data(
-    #         self, filesets, files, dataset,
-    #         global_start, global_end, max_interval,
-    # ):
-    #     """Make the raw data almost ready for collocating
-    #
-    #     Before we can collocate the data points, we need to flat them (if they
-    #     are stored in a structured representation).
-    #
-    #     The time variable needs to be 1-dimensional for this, but the latitudes
-    #     and longitudes could be gridded.
-    #     """
-    #     primary, secondary = filesets
-    #
-    #     for fileset in filesets:
-    #         name = fileset.name
-    #
-    #
-    #
-    #         # Concatenate all data: Since the data may come from multiple files
-    #         # we have to concatenate them along their main dimension before
-    #         # moving on.
-    #         dataset[name] = xr.concat(dataset[name], dim=time_dim)
-    #
-    #         # The user may not want to collocate overlapping data twice since
-    #         # it might contain duplicates
-    #         # TODO: This checks only for overlaps in primaries. What about
-    #         # TODO: overlapping secondaries?
-    #         if name == primary.name:
-    #             if remove_overlaps and last_primary_end is not None:
-    #                 dataset[name] = dataset[name].isel(**{
-    #                     time_dim: dataset[name].time > last_primary_end
-    #                 })
-    #
-    #             # Check whether something is left:
-    #             if not len(dataset[name].time):
-    #                 return None, None
-    #
-    #             # We want to select a common time window from both datasets,
-    #             # aligned to the primary's time coverage. Because xarray has a
-    #             # very annoying bug in time retrieving
-    #             # (https://github.com/pydata/xarray/issues/1240), this is a
-    #             # little bit cumbersome:
-    #             common_start = max(
-    #                 global_start,
-    #                 pd.Timestamp(dataset[name].time.min().item(0))
-    #                 - max_interval
-    #             )
-    #             common_end = min(
-    #                 global_end,
-    #                 pd.Timestamp(dataset[name].time.max().item(0))
-    #                 + max_interval
-    #             )
-    #
-    #             if common_start > common_end:
-    #                 print(f"Start: {common_start}, end: {common_end}.")
-    #                 raise ValueError(
-    #                     "The time coverage of the content of the following "
-    #                     "files is not identical with the time coverage given "
-    #                     "by get_info. Actual time coverage:\n"
-    #                     + "\n".join(repr(file) for file in files[name])
-    #                 )
-    #
-    #     return dataset[primary.name], dataset[secondary.name]
 
     def collocate(
             self, primary, secondary, max_interval=None, max_distance=None,
@@ -404,7 +399,7 @@ class Collocator:
         degrees. See below for examples.
 
         If you want to find collocations between FileSet objects, use
-        :class:`Collocations` instead.
+        :class:`collocate_filesets` instead.
 
         Args:
             primary: Data object that fulfill the specifications from above.
@@ -537,7 +532,7 @@ class Collocator:
             np.arange(primary.time.size)[not_nans1],
             np.arange(secondary.time.size)[not_nans2]
         ]
-        self.debug(f"{timer} for filtering NaNs")
+        self._debug(f"{timer} for filtering NaNs")
 
         # We can search for spatial collocations (max_interval=None), temporal
         # collocations (max_distance=None) or both.
@@ -647,21 +642,22 @@ class Collocator:
             )
 
             # Check whether something is left:
-            if not primary_period.any() or not secondary_period.any():
+            if not primary_period.size or not secondary_period.size:
                 return None, None
 
             # We need everything sorted by the time, otherwise xarray's stack
             # method makes problems:
-            primary_period = primary_period[np.argsort(primary.time.values)]
-            secondary_period = \
-                secondary_period[np.argsort(secondary.time.values)]
+            primary_period = primary_period.sortby(primary_period)
+            primary_dim = primary_period.dims[0]
+            secondary_period = secondary_period.sortby(secondary_period)
+            secondary_dim = secondary_period.dims[0]
 
             # Select the common time period and while using sorted indices:
-            primary = primary.isel(**{primary.time.dims[0]: primary_period})
-            secondary = secondary.isel(
-                **{secondary.time.dims[0]: secondary_period}
+            primary = primary.sel(**{primary_dim: primary_period[primary_dim]})
+            secondary = secondary.sel(
+                **{secondary_dim: secondary_period[secondary_dim]}
             )
-            self.debug(f"{timer} for selecting common time period")
+            self._debug(f"{timer} for selecting common time period")
 
         # Flat the data: For collocating, we need a flat data structure.
         # Fortunately, xarray provides the very convenient stack method
@@ -671,7 +667,7 @@ class Collocator:
         timer = Timer().start()
         primary = self._flat_to_main_coord(primary)
         secondary = self._flat_to_main_coord(secondary)
-        self.debug(f"{timer} for flatting data")
+        self._debug(f"{timer} for flatting data")
 
         return primary, secondary
 
@@ -696,15 +692,15 @@ class Collocator:
             pd.Timestamp(secondary.time.max().item(0)) + max_interval
         )
 
-        primary_period = \
-            (primary.time.values >= np.datetime64(common_start)) \
+        primary_period = primary.time.where(
+            (primary.time.values >= np.datetime64(common_start))
             & (primary.time.values <= np.datetime64(common_end))
-        primary_period &= primary.time.notnull()
+        ).dropna(primary.time.dims[0])
 
-        secondary_period = \
-            (secondary.time.values >= np.datetime64(common_start)) \
+        secondary_period = secondary.time.where(
+            (secondary.time.values >= np.datetime64(common_start))
             & (secondary.time.values <= np.datetime64(common_end))
-        secondary_period &= secondary.time.notnull()
+        ).dropna(secondary.time.dims[0])
 
         return primary_period, secondary_period
 
@@ -1013,7 +1009,7 @@ class Collocator:
             Collocator._spatial_search_bin, bins_with_args
         ))
 
-        self.debug(f"Collocated {len(results)} bins in {t.stop()}")
+        self._debug(f"Collocated {len(results)} bins in {t.stop()}")
 
         pairs_list, distances_list = zip(*results)
         pairs = np.hstack(pairs_list)
