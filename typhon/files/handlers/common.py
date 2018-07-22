@@ -663,9 +663,11 @@ class NetCDF4(FileHandler):
         # group, then it is valid for this group only. Otherwise, the
         # coordinate from the parent group is taken.
         dim_map = {
-            dim: dim if dim in group.variables else path + dim
+            dim: path + dim if dim in group.variables else dim
             for dim in group.dimensions
         }
+
+        print(dim_map)
 
         # Load variables:
         try:
