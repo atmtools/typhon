@@ -17,6 +17,11 @@ __all__ = [
     'RetrievalProduct',
 ]
 
+scaler_class = {
+    "standard": StandardScaler,
+    "robust": RobustScaler,
+    "minmax": MinMaxScaler,
+}
 
 class NotTrainedError(Exception):
     """Should be raised if someone runs a non-trained retrieval product
@@ -36,7 +41,7 @@ class RetrievalProduct:
 
     def __init__(
             self, parameter=None, parameters_file=None, estimator=None,
-            trainer=None, verbose=False):
+            trainer=None, verbose=False, n_jobs=4, scaler=None):
         """Initialize a Retriever object
 
         Args:
@@ -54,7 +59,7 @@ class RetrievalProduct:
         default_parameter = {
             "inputs": {},
             "targets": {},
-            "scaling": None,
+            "scaler": None,
         }
 
         if parameter is None:
@@ -65,14 +70,15 @@ class RetrievalProduct:
         # The trainer and/or model for this retriever:
         self.estimator = estimator
         self.trainer = trainer
+        self.scaler = "standard" if scaler is None else scaler
+        self.n_jobs = n_jobs
 
         self.verbose = verbose
 
         if parameters_file is not None:
             self.load_parameters(parameters_file)
 
-    @staticmethod
-    def _default_estimator(estimator):
+    def _default_estimator(self, estimator):
         """Return the default estimator"""
 
         # Estimators are normally objects that have a fit and predict method
@@ -87,13 +93,17 @@ class RetrievalProduct:
         else:
             raise ValueError(f"Unknown estimator type: {estimator}!")
 
+        scalers = {
+            "standard": StandardScaler(),
+            "robust": RobustScaler(quantile_range=(25, 75)),
+            "minmax": MinMaxScaler(feature_range=[0, 1]),
+        }
+
         return Pipeline([
             # SVM or NN work better if we have scaled the data in the first
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
-            #("scaler", MinMaxScaler(feature_range=[0, 1])),
-            #("scaler", StandardScaler()),
-            ("scaler", RobustScaler(quantile_range=(25, 75))),
+            ("scaler", scalers[self.scaler]),
             # The "real" estimator:
             ("estimator", estimator),
         ])
@@ -144,8 +154,8 @@ class RetrievalProduct:
                 f"by yourself via __init__(*args, ?trainer?).")
 
         return GridSearchCV(
-            estimator, hyper_parameter, n_jobs=4,
-            refit=True, cv=3, verbose=self.verbose,
+            estimator, hyper_parameter, n_jobs=self.n_jobs,
+            refit=True, cv=3, verbose=2,
         )
 
     @staticmethod
@@ -182,8 +192,11 @@ class RetrievalProduct:
         for attr, value in coefs.items():
             setattr(sklearn_obj, attr, value)
 
+    def is_trained(self):
+        return self.estimator is not None
+
     def load_parameters(self, filename):
-        """ Load the training parameters from a JSON file.
+        """Load the training parameters from a JSON file
 
         Training parameters are:
         * weights of the neural networks (classifier and regressor)
@@ -221,7 +234,8 @@ class RetrievalProduct:
                 raise ValueError("Found no coefficients for scaler!")
 
             scaler = self._create_model(
-                RobustScaler, scaler["params"], scaler["coefs"],
+                scaler_class[parameter["scaler_class"]],
+                scaler["params"], scaler["coefs"],
             )
 
             self.estimator = Pipeline([
@@ -347,4 +361,3 @@ class RetrievalProduct:
         self.estimator = self.trainer.best_estimator_
 
         return self.estimator.score(inputs, targets)
-

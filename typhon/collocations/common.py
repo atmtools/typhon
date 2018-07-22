@@ -6,8 +6,6 @@ atmlab implemented by Gerrit Holl.
 Created by John Mrziglod, June 2017
 """
 
-import time
-
 import numba
 import numpy as np
 from typhon.files import FileSet
@@ -214,9 +212,7 @@ class Collocations(FileSet):
         timer = Timer().start()
         for _ in collocated_files:
             pass
-        collocator.info(
-            f"{timer} for finding all collocations"
-        )
+        print(f"{timer} for finding all collocations")
 
 
 @numba.jit

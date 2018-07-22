@@ -279,9 +279,7 @@ class Collocator:
             # debugging:
             msg = ""
             i = 0
-            print(kwargs['matches'])
             for primary, secondaries in zip(*kwargs['matches']):
-                print(primary, secondaries)
                 continue
                 for secondary in enumerate(secondaries):
                     if processed == i:

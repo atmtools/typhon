@@ -5,7 +5,7 @@ Examples:
     .. code-block:: python
 
     from typhon.files import AVHRR_GAC_HDF, CloudSat, FileSet, MHS_HDF
-    from typhon.spareice import SPAREICE
+    from typhon.retrieval import SPAREICE
 
     cloudsat = FileSet(...)
     mhs = FileSet(...)
@@ -47,24 +47,27 @@ Examples:
         output=...,
     )
 """
+from os.path import join, dirname
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from typhon.collocations import collapse, Collocator
-from typhon.retrieval import RetrievalProduct
 from typhon.utils.timeutils import to_datetime
 import xarray as xr
 
+from ..common import RetrievalProduct
 
 __all__ = [
     'SPAREICE',
 ]
 
+WEIGHTS_DIR = join(dirname(__file__), 'weights')
+
 
 class SPAREICE:
 
-    def __init__(self, file=None, collocator=None, verbose=1):
+    def __init__(self, file=None, collocator=None, processes=10, verbose=1):
         if collocator is None:
             self.collocator = Collocator(
                 verbose=verbose,
@@ -73,8 +76,8 @@ class SPAREICE:
             self.collocator = collocator
 
         self.retrieval = RetrievalProduct(
-            parameters_file=file,
-            verbose=verbose
+            parameters_file=file, n_jobs=processes,
+            scaler="robust", verbose=verbose
         )
 
         self.verbose = verbose
@@ -156,9 +159,6 @@ class SPAREICE:
             "avhrr_channel2": data["AVHRR/Data_btemps_mean"].isel(
                 **{"channel": 1}
             ),
-            "avhrr_channel3": data["AVHRR/Data_btemps_mean"].isel(
-                **{"channel": 2}
-            ),
             "avhrr_channel4": data["AVHRR/Data_btemps_mean"].isel(
                 **{"channel": 3}
             ),
@@ -177,6 +177,20 @@ class SPAREICE:
             "iwp_log10": np.log10(data["2C-ICE_ice_water_path_mean"])
         })
         return targets
+
+    @staticmethod
+    def split_data(data, ratio=None, shuffle=True):
+        indices = np.arange(data.lat.size)
+        if shuffle:
+            np.random.shuffle(indices)
+
+        dim = data.lat.dims[0]
+        boundary = int(data.lat.size * ratio)
+
+        return (
+            data.isel(**{dim: indices[:boundary]}),
+            data.isel(**{dim: indices[boundary:]}),
+        )
 
     def train(self, data, test_ratio=None):
 
@@ -245,6 +259,10 @@ class SPAREICE:
         Returns:
             A pandas DataFrame object with the retrieved IWP.
         """
+        # use the standard weights of SPARE-ICE:
+        if not self.retrieval.is_trained():
+            self.retrieval.load_parameters(join(WEIGHTS_DIR, "standard.json"))
+
         # We have to rename the variables when they come from collocations:
         if from_collocations:
             inputs = self.get_inputs(data)
