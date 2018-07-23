@@ -132,37 +132,37 @@ class SPAREICE:
         """Get the input fields for SPARE-ICE training / retrieval"""
 
         fields = {
-            "mhs_channel3": data["Data_btemps"].isel(
+            "mhs_channel3": data["Data/btemps"].isel(
                 **{"channel": 2}
             ),
-            "mhs_channel4": data["Data_btemps"].isel(
+            "mhs_channel4": data["Data/btemps"].isel(
                 **{"channel": 3}
             ),
-            "mhs_channel5": data["Data_btemps"].isel(
+            "mhs_channel5": data["Data/btemps"].isel(
                 **{"channel": 4}
             ),
             "lat": data["lat"],
             "mhs_scnpos": data["scnpos"],
             "satellite_azimuth_angle":
-                data["Geolocation_Satellite_azimuth_angle"],
+                data["Geolocation/Satellite_azimuth_angle"],
             "satellite_zenith_angle":
-                data["Geolocation_Satellite_zenith_angle"],
+                data["Geolocation/Satellite_zenith_angle"],
             "solar_azimuth_angle":
-                data["Geolocation_Solar_azimuth_angle"],
+                data["Geolocation/Solar_azimuth_angle"],
             "solar_zenith_angle":
-                data["Geolocation_Solar_zenith_angle"],
+                data["Geolocation/Solar_zenith_angle"],
             "relative_azimuth_angle":
-                data["AVHRR/Geolocation_Relative_azimuth_angle_mean"],
-            "avhrr_channel1": data["AVHRR/Data_btemps_mean"].isel(
+                data["AVHRR/Geolocation/Relative_azimuth_angle_mean"],
+            "avhrr_channel1": data["AVHRR/Data/btemps_mean"].isel(
                 **{"channel": 0}
             ),
-            "avhrr_channel2": data["AVHRR/Data_btemps_mean"].isel(
+            "avhrr_channel2": data["AVHRR/Data/btemps_mean"].isel(
                 **{"channel": 1}
             ),
-            "avhrr_channel4": data["AVHRR/Data_btemps_mean"].isel(
+            "avhrr_channel4": data["AVHRR/Data/btemps_mean"].isel(
                 **{"channel": 3}
             ),
-            "avhrr_channel5": data["AVHRR/Data_btemps_mean"].isel(
+            "avhrr_channel5": data["AVHRR/Data/btemps_mean"].isel(
                 **{"channel": 4}
             ),
             "avhrr_scnpos": data["AVHRR/scnpos_mean"],
@@ -174,7 +174,7 @@ class SPAREICE:
     def get_targets(data):
         """Get the target fields for SPARE-ICE training"""
         targets = pd.DataFrame({
-            "iwp_log10": np.log10(data["2C-ICE_ice_water_path_mean"])
+            "iwp_log10": np.log10(data["2C-ICE/ice_water_path_mean"])
         })
         return targets
 
@@ -327,7 +327,7 @@ class SPAREICE:
             retrieved["iwp"].attrs = {
                 "units": "g/m^2",
                 "name": "Ice Water Path",
-                "description": "Ice Water Path retrieved from SPARE-ICE"
+                "description": "Ice Water Path retrieved by SPARE-ICE"
             }
             retrieved["lat"] = data["lat"]
             retrieved["lon"] = data["lon"]
