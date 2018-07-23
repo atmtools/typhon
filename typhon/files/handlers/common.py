@@ -667,8 +667,6 @@ class NetCDF4(FileHandler):
             for dim in group.dimensions
         }
 
-        print(dim_map)
-
         # Load variables:
         try:
             for var_name, var in group.variables.items():

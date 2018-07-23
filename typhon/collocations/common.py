@@ -57,7 +57,7 @@ class Collocations(FileSet):
         self.collapser = collapser
         self.collocator = None
 
-    def add_fields(self, original_fileset, fields, **map_args):
+    def add_fields(self, original_fileset, fields, **kwargs):
         """
 
         Args:

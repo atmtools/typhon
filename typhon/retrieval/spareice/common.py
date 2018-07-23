@@ -250,7 +250,7 @@ class SPAREICE:
 
         Args:
             data: A pandas.DataFrame object with required input fields (see
-                above) or a xarray.Dataset
+                above) or a xarray.Dataset if `from_collocations` is True.
             from_collocations: Set this to true if `data` comes from
                 collocations and the fields will be correctly transformed.
             as_log10: If true, the retrieved IWP will be returned as logarithm
@@ -261,13 +261,25 @@ class SPAREICE:
         """
         # use the standard weights of SPARE-ICE:
         if not self.retrieval.is_trained():
-            self.retrieval.load_parameters(join(WEIGHTS_DIR, "standard.json"))
+            try:
+                self.retrieval.load_parameters(
+                    join(WEIGHTS_DIR, "standard.json")
+                )
+            except Exception as e:
+                print("Could not load the standard weights of SPARE-ICE!")
 
         # We have to rename the variables when they come from collocations:
-        if from_collocations:
+        if from_collocations and isinstance(data, xr.Dataset):
             inputs = self.get_inputs(data)
-        else:
+        elif isinstance(data, pd.DataFrame):
             inputs = data
+        else:
+            if from_collocations:
+                raise ValueError("data must be a xarray.Dataset!")
+            else:
+                raise ValueError(
+                    "data must be a pandas.DataFrame! You can also set "
+                    "from_collocations to True and use a xarray.Dataset.")
 
         retrieved = self.retrieval.retrieve(inputs)
         if not as_log10:
