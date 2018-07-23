@@ -68,4 +68,4 @@ retrieval.spareice
 .. autosummary::
    :toctree: generated
 
-    SPAREICE
+   SPAREICE
