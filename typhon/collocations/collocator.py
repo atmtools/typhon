@@ -214,7 +214,10 @@ class Collocator:
             # Yield all results that are currently in the queue:
             while not results.empty():
                 processed_matches += 1
-                self._print_progress(timer, total_matches, processed_matches)
+                self._print_progress(
+                    timer, total_matches, processed_matches, len(running),
+                    errors.qsize()
+                )
                 result = results.get()
                 if result is not None:
                     yield result
@@ -238,7 +241,7 @@ class Collocator:
             process.join()
 
     @staticmethod
-    def _print_progress(timer, total, current):
+    def _print_progress(timer, total, current, processes, errors):
         if current == 0:
             progress = 0
             elapsed_time = time.time() - timer
@@ -257,7 +260,8 @@ class Collocator:
 
         msg = "-"*79 + "\n"
         msg += f"{100*progress:.0f}% done ({elapsed_time} hours elapsed, " \
-               f"{expected_time} hours remaining)\n"
+               f"{expected_time} hours left, {processes} proc running, " \
+               f"{errors} errors)\n"
         msg += "-"*79 + "\n"
         print(msg)
 
