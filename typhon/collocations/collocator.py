@@ -495,6 +495,10 @@ class Collocator:
         if max_interval is not None:
             max_interval = to_timedelta(max_interval, numbers_as="seconds")
 
+        # The user can give strings instead of datetime objects:
+        start = datetime.min if start is None else to_datetime(start)
+        end = datetime.max if end is None else to_datetime(end)
+
         primary_name, primary, secondary_name, secondary = self._get_names(
             primary, secondary
         )
@@ -821,13 +825,13 @@ class Collocator:
             # all). Until this has changed, I do not want to have subgroups in
             # the output data (this makes things complicated when it comes to
             # coordinates). Therefore, we 'flat' each group before continuing:
-            output[names[i]].rename(
-                {
-                    old_name: old_name.replace("/", "_")
-                    for old_name in output[name].variables
-                    if "/" in old_name
-                }, inplace=True
-            )
+            # output[names[i]].rename(
+            #     {
+            #         old_name: old_name.replace("/", "_")
+            #         for old_name in output[name].variables
+            #         if "/" in old_name
+            #     }, inplace=True
+            # )
 
             # We need the total time coverage of all datasets for the name of
             # the output file

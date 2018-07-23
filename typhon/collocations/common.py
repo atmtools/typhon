@@ -76,7 +76,7 @@ class Collocations(FileSet):
                 "original_fileset": original_fileset,
                 "fields": fields,
             },
-            **map_args,
+            **kwargs,
         }
 
         return self.map(Collocations._add_fields, **map_args)
