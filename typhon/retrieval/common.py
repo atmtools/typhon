@@ -1,7 +1,10 @@
+import warnings
+
 try:
     import json_tricks
     json_tricks_loaded = True
 except ImportError:
+    warnings.warn("Loading and saving of the retriever is not possible!")
     # Loading and saving of the retriever is not possible
     json_tricks_loaded = False
 
@@ -17,11 +20,6 @@ __all__ = [
     'RetrievalProduct',
 ]
 
-scaler_class = {
-    "standard": StandardScaler,
-    "robust": RobustScaler,
-    "minmax": MinMaxScaler,
-}
 
 class NotTrainedError(Exception):
     """Should be raised if someone runs a non-trained retrieval product
@@ -70,7 +68,7 @@ class RetrievalProduct:
         # The trainer and/or model for this retriever:
         self.estimator = estimator
         self.trainer = trainer
-        self.scaler = "standard" if scaler is None else scaler
+        self.scaler_class = "standard" if scaler is None else scaler
         self.n_jobs = n_jobs
 
         self.verbose = verbose
@@ -103,7 +101,7 @@ class RetrievalProduct:
             # SVM or NN work better if we have scaled the data in the first
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
-            ("scaler", scalers[self.scaler]),
+            ("scaler", scalers[self.scaler_class]),
             # The "real" estimator:
             ("estimator", estimator),
         ])
@@ -233,6 +231,12 @@ class RetrievalProduct:
             if scaler is None:
                 raise ValueError("Found no coefficients for scaler!")
 
+            scaler_class = {
+                "standard": StandardScaler,
+                "robust": RobustScaler,
+                "minmax": MinMaxScaler,
+            }
+
             scaler = self._create_model(
                 scaler_class[parameter["scaler_class"]],
                 scaler["params"], scaler["coefs"],
@@ -282,7 +286,7 @@ class RetrievalProduct:
         return retrieved_data
 
     def save_parameters(self, filename):
-        """ Save the training parameters to a JSON file.
+        """ Save the training parameters to a JSON file
 
         Training parameters are:
             * configuration of the used estimator
@@ -308,6 +312,7 @@ class RetrievalProduct:
         parameter["scaler"] = self._model_to_json(
             self.estimator.steps[0][1]
         )
+        parameter["scaler_class"] = self.scaler_class
         parameter["estimator"] = self._model_to_json(
             self.estimator.steps[-1][1]
         )
