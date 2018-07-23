@@ -358,8 +358,10 @@ def collapse(data, reference=None, collapser=None):
 
         if collapse_dim not in var_data.dims:
             # This variable does not depend on the collocation coordinate.
-            # Hence, we cannot collapse it but we simply copy it.
-            if group == reference:
+            # Hence, we cannot collapse it but we simply copy it. To make the
+            # dataset collocation-friendly, the time, lat and lon fields of the
+            # reference group will be copied to the root path:
+            if group == reference and local_name in ("time", "lat", "lon"):
                 collapsed[local_name] = var_data
             else:
                 collapsed[var_name] = var_data
@@ -384,7 +386,10 @@ def collapse(data, reference=None, collapser=None):
             # that we might use it for a collocation search with another
             # dataset). So the content of the reference group moves "upward"
             # (group name vanishes from the path):
-            collapsed[local_name] = var_data
+            if local_name in ("time", "lat", "lon"):
+                collapsed[local_name] = var_data
+            else:
+                collapsed[var_name] = var_data
             continue
 
         # The standard fields (time, lat, lon) and the special fields to

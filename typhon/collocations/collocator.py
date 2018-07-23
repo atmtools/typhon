@@ -273,7 +273,7 @@ class Collocator:
                 results.put(result)
                 processed += 1
         except Exception as exception:
-            collocator.error("I got a problem and terminate!")
+            collocator._error("I got a problem and terminate!")
 
             # Build a message that contains all important information for
             # debugging:
