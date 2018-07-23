@@ -259,9 +259,9 @@ class Collocator:
         )
 
         msg = "-"*79 + "\n"
-        msg += f"{100*progress:.0f}% done ({elapsed_time} hours elapsed, " \
+        msg += f"{100*progress:.0f}% done, {elapsed_time} hours elapsed, " \
                f"{expected_time} hours left, {processes} proc running, " \
-               f"{errors} errors)\n"
+               f"{errors} errors\n"
         msg += "-"*79 + "\n"
         print(msg)
 
@@ -277,7 +277,7 @@ class Collocator:
                 results.put(result)
                 processed += 1
         except Exception as exception:
-            collocator._error("I got a problem and terminate!")
+            collocator._error("ERROR: I got a problem and terminate!")
 
             # Build a message that contains all important information for
             # debugging:
@@ -663,6 +663,11 @@ class Collocator:
             secondary = secondary.sel(
                 **{secondary_dim: secondary_period[secondary_dim]}
             )
+
+            # Check whether something is left:
+            if not primary_period.size or not secondary_period.size:
+                return None, None
+
             self._debug(f"{timer} for selecting common time period")
 
         # Flat the data: For collocating, we need a flat data structure.
