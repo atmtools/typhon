@@ -651,6 +651,35 @@ class NetCDF4(FileHandler):
         return _xarray_rename_fields(dataset, mapping)
 
     @staticmethod
+    def _get_dimension_name(ds, group, path, dim):
+        # If the dimension is defined in the subgroup, use NOT the one of the
+        # parent group:
+        if dim in group.variables or path == "":
+            # use the subgroup dimension!
+            return path + dim
+
+        # Go through all ancestor groups (start with the parent, then
+        # grandparent, etc.) and check whether there is a dimension that suits:
+        ancestor_groups = [None] + path[:-1].split("/")[:-1]
+
+        for i, ancestor_group in enumerate(reversed(ancestor_groups)):
+            if ancestor_group is None:
+                ancestor_dim = dim
+            else:
+                ancestor_dim = "/".join(
+                    ancestor_groups[1:len(ancestor_groups) - i] + [dim])
+
+            ancestor_size = ds.dims.get(ancestor_dim, None)
+
+            if ancestor_size is not None \
+                    and group.dimensions[dim].size == ancestor_size:
+                # use the ancestor dimension:
+                return ancestor_dim
+
+        # use the subgroup dimension!
+        return path + dim
+
+    @staticmethod
     def _load_group(ds, path, group, fields):
         if path is None:
             # The current group is the root group
@@ -659,11 +688,12 @@ class NetCDF4(FileHandler):
         else:
             path += "/"
 
-        # Dimension (coordinate) mapping: A coordinate might be defined in a
+        # Dimension (coordinate) mapping: A dimension might be defined in a
         # group, then it is valid for this group only. Otherwise, the
-        # coordinate from the parent group is taken.
+        # dimension from the parent group is taken (if it suits with name and
+        # size)
         dim_map = {
-            dim: path + dim if dim in group.variables else dim
+            dim: NetCDF4._get_dimension_name(ds, group, path, dim)
             for dim in group.dimensions
         }
 
