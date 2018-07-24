@@ -205,9 +205,9 @@ class Workspace:
     Attributes:
 
         ptr(ctypes.c_void_p): object pointing to the ArtsWorkspace instance of the
-        ARTS C API
+            ARTS C API
         _vars(dict): Dictionary holding local variables that have been created
-                    interactively using the one of Create ARTS WSMs.
+            interactively using the one of Create ARTS WSMs.
 
 
     """
