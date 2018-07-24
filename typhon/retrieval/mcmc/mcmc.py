@@ -11,11 +11,8 @@ References
 [1] Andrew Gelman et al., Bayesian Data Analysis, 3rd Edition
 
 """
-import ctypes as c
 import numpy as np
-import matplotlib as plt
 
-from typhon.arts.workspace import Workspace
 
 def r_factor(stats):
     """
