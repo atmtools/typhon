@@ -38,8 +38,6 @@ def compress(filename, fmt=None, tmpdir=None):
 
     TODO: Preferably, it should be possible to write to the compressed file
     directly instead of copying it.
-    TODO: Contains a bug. The original file won't be preserved, it changes
-    to the name of the temporary file.
 
     Args:
         filename: The path and name of the compressed that should be
