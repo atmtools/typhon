@@ -156,9 +156,10 @@ class MCMC:
                proportional to the logarithm of the prior probability of value
                of v, and finally a jump function j, so that
                `v_new = j(ws, v_old)` yields a new value for the variable v
-               and manipulates the `Workspace` object ws so that a subsequent
-               call to the yCalc WSM will compute the simulated measurement
-               corresponding to the new value `v_new` of the variable v.
+               and manipulates the :class:`~typhon.arts.workspace.Workspace`
+               object ws so that a subsequent call to the yCalc WSM will compute
+               the simulated measurement corresponding to the new value `v_new`
+               of the variable v.
            y: The measured vector of brightness temperatures which must be
                consistent with the ARTS WSV y
            ly: The measurement likelihood such that `ly(y, yf)` gives
@@ -180,8 +181,8 @@ class MCMC:
         the prior likelihoods.
 
         Args:
-           ws: A `Workspace` object consistent with the current state
-               of the MCMC run.
+           ws: A :class:`~typhon.arts.workspace.Workspace` object consistent
+               with the current state of the MCMC run.
         """
         lxs = np.zeros(len(self.vars))
         ly  = self.ly(self.y, ws.y.value)
@@ -193,11 +194,12 @@ class MCMC:
         """
         The performs a Gibbs step for a given variable. This will generate
         a candidate for the given variable using the corresponding jump
-        function, call `yCalc()` on the `Workspace` object `ws`
+        function, call `yCalc()` on the
+        :class:`~typhon.arts.workspace.Workspace` object `ws`
 
         Args:
-           ws: A `Workspace` object consistent with the current state
-               of the MCMC run.
+           ws: A :class:`~typhon.arts.workspace.Workspace` object consistent
+               with the current state of the MCMC run.
            ly_old: The measurement likelihood before the execution of
                new step
            lxs_old: The prior likelihoods for each of the variables
@@ -249,8 +251,9 @@ class MCMC:
         starting from start values `x0s`.
 
         Args:
-            ws: A `Workspace` object setup so that only a call to the `yCalc`
-                WSM is necessary to perform a simulation
+            ws: A :class:`~typhon.arts.workspace.Workspace` object setup so that
+                only a call to the `yCalc` WSM is necessary to perform a
+                simulation
             x0s: A list of start values which is used to initialized the
                 workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
                 the jump function of the corresponding variable.
@@ -297,8 +300,8 @@ class MCMC:
         starting from start values `x0s`.
 
         Args:
-            ws: A `Workspace` object setup so that only a call to the `yCalc`
-                WSM is necessary to perform a simulation
+            ws: A :class:`~typhon.arts.workspace.Workspace` object setup so that
+            only a call to the `yCalc` WSM is necessary to perform a simulation
             x0s: A list of start values which is used to initialized the
                 workspace by calling `j(x0)` for each `x0` in `x0s` and `j` is
                 the jump function of the corresponding variable.
