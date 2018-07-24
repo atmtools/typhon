@@ -282,17 +282,17 @@ class Collocator:
             # Build a message that contains all important information for
             # debugging:
             msg = ""
-            i = 0
-            for primary, secondaries in zip(*kwargs['matches']):
-                continue
-                for secondary in enumerate(secondaries):
-                    if processed == i:
-                        msg = f"Failed to collocate {primary} with {secondary}"
-                        break
-                    i += 1
-
-                if msg is not None:
-                    break
+            # i = 0
+            # for primary, secondaries in zip(*kwargs['matches']):
+            #     continue
+            #     for secondary in enumerate(secondaries):
+            #         if processed == i:
+            #             msg = f"Failed to collocate {primary} with {secondary}"
+            #             break
+            #         i += 1
+            #
+            #     if msg is not None:
+            #         break
 
             # The main process needs to know about this exception!
             error = [name, exception.__traceback__, msg, processed]
