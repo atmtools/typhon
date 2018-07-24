@@ -7,6 +7,10 @@ arts.workspace
 .. autosummary::
    :toctree: generated
 
+   arts_agenda
+   Include
+   Workspace
+
 arts.workspace.agendas
 ======================
 
@@ -49,18 +53,4 @@ arts.workspace.variables
    :toctree: generated
 
    WorkspaceVariable
-
-arts.workspace.workspace
-========================
-
-.. automodule:: typhon.arts.workspace.workspace
-.. currentmodule:: typhon.arts.workspace
-
-.. autosummary::
-   :toctree: generated
-
-   arts_agenda
-   Include
-   Workspace
-
 
