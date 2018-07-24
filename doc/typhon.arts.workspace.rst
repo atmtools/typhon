@@ -54,12 +54,13 @@ arts.workspace.workspace
 ========================
 
 .. automodule:: typhon.arts.workspace.workspace
-.. currentmodule:: typhon.arts.workspace.workspace
+.. currentmodule:: typhon.arts.workspace
 
 .. autosummary::
    :toctree: generated
 
    arts_agenda
+   Include
    Workspace
 
 
