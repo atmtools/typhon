@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import time
 
 import numpy as np
 import numexpr as ne
@@ -12,7 +11,6 @@ from .common import NetCDF4, expects_file_info
 from .testers import check_lat_lon
 
 __all__ = [
-    'AAPP_HDF',
     'AVHRR_GAC_HDF',
     'MHS_HDF',
 ]
@@ -79,9 +77,23 @@ class AAPP_HDF(NetCDF4):
         # xarray.open_dataset can mask and scale automatically, but it does not
         # know the attribute *Scale* (which is specific for AAPP files):
         for var in dataset.variables:
-            scaling = dataset[var].attrs.pop("Scale", None)
+            # We want to remove some attributes after applying them but
+            # OrderedDict does not allow to pop the values:
+            attrs = dict(dataset[var].attrs)
+
+            mask = attrs.pop('FillValue', None)
+            if mask is not None:
+                dataset[var] = dataset[var].where(
+                    # Also cover overflow errors as they are in
+                    # NSS.MHSX.NN.D07045.S2234.E0021.B0896162.GC.h5
+                    (dataset[var] != mask) & (dataset[var] != -2147483648.0)
+                )
+
+            scaling = attrs.pop('Scale', None)
             if scaling is not None:
                 dataset[var] = dataset[var].astype(float) * scaling
+
+            dataset[var].attrs = attrs
 
     def _test_coords(self, dataset, wanted=None):
         # Maximal these dimensions (or less) should be in the dataset:
@@ -115,11 +127,11 @@ class MHS_HDF(AAPP_HDF):
         }
 
     @expects_file_info()
-    def read(self, paths, mask_and_scale=True, **kwargs):
+    def read(self, file_info, mask_and_scale=True, **kwargs):
         """Read and parse MHS AAPP HDF5 files and load them to xarray
 
         Args:
-            paths: Path and name of the file as string or FileInfo object.
+            file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk.
             mask_and_scale: Where the data contains missing values, it will be
@@ -146,7 +158,7 @@ class MHS_HDF(AAPP_HDF):
 
         # Load the dataset from the file:
         dataset = super().read(
-            paths, fields=fields, mapping=self.mapping,
+            file_info, fields=fields, mapping=self.mapping,
             mask_and_scale=mask_and_scale, **kwargs
         )
 
@@ -198,12 +210,12 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         }
 
     @expects_file_info()
-    def read(self, paths, mask_and_scale=True, interpolate_packed_pixels=True,
-             aapp_bug_workaround=True, **kwargs):
+    def read(self, file_info, mask_and_scale=True, interpolate_packed_pixels=True,
+             max_nans_interpolation=10, **kwargs):
         """Read and parse MHS AAPP HDF5 files and load them to xarray
 
         Args:
-            paths: Path and name of the file as string or FileInfo object.
+            file_info: Path and name of the file as string or FileInfo object.
                 This can also be a tuple/list of file names or a path with
                 asterisk.
             mask_and_scale: Where the data contains missing values, it will be
@@ -211,7 +223,8 @@ class AVHRR_GAC_HDF(AAPP_HDF):
                 will be scaled with them.
             interpolate_packed_pixels: Geo-location data is packed and must be
                 interpolated to use them as reference for each pixel.
-            aapp_bug_workaround: TODO
+            max_nans_interpolation: How many NaN values are allowed in latitude
+                and longitudes before raising an error?
             **kwargs: Additional keyword arguments that are valid for
                 :class:`~typhon.files.handlers.common.NetCDF4`.
 
@@ -233,7 +246,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         # Load the dataset from the file:
         dataset = super().read(
-            paths, fields=fields, mapping=self.mapping,
+            file_info, fields=fields, mapping=self.mapping,
             mask_and_scale=mask_and_scale, **kwargs
         )
 
@@ -251,11 +264,8 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         # Currently, the AAPP converting tool seems to have a bug. Instead of
         # retrieving 409 pixels per scanline, one gets 2048 pixels. The
         # additional values are simply duplicates (or rather quintuplicates):
-        if aapp_bug_workaround:
-            dataset = dataset.sel(scnpos=slice(4, None, 5))
-            dataset["scnpos"] = np.arange(1, 410)
-        else:
-            interpolate_packed_pixels = False
+        dataset = dataset.sel(scnpos=slice(4, None, 5))
+        dataset["scnpos"] = np.arange(1, 410)
 
         # Create the time variable (is built from several other variables):
         dataset = self._get_time_field(dataset, user_fields)
@@ -265,7 +275,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         # All geolocation fields are packed in the AVHRR GAC files:
         if interpolate_packed_pixels:
-            self._interpolate_packed_pixels(dataset)
+            self._interpolate_packed_pixels(dataset, max_nans_interpolation)
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos'}
         else:
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos',
@@ -283,12 +293,24 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         return dataset
 
     @staticmethod
-    def _interpolate_packed_pixels(dataset):
+    def _interpolate_packed_pixels(dataset, max_nans_interpolation):
         given_pos = np.arange(5, 409, 8)
         new_pos = np.arange(1, 410)
 
         lat_in = np.deg2rad(dataset["lat"].values)
         lon_in = np.deg2rad(dataset["lon"].values)
+        nans = np.isnan(lat_in) & np.isnan(lon_in)
+
+        if nans.sum() > max_nans_interpolation:
+            raise ValueError(
+                "Too many NaNs in latitude and longitude of this AVHRR file. "
+                "Cannot guarantee a good interpolation!"
+            )
+
+        # Filter NaNs because CubicSpline cannot handle it:
+        lat_in = lat_in[~nans]
+        lon_in = lon_in[~nans]
+        given_pos = given_pos[~nans]
 
         x_in = np.cos(lon_in) * np.cos(lat_in)
         y_in = np.sin(lon_in) * np.cos(lat_in)
