@@ -1,8 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from multiprocessing import Process, Queue
-import random
-import textwrap
 import time
 import traceback
 
@@ -39,7 +37,6 @@ PROCESS_NAMES = [
     'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
     'Archimedes'
 ]
-random.shuffle(PROCESS_NAMES)
 
 
 class Collocator:
@@ -96,7 +93,7 @@ class Collocator:
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
-            compact=False, **kwargs
+            compact=False, skip_file_errors=False, **kwargs
     ):
         """Collocate two filesets with each other
 
@@ -113,6 +110,9 @@ class Collocator:
                 use.
             output: Fileset object where the collocated data should be stored.
             compact: Not yet implemented.
+            skip_file_errors: If a file could not be read, the file and its
+                match will be skipped and a warning will be printed. Otheriwse
+                the program will stop (default).
             **kwargs: Further keyword arguments that are allowed for
                 :meth:`collocate`.
 
@@ -123,6 +123,7 @@ class Collocator:
 
         Examples:
 
+        .. cod
         """
         timer = time.time()
 
@@ -180,6 +181,7 @@ class Collocator:
             "filesets": filesets,
             "output": output,
             "compact": compact,
+            "skip_file_errors": skip_file_errors,
         })
 
         # This contains all running processes
@@ -222,6 +224,9 @@ class Collocator:
                 if result is not None:
                     yield result
 
+        for process in process_list:
+            process.join()
+
         if not errors.empty():
             self._error("Some processes terminated due to errors:")
 
@@ -236,9 +241,6 @@ class Collocator:
             print(error[2])
             print("".join(traceback.format_tb(error[1])))
             print("-" * 79 + "\n")
-
-        for process in process_list:
-            process.join()
 
     @staticmethod
     def _print_progress(timer, total, current, processes, errors):
@@ -259,9 +261,9 @@ class Collocator:
         )
 
         msg = "-"*79 + "\n"
-        msg += f"{100*progress:.0f}% done, {elapsed_time} hours elapsed, " \
-               f"{expected_time} hours left, {processes} proc running, " \
-               f"{errors} errors\n"
+        msg += f"{100*progress:.0f}% | {elapsed_time} hours elapsed, " \
+               f"{expected_time} hours left | {processes} proc running, " \
+               f"{errors} failed\n"
         msg += "-"*79 + "\n"
         print(msg)
 
@@ -281,21 +283,28 @@ class Collocator:
 
             # Build a message that contains all important information for
             # debugging:
-            msg = ""
-            # i = 0
-            # for primary, secondaries in zip(*kwargs['matches']):
-            #     continue
-            #     for secondary in enumerate(secondaries):
-            #         if processed == i:
-            #             msg = f"Failed to collocate {primary} with {secondary}"
-            #             break
-            #         i += 1
-            #
-            #     if msg is not None:
-            #         break
+            i = 0
+            msg = None
+            for match in kwargs['matches']:
+                for secondary in match[1]:
+                    if processed != i:
+                        i += 1
+                        continue
+
+                    i += 1
+                    msg = f"Failed to collocate {match[0]} with {secondary}"
+                    break
+
+                if msg is not None:
+                    break
+
+            msg += "\n"
 
             # The main process needs to know about this exception!
-            error = [name, exception.__traceback__, msg, processed]
+            error = [
+                name, exception.__traceback__,
+                msg + str(exception), processed
+            ]
             errors.put(error)
 
             # Finally, raise the exception to terminate this process:
@@ -304,12 +313,13 @@ class Collocator:
         collocator._info(f"Finished all {processed} matches")
 
     def _collocate_files(
-        self, filesets, matches, output, compact, **kwargs
+        self, filesets, matches, output, compact, skip_file_errors, **kwargs
     ):
 
         # Get all primary and secondary data that overlaps with each other
         file_pairs = filesets[0].align(
-            filesets[1], matches=matches, return_info=True, compact=compact
+            filesets[1], matches=matches, return_info=True, compact=compact,
+            skip_errors=skip_file_errors,
         )
 
         debug_timer = time.time()
@@ -725,8 +735,9 @@ class Collocator:
 
         We need a flat dataset structure for the collocation algorithms, i.e.
         time, lat and lon are not allowed to be gridded, they must be
-        1-dimensional and share the same dimension. There are three groups of
-        original data structures that this method can handle:
+        1-dimensional and share the same dimension (namely *collocation*).
+        There are three groups of original data structures that this method
+        can handle:
 
         * linear (e.g. ship track measurements): time, lat and lon have the
             same dimension and are all 1-dimensional. Fulfills all criteria
@@ -745,16 +756,28 @@ class Collocator:
             A xr.Dataset where time, lat and lon are aligned on one shared
             dimension.
         """
-        # Flat: time, lat and lon share the same dimension size and are
-        # 1-dimensional
-        flat = len(
-            set(data["time"].shape)
-            | set(data["lat"].shape)
-            | set(data["lon"].shape)) == 1
+        # Flat:
+        shared_dims = list(
+            set(data.time.dims) | set(data.lat.dims) | set(data.lon.dims)
+        )
 
-        if flat:
+        # Check whether the dataset is flat (time, lat and lon share the same
+        # dimension size and are 1-dimensional)
+        if len(shared_dims) == 1:
+
+            if shared_dims[0] in ("time", "lat", "lon"):
+                # One of the key variables is the main dimension! Change this:
+                data["collocation"] = shared_dims[0], np.arange(
+                    data[shared_dims[0]].size)
+                data = data.swap_dims({shared_dims[0]: "collocation"})
+                data.reset_coords(shared_dims[0], inplace=True)
+
+                # So far, collocation is a coordinate. We want to make it to a
+                # dimension,  so drop its values:
+                return data.drop("collocation")
+
             return data.rename({
-                data.time.dims[0]: "collocation"
+                shared_dims[0]: "collocation"
             })
 
         # The coordinates are gridded:
