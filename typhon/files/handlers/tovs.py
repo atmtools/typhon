@@ -299,18 +299,24 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         lat_in = np.deg2rad(dataset["lat"].values)
         lon_in = np.deg2rad(dataset["lon"].values)
-        nans = np.isnan(lat_in) & np.isnan(lon_in)
 
-        if nans.sum() > max_nans_interpolation:
+        # We cannot define given positions for each scanline, but we have to
+        # set them for all equally. Hence, we skip every scan position of all
+        # scan lines even if only one contains a NaN value:
+        nan_scnpos = \
+            np.isnan(lat_in).sum(axis=0) + np.isnan(lon_in).sum(axis=0)
+        valid_pos = nan_scnpos == 0
+
+        if valid_pos.sum() < 52 - max_nans_interpolation:
             raise ValueError(
                 "Too many NaNs in latitude and longitude of this AVHRR file. "
                 "Cannot guarantee a good interpolation!"
             )
 
         # Filter NaNs because CubicSpline cannot handle it:
-        lat_in = lat_in[~nans]
-        lon_in = lon_in[~nans]
-        given_pos = given_pos[~nans]
+        lat_in = lat_in[:, valid_pos]
+        lon_in = lon_in[:, valid_pos]
+        given_pos = given_pos[valid_pos]
 
         x_in = np.cos(lon_in) * np.cos(lat_in)
         y_in = np.sin(lon_in) * np.cos(lat_in)
@@ -330,8 +336,13 @@ class AVHRR_GAC_HDF(AAPP_HDF):
             if "packed_pixels" not in var.dims:
                 continue
 
+            nan_scnpos = np.isnan(var).sum(axis=0)
+            valid_pos = nan_scnpos == 0
+            given_pos = np.arange(5, 409, 8)[valid_pos]
+
             dataset[var_name] = xr.DataArray(
                 CubicSpline(
-                    given_pos, var.values, axis=1, extrapolate=True)(new_pos),
+                    given_pos, var.values[:, valid_pos], axis=1,
+                    extrapolate=True)(new_pos),
                 dims=("scnline", "scnpos")
             )
