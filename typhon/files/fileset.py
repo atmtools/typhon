@@ -1987,6 +1987,7 @@ class FileSet:
             except Exception as e:
                 if error_to_warning:
                     msg = f"[ERROR] Could not read the file(s):\n{file_info}\n"
+                    msg += str(e) + "\n"
                     warnings.warn(
                         msg + "".join(traceback.format_tb(e.__traceback__)),
                         RuntimeWarning

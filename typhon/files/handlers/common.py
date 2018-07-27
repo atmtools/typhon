@@ -601,11 +601,14 @@ class HDF5(FileHandler):
 
 
 class NetCDF4(FileHandler):
-    """File handler that can read / write data from / to a netCDF4 file
+    """File handler that can load / store xarray.Dataset from / to NetCDF4
+
+    This file handler can also handle pseudo groups in :class:`xarray.Dataset`
+    objects.
     """
 
     def __init__(self, **kwargs):
-        """Initializes a NetCDF4 file handler class.
+        """Initialize a NetCDF4 file handler class
 
         Args:
             info: You cannot use the :meth:`get_info` without giving a
@@ -613,9 +616,6 @@ class NetCDF4(FileHandler):
         """
         # Call the base class initializer
         super().__init__(**kwargs)
-
-        # The read method can handle multiple files
-        self.reads_multiple_files = True
 
     @expects_file_info()
     def read(self, file_info, fields=None, mapping=None, **kwargs):
@@ -635,6 +635,19 @@ class NetCDF4(FileHandler):
 
         Returns:
             A xarray.Dataset object.
+
+        Examples:
+
+            .. code-block:: python
+
+                from typhon.files import NetCDF4
+
+                fh = NetCDF4()
+                data = fh.read("filename.nc")
+
+                # OR if you want to load only some fields:
+                data = fh.read("filename.nc", fields=["temp", "lat", "lon"])
+
         """
         # xr.open_dataset does still not support loading all groups from a
         # file except a very cumbersome (and expensive) way by using the
@@ -714,53 +727,78 @@ class NetCDF4(FileHandler):
 
     @expects_file_info(pos=2)
     def write(self, data, filename, **kwargs):
-        """Save a xarray.Dataset to a NetCDF file
+        """Save a xarray.Dataset to a NetCDF4 file
 
         Args:
             data: A xarray.Dataset object. It may contain 'pseudo' groups (i.e.
                 variables with */* in their names). Those variables will be
                 saved in subgroups.
-            filename:
-            **kwargs:
+            filename: A string or a :class:`FileInfo` object with the path
+                where the data should be stored.
 
         Returns:
+            None
 
+        Examples:
+
+            .. code-block:: python
+
+                from typhon.files import NetCDF4
+                import xarray as xr
+
+                fh = NetCDF4()
+                data = xr.Dataset({
+                    "data/temperature": ("time", [0, 1]),
+                    "lat": ("time", [0, 1]),
+                    "lon": ("time", [0, 1]),
+                }, coords={
+                    "time": ("time", [0, 1]),
+                })
+
+                # Save the dataset:
+                fh.write(data, "filename.nc")
         """
-        full_names = defaultdict(list)
+        group_vars = defaultdict(list)
 
-        for full in data.variables:
-            group, _ = self._split_path(full)
-            full_names[group].append(full)
+        # Get the variables for the different groups:
+        for full_name in data.variables:
+            group, _ = NetCDF4._split_path(full_name)
+            group_vars[group].append(full_name)
 
         # If we ware writing out multiple groups, we do not want to overwrite
         # the last file:
         user_mode = kwargs.pop("mode", "w")
-        already_openend = False
-        for group, variables in full_names.items():
+        already_opened = False
+        for group, variables in group_vars.items():
             ds = data[variables]
 
-            # Remove the group name from all variables:
+            # We do not want to store global coordinates in each subgroup.
+            # Hence, we drop them before saving the group:
+            coords_to_drop = [
+                coord
+                for coord in ds.coords.keys()
+                if NetCDF4._split_path(coord)[0] != group
+            ]
+            ds = ds.drop(coords_to_drop)
+
+            # Remove the group name from all variables (incl. dimensions):
             mapping = {
-                full: self._split_path(full)[1]
-                for full in ds.variables
+                full: NetCDF4._split_path(full)[1]
+                for full in ds.data_vars
             }
-
-            # Filter out all
             ds.rename(mapping, inplace=True)
-
-            # Do not forget the dimension names :-)
-            for var in ds.variables.values():
-                var.dims = [
-                    self._split_path(dim)[1]
-                    for dim in var.dims
-                ]
+            mapping = {
+                dim: NetCDF4._split_path(dim)[1]
+                for dim in ds.dims
+            }
+            ds.rename(mapping, inplace=True)
 
             ds.to_netcdf(
                 filename.path, group=group,
-                mode="a" if already_openend else user_mode,
+                mode="a" if already_opened else user_mode,
                 **kwargs
             )
-            already_openend = True
+            already_opened = True
 
     @staticmethod
     def _split_path(path):

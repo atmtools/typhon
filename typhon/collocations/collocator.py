@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from typhon.geodesy import great_circle_distance
 from typhon.geographical import GeoIndex
+from typhon.utils import add_xarray_groups
 from typhon.utils.timeutils import to_datetime, to_timedelta, Timer
 import xarray as xr
 
@@ -853,18 +854,6 @@ class Collocator:
 
             output[names[i]] = dataset.isel(collocation=original_indices)
 
-            # xarray does not really handle grouped data (actually, not at
-            # all). Until this has changed, I do not want to have subgroups in
-            # the output data (this makes things complicated when it comes to
-            # coordinates). Therefore, we 'flat' each group before continuing:
-            # output[names[i]].rename(
-            #     {
-            #         old_name: old_name.replace("/", "_")
-            #         for old_name in output[name].variables
-            #         if "/" in old_name
-            #     }, inplace=True
-            # )
-
             # We need the total time coverage of all datasets for the name of
             # the output file
             data_start = pd.Timestamp(
@@ -911,35 +900,20 @@ class Collocator:
                     [output[name], stacked_dims_data],
                 )
 
-            # Now, we can rename it (to make it to a member of this group) and
-            # then we can drop it.
-            output[name].rename(
-                {"collocation": f"{name}/collocation"}, inplace=True
-            )
-
             # For the flattening we might have created temporal variables,
-            # delete them here:
+            # also collect them to drop:
             vars_to_drop = [
                 var for var in output[name].variables.keys()
                 if var.startswith("__replacement_")
             ]
 
-            output[name] = output[name].drop(
-                [f"{name}/collocation", *vars_to_drop],
-            )
-
-            # We want to merge all datasets together (but as subgroups). Hence,
-            # add the fileset name to each dataset as prefix:
-            output[name].rename(
-                {
-                    var_name: "/".join([name, var_name])
-                    for var_name in output[name].variables
-                }, inplace=True
-            )
+            output[name] = output[name].drop([
+                f"collocation", *vars_to_drop
+            ])
 
         # Merge all datasets into one:
-        output = xr.merge(
-            [data for data in output.values()]
+        output = add_xarray_groups(
+            xr.Dataset(), **output
         )
 
         # This holds the collocation information (pairs, intervals and
