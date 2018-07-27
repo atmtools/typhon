@@ -11,6 +11,7 @@ physics
    density
    e_eq_ice_mk
    e_eq_water_mk
+   e_eq_mixed_mk
    frequency2wavelength
    frequency2wavenumber
    fresnel

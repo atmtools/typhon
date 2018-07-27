@@ -105,6 +105,18 @@ class TestThermodynamics:
         x = physics.e_eq_water_mk(280)
         assert np.allclose(x, 991.85662101784112)
 
+    def test_e_eq_mixed_mk(self):
+        """Test calculation of vapor pressure with respect to mixed phase."""
+        assert np.allclose(physics.e_eq_ice_mk(240),
+                           physics.e_eq_mixed_mk(240))
+
+        assert np.allclose(physics.e_eq_water_mk(290),
+                           physics.e_eq_mixed_mk(290))
+
+        assert (physics.e_eq_ice_mk(263)
+                < physics.e_eq_mixed_mk(263)
+                < physics.e_eq_water_mk(263))
+
     def test_density(self):
         """Test calculation of air density."""
         x = physics.density(1013.15e2, 273.15)
