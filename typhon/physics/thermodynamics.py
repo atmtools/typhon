@@ -2,7 +2,10 @@
 
 """Functions related to water vapor and its thermodynamic effects
 """
+from functools import lru_cache
+
 import numpy as np
+from scipy.interpolate import interp1d
 
 from typhon import constants
 
@@ -10,6 +13,7 @@ from typhon import constants
 __all__ = [
     'e_eq_ice_mk',
     'e_eq_water_mk',
+    'e_eq_mixed_mk',
     'density',
     'mixing_ratio2specific_humidity',
     'mixing_ratio2vmr',
@@ -38,6 +42,8 @@ def e_eq_ice_mk(T):
     See also:
         :func:`~typhon.physics.e_eq_water_mk`
             Calculate the equilibrium vapor pressure over liquid water.
+        :func:`~typhon.physics.e_eq_mixed_mk`
+            Calculate the vapor pressure of water over the mixed phase.
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
@@ -76,6 +82,8 @@ def e_eq_water_mk(T):
     See also:
         :func:`~typhon.physics.e_eq_ice_mk`
             Calculate the equilibrium vapor pressure of water over ice.
+        :func:`~typhon.physics.e_eq_mixed_mk`
+            Calculate the vapor pressure of water over the mixed phase.
 
     References:
         Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
@@ -97,6 +105,80 @@ def e_eq_water_mk(T):
          * (53.878 - 1331.22 / T - 9.44523 * np.log(T) + 0.014025 * T))
 
     return np.exp(e)
+
+
+@lru_cache(maxsize=8)
+def _interpolate_e_eq(Tmin=153.15, Tmax=333.15, kind='quadratic', **kwargs):
+    """Return an interpolation for the vapor pressure over the mixed phase.
+
+    This helper function allows caching of interpolation functions in order
+    to save repreated code execution.
+    """
+    # Vapor pressure over ice for -100C to -23C.
+    T_ice = np.linspace(Tmin, -23 + constants.K, 960)
+    eq_ice = e_eq_ice_mk(T_ice)
+
+    # Vapor pressure over liquid water for 0C to 50C.
+    T_liq = np.linspace(constants.K, Tmax, 600)
+    eq_liq = e_eq_water_mk(T_liq)
+
+    # Perform an interpolation for vapor pressure over the "mixed" phase.
+    f = interp1d(
+        x=np.hstack((T_ice, T_liq)),
+        y=np.hstack((eq_ice, eq_liq)),
+        kind=kind,
+        **kwargs
+    )
+
+    return f
+
+
+def e_eq_mixed_mk(T, Tmin=153.15, Tmax=333.15, **kwargs):
+    r"""Calculate vapor pressure of water with respect to the mixed phase.
+
+    The equilibrium vapor pressure is defined with respect to saturation
+    over ice below -23C and with respect to saturation over water above 0C.
+    In the regime in between an interpolation is applied (default 'quadratic').
+
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from typhon import physics
+
+        T = np.linspace(245, 285)
+        fig, ax = plt.subplots()
+        ax.semilogy(T, physics.e_eq_mixed_mk(T), lw=3, c='k', label='Mixed')
+        ax.semilogy(T, physics.e_eq_ice_mk(T), ls='dashed', label='Ice')
+        ax.semilogy(T, physics.e_eq_water_mk(T), ls='dashed', label='Water')
+        ax.set_ylabel('Vapor pressure [Pa]')
+        ax.set_xlabel('Temperature [K]')
+        ax.legend()
+
+        plt.show()
+
+    Parameters:
+        T (float or ndarray): Temperature [K].
+        Tmin (float): Lower bound of temperature interpolation [K].
+        Tmax (float): Upper bound of temperature interpolation [K].
+        **kwargs: All remaining keyword arguments are passed to
+            :func:`scipy.interpolate.interp1d`.
+
+    See also:
+        :func:`~typhon.physics.e_eq_ice_mk`
+            Calculate the equilibrium vapor pressure of water over ice.
+        :func:`~typhon.physics.e_eq_water_mk`
+            Calculate the equilibrium vapor pressure over liquid water.
+
+    Returns:
+        float or ndarray: Equilibrium vapor pressure [Pa].
+    """
+    e_eq = _interpolate_e_eq(Tmin=Tmin, Tmax=Tmax, **kwargs)(T)
+
+    # Return float for float input (consistent with other e_eq functions).
+    return e_eq if e_eq.size > 1 else float(e_eq)
 
 
 def density(p, T, R=constants.gas_constant_dry_air):
