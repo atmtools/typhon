@@ -164,7 +164,7 @@ def e_eq_mixed_mk(T, Tmin=153.15, Tmax=333.15, **kwargs):
         Tmin (float): Lower bound of temperature interpolation [K].
         Tmax (float): Upper bound of temperature interpolation [K].
         **kwargs: All remaining keyword arguments are passed to
-            :func:`scipy.interpolate.interp1d`.
+            :class:`scipy.interpolate.interp1d`.
 
     See also:
         :func:`~typhon.physics.e_eq_ice_mk`
