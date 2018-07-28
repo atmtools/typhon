@@ -87,9 +87,18 @@ class SPAREICE:
         if self.verbose > 1:
             print(f"[{self.name}] {msg}")
 
-    def info(self, msg):
+    def _info(self, msg):
         if self.verbose > 0:
             print(f"[{self.name}] {msg}")
+
+    def load_standard_weights(self):
+        try:
+            self.retrieval.load_parameters(
+                join(WEIGHTS_DIR, "standard.json")
+            )
+        except Exception as e:
+            print("Could not load the standard weights of SPARE-ICE!")
+            raise e
 
     def load_training(self, filename):
         self.retrieval.load_parameters(filename)
@@ -131,26 +140,32 @@ class SPAREICE:
     def get_inputs(data):
         """Get the input fields for SPARE-ICE training / retrieval"""
 
+        # Check whether the data is coming from a twice-collocated dataset:
+        if "MHS_2C-ICE/MHS/scnpos" in data.variables:
+            prefix = "MHS_2C-ICE/"
+        else:
+            prefix = ""
+
         fields = {
-            "mhs_channel3": data["MHS_2C-ICE/MHS/Data/btemps"].isel(
-                **{"MHS_2C-ICE/MHS/channel": 2}
+            "mhs_channel3": data[f"{prefix}MHS/Data/btemps"].isel(
+                **{f"{prefix}MHS/channel": 2}
             ),
-            "mhs_channel4": data["MHS_2C-ICE/MHS/Data/btemps"].isel(
-                **{"MHS_2C-ICE/MHS/channel": 3}
+            "mhs_channel4": data[f"{prefix}MHS/Data/btemps"].isel(
+                **{f"{prefix}MHS/channel": 3}
             ),
-            "mhs_channel5": data["MHS_2C-ICE/MHS/Data/btemps"].isel(
-                **{"MHS_2C-ICE/MHS/channel": 4}
+            "mhs_channel5": data[f"{prefix}MHS/Data/btemps"].isel(
+                **{f"{prefix}MHS/channel": 4}
             ),
             "lat": data["lat"],
-            "mhs_scnpos": data["MHS_2C-ICE/MHS/scnpos"],
+            "mhs_scnpos": data[f"{prefix}MHS/scnpos"],
             "satellite_azimuth_angle":
-                data["MHS_2C-ICE/MHS/Geolocation/Satellite_azimuth_angle"],
+                data[f"{prefix}MHS/Geolocation/Satellite_azimuth_angle"],
             "satellite_zenith_angle":
-                data["MHS_2C-ICE/MHS/Geolocation/Satellite_zenith_angle"],
+                data[f"{prefix}MHS/Geolocation/Satellite_zenith_angle"],
             "solar_azimuth_angle":
-                data["MHS_2C-ICE/MHS/Geolocation/Solar_azimuth_angle"],
+                data[f"{prefix}MHS/Geolocation/Solar_azimuth_angle"],
             "solar_zenith_angle":
-                data["MHS_2C-ICE/MHS/Geolocation/Solar_zenith_angle"],
+                data[f"{prefix}MHS/Geolocation/Solar_zenith_angle"],
             "relative_azimuth_angle":
                 data["AVHRR/Geolocation/Relative_azimuth_angle_mean"],
             "avhrr_channel1": data["AVHRR/Data/btemps_mean"].isel(
@@ -174,42 +189,37 @@ class SPAREICE:
     def get_targets(data):
         """Get the target fields for SPARE-ICE training"""
         targets = pd.DataFrame({
-            "iwp_log10": np.log10(data["MHS_2C-ICE/2C-ICE/ice_water_path_mean"])
+            "iwp_log10": np.log10(
+                data["MHS_2C-ICE/2C-ICE/ice_water_path_mean"]
+            )
         })
         return targets
 
     @staticmethod
-    def split_data(data, ratio=None, shuffle=True):
-        indices = np.arange(data.lat.size)
+    def split_data(data, test_ratio=None, shuffle=True):
+        indices = np.arange(data.collocation.size)
         if shuffle:
-            np.random.shuffle(indices)
+            r = np.random.RandomState(1234)
+            r.shuffle(indices)
 
-        dim = data.lat.dims[0]
-        boundary = int(data.lat.size * ratio)
+        if test_ratio is None:
+            test_ratio = 0.2
 
-        return (
-            data.isel(**{dim: indices[:boundary]}),
-            data.isel(**{dim: indices[boundary:]}),
-        )
-
-    def train(self, data, test_ratio=None):
-
-        inputs = self.get_inputs(data)
-        targets = self.get_targets(data)
+        boundary = int(data.collocation.size * (1 - test_ratio))
 
         # Make the training and testing data:
-        inputs_train, inputs_test, targets_train, targets_test \
-            = train_test_split(inputs, targets, test_size=test_ratio)
-
-        self.info("Train SPARE-ICE")
-        train_score = self.retrieval.train(
-            inputs_train,
-            targets_train,
+        return (
+            data.isel(collocation=indices[:boundary]),
+            data.isel(collocation=indices[boundary:]),
         )
-        self.info(f"Training score: {train_score:.2f}")
 
-        test_score = self.retrieval.score(inputs_test, targets_test)
-        self.info(f"Testing score: {test_score:.2f}")
+    def train(self, data):
+        self._info("Train SPARE-ICE")
+        train_score = self.retrieval.train(
+            self.get_inputs(data),
+            self.get_targets(data),
+        )
+        self._info(f"Training score: {train_score:.2f}")
 
     def _get_retrieval_data(self, collocations, mhs, avhrr, start, end,
                             processes):
@@ -261,12 +271,7 @@ class SPAREICE:
         """
         # use the standard weights of SPARE-ICE:
         if not self.retrieval.is_trained():
-            try:
-                self.retrieval.load_parameters(
-                    join(WEIGHTS_DIR, "standard.json")
-                )
-            except Exception as e:
-                print("Could not load the standard weights of SPARE-ICE!")
+            self.load_standard_weights()
 
         # We have to rename the variables when they come from collocations:
         if from_collocations and isinstance(data, xr.Dataset):
@@ -341,3 +346,13 @@ class SPAREICE:
             # Write the data to the file.
             self._info(f"Store SPARE-ICE to \n{filename}")
             output.write(retrieved, filename)
+
+    def score(self, data):
+        # use the standard weights of SPARE-ICE:
+        if not self.retrieval.is_trained():
+            self.load_standard_weights()
+
+        return self.retrieval.score(
+            self.get_inputs(data),
+            self.get_targets(data)
+        )
