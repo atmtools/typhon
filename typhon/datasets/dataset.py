@@ -178,7 +178,7 @@ class Dataset(metaclass=abc.ABCMeta):
         Note that if you create a dataset with a name that already exists,
         the existing object is returned, but __init__ is still called
         (Python does this, see
-        https://docs.python.org/3.5/reference/datamodel.html#object.__new__).
+        https://docs.python.org/3.7/reference/datamodel.html#object.__new__).
         """
         self.mandatory_fields = set()
         for (k, v) in kwargs.items():
@@ -658,7 +658,27 @@ class Dataset(metaclass=abc.ABCMeta):
                 attractive from a memory point of view.  In this mapping,
                 the keys will be names added to the dtype of the returned
                 ndarray (at the top level).  The values are functions.
-                Each function must take a 
+                Each function must take four arguments:
+                    
+                    content [ndarray or xarray.DataArray]
+
+                        Content of file.
+
+                    D [Mapping]
+
+                        Output of earlier-executed data-fields.
+
+                    header [ndarray or xarry.DataArray]
+
+                        Header of file.
+
+                    fn [string-like]
+
+                        Name of file.
+
+                and return an ndarray or xarray.DataArray to be merged
+                with content.  Dictionary are ordered now, make sure to
+                pass the correct order.
 
             Any further keyword arguments are passed on to the particular
             reading routine.  For details, please refer to the docstring
@@ -699,16 +719,17 @@ class Dataset(metaclass=abc.ABCMeta):
         (M, extra) = (self._read(f, fields=fields, **kwargs)
                 if f is not None
                 else self._read(fields=fields, **kwargs))
-        M = self._add_pseudo_fields(M, pseudo_fields)
+        M = self._add_pseudo_fields(M, pseudo_fields, extra, f)
         return (M, extra)
 
-    def _add_pseudo_fields(self, M, pseudo_fields):
+    def _add_pseudo_fields(self, M, pseudo_fields, extra, f):
         D = collections.OrderedDict()
         for (k, fnc) in pseudo_fields.items():
             try:
-                D[k] = fnc(M, D)
+                D[k] = fnc(M, D, extra, f)
             except TypeError as exc:
                 if "positional argument" in exc.args[0]:
+                    # backward compatibility
                     D[k] = fnc(M)
                 else:
                     raise

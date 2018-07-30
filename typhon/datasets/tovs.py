@@ -345,11 +345,12 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         extra = {"header": header}
         return (scanlines, extra)
        
-    def _add_pseudo_fields(self, M, pseudo_fields):
+    def _add_pseudo_fields(self, M, pseudo_fields, extra, f):
         if isinstance(M, tuple):
-            return (M[0], super()._add_pseudo_fields(M[1], pseudo_fields))
+            return (M[0], super()._add_pseudo_fields(M[1], pseudo_fields,
+                                                     extra, f))
         else:
-            return super()._add_pseudo_fields(M, pseudo_fields)
+            return super()._add_pseudo_fields(M, pseudo_fields, extra, f)
 
     def check_parity(self, counts):
         """Verify parity for counts
@@ -711,7 +712,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
         """Extract dataname from header.
         """
 
-    def calc_time_since_last_calib(self, M):
+    def calc_time_since_last_calib(self, M, D=None, H=None, fn=None):
         """Calculate time since last calibration.
 
         Calculate time (in seconds) since the last calibration cycle.
@@ -728,6 +729,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             ndarray, seconds since last calibration cycle
         """
 
+        # undocumented arguments are so that it can be used as a
+        # pseudo_field after 2018-07-30
+
         # explicit loop may be somewhat slower than broadcasting, but
         # broadcasting is O(N²) in memory — not acceptable!
         ix_iwt = (M[self.scantype_fieldname]==self.typ_iwt).nonzero()[0]
@@ -743,7 +747,7 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
             
         return tsc.astype("m8[ms]").astype("f4")/1000
 
-    def count_lines_since_last_calib(self, M):
+    def count_lines_since_last_calib(self, M, D=None, H=None, fn=None):
         """Count scanlines since last calibration.
 
         Count scanlines since the last calibration cycle.
@@ -759,6 +763,9 @@ class HIRS(dataset.MultiSatelliteDataset, Radiometer, dataset.MultiFileDataset):
 
             ndarray (uint16), scanlines since last calibration cycle
         """
+
+        # undocumented arguments are so that it can be used as a
+        # pseudo_field after 2018-07-30
 
         # explicit loop may be somewhat slower than broadcasting, but
         # broadcasting is O(N²) in memory — not acceptable!
