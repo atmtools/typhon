@@ -525,7 +525,7 @@ class Dataset(metaclass=abc.ABCMeta):
                 N += cont[self.time_field].size
             for i in range(len(arr)):
                 if arr[-i][self.time_field].size > 0:
-                    latest = arr[-1][self.time_field][-1]
+                    latest = arr[-i][self.time_field][-1]
                     break
             else:
                 latest = numpy.datetime64(0, "ms")
