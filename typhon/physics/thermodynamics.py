@@ -137,9 +137,8 @@ def e_eq_mixed_mk(T, Tmin=153.15, Tmax=333.15, **kwargs):
     r"""Calculate vapor pressure of water with respect to the mixed phase.
 
     The equilibrium vapor pressure is defined with respect to saturation
-    over ice below -23C and with respect to saturation over water above 0C.
-    In the regime in between an interpolation is applied (default 'quadratic').
-
+    over ice below -23°C and with respect to saturation over water above 0°C.
+    In between an interpolation is applied (defaults to ``quadratic``).
 
     .. plot::
         :include-source:
