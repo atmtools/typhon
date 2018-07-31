@@ -51,7 +51,10 @@ from os.path import join, dirname
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import RobustScaler
 from typhon.collocations import collapse, Collocator
 from typhon.utils.timeutils import to_datetime
 import xarray as xr
@@ -67,7 +70,7 @@ WEIGHTS_DIR = join(dirname(__file__), 'weights')
 
 class SPAREICE:
 
-    def __init__(self, file=None, collocator=None, processes=10, verbose=1):
+    def __init__(self, file=None, collocator=None, processes=10, verbose=2):
         if collocator is None:
             self.collocator = Collocator(
                 verbose=verbose,
@@ -76,8 +79,7 @@ class SPAREICE:
             self.collocator = collocator
 
         self.retrieval = RetrievalProduct(
-            parameters_file=file, n_jobs=processes,
-            scaler="robust", verbose=verbose
+            parameters_file=file, trainer=self._get_trainer(processes)
         )
 
         self.verbose = verbose
@@ -90,6 +92,59 @@ class SPAREICE:
     def _info(self, msg):
         if self.verbose > 0:
             print(f"[{self.name}] {msg}")
+
+    def _get_estimator(self):
+        """Return the default estimator"""
+
+        # Estimators are normally objects that have a fit and predict method
+        # (e.g. MLPRegressor from sklearn). To make their training easier we
+        # scale the input data in advance. With Pipeline objects from sklearn
+        # we can combine such steps easily since they behave like an
+        # estimator object as well.
+        estimator = MLPRegressor(max_iter=2500)
+
+        return Pipeline([
+            # SVM or NN work better if we have scaled the data in the first
+            # place. MinMaxScaler is the simplest one. RobustScaler or
+            # StandardScaler could be an alternative.
+            ("scaler", RobustScaler(quantile_range=(15, 85))),
+            # The "real" estimator:
+            ("estimator", estimator),
+        ])
+
+    def _get_trainer(self, n_jobs):
+        """Return the default trainer for the current estimator
+        """
+
+        # To optimize the results, we try different hyper parameters by
+        # using a grid search
+        hidden_layer_sizes = [
+            (16, 10, 3,), (16, 5, 3, 5), (16, 10), (16, 3),
+        ]
+        common = {
+            'estimator__activation': ['relu', 'tanh'],
+            'estimator__hidden_layer_sizes': hidden_layer_sizes,
+            'estimator__random_state': [0, 5, 70, 100, 3452],
+            #'alpha': 10.0 ** -np.arange(1, 7),
+        }
+        hyper_parameter = [
+            {   # Hyper parameter for lbfgs solver
+                'estimator__solver': ['lbfgs'],
+                **common
+            },
+            # {  # Hyper parameter for adam solver
+            #     'solver': ['adam'],
+            #     'batch_size': [200, 1000],
+            #     'beta_1': [0.95, 0.99],
+            #     'beta_2': [0.95, 0.99],
+            #     **common
+            # },
+        ]
+
+        return GridSearchCV(
+            self._get_estimator(), hyper_parameter, n_jobs=n_jobs,
+            refit=True, cv=3, verbose=self.verbose,
+        )
 
     def load_standard_weights(self):
         try:
@@ -195,32 +250,6 @@ class SPAREICE:
         })
         return targets
 
-    @staticmethod
-    def split_data(data, test_ratio=None, shuffle=True):
-        indices = np.arange(data.collocation.size)
-        if shuffle:
-            r = np.random.RandomState(1234)
-            r.shuffle(indices)
-
-        if test_ratio is None:
-            test_ratio = 0.2
-
-        boundary = int(data.collocation.size * (1 - test_ratio))
-
-        # Make the training and testing data:
-        return (
-            data.isel(collocation=indices[:boundary]),
-            data.isel(collocation=indices[boundary:]),
-        )
-
-    def train(self, data):
-        self._info("Train SPARE-ICE")
-        train_score = self.retrieval.train(
-            self.get_inputs(data),
-            self.get_targets(data),
-        )
-        self._info(f"Training score: {train_score:.2f}")
-
     def _get_retrieval_data(self, collocations, mhs, avhrr, start, end,
                             processes):
         # We need all original data (mhs, avhrr) if we do not have
@@ -287,7 +316,7 @@ class SPAREICE:
                     "from_collocations to True and use a xarray.Dataset.")
 
         retrieved = self.retrieval.retrieve(inputs)
-        if not as_log10:
+        if not as_log10 and retrieved is not None:
             retrieved.rename(columns={"iwp_log10": "iwp"}, inplace=True)
             retrieved["iwp"] = 10**retrieved["iwp"]
 
@@ -324,9 +353,21 @@ class SPAREICE:
         )
 
         for data, attributes in data_iterator:
+            self._info(
+                f"Retrieve SPARE-ICE for {data.attrs['start_time']} to "
+                f"{data.attrs['end_time']}"
+            )
+            # Remove NaNs from the data:
+            data = data.dropna(dim="collocation")
+
             retrieved = self.retrieve(data, from_collocations=True)
+
+            if retrieved is None:
+                continue
+
             retrieved = retrieved.to_xarray()
             retrieved.rename({"index": "collocation"}, inplace=True)
+            retrieved = retrieved.drop("collocation")
 
             # Add more information:
             retrieved["iwp"].attrs = {
@@ -337,6 +378,7 @@ class SPAREICE:
             retrieved["lat"] = data["lat"]
             retrieved["lon"] = data["lon"]
             retrieved["time"] = data["time"]
+            retrieved["scnpos"] = data["MHS/scnpos"]
 
             filename = output.get_filename(
                 [to_datetime(data.attrs["start_time"]),
@@ -356,3 +398,29 @@ class SPAREICE:
             self.get_inputs(data),
             self.get_targets(data)
         )
+
+    @staticmethod
+    def split_data(data, test_ratio=None, shuffle=True):
+        indices = np.arange(data.collocation.size)
+        if shuffle:
+            r = np.random.RandomState(1234)
+            r.shuffle(indices)
+
+        if test_ratio is None:
+            test_ratio = 0.2
+
+        boundary = int(data.collocation.size * (1 - test_ratio))
+
+        # Make the training and testing data:
+        return (
+            data.isel(collocation=indices[:boundary]),
+            data.isel(collocation=indices[boundary:]),
+        )
+
+    def train(self, data):
+        self._info("Train SPARE-ICE")
+        train_score = self.retrieval.train(
+            self.get_inputs(data),
+            self.get_targets(data),
+        )
+        self._info(f"Training score: {train_score:.2f}")

@@ -10,11 +10,9 @@ except ImportError:
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
-from sklearn.svm import SVR
 
 __all__ = [
     'RetrievalProduct',
@@ -39,7 +37,7 @@ class RetrievalProduct:
 
     def __init__(
             self, parameter=None, parameters_file=None, estimator=None,
-            trainer=None, verbose=False, n_jobs=4, scaler=None):
+            trainer=None, verbose=False):
         """Initialize a Retriever object
 
         Args:
@@ -50,8 +48,7 @@ class RetrievalProduct:
                 retrieval. This object can be a sklearn Estimator or Pipeline
                 object.
             trainer: Object that will be used to train and to find the best
-                retrieval estimator. Default is a GridSearchCV with a
-                MLPRegressor.
+                retrieval estimator.
         """
 
         default_parameter = {
@@ -68,93 +65,10 @@ class RetrievalProduct:
         # The trainer and/or model for this retriever:
         self.estimator = estimator
         self.trainer = trainer
-        self.scaler_class = "standard" if scaler is None else scaler
-        self.n_jobs = n_jobs
-
         self.verbose = verbose
 
         if parameters_file is not None:
             self.load_parameters(parameters_file)
-
-    def _default_estimator(self, estimator):
-        """Return the default estimator"""
-
-        # Estimators are normally objects that have a fit and predict method
-        # (e.g. MLPRegressor from sklearn). To make their training easier we
-        # scale the input data in advance. With Pipeline objects from sklearn
-        # we can combine such steps easily since they pretend to be estimator
-        # objects as well.
-        if estimator is None or estimator.lower() == "nn":
-            estimator = MLPRegressor(max_iter=2000)
-        elif estimator.lower() == "svr":
-            estimator = SVR(kernel="rbf")
-        else:
-            raise ValueError(f"Unknown estimator type: {estimator}!")
-
-        scalers = {
-            "standard": StandardScaler(),
-            "robust": RobustScaler(quantile_range=(25, 75)),
-            "minmax": MinMaxScaler(feature_range=[0, 1]),
-        }
-
-        return Pipeline([
-            # SVM or NN work better if we have scaled the data in the first
-            # place. MinMaxScaler is the simplest one. RobustScaler or
-            # StandardScaler could be an alternative.
-            ("scaler", scalers[self.scaler_class]),
-            # The "real" estimator:
-            ("estimator", estimator),
-        ])
-
-    def _default_trainer(self):
-        """Return the default trainer for the current estimator
-        """
-        if self.estimator is None or isinstance(self.estimator, str):
-            estimator = self._default_estimator(self.estimator)
-        else:
-            estimator = self.estimator
-
-        # To optimize the results, we try different hyper parameters by
-        # using a grid search
-        if isinstance(estimator.steps[-1][1], MLPRegressor):
-            # Hyper parameter for Neural Network
-            hidden_layer_sizes = [
-                (15, 10, 3,), (15, 5, 3, 5), (15, 10), (15, 3),
-            ]
-            common = {
-                'estimator__activation': ['relu', 'tanh'],
-                'estimator__hidden_layer_sizes': hidden_layer_sizes,
-                'estimator__random_state': [0, 5, 9],
-                #'alpha': 10.0 ** -np.arange(1, 7),
-            }
-            hyper_parameter = [
-                {   # Hyper parameter for lbfgs solver
-                    'estimator__solver': ['lbfgs'],
-                    **common
-                },
-                # {  # Hyper parameter for adam solver
-                #     'solver': ['adam'],
-                #     'batch_size': [200, 1000],
-                #     'beta_1': [0.95, 0.99],
-                #     'beta_2': [0.95, 0.99],
-                #     **common
-                # },
-            ]
-        elif isinstance(estimator.steps[-1][1], SVR):
-            # Hyper parameter for Support Vector Machine
-            hyper_parameter = {
-                "estimator__gamma": 10.**np.arange(-3, 2),
-                "estimator__C": 10. ** np.arange(-3, 2),
-            }
-        else:
-            raise ValueError(
-                f"No default trainer for {estimator} implemented! Define one "
-                f"by yourself via __init__(*args, ?trainer?).")
-
-        return GridSearchCV(
-            estimator, hyper_parameter, n_jobs=self.n_jobs,
-            refit=True, cv=3, verbose=2,
-        )
 
     @staticmethod
     def _create_model(model_class, params, coefs):
@@ -221,6 +135,8 @@ class RetrievalProduct:
             if estimator is None:
                 raise ValueError("Found no coefficients for estimator!")
 
+            # TODO: Change the hard-coded estimator and scaler classes:
+
             estimator = self._create_model(
                 MLPRegressor, estimator["params"], estimator["coefs"],
             )
@@ -238,7 +154,7 @@ class RetrievalProduct:
             }
 
             scaler = self._create_model(
-                scaler_class[parameter["scaler_class"]],
+                RobustScaler,  # scaler_class[parameter["scaler_class"]]
                 scaler["params"], scaler["coefs"],
             )
 
@@ -312,7 +228,7 @@ class RetrievalProduct:
         parameter["scaler"] = self._model_to_json(
             self.estimator.steps[0][1]
         )
-        parameter["scaler_class"] = self.scaler_class
+        #parameter["scaler_class"] = self.scaler_class
         parameter["estimator"] = self._model_to_json(
             self.estimator.steps[-1][1]
         )
@@ -337,21 +253,16 @@ class RetrievalProduct:
 
         return self.estimator.score(inputs, targets.values.ravel())
 
-    def train(self, inputs, targets, verbose=0):
+    def train(self, inputs, targets):
         """Train this retriever with data from arrays
 
         Args:
             inputs: A pandas.DataFrame with input data.
             targets: A pandas.DataFrame with training data.
-            verbose: Level of verbosity (=number of debug messages). Default is
-                0.
 
         Returns:
             A float number indicating the training score.
         """
-
-        if self.trainer is None:
-            self.trainer = self._default_trainer()
 
         # The input and target labels will be saved because they can be used in
         # other methods as well.
@@ -359,10 +270,14 @@ class RetrievalProduct:
         self.parameter["targets"] = targets.columns.tolist()
 
         # Unleash the trainer
-        self.trainer.verbose = verbose
-        self.trainer.fit(inputs, targets.values.ravel())
+        if self.trainer is not None:
+            self.trainer.fit(inputs, targets.values.ravel())
 
-        # Use the best estimator from now on:
-        self.estimator = self.trainer.best_estimator_
+            # Use the best estimator from now on:
+            self.estimator = self.trainer.best_estimator_
+        elif self.estimator is not None:
+            self.estimator.fit(inputs, targets.values.ravel())
+        else:
+            raise ValueError("I need either a trainer or an estimator object!")
 
         return self.estimator.score(inputs, targets)
