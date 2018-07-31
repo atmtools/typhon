@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
+import gc
 from multiprocessing import Process, Queue
 import time
 import traceback
@@ -167,7 +168,7 @@ class Collocator:
         # match, the process yields the results.
 
         # This queue collects all results:
-        results = Queue()
+        results = Queue(maxsize=processes)
 
         # This queue collects all error exceptions
         errors = Queue()
@@ -193,6 +194,7 @@ class Collocator:
                     self, results, errors, PROCESS_NAMES[i],
                 ),
                 kwargs={**kwargs, "matches": matches_chunk},
+                daemon=True,
             )
             for i, matches_chunk in enumerate(matches_chunks)
         ]
@@ -224,6 +226,9 @@ class Collocator:
                 result = results.get()
                 if result is not None:
                     yield result
+
+                # Explicit free up memory:
+                gc.collect()
 
         for process in process_list:
             process.join()
@@ -332,7 +337,8 @@ class Collocator:
 
             current_start = np.datetime64(primary["time"].min().item(0), "ns")
             current_end = np.datetime64(primary["time"].max().item(0), "ns")
-            self._debug(f"Collocating {current_start} to {current_end}")
+            self._debug(f"Collocating {current_start} to {current_end}\n"
+                        f"{files[0].path}\nwith {files[1].path}")
 
             debug_timer = time.time()
             collocations = self.collocate(
@@ -362,10 +368,10 @@ class Collocator:
 
             # Add the names of the processed files:
             for f in range(2):
-                if f"{filesets[f].name}__file" in collocations.attrs:
+                if f"{filesets[f].name}_file" in collocations.attrs:
                     continue
 
-                collocations.attrs[f"{filesets[f].name}__file"] = files[f].path
+                collocations.attrs[f"{filesets[f].name}_file"] = files[f].path
 
             # Collect the attributes of the input files
             attributes = {
