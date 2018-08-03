@@ -4,6 +4,7 @@
 """
 from numbers import Number
 
+import imageio
 import numpy as np
 from sklearn.neighbors import BallTree, KDTree
 from typhon.constants import earth_radius
@@ -14,6 +15,7 @@ from typhon.utils import split_units
 __all__ = [
     'area_weighted_mean',
     'GeoIndex',
+    'sea_mask'
 ]
 
 
@@ -96,14 +98,17 @@ def to_kilometers(distance):
 
 
 class GeoIndex:
+    """Indexer that allows fast range queries with geographical coordinates"""
 
     def __init__(self, lat, lon, metric=None, tree_class=None,
                  shuffle=True, **tree_kwargs):
-        """
+        """Initialize a GeoIndex
         
         Args:
-            lat: 
-            lon: 
+            lat: Latitudes between -90 and 90 degrees as 1-dimensional numpy
+                array.
+            lon: Longitudes between -180 and 180 degrees as 1-dimensional numpy
+                array. Must have the same length as `lat`.
             metric: We can use different metrics for the indexing. The default
                 *minkowski* metric is the fastest but produces a big error for
                 large distances. The *haversine* is more correct but is slower
@@ -116,7 +121,53 @@ class GeoIndex:
                 as discussed in this issue:
                 https://github.com/scikit-learn/scikit-learn/issues/7687. For
                 sorted, almost-gridded data (such as from SEVIRI) you should
-                set this to *True*. Default is False.
+                set this to *True*. Default is True.
+
+        Examples:
+
+            We have two tracks (e.g. of satellites) and we want to know whether
+            and where they have been in a close distance.
+
+            .. code-block:: python
+
+                import matplotlib.pyplot as plt
+                import numpy as np
+                from typhon.geographical import GeoIndex
+                from typhon.plots import worldmap
+
+                track1 = {
+                    "lat": 90*np.sin(np.linspace(-2*np.pi, 2*np.pi, 90)),
+                    "lon": np.linspace(-180, 180, 90),
+                }
+                track2 = {
+                    "lat": 90*np.cos(np.linspace(-2*np.pi, 2*np.pi, 90)),
+                    "lon": np.linspace(-180, 180, 90),
+                }
+
+                # Build the index with the data of the first track:
+                index = GeoIndex(track1["lat"], track1["lon"])
+
+                # Find all points from the second track that are within a
+                # radius of 500 miles to the first track
+                pairs, distances = index.query(
+                    track2["lat"], track2["lon"], r="500 miles"
+                )
+
+                # Plot the points
+                worldmap(
+                    track1["lat"], track1["lon"],
+                    s=10, bg=True, label="Track 1")
+                worldmap(
+                    track2["lat"], track2["lon"], s=10, label="Track 2")
+                worldmap(
+                    track1["lat"][pairs[0]], track1["lon"][pairs[0]],
+                    s=10, label="Track 1 (matched)"
+                )
+                worldmap(
+                    track2["lat"][pairs[1]], track2["lon"][pairs[1]],
+                    s=10, label="Track 2 (matched)"
+                )
+                plt.legend()
         """
         if metric is None:
             self.metric = "minkowski"
@@ -155,6 +206,9 @@ class GeoIndex:
     def __getitem__(self, points):
         """Get nearest indices for given points.
 
+        Warnings:
+            Not yet implemented!
+
         Args:
             points:
 
@@ -179,18 +233,27 @@ class GeoIndex:
         else:
             raise ValueError(f"Unknown metric '{self.metric}!'")
 
-    def query(self, lat, lon, r):
+    def query(self, lat, lon, r, return_distance=True):
         """Find all neighbours within a radius of query points
 
         Args:
-            lat:
-            lon:
+            lat: Latitudes between -90 and 90 degrees as 1-dimensional numpy
+                array.
+            lon: Longitudes between -180 and 180 degrees as 1-dimensional numpy
+                array. Must have the same length as `lat`.
             r: Radius in kilometers (if number is given). You can also use
                 another unit if you pass this as string (e.g. *'10 miles'*).
+                Despite of the unit which is given here, the returned distances
+                will always be in kilometers.
+            return_distance: If True, the distances will be returned. Otherwise
+                not and the query will be faster. Default is true.
 
         Returns:
-            Two numpy arrays. The first has a *2xN* shape, where N is the
-            number of found collocations. In the first
+            Two numpy arrays: *pairs* and *distances*. The first has a
+            *2xN* shape, where N is the number of found collocations. The first
+            row contains the indices of the points with which the GeoIndex was
+            built. The second row contains the matches in the query points.
+            *distances* is a numpy array with distances in kilometers.
         """
         points = self._to_metric(lat, lon)
 
@@ -202,8 +265,14 @@ class GeoIndex:
         elif self.metric == "haversine":
             r *= 1000. / earth_radius
 
-        jagged_pairs, jagged_distances = \
-            self.tree.query_radius(points, r, return_distance=True)
+        results = self.tree.query_radius(
+            points, r, return_distance=return_distance
+        )
+
+        if return_distance:
+            jagged_pairs, jagged_distances = results
+        else:
+            jagged_pairs = results
 
         # Build the list of the collocation pairs:
         pairs = np.array([
@@ -211,6 +280,9 @@ class GeoIndex:
             for query_point, build_points in enumerate(jagged_pairs)
             for build_point in build_points
         ]).T
+
+        if not return_distance:
+            return pairs
 
         if not pairs.any():
             return pairs, pairs
@@ -226,11 +298,59 @@ class GeoIndex:
         if self.shuffler is None:
             return pairs, distances
         else:
-
             # We shuffled the build points in the beginning, so the current
             # indices in the second row (the collocation indices from the build
             # points) are not correct
             pairs[0, :] = self.shuffler[pairs[0, :]]
 
             return pairs, distances
+
+
+def sea_mask(lat, lon, mask):
+    """Check whether geographical coordinates are over sea
+
+    Notes:
+        This uses per default a land sea mask with a grid size of 5 minutes.
+        You have to decide by yourself whether it is sufficient for your data.
+
+    Args:
+        lat: Latitudes between -90 and 90 degrees as 1-dimensional numpy
+                array.
+        lon: Longitudes between -180 and 180 degrees as 1-dimensional numpy
+            array. Must have the same length as `lat`.
+        mask: Your own land-sea mask as a 2-dimensional boolean matrix or
+            a path to a monochromatic PNG file. Must be sea pixels must be True
+            or white, respectively.
+
+    Returns:
+        Returns a boolean array with the same dimensions as `lat`. It is True
+        where the coordinate is over the sea.
+
+    Examples:
+
+        .. code-block:: python
+
+            lat = np.array([60])
+            lon = np.array([-0])
+
+            is_over_sea(lat, lon, "land_water_mask_5min.png")
+    """
+    if lon.min() < -180 or lon.max() > 180:
+        raise ValueError("Longitudes out of bounds!")
+
+    if lat.min() < -90 or lat.max() > 90:
+        raise ValueError("Latitudes out of bounds!")
+
+    if isinstance(mask, str):
+        mask = np.flip(np.array(imageio.imread(mask) == 255), axis=0)
+
+    mask_lat_step = 180 / (mask.shape[0] - 1)
+    mask_lon_step = 360 / (mask.shape[1] - 1)
+
+    lat_cell = (90 - lat) / mask_lat_step
+    lon_cell = lon / mask_lon_step
+    lon_cell[lon_cell < 0] *= -1
+
+    return mask[lat_cell.astype(int), lon_cell.astype(int)]
+
 
