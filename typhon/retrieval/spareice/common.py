@@ -47,6 +47,7 @@ Examples:
         output=...,
     )
 """
+from collections import OrderedDict
 from os.path import join, dirname
 
 import numpy as np
@@ -71,6 +72,9 @@ WEIGHTS_DIR = join(dirname(__file__), 'weights')
 class SPAREICE:
 
     def __init__(self, file=None, collocator=None, processes=10, verbose=2):
+        self.verbose = verbose
+        self.name = "SPARE-ICE"
+
         if collocator is None:
             self.collocator = Collocator(
                 verbose=verbose,
@@ -79,11 +83,8 @@ class SPAREICE:
             self.collocator = collocator
 
         self.retrieval = RetrievalProduct(
-            parameters_file=file, trainer=self._get_trainer(processes)
+            parameters_file=file, trainer=self._get_trainer(processes, verbose)
         )
-
-        self.verbose = verbose
-        self.name = "SPARE-ICE"
 
     def _debug(self, msg):
         if self.verbose > 1:
@@ -107,19 +108,19 @@ class SPAREICE:
             # SVM or NN work better if we have scaled the data in the first
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
-            ("scaler", RobustScaler(quantile_range=(15, 85))),
+            ("scaler", RobustScaler(quantile_range=(20, 80))),
             # The "real" estimator:
             ("estimator", estimator),
         ])
 
-    def _get_trainer(self, n_jobs):
+    def _get_trainer(self, n_jobs, verbose):
         """Return the default trainer for the current estimator
         """
 
         # To optimize the results, we try different hyper parameters by
         # using a grid search
         hidden_layer_sizes = [
-            (16, 10, 3,), (16, 5, 3, 5), (16, 10), (16, 3),
+            (13, 10), (15, 10, 3), (12, 5),
         ]
         common = {
             'estimator__activation': ['relu', 'tanh'],
@@ -143,7 +144,7 @@ class SPAREICE:
 
         return GridSearchCV(
             self._get_estimator(), hyper_parameter, n_jobs=n_jobs,
-            refit=True, cv=3, verbose=self.verbose,
+            refit=True, cv=3, verbose=verbose,
         )
 
     def load_standard_weights(self):
@@ -201,42 +202,43 @@ class SPAREICE:
         else:
             prefix = ""
 
-        fields = {
-            "mhs_channel3": data[f"{prefix}MHS/Data/btemps"].isel(
+        fields = OrderedDict([
+            ["mhs_channel1", data[f"{prefix}MHS/Data/btemps"].isel(
+                **{f"{prefix}MHS/channel": 0}
+            )],
+            ["mhs_channel2", data[f"{prefix}MHS/Data/btemps"].isel(
+                **{f"{prefix}MHS/channel": 1}
+            )],
+            ["mhs_channel3", data[f"{prefix}MHS/Data/btemps"].isel(
                 **{f"{prefix}MHS/channel": 2}
-            ),
-            "mhs_channel4": data[f"{prefix}MHS/Data/btemps"].isel(
+            )],
+            ["mhs_channel4", data[f"{prefix}MHS/Data/btemps"].isel(
                 **{f"{prefix}MHS/channel": 3}
-            ),
-            "mhs_channel5": data[f"{prefix}MHS/Data/btemps"].isel(
+            )],
+            ["mhs_channel5", data[f"{prefix}MHS/Data/btemps"].isel(
                 **{f"{prefix}MHS/channel": 4}
-            ),
-            "lat": data["lat"],
-            "mhs_scnpos": data[f"{prefix}MHS/scnpos"],
-            "satellite_azimuth_angle":
-                data[f"{prefix}MHS/Geolocation/Satellite_azimuth_angle"],
-            "satellite_zenith_angle":
-                data[f"{prefix}MHS/Geolocation/Satellite_zenith_angle"],
-            "solar_azimuth_angle":
-                data[f"{prefix}MHS/Geolocation/Solar_azimuth_angle"],
-            "solar_zenith_angle":
-                data[f"{prefix}MHS/Geolocation/Solar_zenith_angle"],
-            "relative_azimuth_angle":
-                data["AVHRR/Geolocation/Relative_azimuth_angle_mean"],
-            "avhrr_channel1": data["AVHRR/Data/btemps_mean"].isel(
-                **{"AVHRR/channel": 0}
-            ),
-            "avhrr_channel2": data["AVHRR/Data/btemps_mean"].isel(
-                **{"AVHRR/channel": 1}
-            ),
-            "avhrr_channel4": data["AVHRR/Data/btemps_mean"].isel(
+            )],
+            ["cloud_filter",
+                data[f"{prefix}MHS/Data/btemps"].isel(
+                    **{f"{prefix}MHS/channel": 3}
+                ) - data[f"{prefix}MHS/Data/btemps"].isel(
+                    **{f"{prefix}MHS/channel": 2}
+                )
+            ],
+            ["lat", data["lat"]],
+            ["sea_mask", data["sea_mask"].astype(float)],
+            ["mhs_scnpos", data[f"{prefix}MHS/scnpos"]],
+            ["solar_azimuth_angle",
+                data[f"{prefix}MHS/Geolocation/Solar_azimuth_angle"]],
+            ["solar_zenith_angle",
+                data[f"{prefix}MHS/Geolocation/Solar_zenith_angle"]],
+            ["avhrr_channel4", data["AVHRR/Data/btemps_mean"].isel(
                 **{"AVHRR/channel": 3}
-            ),
-            "avhrr_channel5": data["AVHRR/Data/btemps_mean"].isel(
+            )],
+            ["avhrr_channel5", data["AVHRR/Data/btemps_mean"].isel(
                 **{"AVHRR/channel": 4}
-            ),
-            "avhrr_scnpos": data["AVHRR/scnpos_mean"],
-        }
+            )],
+        ])
 
         return pd.DataFrame(fields)
 
