@@ -31,7 +31,7 @@ class RetrievalProduct:
     """Retrieval that can be trained with data and stored to json files
 
     This is basically a wrapper around the scikit-learn estimator and trainer
-    classes and makes it possible to save the trained models as json files.
+    classes and makes it possible to save the trained models as json file.
 
     """
 
@@ -105,6 +105,7 @@ class RetrievalProduct:
             setattr(sklearn_obj, attr, value)
 
     def is_trained(self):
+        """Return true if RetrievalProduct is trained"""
         return self.estimator is not None
 
     def load_parameters(self, filename):
