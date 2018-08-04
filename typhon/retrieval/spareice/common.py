@@ -71,7 +71,8 @@ WEIGHTS_DIR = join(dirname(__file__), 'weights')
 
 class SPAREICE:
 
-    def __init__(self, file=None, collocator=None, processes=10, verbose=2):
+    def __init__(self, file=None, collocator=None, processes=10,
+                 verbose=2):
         self.verbose = verbose
         self.name = "SPARE-ICE"
 
@@ -102,13 +103,13 @@ class SPAREICE:
         # scale the input data in advance. With Pipeline objects from sklearn
         # we can combine such steps easily since they behave like an
         # estimator object as well.
-        estimator = MLPRegressor(max_iter=2500)
+        estimator = MLPRegressor(max_iter=3500)
 
         return Pipeline([
             # SVM or NN work better if we have scaled the data in the first
             # place. MinMaxScaler is the simplest one. RobustScaler or
             # StandardScaler could be an alternative.
-            ("scaler", RobustScaler(quantile_range=(20, 80))),
+            ("scaler", RobustScaler(quantile_range=(15, 85))),
             # The "real" estimator:
             ("estimator", estimator),
         ])
@@ -192,8 +193,7 @@ class SPAREICE:
 
         return data
 
-    @staticmethod
-    def get_inputs(data):
+    def get_inputs(self, data, fields=None):
         """Get the input fields for SPARE-ICE training / retrieval"""
 
         # Check whether the data is coming from a twice-collocated dataset:
@@ -202,7 +202,7 @@ class SPAREICE:
         else:
             prefix = ""
 
-        fields = OrderedDict([
+        inputs = pd.DataFrame(OrderedDict([
             ["mhs_channel1", data[f"{prefix}MHS/Data/btemps"].isel(
                 **{f"{prefix}MHS/channel": 0}
             )],
@@ -219,11 +219,10 @@ class SPAREICE:
                 **{f"{prefix}MHS/channel": 4}
             )],
             ["cloud_filter",
-                data[f"{prefix}MHS/Data/btemps"].isel(
-                    **{f"{prefix}MHS/channel": 3}
-                ) - data[f"{prefix}MHS/Data/btemps"].isel(
-                    **{f"{prefix}MHS/channel": 2}
-                )
+                 data["AVHRR/Data/btemps_mean"].isel(
+                     **{"AVHRR/channel": 4}
+                 ) - data["AVHRR/Data/btemps_mean"].isel(
+                    **{"AVHRR/channel": 3})
             ],
             ["lat", data["lat"]],
             ["sea_mask", data["sea_mask"].astype(float)],
@@ -232,15 +231,25 @@ class SPAREICE:
                 data[f"{prefix}MHS/Geolocation/Solar_azimuth_angle"]],
             ["solar_zenith_angle",
                 data[f"{prefix}MHS/Geolocation/Solar_zenith_angle"]],
+            ["avhrr_channel3", data["AVHRR/Data/btemps_mean"].isel(
+                **{"AVHRR/channel": 2}
+            )],
             ["avhrr_channel4", data["AVHRR/Data/btemps_mean"].isel(
+                **{"AVHRR/channel": 3}
+            )],
+            ["avhrr_channel4_std", data["AVHRR/Data/btemps_std"].isel(
                 **{"AVHRR/channel": 3}
             )],
             ["avhrr_channel5", data["AVHRR/Data/btemps_mean"].isel(
                 **{"AVHRR/channel": 4}
             )],
-        ])
+        ]))
 
-        return pd.DataFrame(fields)
+        if fields is not None:
+            self._info(f"Use only {fields}")
+            inputs = inputs[fields]
+
+        return inputs
 
     @staticmethod
     def get_targets(data):
@@ -306,7 +315,7 @@ class SPAREICE:
 
         # We have to rename the variables when they come from collocations:
         if from_collocations and isinstance(data, xr.Dataset):
-            inputs = self.get_inputs(data)
+            inputs = self.get_inputs(data, self.retrieval.parameter["inputs"])
         elif isinstance(data, pd.DataFrame):
             inputs = data
         else:
@@ -419,10 +428,10 @@ class SPAREICE:
             data.isel(collocation=indices[boundary:]),
         )
 
-    def train(self, data):
+    def train(self, data, fields=None):
         self._info("Train SPARE-ICE")
         train_score = self.retrieval.train(
-            self.get_inputs(data),
+            self.get_inputs(data, fields),
             self.get_targets(data),
         )
         self._info(f"Training score: {train_score:.2f}")
