@@ -48,13 +48,13 @@ class Collocator:
         """Initialize a collocator object that can find collocations
 
         Args:
-            threads: Finding collocations can be parallelised in threads. Give
+            threads: Finding collocations can be parallelized in threads. Give
                 here the maximum number of threads that you want to use. Which
                 number of threads is the best, may be machine-dependent. So
                 this is a parameter that you can use to fine-tune the
                 performance. Note: Not yet implemented.
-            verbose: The higher this integer value the more _debug messages will
-                be printed. Integer value of 0 disable _debug messages.
+            verbose: The higher this integer value the more debug messages
+                will be printed.
             name: The name of this collocator.
         """
 
@@ -97,7 +97,7 @@ class Collocator:
             self, filesets, start=None, end=None, processes=None, output=None,
             compact=False, skip_file_errors=False, **kwargs
     ):
-        """Collocate two filesets with each other
+        """Find collocation between the data of two filesets
 
         Args:
             filesets: A list of two FileSet objects
@@ -125,7 +125,8 @@ class Collocator:
 
         Examples:
 
-        .. cod
+        .. code-block:: python
+
         """
         timer = time.time()
 
