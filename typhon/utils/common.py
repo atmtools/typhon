@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import collections
 import itertools
+from numbers import Number
 import traceback
 
 from warnings import warn
@@ -39,6 +40,7 @@ __all__ = [
     'reraise_with_stack',
     'get_xarray_groups',
     'add_xarray_groups',
+    'to_array',
 ]
 
 
@@ -605,3 +607,21 @@ def add_xarray_groups(ds, **kwargs):
         datasets.append(group)
 
     return xarray.merge(datasets)
+
+
+def to_array(item):
+    """Convert item to numpy array
+
+    Args:
+        item: Can be a number, list, tuple or numpy array.
+
+    Returns:
+        `item` converted to a numpy array.
+    """
+    if isinstance(item, np.ndarray):
+        return item
+
+    if isinstance(item, Number):
+        return np.array([item])
+    else:
+        return np.array(item)
