@@ -19,7 +19,7 @@ __all__ = [
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             bg=False, **kwargs):
+             bg=False, grid=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -42,6 +42,8 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     kwargs_defaults = {
         "cmap": "qualitative1",
         "s": 1,
+        # This accelerates the drawing of many points:
+        "rasterized": lat.size > 100_000,
     }
     kwargs_defaults.update(kwargs)
 
@@ -50,7 +52,6 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
 
     if projection is None:
         if ax is None:
-
             projection = ccrs.PlateCarree()
         else:
             projection = ax.projection
@@ -61,15 +62,15 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     if bg:
         ax.stock_img()
 
+    if grid:
+        ax.gridlines(draw_labels=True)
+
     # It is counter-intuitive but if we want to plot our data with normal
     # latitudes and longitudes, we always have to set the transform to
     # PlateCarree (see https://github.com/SciTools/cartopy/issues/911)
-    if var is None:
-        scatter_plot = ax.scatter(
-            lon, lat, transform=ccrs.PlateCarree(), **kwargs_defaults)
-    else:
-        scatter_plot = ax.scatter(
-            lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults)
+    scatter_plot = ax.scatter(
+        lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults
+    )
 
     return scatter_plot
 
