@@ -238,9 +238,10 @@ class GeoIndex:
 
         Args:
             lat: Latitudes between -90 and 90 degrees as 1-dimensional numpy
-                array.
+                array, list or single number.
             lon: Longitudes between -180 and 180 degrees as 1-dimensional numpy
-                array. Must have the same length as `lat`.
+                array, list or single number. Must have the same length as
+                `lat`.
             r: Radius in kilometers (if number is given). You can also use
                 another unit if you pass this as string (e.g. *'10 miles'*).
                 Despite of the unit which is given here, the returned distances
@@ -335,6 +336,18 @@ def sea_mask(lat, lon, mask):
 
             is_over_sea(lat, lon, "land_water_mask_5min.png")
     """
+    def _to_array(item):
+        if isinstance(item, np.ndarray):
+            return item
+
+        if isinstance(item, Number):
+            return np.array([item])
+        else:
+            return np.array(item)
+
+    lat = _to_array(lat)
+    lon = _to_array(lon)
+
     if lon.min() < -180 or lon.max() > 180:
         raise ValueError("Longitudes out of bounds!")
 
@@ -349,7 +362,6 @@ def sea_mask(lat, lon, mask):
 
     lat_cell = (90 - lat) / mask_lat_step
     lon_cell = lon / mask_lon_step
-    lon_cell[lon_cell < 0] *= -1
 
     return mask[lat_cell.astype(int), lon_cell.astype(int)]
 
