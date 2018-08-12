@@ -21,7 +21,6 @@ import tempfile
 
 from typhon.arts.workspace.api import arts_api
 from typhon.arts.workspace.agendas import Agenda
-from typhon.arts.xml import load, save
 from typhon.arts.xml.names import tensor_names
 
 class WorkspaceVariable:
@@ -56,15 +55,15 @@ class WorkspaceVariable:
 
         self.update()
 
-    def __str__(self):
-        return __repr__(self)
-
     def __repr__(self):
         s  = "ARTS Workspace Variable\n\n"
         s += "Name:  " + self.name + "\n"
         s += "Group: " + self.group + "\n\n"
         s += self.description
         return s
+
+    def __str__(self):
+        return self.__repr__()
 
     def print(self):
         """ Print variable value using ARTS Print(...) WSM.
@@ -76,6 +75,21 @@ class WorkspaceVariable:
             self.ws.Print(self, 1)
         else:
             raise Exception("Can't print variable without associated ARTS workspace.")
+
+    @staticmethod
+    def get_variable_name(i):
+        """
+        Lookup the name of a variable given its workspace index.
+
+        Args:
+            i(int): The index of the workspace variable.
+
+        Returns:
+            str: The name of the workspace variable.
+        """
+        s = arts_api.get_variable(i)
+        name = s.name.decode("utf8")
+        return name
 
     @staticmethod
     def get_group_id(value):
@@ -114,6 +128,8 @@ class WorkspaceVariable:
             return group_ids["Tensor6"]
         elif type(value) == np.ndarray and value.ndim == 7:
             return group_ids["Tensor7"]
+        elif sp.sparse.issparse(value):
+            return group_ids["Sparse"]
         elif type(value) == list:
             group_name = ""
             nested_value = value
@@ -207,6 +223,9 @@ class WorkspaceVariable:
             by the interface.
 
         """
+        from typhon.arts.types import classes as typhon_classes
+
+
         if (self.ws):
             ws = self.ws
         if not ws:
@@ -216,6 +235,10 @@ class WorkspaceVariable:
         if not v.initialized:
             raise Exception("WorkspaceVariable " + self.name + " is uninitialized.")
 
+        if self.group in typhon_classes:
+            cls = typhon_classes[self.group]
+            if hasattr(cls, "__from_variable_value_struct__"):
+                return cls.__from_variable_value_struct__(v)
         if self.group == "Index":
             return c.cast(v.ptr, c.POINTER(c.c_long))[0]
         elif self.group == "Numeric":
@@ -306,6 +329,8 @@ class WorkspaceVariable:
             A typhon object with the same value as the WSV in the associated
             workspace.
         """
+        from typhon.arts.xml import load
+
         if not self.ws:
             raise Exception("Cannot retrieve the value of a variable without "
                             + " associated Workspace.")
@@ -326,6 +351,8 @@ class WorkspaceVariable:
                  workspace.
 
         """
+        from typhon.arts.xml import save
+
         if not self.ws:
             raise Exception("Cannot set the value of a variable without "
                             + " associated Workspace.")

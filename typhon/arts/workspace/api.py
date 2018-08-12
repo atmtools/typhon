@@ -21,6 +21,7 @@ Attributes:
 
 import ctypes as c
 import numpy  as np
+import scipy  as sp
 import os
 
 from typhon.environment import environ
@@ -185,7 +186,7 @@ class VariableValueStruct(c.Structure):
             - lists of int and lists of string
 
         User defined classes are supported through a generic interface. The constructor
-        looks for an attribute function _to_value_struct, which should return a dictionary
+        looks for an attribute function __to_value_struct__, which should return a dictionary
         containing the value associated with the fields of the C-struct.
 
         Args:
@@ -197,8 +198,8 @@ class VariableValueStruct(c.Structure):
         dimensions  = [0] * 7
 
         # Generic interface
-        if hasattr(value, "_to_value_struct"):
-            d = value._to_value_struct()
+        if hasattr(value, "__to_value_struct__"):
+            d = value.__to_value_struct__()
             if "ptr" in d:
                 ptr = d["ptr"]
             if "dimensions" in d:
@@ -219,6 +220,15 @@ class VariableValueStruct(c.Structure):
                 ptr = value.ctypes.data
                 for i in range(value.ndim):
                     dimensions[i] = value.shape[i]
+        # Scipy sparse matrices
+        elif sp.sparse.issparse(value):
+            m = value.tocoo()
+            dimensions[0] = m.shape[0]
+            dimensions[1] = m.shape[1]
+            dimensions[2] = m.nnz
+            ptr = m.data.ctypes.data
+            self.inner_ptr = c.cast(m.row.ctypes.data, c.POINTER(c.c_int))
+            self.outer_ptr = c.cast(m.col.ctypes.data, c.POINTER(c.c_int))
         # Array of String or Integer
         elif type(value) == list:
             if not value:
@@ -237,6 +247,37 @@ class VariableValueStruct(c.Structure):
         self.ptr = ptr
         self.initialized = initialized
         self.dimensions  = (c.c_long * 7)(*dimensions)
+
+class CovarianceMatrixBlockStruct(c.Structure):
+    """
+    c struct representing block of covariance matrices.
+
+    The indices field holds the indices of the corresponding
+    retrieval quantities.
+
+    The position field holds the row and column indices of the
+    left- and upper-most element of the block w.r.t. the full
+    covariance matrix.
+
+    The dimension field hold the number of rows and columns of
+    the block.
+
+    The ptr field hold the pointer to the dense matrix data or
+    to the element pointer of the sparse matrix that represents
+    the block.
+
+    The inner and outer pointer fields are null if the block is
+    represented by a dense matrix. Otherwise these contain the
+    pointers to the index array of the sparse matrix of which the
+    block consists.
+    """
+    _fields_ = [("indices", 2 * c.c_long),
+                ("position", 2 * c.c_long),
+                ("dimensions", 2 * c.c_long),
+                ("ptr", c.POINTER(c.c_double)),
+                ("nnz", c.c_long),
+                ("inner_ptr", c.POINTER(c.c_int)),
+                ("outer_ptr", c.POINTER(c.c_int))]
 
 class MethodStruct(c.Structure):
     """
@@ -397,6 +438,10 @@ arts_api.get_method_g_in.restype  = c.c_char_p
 # Return pointer to the default value of the jth generic input of a given WSM.
 arts_api.get_method_g_in_default.argtypes = [c.c_long, c.c_long]
 arts_api.get_method_g_in_default.restype  = c.c_char_p
+
+# Return block from covariance matrix.
+arts_api.get_covariance_matrix_block.argtypes = [c.c_void_p, c.c_long, c.c_bool]
+arts_api.get_covariance_matrix_block.restype = CovarianceMatrixBlockStruct
 
 # Execute a given workspace method.
 arts_api.execute_workspace_method.argtypes = [c.c_void_p,

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import os
 import typhon
+import scipy as sp
 
 try:
     from typhon.arts.workspace import Workspace, arts_agenda
@@ -25,6 +26,21 @@ class TestWorkspace:
         """This ensures a new Workspace for every test."""
         self.dir = os.path.dirname(os.path.realpath(__file__))
         self.ws  = Workspace()
+        self.setup_workspace()
+
+    def setup_workspace(self):
+        ws = self.ws
+        ws.atmosphere_dim = 1
+        ws.p_grid = np.linspace(1e5, 1e3, 21)
+        ws.Touch(ws.lat_grid)
+        ws.Touch(ws.lon_grid)
+
+        ws.f_grid = 183.0e9 * np.ones(1)
+        ws.stokes_dim = 1
+
+        ws.sensor_los = 180.0 * np.ones((1, 1))
+        ws.sensor_pos = 830e3 * np.ones((1, 1))
+        ws.sensorOff()
 
     def test_index_transfer(self):
         self.ws.IndexCreate("index_variable")
@@ -64,14 +80,12 @@ class TestWorkspace:
         assert all(self.ws.matrix_variable.value.ravel() == m.ravel())
 
     def test_sparse_transfer(self):
-        s = Sparse(np.random.rand(10, 10))
-        self.ws.SparseCreate("s")
-        self.ws.s = s
-
-        s_array = s.toarray()
-        ws_s_array = self.ws.s.value.toarray()
-
-        assert np.allclose(s_array, ws_s_array)
+        sparse_formats = ["csc", "csr", "bsr", "lil", "dok", "coo", "dia"]
+        for f in sparse_formats:
+            i = sp.sparse.identity(11)
+            self.ws.sensor_response = i
+            print(self.ws.sensor_response.value)
+            assert  np.all(i.todense() == self.ws.sensor_response.value.todense())
 
     def test_supergeneric_overload_resolution(self):
         self.ws.ArrayOfIndexCreate("array_of_index")
@@ -167,3 +181,26 @@ class TestWorkspace:
 
         assert self.ws.foo.value == "bar"
         os.remove(os.path.join(test_dir, "vector.xml"))
+
+    def test_covariance_matrix(self):
+        ws = self.ws
+
+        ws.jacobianInit()
+        ws.jacobianAddAbsSpecies(species = "O3",
+                                 g1 = ws.p_grid,
+                                 g2 = ws.lat_grid,
+                                 g3 = ws.lon_grid)
+        ws.jacobianAddAbsSpecies(species = "H2O",
+                                 g1 = ws.p_grid,
+                                 g2 = ws.lat_grid,
+                                 g3 = ws.lon_grid)
+        ws.jacobianClose()
+
+        ws.covmatDiagonal(out = ws.covmat_block,
+                          out_inverse = ws.covmat_block,
+                          vars = np.ones(ws.p_grid.value.size))
+        ws.covmat_sxAddBlock(block = ws.covmat_block)
+        ws.covmatDiagonal(out = ws.covmat_block,
+                          out_inverse = ws.covmat_block,
+                          vars = np.ones(ws.p_grid.value.size))
+        ws.covmat_sxAddBlock(block = ws.covmat_block)
