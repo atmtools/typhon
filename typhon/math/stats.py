@@ -140,6 +140,27 @@ def bin_nd(binners, bins, data=None):
         return B
 
 
+def binned_statistic(coords, data, bins, statistic=None):
+    """Bin data and calculate statistics on them
+
+    As :func:`scipy.stats.binned_statistic` but faster for simple
+    statistics.
+
+    Args:
+        coords: 1-dimensional numpy.array with the coordinates that should be
+            binned.
+        data: A numpy.array on which the statistic should be applied.
+        bins: The bins used for the binning.
+        statistic: So far only *mean* is implemented.
+
+    Returns:
+        A numpy array with statistic results.
+    """
+    bin_indices = numpy.digitize(coords, bins)
+    data_sum = numpy.bincount(bin_indices, weights=data, minlength=bins.size)
+    data_number = numpy.bincount(bin_indices, minlength=bins.size)
+    return data_sum / data_number
+
 def get_distribution_as_percentiles(x, y,
                                     bins,
                                     ptiles=(5, 25, 5, 75, 95)):
