@@ -1,8 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
+import gc
 from multiprocessing import Process, Queue
-import random
-import textwrap
 import time
 import traceback
 
@@ -10,6 +9,7 @@ import numpy as np
 import pandas as pd
 from typhon.geodesy import great_circle_distance
 from typhon.geographical import GeoIndex
+from typhon.utils import add_xarray_groups
 from typhon.utils.timeutils import to_datetime, to_timedelta, Timer
 import xarray as xr
 
@@ -39,7 +39,6 @@ PROCESS_NAMES = [
     'Lysenko', 'Galton', 'Binet', 'Kinsey', 'Fleming', 'Skinner', 'Wundt',
     'Archimedes'
 ]
-random.shuffle(PROCESS_NAMES)
 
 
 class Collocator:
@@ -49,13 +48,13 @@ class Collocator:
         """Initialize a collocator object that can find collocations
 
         Args:
-            threads: Finding collocations can be parallelised in threads. Give
+            threads: Finding collocations can be parallelized in threads. Give
                 here the maximum number of threads that you want to use. Which
                 number of threads is the best, may be machine-dependent. So
                 this is a parameter that you can use to fine-tune the
                 performance. Note: Not yet implemented.
-            verbose: The higher this integer value the more _debug messages will
-                be printed. Integer value of 0 disable _debug messages.
+            verbose: The higher this integer value the more debug messages
+                will be printed.
             name: The name of this collocator.
         """
 
@@ -96,9 +95,10 @@ class Collocator:
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
-            compact=False, **kwargs
+            bundle=False, skip_file_errors=False, post_processor=None,
+            post_processor_kwargs=None, **kwargs
     ):
-        """Collocate two filesets with each other
+        """Find collocation between the data of two filesets
 
         Args:
             filesets: A list of two FileSet objects
@@ -108,20 +108,33 @@ class Collocator:
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
-            processes: Collocating can be parallelised which improves the
+            processes: Collocating can be parallelized which improves the
                 performance significantly. Pass here the number of processes to
                 use.
             output: Fileset object where the collocated data should be stored.
-            compact: Not yet implemented.
+            bundle: Not yet implemented.
+            skip_file_errors: If a file could not be read, the file and its
+                match will be skipped and a warning will be printed. Otheriwse
+                the program will stop (default).
+            post_processor: A function for post-processing the collocated data
+                before saving it to `output`. Must accept two parameters: a
+                xarray.Dataset with the collocated data and a dictionary with
+                the path attributes from the collocated files.
+            post_processor_kwargs: A dictionary with keyword arguments that
+                should be passed to `post_processor`.
             **kwargs: Further keyword arguments that are allowed for
                 :meth:`collocate`.
 
         Yields:
-            A xarray.Dataset with the collocated data. The results are not
-            ordered if you use more than one process. For more information
-            about the yielded value, have a look at :meth:`collocate`.
+            A xarray.Dataset with the collocated data if `output` is not set.
+            If `output` is set to a FileSet-like object, only the filename is
+            yielded. The results are not ordered if you use more than one
+            process. For more information about the yielded value, have a look
+            at :meth:`collocate`.
 
         Examples:
+
+        .. code-block:: python
 
         """
         timer = time.time()
@@ -165,7 +178,7 @@ class Collocator:
         # match, the process yields the results.
 
         # This queue collects all results:
-        results = Queue()
+        results = Queue(maxsize=processes)
 
         # This queue collects all error exceptions
         errors = Queue()
@@ -179,7 +192,10 @@ class Collocator:
             "end": end,
             "filesets": filesets,
             "output": output,
-            "compact": compact,
+            "bundle": bundle,
+            "skip_file_errors": skip_file_errors,
+            "post_processor": post_processor,
+            "post_processor_kwargs": post_processor_kwargs,
         })
 
         # This contains all running processes
@@ -190,6 +206,7 @@ class Collocator:
                     self, results, errors, PROCESS_NAMES[i],
                 ),
                 kwargs={**kwargs, "matches": matches_chunk},
+                daemon=True,
             )
             for i, matches_chunk in enumerate(matches_chunks)
         ]
@@ -214,10 +231,19 @@ class Collocator:
             # Yield all results that are currently in the queue:
             while not results.empty():
                 processed_matches += 1
-                self._print_progress(timer, total_matches, processed_matches)
+                self._print_progress(
+                    timer, total_matches, processed_matches, len(running),
+                    errors.qsize()
+                )
                 result = results.get()
                 if result is not None:
                     yield result
+
+                # Explicit free up memory:
+                gc.collect()
+
+        for process in process_list:
+            process.join()
 
         if not errors.empty():
             self._error("Some processes terminated due to errors:")
@@ -234,11 +260,8 @@ class Collocator:
             print("".join(traceback.format_tb(error[1])))
             print("-" * 79 + "\n")
 
-        for process in process_list:
-            process.join()
-
     @staticmethod
-    def _print_progress(timer, total, current):
+    def _print_progress(timer, total, current, processes, errors):
         if current == 0:
             progress = 0
             elapsed_time = time.time() - timer
@@ -256,8 +279,9 @@ class Collocator:
         )
 
         msg = "-"*79 + "\n"
-        msg += f"{100*progress:.0f}% done ({elapsed_time} hours elapsed, " \
-               f"{expected_time} hours remaining)\n"
+        msg += f"{100*progress:.0f}% | {elapsed_time} hours elapsed, " \
+               f"{expected_time} hours left | {processes} proc running, " \
+               f"{errors} failed\n"
         msg += "-"*79 + "\n"
         print(msg)
 
@@ -273,27 +297,32 @@ class Collocator:
                 results.put(result)
                 processed += 1
         except Exception as exception:
-            collocator.error("I got a problem and terminate!")
+            collocator._error("ERROR: I got a problem and terminate!")
 
             # Build a message that contains all important information for
             # debugging:
-            msg = ""
             i = 0
-            print(kwargs['matches'])
-            for primary, secondaries in zip(*kwargs['matches']):
-                print(primary, secondaries)
-                continue
-                for secondary in enumerate(secondaries):
-                    if processed == i:
-                        msg = f"Failed to collocate {primary} with {secondary}"
-                        break
+            msg = None
+            for match in kwargs['matches']:
+                for secondary in match[1]:
+                    if processed != i:
+                        i += 1
+                        continue
+
                     i += 1
+                    msg = f"Failed to collocate {match[0]} with {secondary}"
+                    break
 
                 if msg is not None:
                     break
 
+            msg += "\n"
+
             # The main process needs to know about this exception!
-            error = [name, exception.__traceback__, msg, processed]
+            error = [
+                name, exception.__traceback__,
+                msg + str(exception), processed
+            ]
             errors.put(error)
 
             # Finally, raise the exception to terminate this process:
@@ -302,15 +331,20 @@ class Collocator:
         collocator._info(f"Finished all {processed} matches")
 
     def _collocate_files(
-        self, filesets, matches, output, compact, **kwargs
+        self, filesets, matches, output, bundle, skip_file_errors,
+            post_processor, post_processor_kwargs, **kwargs
     ):
 
         # Get all primary and secondary data that overlaps with each other
         file_pairs = filesets[0].align(
-            filesets[1], matches=matches, return_info=True, compact=compact
+            filesets[1], matches=matches, return_info=True, compact=False,
+            skip_errors=skip_file_errors,
         )
 
         debug_timer = time.time()
+
+        # If we want to bundle the output
+        result_cache = []
         for i, file_pair in enumerate(file_pairs):
             files = file_pair[1][0], file_pair[1][0]
             primary, secondary = file_pair[0][1].copy(), file_pair[1][1].copy()
@@ -319,7 +353,8 @@ class Collocator:
 
             current_start = np.datetime64(primary["time"].min().item(0), "ns")
             current_end = np.datetime64(primary["time"].max().item(0), "ns")
-            self._debug(f"Collocating {current_start} to {current_end}")
+            self._debug(f"Collocating {current_start} to {current_end}\n"
+                        f"{files[0].path}\nwith {files[1].path}")
 
             debug_timer = time.time()
             collocations = self.collocate(
@@ -349,10 +384,9 @@ class Collocator:
 
             # Add the names of the processed files:
             for f in range(2):
-                if f"{filesets[f].name}__file" in collocations.attrs:
-                    continue
-
-                collocations.attrs[f"{filesets[f].name}__file"] = files[f].path
+                if f"{filesets[f].name}_file" not in collocations.attrs:
+                    collocations.attrs[f"{filesets[f].name}_file"] = \
+                        files[f].path
 
             # Collect the attributes of the input files
             attributes = {
@@ -370,6 +404,19 @@ class Collocator:
                      to_datetime(collocations.attrs["end_time"])],
                     fill=attributes
                 )
+
+                # Apply a post processor function from the user
+                if post_processor is not None:
+                    if post_processor_kwargs is None:
+                        post_processor_kwargs = {}
+
+                    collocations = post_processor(
+                        collocations, attributes, **post_processor_kwargs
+                    )
+
+                if collocations is None:
+                    yield None
+                    continue
 
                 # Write the data to the file.
                 output.write(collocations, filename)
@@ -496,6 +543,10 @@ class Collocator:
 
         if max_interval is not None:
             max_interval = to_timedelta(max_interval, numbers_as="seconds")
+
+        # The user can give strings instead of datetime objects:
+        start = datetime.min if start is None else to_datetime(start)
+        end = datetime.max if end is None else to_datetime(end)
 
         primary_name, primary, secondary_name, secondary = self._get_names(
             primary, secondary
@@ -657,6 +708,11 @@ class Collocator:
             secondary = secondary.sel(
                 **{secondary_dim: secondary_period[secondary_dim]}
             )
+
+            # Check whether something is left:
+            if not primary_period.size or not secondary_period.size:
+                return None, None
+
             self._debug(f"{timer} for selecting common time period")
 
         # Flat the data: For collocating, we need a flat data structure.
@@ -714,8 +770,9 @@ class Collocator:
 
         We need a flat dataset structure for the collocation algorithms, i.e.
         time, lat and lon are not allowed to be gridded, they must be
-        1-dimensional and share the same dimension. There are three groups of
-        original data structures that this method can handle:
+        1-dimensional and share the same dimension (namely *collocation*).
+        There are three groups of original data structures that this method
+        can handle:
 
         * linear (e.g. ship track measurements): time, lat and lon have the
             same dimension and are all 1-dimensional. Fulfills all criteria
@@ -734,16 +791,28 @@ class Collocator:
             A xr.Dataset where time, lat and lon are aligned on one shared
             dimension.
         """
-        # Flat: time, lat and lon share the same dimension size and are
-        # 1-dimensional
-        flat = len(
-            set(data["time"].shape)
-            | set(data["lat"].shape)
-            | set(data["lon"].shape)) == 1
+        # Flat:
+        shared_dims = list(
+            set(data.time.dims) | set(data.lat.dims) | set(data.lon.dims)
+        )
 
-        if flat:
+        # Check whether the dataset is flat (time, lat and lon share the same
+        # dimension size and are 1-dimensional)
+        if len(shared_dims) == 1:
+
+            if shared_dims[0] in ("time", "lat", "lon"):
+                # One of the key variables is the main dimension! Change this:
+                data["collocation"] = shared_dims[0], np.arange(
+                    data[shared_dims[0]].size)
+                data = data.swap_dims({shared_dims[0]: "collocation"})
+                data.reset_coords(shared_dims[0], inplace=True)
+
+                # So far, collocation is a coordinate. We want to make it to a
+                # dimension,  so drop its values:
+                return data.drop("collocation")
+
             return data.rename({
-                data.time.dims[0]: "collocation"
+                shared_dims[0]: "collocation"
             })
 
         # The coordinates are gridded:
@@ -819,18 +888,6 @@ class Collocator:
 
             output[names[i]] = dataset.isel(collocation=original_indices)
 
-            # xarray does not really handle grouped data (actually, not at
-            # all). Until this has changed, I do not want to have subgroups in
-            # the output data (this makes things complicated when it comes to
-            # coordinates). Therefore, we 'flat' each group before continuing:
-            output[names[i]].rename(
-                {
-                    old_name: old_name.replace("/", "_")
-                    for old_name in output[name].variables
-                    if "/" in old_name
-                }, inplace=True
-            )
-
             # We need the total time coverage of all datasets for the name of
             # the output file
             data_start = pd.Timestamp(
@@ -877,35 +934,20 @@ class Collocator:
                     [output[name], stacked_dims_data],
                 )
 
-            # Now, we can rename it (to make it to a member of this group) and
-            # then we can drop it.
-            output[name].rename(
-                {"collocation": f"{name}/collocation"}, inplace=True
-            )
-
             # For the flattening we might have created temporal variables,
-            # delete them here:
+            # also collect them to drop:
             vars_to_drop = [
                 var for var in output[name].variables.keys()
                 if var.startswith("__replacement_")
             ]
 
-            output[name] = output[name].drop(
-                [f"{name}/collocation", *vars_to_drop],
-            )
-
-            # We want to merge all datasets together (but as subgroups). Hence,
-            # add the fileset name to each dataset as prefix:
-            output[name].rename(
-                {
-                    var_name: "/".join([name, var_name])
-                    for var_name in output[name].variables
-                }, inplace=True
-            )
+            output[name] = output[name].drop([
+                f"collocation", *vars_to_drop
+            ])
 
         # Merge all datasets into one:
-        output = xr.merge(
-            [data for data in output.values()]
+        output = add_xarray_groups(
+            xr.Dataset(), **output
         )
 
         # This holds the collocation information (pairs, intervals and

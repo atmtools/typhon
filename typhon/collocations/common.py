@@ -6,8 +6,6 @@ atmlab implemented by Gerrit Holl.
 Created by John Mrziglod, June 2017
 """
 
-import time
-
 import numba
 import numpy as np
 from typhon.files import FileSet
@@ -41,8 +39,8 @@ class Collocations(FileSet):
             *args: Positional arguments for
                 :class:`~typhon.files.fileset.FileSet`.
             read_mode: The collocations can be collapsed or expanded after
-                collecting. Set this either to *collapse* (default) or
-                *expand*.
+                collecting. Set this either to *collapse* (default),
+                *expand* or *compact*.
             reference: If `read_mode` is *collapse*, here you can set the name
                 of the dataset to that the others should be collapsed. Default
                 is the primary dataset.
@@ -59,7 +57,7 @@ class Collocations(FileSet):
         self.collapser = collapser
         self.collocator = None
 
-    def add_fields(self, original_fileset, fields, **map_args):
+    def add_fields(self, original_fileset, fields, **kwargs):
         """
 
         Args:
@@ -78,7 +76,7 @@ class Collocations(FileSet):
                 "original_fileset": original_fileset,
                 "fields": fields,
             },
-            **map_args,
+            **kwargs,
         }
 
         return self.map(Collocations._add_fields, **map_args)
@@ -106,7 +104,7 @@ class Collocations(FileSet):
         """
         data = super(Collocations, self).read(*args, **kwargs)
 
-        if self.read_mode == "fileset":
+        if self.read_mode == "compact":
             # Do nothing
             return data
         elif self.read_mode == "collapse" or self.read_mode is None:
@@ -214,9 +212,7 @@ class Collocations(FileSet):
         timer = Timer().start()
         for _ in collocated_files:
             pass
-        collocator.info(
-            f"{timer} for finding all collocations"
-        )
+        print(f"{timer} for finding all collocations")
 
 
 @numba.jit
@@ -271,6 +267,9 @@ def collapse(data, reference=None, collapser=None):
 
             # TODO: Add examples
     """
+    collapsed = xr.Dataset(
+        attrs=data.attrs.copy(),
+    )
 
     # Check whether the collocation data is compatible
     check_collocation_data(data)
@@ -345,10 +344,6 @@ def collapse(data, reference=None, collapser=None):
         **collapser,
     }
 
-    collapsed = xr.Dataset(
-        attrs=data.attrs,
-    )
-
     for var_name, var_data in data.variables.items():
         group, local_name = var_name.split("/", 1)
 
@@ -362,8 +357,10 @@ def collapse(data, reference=None, collapser=None):
 
         if collapse_dim not in var_data.dims:
             # This variable does not depend on the collocation coordinate.
-            # Hence, we cannot collapse it but we simply copy it.
-            if group == reference:
+            # Hence, we cannot collapse it but we simply copy it. To make the
+            # dataset collocation-friendly, the time, lat and lon fields of the
+            # reference group will be copied to the root path:
+            if group == reference and local_name in ("time", "lat", "lon"):
                 collapsed[local_name] = var_data
             else:
                 collapsed[var_name] = var_data
@@ -388,7 +385,10 @@ def collapse(data, reference=None, collapser=None):
             # that we might use it for a collocation search with another
             # dataset). So the content of the reference group moves "upward"
             # (group name vanishes from the path):
-            collapsed[local_name] = var_data
+            if local_name in ("time", "lat", "lon"):
+                collapsed[local_name] = var_data
+            else:
+                collapsed[var_name] = var_data
             continue
 
         # The standard fields (time, lat, lon) and the special fields to

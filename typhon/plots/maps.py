@@ -19,20 +19,24 @@ __all__ = [
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             bg=False, **kwargs):
+             bg=False, draw_grid=False, draw_coastlines=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
         lat: Array of latitudes.
         lon: Array of longitudes.
-        var: Additional array for the variable to plot. If given,
-            the track changes the color according to a color map.
+        var: Additional array for the variable to plot. If 1-dimensional, the
+            variable is plotted as track changing the color according to a
+            color map. If 2-dimensional, variable is plotted as contour plot.
+
         fig: A matplotlib figure object. If not given, the current
             figure is used.
         ax: A matplotlib axis object. If not given, a new axis
             object will be created in the current figure.
         projection: If no axis is given, specify here the cartopy projection.
         bg: If true, a background image will be drawn.
+        draw_grid:
+        draw_coastlines:
         **kwargs:
 
     Returns:
@@ -42,15 +46,16 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     kwargs_defaults = {
         "cmap": "qualitative1",
         "s": 1,
+        # This accelerates the drawing of many points:
+        "rasterized": lat.size > 100_000,
+        **kwargs
     }
-    kwargs_defaults.update(kwargs)
 
     if fig is None:
         fig = plt.gcf()
 
     if projection is None:
         if ax is None:
-
             projection = ccrs.PlateCarree()
         else:
             projection = ax.projection
@@ -61,17 +66,35 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     if bg:
         ax.stock_img()
 
+    if draw_grid:
+        ax.gridlines(draw_labels=True)
+
+    if draw_coastlines:
+        ax.coastlines()
+
     # It is counter-intuitive but if we want to plot our data with normal
     # latitudes and longitudes, we always have to set the transform to
     # PlateCarree (see https://github.com/SciTools/cartopy/issues/911)
-    if var is None:
-        scatter_plot = ax.scatter(
-            lon, lat, transform=ccrs.PlateCarree(), **kwargs_defaults)
+    if len(var.shape) == 1:
+        kwargs_defaults = {
+            "cmap": "qualitative1",
+            "s": 1,
+            # This accelerates the drawing of many points:
+            "rasterized": lat.size > 100_000,
+            **kwargs
+        }
+        plot = ax.scatter(
+            lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults
+        )
     else:
-        scatter_plot = ax.scatter(
-            lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults)
+        kwargs_defaults = {
+            **kwargs
+        }
+        plot = ax.contourf(
+            lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
+        )
 
-    return scatter_plot
+    return plot
 
 
 def get_cfeatures_at_scale(scale='110m'):

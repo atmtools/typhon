@@ -143,14 +143,6 @@ Spectroscopy
 
    typhon.spectroscopy
 
-SPARE-ICE
----------
-
-.. toctree::
-   :maxdepth: 2
-
-   typhon.spareice
-
 Miscellaneous
 -------------
 

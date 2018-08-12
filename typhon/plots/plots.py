@@ -84,7 +84,7 @@ def binned_statistic(
         bin_width = (bin_edges[1] - bin_edges[0])
         bin_centers = bin_edges[1:] - bin_width / 2
 
-        plot = ax.scatter(bin_centers, statistics, **pargs)
+        plot = ax.plot(bin_centers, statistics, **pargs)
     elif ptype == "boxplot":
         bin_lefts = np.linspace(x.min(), x.max(), bins)
         bins_indices = np.digitize(x, bin_lefts)

@@ -57,3 +57,15 @@ retrieval.scores
     bias
     quantile_score
     mean_quantile_score
+
+retrieval.spareice
+==================
+
+.. automodule:: typhon.retrieval.spareice
+
+.. currentmodule:: typhon.retrieval.spareice
+
+.. autosummary::
+   :toctree: generated
+
+   SPAREICE

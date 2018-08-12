@@ -17,6 +17,8 @@ class SEVIRI(HDF5):
     """File handler for SEVIRI level 1.5 HDF files
     """
 
+    _grid = None
+
     def __init__(self, **kwargs):
         """
 
@@ -136,8 +138,8 @@ class SEVIRI(HDF5):
         Returns:
             A xarray.Dataset with lat and lon fields
         """
-        if self._grid is not None:
-            return self._grid
+        if SEVIRI._grid is not None:
+            return SEVIRI._grid
 
         # The SEVIRI image has a size of 3712x3712 pixels
         height_width = np.arange(3712)
@@ -171,21 +173,23 @@ class SEVIRI(HDF5):
         lat = np.arctan(1.006803 * (s3 / sxy)) * 180 / np.pi
 
         # We cache the grid
-        self._grid = xr.Dataset({
+        ds = xr.Dataset({
             "lat": (("line", "column"), -lat),
             "lon": (("line", "column"), -lon),
         })
 
-        self._grid["lat"].attrs = {
+        ds["lat"].attrs = {
             "long_name": "latitude",
             "units": "degrees [-90, 180]",
         }
-        self._grid["lon"].attrs = {
+        ds["lon"].attrs = {
             "long_name": "longitude",
             "units": "degrees [-180, 180]",
         }
 
-        return self._grid
+        SEVIRI._grid = ds
+
+        return SEVIRI._grid
 
     @staticmethod
     def counts_to_bt(dataset):

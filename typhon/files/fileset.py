@@ -17,7 +17,7 @@ import os.path
 import re
 import shutil
 import threading
-import time
+import traceback
 import warnings
 
 import numpy as np
@@ -594,7 +594,8 @@ class FileSet:
         return info
 
     def align(self, other, start=None, end=None, matches=None,
-              max_interval=None, return_info=True, compact=False):
+              max_interval=None, return_info=True, compact=False,
+              skip_errors=False):
         """Collect files from this fileset and a matching other fileset
 
         Warnings:
@@ -622,14 +623,23 @@ class FileSet:
                 will be returned.
             compact: Not yet implemented. Decides how the collected data will
                 be returned.
+            skip_errors: Normally, when an exception is raised during
+                reading a file, the program stops. But if this parameter is
+                True, the error will be only printed as warning and this and
+                its matching file are skipped.
 
         Yields:
             If `return_info` False, it yields two objects: the primary and
             secondary file content.
-            Two dictionaries where the keys are always the name of the
-            filesets. The values from the first are lists with
-            :class:`FileInfo` objects of the opened files. The values from the
-            second are lists with the content objects.
+
+        .. code-block:: python
+
+            fileset = FileSet(
+                "old/path/{year}/{month}/{day}/{hour}{minute}{second}.nc",
+            )
+
+            # Delete all files in this fileset:
+            fileset.delete()
         """
         start = None if start is None else to_datetime(start)
         end = None if end is None else to_datetime(end)
@@ -656,9 +666,12 @@ class FileSet:
         )
 
         # Prepare the loader for the primaries and secondaries:
-        primary_loader = self.icollect(files=primaries)
+        primary_loader = self.icollect(
+            files=primaries, error_to_warning=skip_errors
+        )
         secondary_loader = other.icollect(
-            files=unique_secondaries, return_info=True
+            files=unique_secondaries, return_info=True,
+            error_to_warning=skip_errors
         )
 
         # Here we prepare part B:
@@ -675,9 +688,6 @@ class FileSet:
         cache = {}
 
         for match_id, primary_data in enumerate(primary_loader):
-            files, data = defaultdict(list), defaultdict(list)
-            files[self.name] = [primaries[match_id]]
-            data[self.name] = [primary_data]
 
             if return_info:
                 primary = [primaries[match_id], primary_data]
@@ -704,14 +714,6 @@ class FileSet:
                 else:
                     secondary_data = cache[secondary_file]
 
-                if return_info:
-                    secondary = [secondary_file, secondary_data]
-                else:
-                    secondary = secondary_data
-
-                # Yield the primary and secondary to the user:
-                yield primary, secondary
-
                 # Decrease the counter for this secondary:
                 secondary_usage[secondary_file] -= 1
 
@@ -724,6 +726,23 @@ class FileSet:
                     # to improve performance (see
                     # https://stackoverflow.com/q/1316767/9144990):
                     gc.collect()
+
+                # Check whether something went wrong:
+                if primary_data is None or secondary_data is None \
+                        and skip_errors:
+                    # There was an exception during reading the primary or
+                    # secondary file, therefore we skip this match:
+                    continue
+
+                if return_info:
+                    secondary = [secondary_file, secondary_data]
+                else:
+                    secondary = secondary_data
+
+                # Yield the primary and secondary to the user:
+                yield primary, secondary
+
+
 
     @staticmethod
     def _pseudo_passer(*args):
@@ -825,7 +844,8 @@ class FileSet:
         else:
             return list(data)
 
-    def icollect(self, start=None, end=None, files=None, **kwargs):
+    def icollect(self, start=None, end=None, files=None,
+                 **kwargs):
         """Load all files between two dates sorted by their starting time
 
         Does the same as :meth:`collect` but works as a generator. Instead of
@@ -1685,8 +1705,7 @@ class FileSet:
             self, func, args=None, kwargs=None, files=None, on_content=False,
             pass_info=None, read_args=None, output=None,
             max_workers=None, worker_type=None,
-            #worker_initializer=None, worker_initargs=None,
-            return_info=False, **find_kwargs
+            return_info=False, error_to_warning=False, **find_kwargs
     ):
         """Apply a function on files of this fileset with parallel workers
 
@@ -1743,6 +1762,10 @@ class FileSet:
                 `worker_initializer`.
             return_info: If true, return a FileInfo object with each return
                 value indicating to which file the function was applied.
+            error_to_warning: Normally, if an exception is raised during
+                reading of a file, this method is aborted. However, if you set
+                this to *true*, only a warning is given and None is returned.
+                This parameter will be ignored if `on_content=True`.
             **find_kwargs: Additional keyword arguments that are allowed
                 for :meth:`find` such as `start` or `end`.
 
@@ -1805,7 +1828,7 @@ class FileSet:
                 func, args, kwargs, files, on_content, pass_info, read_args,
                 output, max_workers, worker_type,
                 #worker_initializer, worker_initargs,
-                return_info, **find_kwargs
+                return_info, error_to_warning, **find_kwargs
             )
 
         with pool_class(**pool_args) as pool:
@@ -1864,7 +1887,7 @@ class FileSet:
             on_content=False, pass_info=None, read_args=None, output=None,
             max_workers=None, worker_type=None,
             #worker_initializer=None, worker_initargs=None,
-            return_info=False, **find_args
+            return_info=False, error_to_warning=False, **find_args
     ):
         if func is None:
             raise ValueError("The parameter `func` must be given!")
@@ -1918,7 +1941,7 @@ class FileSet:
 
         worker_args = (
             (self, file, func, args, kwargs, pass_info, output,
-             on_content, read_args, return_info)
+             on_content, read_args, return_info, error_to_warning)
             for file in files
         )
 
@@ -1940,24 +1963,9 @@ class FileSet:
             content).
         """
         fileset, file_info, func, args, kwargs, pass_info, output, \
-            on_content, read_args, return_info = all_args
+            on_content, read_args, return_info, error_to_warning = all_args
 
         args = [] if args is None else list(args)
-
-        if on_content:
-            # file_info could be a bundle of files
-            if isinstance(file_info, FileInfo):
-                file_content = fileset.read(file_info, **read_args)
-            else:
-                file_content = \
-                    fileset.collect(files=file_info, read_args=read_args)
-            args.append(file_content)
-
-        if not on_content or pass_info:
-            args.append(file_info)
-
-        # Call the function:
-        return_value = func(*args, **kwargs)
 
         def _return(file_info, return_value):
             """Small helper for return / not return the file info object."""
@@ -1966,6 +1974,33 @@ class FileSet:
                 return file_info, return_value
             else:
                 return return_value
+
+        if on_content:
+            try:
+                # file_info could be a bundle of files
+                if isinstance(file_info, FileInfo):
+                    file_content = fileset.read(file_info, **read_args)
+                else:
+                    file_content = \
+                        fileset.collect(files=file_info, read_args=read_args)
+                args.append(file_content)
+            except Exception as e:
+                if error_to_warning:
+                    msg = f"[ERROR] Could not read the file(s):\n{file_info}\n"
+                    msg += str(e) + "\n"
+                    warnings.warn(
+                        msg + "".join(traceback.format_tb(e.__traceback__)),
+                        RuntimeWarning
+                    )
+                    return _return(file_info, None)
+
+                raise e
+
+        if not on_content or pass_info:
+            args.append(file_info)
+
+        # Call the function:
+        return_value = func(*args, **kwargs)
 
         if output is None:
             # No output is needed, simply return the file info and the

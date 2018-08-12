@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import collections
 import itertools
+from numbers import Number
 import traceback
 
 from warnings import warn
@@ -38,6 +39,8 @@ __all__ = [
     'split_units',
     'reraise_with_stack',
     'get_xarray_groups',
+    'add_xarray_groups',
+    'to_array',
 ]
 
 
@@ -261,7 +264,7 @@ def get_time_coordinates(ds):
 # Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
 # Grant agreement: 638822.  This specifically applies to the function
 # concat_each_time_coordinate.
-# 
+#
 # All those contributions are dual-licensed under the MIT license for use
 # in typhon, and the GNU General Public License version 3.
 
@@ -571,3 +574,54 @@ def get_xarray_groups(dataset):
         for var_name in dataset.variables
         if "/" in var_name
     }
+
+
+def add_xarray_groups(ds, **kwargs):
+    """Add a xarray.Dataset as a subgroup to another xarray.Dataset
+
+    Args:
+        ds: The root xarray.Dataset.
+        **kwargs: Keyword arguments: the is the name of the group and the value
+            must be a xarray.Dataset.
+
+    Returns:
+        `ds` with the added subgroup.
+    """
+    datasets = [ds]
+
+    for group_name, group in kwargs.items():
+        group = group.rename(
+            {
+                var_name: "/".join([group_name, var_name])
+                for var_name in group.variables
+            },
+        )
+
+        # Add the group name also to the dimensions:
+        group = group.rename({
+            dim: "/".join([group_name, dim])
+            for dim in group.dims
+            if dim not in group.coords
+        })
+
+        datasets.append(group)
+
+    return xarray.merge(datasets)
+
+
+def to_array(item):
+    """Convert item to numpy array
+
+    Args:
+        item: Can be a number, list, tuple or numpy array.
+
+    Returns:
+        `item` converted to a numpy array.
+    """
+    if isinstance(item, np.ndarray):
+        return item
+
+    if isinstance(item, Number):
+        return np.array([item])
+    else:
+        return np.array(item)
