@@ -175,7 +175,7 @@ class WorkspaceMethod:
     def _parse_output_input_lists(self, ws, args, kwargs):
         n_args = self.n_g_out + self.n_g_in
 
-        ins  = self.ins
+        ins  = self.ins[:]
         temps = []
 
         # Add positional arguments to kwargs
