@@ -14,7 +14,7 @@ import numpy  as np
 
 import ast
 from   ast      import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
-                       Expression, Expr, FunctionDef
+                       Expression, Expr, FunctionDef, Starred
 from   inspect  import getsource, getclosurevars
 from contextlib import contextmanager
 from copy       import copy
@@ -89,6 +89,7 @@ def arts_agenda(func):
     >>>
     >>> ws.Copy(ws.inversion_iterate_agenda, inversion_iterate_agenda)
     """
+
     source = getsource(func)
     source = unindent(source)
     ast = parse(source)
@@ -112,6 +113,11 @@ def arts_agenda(func):
     nls, _, _, _ = getclosurevars(func)
     context.update(nls)
 
+    def eval_argument(expr):
+        if not hasattr(expr, "lineno"):
+            setattr(expr, "lineno", 0)
+        return eval(compile(Expression(expr), "<unknown>", 'eval'), context)
+
     # Create agenda
     a_ptr = arts_api.create_agenda(func.__name__.encode())
     agenda = Agenda(a_ptr)
@@ -133,7 +139,7 @@ def arts_agenda(func):
             else:
                 args = []
                 for a in call.args:
-                    args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
+                    args.append(eval_argument(a))
                     include = Include(*args)
                     arts_api.agenda_append(agenda.ptr, include.agenda.ptr)
         else:
@@ -152,8 +158,17 @@ def arts_agenda(func):
 
             # Extract positional arguments
             args = [ws, m]
+
             for a in call.args:
-                args.append(eval(compile(Expression(a), "<unknown>", 'eval'), context))
+
+                # Handle starred expression
+                if type(a) == Starred:
+                    bs = eval_argument(a.value)
+                    for b in bs:
+                        args.append(b)
+                    continue
+
+                args.append(eval_argument(a))
 
             # Extract keyword arguments
             kwargs = dict()
