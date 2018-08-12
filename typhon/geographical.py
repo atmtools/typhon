@@ -15,6 +15,7 @@ from typhon.utils import split_units
 __all__ = [
     'area_weighted_mean',
     'GeoIndex',
+    'gridded_mean',
     'sea_mask'
 ]
 
@@ -307,6 +308,25 @@ class GeoIndex:
             return pairs, distances
 
 
+def gridded_mean(lat, lon, data, grid):
+    """Grid data along latitudes and longitudes
+
+    Args:
+        lat: Grid points along latitudes as 1xN dimensional array.
+        lon: Grid points along longitudes as 1xM dimensional array.
+        data: The data as NxM numpy array.
+        grid: A tuple with two numpy arrays, consisting of latitude and
+            longitude grid points.
+
+    Returns:
+        Two matrices in grid form: the mean and the number of points of `data`.
+    """
+    grid_sum, _, _ = np.histogram2d(lat, lon, grid, weights=data)
+    grid_number, _, _ = np.histogram2d(lat, lon, grid)
+
+    return grid_sum / grid_number, grid_number
+
+
 def sea_mask(lat, lon, mask):
     """Check whether geographical coordinates are over sea
 
@@ -347,6 +367,9 @@ def sea_mask(lat, lon, mask):
 
     lat = _to_array(lat)
     lon = _to_array(lon)
+
+    if not lat.size or not lon.size:
+        return np.array([])
 
     if lon.min() < -180 or lon.max() > 180:
         raise ValueError("Longitudes out of bounds!")

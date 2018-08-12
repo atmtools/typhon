@@ -59,6 +59,7 @@ import os
 from os.path import join, dirname
 import warnings
 
+import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -69,8 +70,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler
 from sklearn.tree import DecisionTreeClassifier
 from typhon.collocations import collapse, Collocations, Collocator
+from typhon.geographical import sea_mask
 from typhon.plots import binned_statistic, heatmap, styles, worldmap
-from typhon.utils.timeutils import to_datetime
+from typhon.utils import to_array, Timer
+import xarray as xr
 
 from ..common import RetrievalProduct
 
@@ -119,7 +122,8 @@ class SPAREICE:
         retrieved = spareice.retrieve(standardized_data)
     """
 
-    def __init__(self, file=None, collocator=None, processes=10, verbose=2):
+    def __init__(self, file=None, collocator=None, processes=10, verbose=2,
+                 sea_mask_file=None, elevation_file=None):
         """Initialize a SPAREICE object
 
         Args:
@@ -138,6 +142,21 @@ class SPAREICE:
         self.verbose = verbose
         self.processes = processes
         self.name = "SPARE-ICE"
+
+        if sea_mask_file is None:
+            self.sea_mask = None
+        else:
+            self.sea_mask = np.flip(
+                np.array(imageio.imread(sea_mask_file) == 255), axis=0
+            )
+
+        if elevation_file is None:
+            self.elevation_grid = None
+        else:
+            ds = xr.open_dataset(
+                elevation_file, decode_times=False
+            )
+            self.elevation_grid = ds.data.squeeze().values
 
         if collocator is None:
             self.collocator = Collocator(verbose=verbose)
@@ -173,8 +192,8 @@ class SPAREICE:
         if self.verbose > 0:
             print(f"[{self.name}] {msg}")
 
-    def _iwp_trainer(self, processes, cv_folds):
-        """Return the default trainer for the IWP retrieval
+    def _iwp_model(self, processes, cv_folds):
+        """Return the default model for the IWP regressor
         """
         # Estimators are normally objects that have a fit and predict method
         # (e.g. MLPRegressor from sklearn). To make their training easier we
@@ -193,7 +212,7 @@ class SPAREICE:
         # To optimize the results, we try different hyper parameters by
         # using a grid search
         hidden_layer_sizes = [
-            (15, 10, 3), #  (13, 10),
+            (40, 15), #  (13, 10),
         ]
         hyper_parameter = [
             {   # Hyper parameter for lbfgs solver
@@ -211,7 +230,8 @@ class SPAREICE:
         )
 
     @staticmethod
-    def _ice_cloud_trainer():
+    def _ice_cloud_model():
+        """Return the default model for the ice cloud classifier"""
         # As simple as it is. We do not need a grid search trainer for the DTC
         # since it has already a good performance.
         return DecisionTreeClassifier(
@@ -270,8 +290,8 @@ class SPAREICE:
             }
             outfile.write(repr(dictionary))
 
-    @staticmethod
-    def standardize_collocations(data, fields=None):
+    def standardize_collocations(self, data, fields=None, add_sea_mask=True,
+                                 add_elevation=True):
         """Convert collocation fields to standard SPARE-ICE fields.
 
         Args:
@@ -279,6 +299,9 @@ class SPAREICE:
                 2C-ICE, MHS & AVHRR or MHS & AVHRR.
             fields (optional): Fields that will be selected from the
                 collocations. If None (default), all fields will be selected.
+            add_sea_mask: Add a flag to the data whether the pixel is over sea
+                or land.
+            add_elevation: Add the surface elevation in meters to each pixel.
 
         Returns:
             A pandas.DataFrame with all selected fields.
@@ -368,22 +391,29 @@ class SPAREICE:
                 # We will do this later:
                 continue
             elif field not in mapping:
-                raise KeyError(f"I do not know the field '{field}'!")
+                # Some fields might be added later (such as elevation, etc)
+                continue
 
             key = mapping[field]
-            if isinstance(key, list):
-                return_data[field] = data[key[0]].isel(
-                    **{key[1]: key[2]}
-                )
-            else:
-                return_data[field] = data[key]
+            try:
+                if isinstance(key, list):
+                    return_data[field] = data[key[0]].isel(
+                        **{key[1]: key[2]}
+                    )
+                else:
+                    return_data[field] = data[key]
+            except KeyError:
+                # Keep things easy. Collocations might contain the target
+                # dataset or not. We do not want to have a problem just because
+                # we have not them.
+                pass
 
         return_data = pd.DataFrame(return_data)
 
         if "avhrr_tir_diff" in fields:
             return_data["avhrr_tir_diff"] = \
                 return_data["avhrr_channel5"] - return_data["avhrr_channel4"]
-        if "iwp" in fields:
+        if "iwp" in fields and "MHS_2C-ICE/2C-ICE/ice_water_path_mean" in data:
             # We transform the IWP to log space because it is better for the
             # ANN training. Zero values might trigger warnings and
             # result in -INF. However, we cannot drop them because the ice
@@ -396,9 +426,42 @@ class SPAREICE:
                 return_data["iwp"].replace(
                     [-np.inf, np.inf], np.nan, inplace=True
                 )
-        if "ice_cloud" in fields:
+        if "ice_cloud" in fields \
+                and "MHS_2C-ICE/2C-ICE/ice_water_path_mean" in data:
             return_data["ice_cloud"] = \
                 data["MHS_2C-ICE/2C-ICE/ice_water_path_mean"] > 0
+
+        if add_sea_mask:
+            return_data["sea_mask"] = sea_mask(
+                return_data.lat, return_data.lon, self.sea_mask
+            )
+
+        if add_elevation:
+            def get_grid_value(grid, lat, lon):
+                lat = to_array(lat)
+                lon = to_array(lon)
+
+                if lon.min() < -180 or lon.max() > 180:
+                    raise ValueError("Longitudes out of bounds!")
+
+                if lat.min() < -90 or lat.max() > 90:
+                    raise ValueError("Latitudes out of bounds!")
+
+                grid_lat_step = 180 / (grid.shape[0] - 1)
+                grid_lon_step = 360 / (grid.shape[1] - 1)
+
+                lat_cell = (90 - lat) / grid_lat_step
+                lon_cell = lon / grid_lon_step
+
+                return grid[lat_cell.astype(int), lon_cell.astype(int)]
+
+            return_data["elevation"] = get_grid_value(
+                self.elevation_grid, return_data.lat, return_data.lon
+            )
+
+            # We do not need the depth of the oceans (this would just
+            # confuse the ANN):
+            return_data.elevation[return_data.elevation < 0] = 0
 
         return return_data
 
@@ -429,41 +492,67 @@ class SPAREICE:
 
         return retrieved
 
-    def _get_retrieval_data(self, inputs, start, end, processes):
-        if isinstance(inputs, Collocations):
-            yield from inputs.icollect(start=start, end=end)
-        elif len(inputs) == 2:
-            # Collocate MHS and AVHRR on-the-fly:
+    @staticmethod
+    def _retrieve_from_collocations(collocations, _, spareice):
 
-            names = set(fileset.name for fileset in inputs)
-            if "MHS" not in names or "AVHRR" not in names:
-                raise ValueError(
-                    "You must name the input filesets MHS and AVHRR! Their "
-                    f"current names are: {names}"
-                )
+        # print(collocations)
+        #
+        # file_start = collocations.attrs['start_time']
+        # file_end = collocations.attrs['end_time']
+        # spareice._info(
+        #     f"Retrieve SPARE-ICE for {file_start} to {file_end}"
+        # )
 
-            data_iterator = self.collocator.collocate_filesets(
-                inputs, start=start, end=end, processes=processes,
-                max_interval="30s", max_distance="7.5 km",
-            )
-            for data, attributes in data_iterator:
-                yield collapse(data, reference="MHS"), attributes
-        else:
-            raise ValueError(
-                "You need to pass a Collocations object or a list with a MHS "
-                "and AVHRR fileset!"
-            )
+        # We need collapsed collocations:
+        if "Collocations/pairs" in collocations.variables:
+            collocations = collapse(collocations, reference="MHS")
 
-    def retrieve_from_filesets(
-            self, inputs, output, start=None, end=None, processes=None,
-            post_reader=None,
+        # However, we do not need the original field names
+        collocations = spareice.standardize_collocations(collocations)
+
+        # Remove NaNs from the data:
+        collocations = collocations.dropna()
+
+        if collocations.empty:
+            return None
+
+        # Retrieve the IWP and the ice cloud flag:
+        retrieved = spareice.retrieve(collocations).to_xarray()
+
+        start = collocations.time.min()
+        end = collocations.time.max()
+        spareice._debug(f"Retrieve SPARE-ICE from {start} to {end}")
+
+        # Add more information:
+        retrieved["iwp"].attrs = {
+            "units": "g/m^2",
+            "name": "Ice Water Path",
+            "description": "Ice Water Path (retrieved by SPARE-ICE)."
+        }
+        retrieved["ice_cloud"].attrs = {
+            "units": "boolean",
+            "name": "Ice Cloud Flag",
+            "description": "True if pixel contains an ice cloud (retrieved"
+                           " by SPARE-ICE)."
+        }
+        retrieved["lat"] = collocations["lat"]
+        retrieved["lon"] = collocations["lon"]
+        retrieved["time"] = collocations["time"]
+        retrieved["scnpos"] = collocations["mhs_scnpos"]
+        # retrieved.attrs["start_time"] = file_start
+        # retrieved.attrs["end_time"] = file_end
+
+        return retrieved
+
+    def retrieve_from_collocations(
+            self, inputs, output, start=None, end=None, processes=None
     ):
-        """Retrieve SPARE-ICE from all files in a fileset
+        """Retrieve SPARE-ICE from collocations between MHS and AVHRR
 
         You can use this either with already collocated MHS and AVHRR data
         (pass the :class:`Collocations` object via `inputs`) or you let MHS and
-        AVHRR collocate on-the-fly by passing the filesets with the raw data
-        (pass two filesets as list via `inputs`).
+        AVHRR be collocated on-the-fly by passing the filesets with the raw
+        data (pass two filesets as list via `inputs`).
 
         Args:
             inputs: Can be :class:`Collocations` or a list with
@@ -481,7 +570,6 @@ class SPAREICE:
             processes: Number of processes to parallelize the collocation
                 search. If not set, the value from the initialization is
                 taken.
-            post_reader:
 
         Returns:
             None
@@ -489,58 +577,47 @@ class SPAREICE:
         if processes is None:
             processes = self.processes
 
-        data_iterator = self._get_retrieval_data(
-            inputs, start, end, processes
-        )
+        if "sea_mask" in self.inputs and self.sea_mask is None:
+            raise ValueError("You have to pass a sea_mask file via init!")
+        if "elevation" in self.inputs and self.elevation_grid is None:
+            raise ValueError("You have to pass a elevation file via init!")
 
-        for data, attributes in data_iterator:
-            self._info(
-                f"Retrieve SPARE-ICE for {data.attrs['start_time']} to "
-                f"{data.attrs['end_time']}"
+        timer = Timer.start()
+        if isinstance(inputs, Collocations):
+            # Simply apply a map function to all files from these collocations
+            inputs.map(
+                SPAREICE._retrieve_from_collocations, kwargs={
+                    "spareice": self,
+                }, on_content=True, pass_info=True, start=start, end=end,
+                max_workers=processes, output=output, worker_type="process"
             )
+        elif len(inputs) == 2:
+            # Collocate MHS and AVHRR on-the-fly:
 
-            if post_reader is not None:
-                data = post_reader(data, attributes)
+            names = set(fileset.name for fileset in inputs)
+            if "MHS" not in names or "AVHRR" not in names:
+                raise ValueError(
+                    "You must name the input filesets MHS and AVHRR! Their "
+                    f"current names are: {names}"
+                )
 
-            # Remove NaNs from the data:
-            data = data.dropna(dim="collocation")
-
-            retrieved = self.retrieve(
-                self.convert_collocated_data(data)
+            iterator = self.collocator.collocate_filesets(
+                inputs, start=start, end=end, processes=processes,
+                max_interval="30s", max_distance="7.5 km", output=output,
+                post_processor=SPAREICE._retrieve_from_collocations,
+                post_processor_kwargs={
+                    "spareice": self,
+                },
             )
-
-            if retrieved is None:
-                continue
-
-            retrieved = retrieved.to_xarray()
-            retrieved.rename({"index": "collocation"}, inplace=True)
-            retrieved = retrieved.drop("collocation")
-
-            # Add more information:
-            retrieved["iwp"].attrs = {
-                "units": "g/m^2",
-                "name": "Ice Water Path",
-                "description": "Ice Water Path (retrieved by SPARE-ICE)."
-            }
-            retrieved["ice_cloud"].attrs = {
-                "units": "boolean",
-                "name": "Ice Cloud Flag",
-                "description": "True if pixel contains an ice cloud (retrieved"
-                               " by SPARE-ICE)."
-            }
-            retrieved["lat"] = data["lat"]
-            retrieved["lon"] = data["lon"]
-            retrieved["time"] = data["time"]
-            retrieved["scnpos"] = data["MHS/scnpos"]
-
-            filename = output.get_filename(
-                [to_datetime(data.attrs["start_time"]),
-                 to_datetime(data.attrs["end_time"])], fill=attributes
+            for filename in iterator:
+                if filename is not None:
+                    self._info(f"Stored SPARE-ICE to\n{filename}")
+        else:
+            raise ValueError(
+                "You need to pass a Collocations object or a list with a MHS "
+                "and AVHRR fileset!"
             )
-
-            # Write the data to the file.
-            self._info(f"Store SPARE-ICE to \n{filename}")
-            output.write(retrieved, filename)
+        print(f"Took {timer} hours to retrieve SPARE-ICE")
 
     def score(self, data):
         """Calculate the score of SPARE-ICE on testing data
@@ -596,7 +673,7 @@ class SPAREICE:
         if ice_cloud_inputs is not None:
             self._info("Train SPARE-ICE - ice cloud classifier")
             score = self.ice_cloud.train(
-                self._ice_cloud_trainer(),
+                self._ice_cloud_model(),
                 data[ice_cloud_inputs], data[["ice_cloud"]],
             )
             self._info(f"Ice cloud classifier training score: {score:.2f}")
@@ -615,7 +692,7 @@ class SPAREICE:
 
             trainer = self._iwp_trainer(processes, cv_folds)
             score = self.iwp.train(
-                trainer, data[iwp_inputs], data[["iwp"]],
+                self._iwp_model(), data[iwp_inputs], data[["iwp"]],
             )
             self._info(f"IWP regressor training score: {score:.2f}")
             self._training_report(trainer)
@@ -668,8 +745,9 @@ class SPAREICE:
             test.iwp,
             retrieved.iwp,
             bins=50, range=[[-1, 4], [-1, 4]],
-            cmap="density"
+            cmap="density", vmin=5,
         )
+        scat.cmap.set_under("w")
         ax.set_xlabel("log10 IWP (2C-ICE) [g/m^2]")
         ax.set_ylabel("log10 IWP (SPARE-ICE) [g/m^2]")
         ax.set_title(experiment)
@@ -710,7 +788,7 @@ class SPAREICE:
             experiment, join(output_dir, "2C-ICE-SPAREICE_bias.png"),
             test.iwp.values,
             bias, test.sea_mask.values,
-            mfe=False,
+            mfe=False, yrange=[-0.35, 0.45],
         )
         # MFE plot with latitude on x-axis
         self._plot_error(
@@ -747,7 +825,9 @@ class SPAREICE:
 
     @staticmethod
     def _plot_error(
-            experiment, file, xdata, error, sea_mask, on_lat=False, mfe=True):
+            experiment, file, xdata, error, sea_mask, on_lat=False, mfe=True,
+            yrange=None
+    ):
 
         fig, ax = plt.subplots(figsize=(10, 8))
         if on_lat:
@@ -782,6 +862,8 @@ class SPAREICE:
         ax.grid()
         ax.legend(fancybox=True)
         ax.set_title(f"Experiment: {experiment}")
+        if yrange is not None:
+            ax.set_ylim(yrange)
         fig.tight_layout()
         fig.savefig(file)
 
@@ -805,6 +887,7 @@ class SPAREICE:
         )
         ax.tick_params(labelsize=18)
         f.tight_layout()
+        f.savefig(file)
 
     def _report_ice_cloud(self, output_dir, experiment, test, retrieved):
         # Confusion matrix:

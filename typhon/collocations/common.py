@@ -39,8 +39,8 @@ class Collocations(FileSet):
             *args: Positional arguments for
                 :class:`~typhon.files.fileset.FileSet`.
             read_mode: The collocations can be collapsed or expanded after
-                collecting. Set this either to *collapse* (default) or
-                *expand*.
+                collecting. Set this either to *collapse* (default),
+                *expand* or *compact*.
             reference: If `read_mode` is *collapse*, here you can set the name
                 of the dataset to that the others should be collapsed. Default
                 is the primary dataset.
@@ -104,7 +104,7 @@ class Collocations(FileSet):
         """
         data = super(Collocations, self).read(*args, **kwargs)
 
-        if self.read_mode == "fileset":
+        if self.read_mode == "compact":
             # Do nothing
             return data
         elif self.read_mode == "collapse" or self.read_mode is None:
@@ -267,6 +267,9 @@ def collapse(data, reference=None, collapser=None):
 
             # TODO: Add examples
     """
+    collapsed = xr.Dataset(
+        attrs=data.attrs.copy(),
+    )
 
     # Check whether the collocation data is compatible
     check_collocation_data(data)
@@ -340,10 +343,6 @@ def collapse(data, reference=None, collapser=None):
         "number": lambda m, a: np.count_nonzero(~np.isnan(m), axis=a),
         **collapser,
     }
-
-    collapsed = xr.Dataset(
-        attrs=data.attrs,
-    )
 
     for var_name, var_data in data.variables.items():
         group, local_name = var_name.split("/", 1)

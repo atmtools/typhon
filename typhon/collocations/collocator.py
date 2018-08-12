@@ -95,7 +95,8 @@ class Collocator:
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
-            compact=False, skip_file_errors=False, **kwargs
+            bundle=False, skip_file_errors=False, post_processor=None,
+            post_processor_kwargs=None, **kwargs
     ):
         """Find collocation between the data of two filesets
 
@@ -107,21 +108,29 @@ class Collocator:
                 datetime.min per default.
             end: End date. Same format as "start". If not given, it is
                 datetime.max per default.
-            processes: Collocating can be parallelised which improves the
+            processes: Collocating can be parallelized which improves the
                 performance significantly. Pass here the number of processes to
                 use.
             output: Fileset object where the collocated data should be stored.
-            compact: Not yet implemented.
+            bundle: Not yet implemented.
             skip_file_errors: If a file could not be read, the file and its
                 match will be skipped and a warning will be printed. Otheriwse
                 the program will stop (default).
+            post_processor: A function for post-processing the collocated data
+                before saving it to `output`. Must accept two parameters: a
+                xarray.Dataset with the collocated data and a dictionary with
+                the path attributes from the collocated files.
+            post_processor_kwargs: A dictionary with keyword arguments that
+                should be passed to `post_processor`.
             **kwargs: Further keyword arguments that are allowed for
                 :meth:`collocate`.
 
         Yields:
-            A xarray.Dataset with the collocated data. The results are not
-            ordered if you use more than one process. For more information
-            about the yielded value, have a look at :meth:`collocate`.
+            A xarray.Dataset with the collocated data if `output` is not set.
+            If `output` is set to a FileSet-like object, only the filename is
+            yielded. The results are not ordered if you use more than one
+            process. For more information about the yielded value, have a look
+            at :meth:`collocate`.
 
         Examples:
 
@@ -183,8 +192,10 @@ class Collocator:
             "end": end,
             "filesets": filesets,
             "output": output,
-            "compact": compact,
+            "bundle": bundle,
             "skip_file_errors": skip_file_errors,
+            "post_processor": post_processor,
+            "post_processor_kwargs": post_processor_kwargs,
         })
 
         # This contains all running processes
@@ -320,16 +331,20 @@ class Collocator:
         collocator._info(f"Finished all {processed} matches")
 
     def _collocate_files(
-        self, filesets, matches, output, compact, skip_file_errors, **kwargs
+        self, filesets, matches, output, bundle, skip_file_errors,
+            post_processor, post_processor_kwargs, **kwargs
     ):
 
         # Get all primary and secondary data that overlaps with each other
         file_pairs = filesets[0].align(
-            filesets[1], matches=matches, return_info=True, compact=compact,
+            filesets[1], matches=matches, return_info=True, compact=False,
             skip_errors=skip_file_errors,
         )
 
         debug_timer = time.time()
+
+        # If we want to bundle the output
+        result_cache = []
         for i, file_pair in enumerate(file_pairs):
             files = file_pair[1][0], file_pair[1][0]
             primary, secondary = file_pair[0][1].copy(), file_pair[1][1].copy()
@@ -369,10 +384,9 @@ class Collocator:
 
             # Add the names of the processed files:
             for f in range(2):
-                if f"{filesets[f].name}_file" in collocations.attrs:
-                    continue
-
-                collocations.attrs[f"{filesets[f].name}_file"] = files[f].path
+                if f"{filesets[f].name}_file" not in collocations.attrs:
+                    collocations.attrs[f"{filesets[f].name}_file"] = \
+                        files[f].path
 
             # Collect the attributes of the input files
             attributes = {
@@ -390,6 +404,19 @@ class Collocator:
                      to_datetime(collocations.attrs["end_time"])],
                     fill=attributes
                 )
+
+                # Apply a post processor function from the user
+                if post_processor is not None:
+                    if post_processor_kwargs is None:
+                        post_processor_kwargs = {}
+
+                    collocations = post_processor(
+                        collocations, attributes, **post_processor_kwargs
+                    )
+
+                if collocations is None:
+                    yield None
+                    continue
 
                 # Write the data to the file.
                 output.write(collocations, filename)
