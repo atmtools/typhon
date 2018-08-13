@@ -1,7 +1,6 @@
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
-from typhon.arts.workspace.api import arts_api
 from typhon.arts.catalogues import Sparse
 import ctypes as c
 
@@ -172,6 +171,8 @@ class CovarianceMatrix(object):
 
 
         """
+        from typhon.arts.workspace.api import arts_api
+
         n_blocks = s.dimensions[0]
         n_inv_blocks = s.dimensions[1]
 
