@@ -92,6 +92,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
         'docutils',
+        'imageio',
         'matplotlib>=1.4',
         'netCDF4>=1.1.1',
         'numba',
