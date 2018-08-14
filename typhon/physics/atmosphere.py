@@ -159,13 +159,16 @@ def moist_lapse_rate(p, T, e_eq=None):
     return lapse
 
 
-def standard_atmosphere(z, fill_value='extrapolate'):
-    """International Standard Atmosphere (ISA) as a function of height.
+def standard_atmosphere(z, coordinates='height'):
+    """International Standard Atmosphere (ISA).
+
+    The temperature profile is defined between 0-85 km (1089 h-0.004 hPa).
+    Values exceeding this range are linearly interpolated.
 
     Parameters:
-        z (float or ndarray): Geopotential height above MSL [m].
-        fill_value (str): See :func:`~scipy.interpolate.interp1d` for
-            available options.
+        z (float or ndarray): Geopotential height above MSL [m]
+            or pressure [Pa] (see ``coordinates``).
+        coordinates (str): Either 'height' or 'pressure'.
 
     Returns:
         ndarray: Atmospheric temperature [K].
@@ -176,20 +179,36 @@ def standard_atmosphere(z, fill_value='extrapolate'):
         :include-source:
 
         import numpy as np
-        from typhon.plots import profile_z
-        from typhon.atmosphere import standard_atmosphere
+        from typhon.plots import (profile_p_log, profile_z)
+        from typhon.physics import standard_atmosphere
+        from typhon.math import nlogspace
 
 
-        z = np.linspace(0, 80_000, 100)
-        T = standard_atmosphere(z)
-
+        z = np.linspace(0, 84e3, 100)
         fig, ax = plt.subplots()
-        profile_z(z, T)
+        profile_z(z, standard_atmosphere(z), ax=ax)
+
+        p = nlogspace(1000e2, 0.4, 100)
+        fig, ax = plt.subplots()
+        profile_p_log(p, standard_atmosphere(p, coordinates='pressure'))
 
         plt.show()
 
     """
     h = np.array([-610, 11000, 20000, 32000, 47000, 51000, 71000, 84852])
+    p = np.array(
+        [108_900, 22_632, 5474.9, 868.02, 110.91, 66.939, 3.9564, 0.3734]
+    )
     temp = np.array([+19.0, -56.5, -56.5, -44.5, -2.5, -2.5, -58.5, -86.28])
 
-    return interp1d(h, temp + constants.K, fill_value=fill_value)(z)
+    if coordinates == 'height':
+        z_ref = h
+    elif coordinates == 'pressure':
+        z_ref = np.log(p)
+        z = np.log(z)
+    else:
+        raise ValueError(
+            f'"{coordinates}" coordinate is unsupported. '
+            'Use "height" or "pressure".')
+
+    return interp1d(z_ref, temp + constants.K, fill_value='extrapolate')(z)
