@@ -206,14 +206,14 @@ class SPAREICE:
             # StandardScaler could be an alternative.
             ("scaler", RobustScaler(quantile_range=(15, 85))),
             # The "real" estimator:
-            ("estimator", MLPRegressor(max_iter=3500)),
+            ("estimator", MLPRegressor(max_iter=3200, early_stopping=True)),
         ])
 
         # To optimize the results, we try different hyper parameters by
         # using a grid search
         hidden_layer_sizes = [
-            #  (15, 10, 3),
-            (50, 20),
+            (15, 10, 3),
+            #(50, 20),
         ]
         hyper_parameter = [
             {   # Hyper parameter for lbfgs solver
@@ -221,7 +221,7 @@ class SPAREICE:
                 'estimator__activation': ['tanh'],
                 'estimator__hidden_layer_sizes': hidden_layer_sizes,
                 'estimator__random_state': [0, 42, 100, 3452],
-                'estimator__alpha': [0.0001],
+                'estimator__alpha': [0.1],
             },
         ]
 
