@@ -3,8 +3,8 @@ import copy
 import numbers
 
 import numpy as np
-from scipy import interpolate
 import xarray
+from scipy import interpolate
 
 from .utils import return_if_arts_type, get_arts_typename
 
@@ -353,9 +353,9 @@ class GriddedField(object):
         """
         gf = self.copy()
         gf.grids[axis] = gf.grids[axis][s]
-        slices = [slice(None) for i in range(self.dimension)]
+        slices = [slice(None)] * self.dimension
         slices[axis] = s
-        gf.data = gf.data[slices]
+        gf.data = gf.data[tuple(slices)]
 
         return gf
 
