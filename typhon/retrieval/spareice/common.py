@@ -206,13 +206,14 @@ class SPAREICE:
             # StandardScaler could be an alternative.
             ("scaler", RobustScaler(quantile_range=(15, 85))),
             # The "real" estimator:
-            ("estimator", MLPRegressor(max_iter=3400)),
+            ("estimator", MLPRegressor(max_iter=3500)),
         ])
 
         # To optimize the results, we try different hyper parameters by
         # using a grid search
         hidden_layer_sizes = [
-            (40, 15), #  (13, 10),
+            #  (15, 10, 3),
+            (50, 20),
         ]
         hyper_parameter = [
             {   # Hyper parameter for lbfgs solver
@@ -220,7 +221,7 @@ class SPAREICE:
                 'estimator__activation': ['tanh'],
                 'estimator__hidden_layer_sizes': hidden_layer_sizes,
                 'estimator__random_state': [0, 42, 100, 3452],
-                'estimator__alpha': [0.1],
+                'estimator__alpha': [0.0001],
             },
         ]
 
@@ -235,7 +236,7 @@ class SPAREICE:
         # As simple as it is. We do not need a grid search trainer for the DTC
         # since it has already a good performance.
         return DecisionTreeClassifier(
-            max_depth=12, random_state=5,
+            max_depth=11, random_state=5,
         )
 
     @property
@@ -379,7 +380,7 @@ class SPAREICE:
         }
 
         # These fields need a special treatment
-        special_fields = ["avhrr_tir_diff", "iwp", "ice_cloud"]
+        special_fields = ["avhrr_tir_diff", "mhs_diff", "iwp", "ice_cloud"]
 
         # Default - take all fields:
         if fields is None:
@@ -413,6 +414,9 @@ class SPAREICE:
         if "avhrr_tir_diff" in fields:
             return_data["avhrr_tir_diff"] = \
                 return_data["avhrr_channel5"] - return_data["avhrr_channel4"]
+        if "mhs_diff" in fields:
+            return_data["mhs_diff"] = \
+                return_data["mhs_channel5"] - return_data["mhs_channel3"]
         if "iwp" in fields and "MHS_2C-ICE/2C-ICE/ice_water_path_mean" in data:
             # We transform the IWP to log space because it is better for the
             # ANN training. Zero values might trigger warnings and
@@ -461,7 +465,9 @@ class SPAREICE:
 
             # We do not need the depth of the oceans (this would just
             # confuse the ANN):
-            return_data.elevation[return_data.elevation < 0] = 0
+            return_data["elevation"][return_data.elevation < 0] = 0
+
+            print((return_data.elevation < 0).sum())
 
         return return_data
 
@@ -494,14 +500,6 @@ class SPAREICE:
 
     @staticmethod
     def _retrieve_from_collocations(collocations, _, spareice):
-
-        # print(collocations)
-        #
-        # file_start = collocations.attrs['start_time']
-        # file_end = collocations.attrs['end_time']
-        # spareice._info(
-        #     f"Retrieve SPARE-ICE for {file_start} to {file_end}"
-        # )
 
         # We need collapsed collocations:
         if "Collocations/pairs" in collocations.variables:
@@ -539,8 +537,6 @@ class SPAREICE:
         retrieved["lon"] = collocations["lon"]
         retrieved["time"] = collocations["time"]
         retrieved["scnpos"] = collocations["mhs_scnpos"]
-        # retrieved.attrs["start_time"] = file_start
-        # retrieved.attrs["end_time"] = file_end
 
         return retrieved
 
@@ -690,12 +686,12 @@ class SPAREICE:
             if cv_folds is None:
                 cv_folds = 5
 
-            trainer = self._iwp_trainer(processes, cv_folds)
+            iwp_model = self._iwp_model(processes, cv_folds)
             score = self.iwp.train(
-                self._iwp_model(), data[iwp_inputs], data[["iwp"]],
+                iwp_model, data[iwp_inputs], data[["iwp"]],
             )
             self._info(f"IWP regressor training score: {score:.2f}")
-            self._training_report(trainer)
+            self._training_report(iwp_model)
 
     @staticmethod
     def _training_report(trainer):
@@ -751,7 +747,7 @@ class SPAREICE:
         ax.set_xlabel("log10 IWP (2C-ICE) [g/m^2]")
         ax.set_ylabel("log10 IWP (SPARE-ICE) [g/m^2]")
         ax.set_title(experiment)
-        fig.colorbar(scat)
+        fig.colorbar(scat, label="Number of points")
         fig.savefig(join(output_dir, "2C-ICE-SPAREICE_heatmap.png"))
 
         self._plot_scatter(
@@ -767,7 +763,8 @@ class SPAREICE:
                         10 ** retrieved.iwp.values
                         / 10 ** test.iwp.values
                     )
-                )) - 1
+                ))
+                - 1
         )
         self._plot_error(
             experiment, join(output_dir, "2C-ICE-SPAREICE_mfe.png"),
@@ -798,9 +795,9 @@ class SPAREICE:
             mfe=False, on_lat=True
         )
 
-        self._plot_weights(
-            experiment, join(output_dir, "SPAREICE_iwp_weights.png"),
-        )
+        # self._plot_weights(
+        #     experiment, join(output_dir, "SPAREICE_iwp_weights.png"),
+        # )
 
     @staticmethod
     def _plot_scatter(experiment, file, xdata, ydata, sea_mask):
@@ -839,7 +836,7 @@ class SPAREICE:
 
         if mfe:
             ax.set_ylabel("Median fractional error [%]")
-            ax.set_ylim([0, 400])
+            ax.set_ylim([0, 200])
             statistic = "median"
         else:
             ax.set_ylabel("$\Delta$ IWP (SPARE-ICE - 2C-ICE) [log 10 g/m^2]")
@@ -873,7 +870,7 @@ class SPAREICE:
 
         layers = self.iwp.estimator.steps[-1][1].coefs_
         layer = layers[layer_index]
-        f, ax = plt.subplots(figsize=(12, 10))
+        f, ax = plt.subplots(figsize=(18, 12))
         weights = pd.DataFrame(layer)
         weights.index = self.iwp.inputs
 
@@ -882,7 +879,7 @@ class SPAREICE:
         # Draw a heatmap with the numeric values in each cell
         sns.heatmap(
             weights, annot=True, fmt=".1f", linewidths=.5, ax=ax,
-            square=True, cmap="difference", center=0, vmin=vmin, vmax=vmax,
+            cmap="difference", center=0, vmin=vmin, vmax=vmax,
             # annot_kws={"size":14},
         )
         ax.tick_params(labelsize=18)
@@ -891,27 +888,27 @@ class SPAREICE:
 
     def _report_ice_cloud(self, output_dir, experiment, test, retrieved):
         # Confusion matrix:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(12, 10))
         cm = confusion_matrix(test.ice_cloud, retrieved.ice_cloud)
         img = self._plot_matrix(cm, classes=["Yes", "No"], normalize=True)
-        fig.colorbar(img)
+        fig.colorbar(img, label="probability")
         ax.set_title("Ice Cloud Classifier - Performance")
         ax.set_ylabel('real ice cloud')
         ax.set_xlabel('predicted ice cloud')
         fig.tight_layout()
-        fig.savefig(join(output_dir, "ice_cloud_confusion_matrix.png"))
+        fig.savefig(join(output_dir, "ice-cloud-confusion-matrix.png"))
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(12, 10))
         ax.barh(
             np.arange(len(self.ice_cloud.inputs)),
             self.ice_cloud.estimator.feature_importances_
         )
         ax.set_yticks(np.arange(len(self.ice_cloud.inputs)))
         ax.set_yticklabels(self.ice_cloud.inputs)
-        ax.set_xlabel("Importance")
-        ax.set_ylabel("Input")
+        ax.set_xlabel("Feature Importance")
+        ax.set_ylabel("Feature")
         ax.set_title("Ice Cloud Classifier - Importance")
-        fig.savefig(join(output_dir, "ice_cloud_feature_importance.png"))
+        fig.savefig(join(output_dir, "ice-cloud-feature-importance.png"))
 
     @staticmethod
     def _plot_matrix(
