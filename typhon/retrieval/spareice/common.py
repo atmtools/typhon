@@ -467,8 +467,6 @@ class SPAREICE:
             # confuse the ANN):
             return_data["elevation"][return_data.elevation < 0] = 0
 
-            print((return_data.elevation < 0).sum())
-
         return return_data
 
     def retrieve(self, data, as_log10=False):
