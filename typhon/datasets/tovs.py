@@ -2017,9 +2017,9 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
             # in the processing
             for fld in timefields:
                 M[fld].values[(M[fld].values.astype("M8[ms]")
-                    > datetime.datetime.now()) |
+                    > numpy.datetime64(datetime.datetime.now())) |
                               (M[fld].values.astype("M8[ms]")
-                    < datetime.datetime(1975, 1, 1))] = numpy.datetime64("NaT")
+                    < numpy.datetime64("1975-01-01"))] = numpy.datetime64("NaT")
 
             tm1 = M[timefields[0]][:, 3, 3]
             tm2 = M[timefields[1]][:, 3, 3]
