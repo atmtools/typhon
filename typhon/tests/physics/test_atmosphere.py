@@ -68,3 +68,9 @@ class TestAtmosphere:
         # Test call with ndarray.
         assert np.allclose(isa(np.array([0, 15e3])),
                            np.array([288.1831, 216.65]))
+
+    def test_standard_atmosphere_pressure(self):
+        """Test International Standard Atmosphere."""
+        isa = atmosphere.standard_atmosphere
+
+        assert np.isclose(isa(1000e2, coordinates='pressure'), 288.0527)
