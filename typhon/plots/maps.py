@@ -19,7 +19,8 @@ __all__ = [
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             bg=False, draw_grid=False, draw_coastlines=False, **kwargs):
+             bg=False, draw_grid=False, draw_coastlines=False,
+             interpolation=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -86,11 +87,18 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         plot = ax.scatter(
             lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
-    else:
+    elif interpolation:
         kwargs_defaults = {
             **kwargs
         }
         plot = ax.contourf(
+            lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
+        )
+    else:
+        kwargs_defaults = {
+            **kwargs
+        }
+        plot = ax.pcolormesh(
             lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
 
