@@ -769,13 +769,6 @@ class SPAREICE:
             test.iwp.values,
             fe, test.sea_mask.values,
         )
-        # MFE plot with latitude on x-axis
-        self._plot_error(
-            experiment, join(output_dir, "2C-ICE-SPAREICE_mfe_lat.png"),
-            test.lat.values,
-            fe, test.sea_mask.values,
-            on_lat=True
-        )
 
         # Plot the bias:
         bias = retrieved.iwp.values - test.iwp.values
@@ -784,13 +777,6 @@ class SPAREICE:
             test.iwp.values,
             bias, test.sea_mask.values,
             mfe=False, yrange=[-0.35, 0.45],
-        )
-        # MFE plot with latitude on x-axis
-        self._plot_error(
-            experiment, join(output_dir, "2C-ICE-SPAREICE_bias_lat.png"),
-            test.lat.values,
-            bias, test.sea_mask.values,
-            mfe=False, on_lat=True
         )
 
         # self._plot_weights(
