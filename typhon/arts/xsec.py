@@ -9,7 +9,8 @@ class XsecRecord:
     """
 
     def __init__(self, species=None, coeffs=None, fmin=None, fmax=None,
-                 refpressure=None, reftemperature=None, xsec=None):
+                 refpressure=None, reftemperature=None, xsec=None,
+                 tfit_reftemp=None, tfit_slope=None, tfit_intersect=None):
         """Initialize XsecRecord object.
         """
         self.version = 1
