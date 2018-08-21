@@ -161,7 +161,7 @@ class TestSave:
 
     def teardown_method(self):
         """Delete temporary file."""
-        for f in [self.f, self.f + '.bin']:
+        for f in [self.f, self.f + '.gz', self.f + '.bin']:
             if os.path.isfile(f):
                 os.remove(f)
 
