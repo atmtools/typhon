@@ -1,8 +1,10 @@
+import os
 import tempfile
 
 import numpy as np
-from typhon.files import NetCDF4
 import xarray as xr
+
+from typhon.files import NetCDF4
 
 
 class TestNetCDF4:
@@ -15,7 +17,8 @@ class TestNetCDF4:
         """
         fh = NetCDF4()
 
-        with tempfile.NamedTemporaryFile() as file:
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, 'testfile')
             before = xr.Dataset({
                 "var1": ("dim1", np.arange(5)),
                 "group1/var1": ("group1/dim1", np.arange(5)),
@@ -34,8 +37,8 @@ class TestNetCDF4:
             })
 
             # Save the dataset and load it again:
-            fh.write(before, file.name)
-            after = fh.read(file.name)
+            fh.write(before, tfile)
+            after = fh.read(tfile)
 
             # How it should be after loading:
             check = xr.Dataset({
