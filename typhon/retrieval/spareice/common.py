@@ -63,11 +63,13 @@ import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import binned_statistic as sci_binned_statistic
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from typhon.collocations import collapse, Collocations, Collocator
 from typhon.geographical import sea_mask
@@ -206,7 +208,7 @@ class SPAREICE:
             # StandardScaler could be an alternative.
             ("scaler", RobustScaler(quantile_range=(15, 85))),
             # The "real" estimator:
-            ("estimator", MLPRegressor(max_iter=3200, early_stopping=True)),
+            ("estimator", MLPRegressor(max_iter=6000, early_stopping=True)),
         ])
 
         # To optimize the results, we try different hyper parameters by
@@ -221,7 +223,7 @@ class SPAREICE:
                 'estimator__activation': ['tanh'],
                 'estimator__hidden_layer_sizes': hidden_layer_sizes,
                 'estimator__random_state': [0, 42, 100, 3452],
-                'estimator__alpha': [0.1],
+                'estimator__alpha': [0.1, 0.001, 0.0001],
             },
         ]
 
@@ -236,7 +238,7 @@ class SPAREICE:
         # As simple as it is. We do not need a grid search trainer for the DTC
         # since it has already a good performance.
         return DecisionTreeClassifier(
-            max_depth=11, random_state=5,
+            max_depth=12, random_state=5, # n_estimators=20, max_features=9,
         )
 
     @property
@@ -637,7 +639,8 @@ class SPAREICE:
         return iwp_score, ice_cloud_score
 
     def train(self, data, iwp_inputs=None, ice_cloud_inputs=None,
-              processes=None, cv_folds=None):
+              iwp_model=None, ice_cloud_model=None, processes=None,
+              cv_folds=None):
         """Train SPARE-ICE with data
 
         This trains the IWP regressor and ice cloud classifier.
@@ -649,6 +652,8 @@ class SPAREICE:
             ice_cloud_inputs: A list with the input field names for the ice
                 cloud classifier. If this is None, the ice cloud classifier
                 won't be trained.
+            iwp_model: Set this to your own sklearn estimator class.
+            ice_cloud_model: Set this to your own sklearn estimator class.
             processes: Number of processes to parallelize the regressor
                 training. If not set, the value from the initialization is
                 taken.
@@ -666,8 +671,11 @@ class SPAREICE:
 
         if ice_cloud_inputs is not None:
             self._info("Train SPARE-ICE - ice cloud classifier")
+            if ice_cloud_model is None:
+                ice_cloud_model = self._ice_cloud_model()
+
             score = self.ice_cloud.train(
-                self._ice_cloud_model(),
+                ice_cloud_model,
                 data[ice_cloud_inputs], data[["ice_cloud"]],
             )
             self._info(f"Ice cloud classifier training score: {score:.2f}")
@@ -684,7 +692,9 @@ class SPAREICE:
             if cv_folds is None:
                 cv_folds = 5
 
-            iwp_model = self._iwp_model(processes, cv_folds)
+            if iwp_model is None:
+                iwp_model = self._iwp_model(processes, cv_folds)
+
             score = self.iwp.train(
                 iwp_model, data[iwp_inputs], data[["iwp"]],
             )
@@ -766,7 +776,7 @@ class SPAREICE:
         )
         self._plot_error(
             experiment, join(output_dir, "2C-ICE-SPAREICE_mfe.png"),
-            test.iwp.values,
+            test,
             fe, test.sea_mask.values,
         )
 
@@ -774,7 +784,7 @@ class SPAREICE:
         bias = retrieved.iwp.values - test.iwp.values
         self._plot_error(
             experiment, join(output_dir, "2C-ICE-SPAREICE_bias.png"),
-            test.iwp.values,
+            test,
             bias, test.sea_mask.values,
             mfe=False, yrange=[-0.35, 0.45],
         )
@@ -782,6 +792,14 @@ class SPAREICE:
         # self._plot_weights(
         #     experiment, join(output_dir, "SPAREICE_iwp_weights.png"),
         # )
+
+        with open(join(output_dir, "mfe.txt"), "w") as file:
+            mfe = sci_binned_statistic(
+                test.iwp.values,
+                fe, statistic="median", bins=20,
+                range=[0, 4],
+            )
+            file.write(repr(mfe[0]))
 
     @staticmethod
     def _plot_scatter(experiment, file, xdata, ydata, sea_mask):
@@ -806,17 +824,12 @@ class SPAREICE:
 
     @staticmethod
     def _plot_error(
-            experiment, file, xdata, error, sea_mask, on_lat=False, mfe=True,
-            yrange=None
+            experiment, file, xdata, error, sea_mask, mfe=True, yrange=None
     ):
 
         fig, ax = plt.subplots(figsize=(10, 8))
-        if on_lat:
-            xlabel = "latitude"
-            xrange = [-90, 90]
-        else:
-            xlabel = "log10 IWP (2C-ICE) [g/m^2]"
-            xrange = [0, 4]
+        xlabel = "log10 IWP (2C-ICE) [g/m^2]"
+        xrange = [0, 4]
 
         if mfe:
             ax.set_ylabel("Median fractional error [%]")
@@ -826,18 +839,26 @@ class SPAREICE:
             ax.set_ylabel("$\Delta$ IWP (SPARE-ICE - 2C-ICE) [log 10 g/m^2]")
             statistic = "mean"
 
-        for area in ["all", "land", "sea"]:
-            if area == "all":
-                mask = slice(None, None, None)
-            elif area == "land":
-                mask = ~sea_mask
-            else:
-                mask = sea_mask
+        for hemisphere in ["global"]:
+            for area in ["all", "land", "sea"]:
+                if area == "all":
+                    mask = np.repeat(True, xdata.iwp.size)
+                elif area == "land":
+                    mask = ~sea_mask
+                else:
+                    mask = sea_mask
 
-            binned_statistic(
-                xdata[mask], error[mask], statistic=statistic, bins=20,
-                range=xrange, pargs={"marker": "o", "label": area}
-            )
+                if hemisphere == "north":
+                    mask &= xdata.lat.values >= 0
+                elif hemisphere == "south":
+                    mask &= xdata.lat.values < 0
+
+                binned_statistic(
+                    xdata.iwp.values[mask],
+                    error[mask], statistic=statistic, bins=20,
+                    range=xrange, pargs={"marker": "o",
+                                         "label": f"{area} - {hemisphere}"}
+                )
 
         ax.set_xlabel(xlabel)
         ax.grid()
