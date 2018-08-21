@@ -70,9 +70,10 @@ def compress(filename, fmt=None, tmpdir=None):
         yield filename
         return
 
-    with tempfile.NamedTemporaryFile(dir=tmpdir) as tfile:
-        yield tfile.name
-        compress_as(tfile.name, fmt, filename, keep=True)
+    with tempfile.TemporaryDirectory(dir=tmpdir) as tdir:
+        tfile = os.path.join(tdir, 'temp')
+        yield tfile
+        compress_as(tfile, fmt, filename, keep=True)
 
 
 def compress_as(filename, fmt, target=None, keep=True):
