@@ -341,15 +341,11 @@ class Collocator:
             skip_errors=skip_file_errors,
         )
 
-        debug_timer = time.time()
-
         # If we want to bundle the output
         result_cache = []
         for i, file_pair in enumerate(file_pairs):
-            files = file_pair[1][0], file_pair[1][0]
+            files = file_pair[0][0], file_pair[1][0]
             primary, secondary = file_pair[0][1].copy(), file_pair[1][1].copy()
-
-            self._debug(f"{time.time() - debug_timer:.2f}s for reading")
 
             current_start = np.datetime64(primary["time"].min().item(0), "ns")
             current_end = np.datetime64(primary["time"].max().item(0), "ns")
@@ -361,7 +357,6 @@ class Collocator:
                 (filesets[0].name, primary),
                 (filesets[1].name, secondary), **kwargs,
             )
-            self._debug(f"{time.time()-debug_timer:.2f}s for collocating")
 
             if not collocations.variables:
                 self._debug("Found no collocations!")
@@ -398,7 +393,6 @@ class Collocator:
             if output is None:
                 yield collocations, attributes
             else:
-                debug_timer = time.time()
                 filename = output.get_filename(
                     [to_datetime(collocations.attrs["start_time"]),
                      to_datetime(collocations.attrs["end_time"])],
@@ -420,12 +414,7 @@ class Collocator:
 
                 # Write the data to the file.
                 output.write(collocations, filename)
-                self._debug(
-                    f"{time.time()-debug_timer:.2f}s for storing to {filename}"
-                )
                 yield filename
-
-            debug_timer = time.time()
 
     def collocate(
             self, primary, secondary, max_interval=None, max_distance=None,
