@@ -281,7 +281,8 @@ class Dataset(metaclass=abc.ABCMeta):
                           limits=None,
                           simple_filters=(),
                           orbit_filters=None,
-                          enforce_no_duplicates=True):
+                          enforce_no_duplicates=True,
+                          excs=(DataFileError, filters.FilterError)):
         """Read all granules between start and end, in bulk.
 
         Arguments:
@@ -340,6 +341,11 @@ class Dataset(metaclass=abc.ABCMeta):
                 each of those, the system will call .reset() before the
                 first orbit is read, .filter(...) after each orbit, and
                 .finalise() at the end.
+
+            enforce_no_duplicates
+
+            excs (Sequence[Exception]): what exceptions to try and catch
+                after every read.  Use with onorrer.
 
         Returns:
             
@@ -448,7 +454,7 @@ class Dataset(metaclass=abc.ABCMeta):
 
                 cont = self._apply_limits_and_filters(cont, limits, simple_filters)
 
-            except (DataFileError, filters.FilterError) as exc:
+            except excs as exc:
                 if onerror == "skip": # fields that reader relies upon
                     logging.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
