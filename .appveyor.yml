@@ -1,0 +1,20 @@
+build: false
+
+environment:
+  matrix:
+    - PYTHON_VERSION: 3.6
+      MINICONDA: C:\Miniconda36-x64
+
+init:
+  - "ECHO %PYTHON_VERSION% %MINICONDA%"
+
+install:
+  - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%PATH%"
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - pip install pytest
+  - pip install .
+
+test_script:
+  - pytest --pyargs typhon
+
