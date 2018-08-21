@@ -15,7 +15,8 @@ class TestCovarianceMatrix:
 
     def setup_method(self):
         # Temporary file
-        _, self.f = mkstemp()
+        fd, self.f = mkstemp()
+        os.close(fd)
 
         # Simple covariance matrix for testing
         b1 = Block(0, 0, 0, 0, False, np.random.normal(size = (10, 10)))

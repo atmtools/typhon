@@ -156,7 +156,8 @@ class TestSave:
     """
     def setup_method(self):
         """Create a temporary file."""
-        _, self.f = mkstemp()
+        fd, self.f = mkstemp()
+        os.close(fd)
 
     def teardown_method(self):
         """Delete temporary file."""
