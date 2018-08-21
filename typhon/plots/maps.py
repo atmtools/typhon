@@ -76,7 +76,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     # It is counter-intuitive but if we want to plot our data with normal
     # latitudes and longitudes, we always have to set the transform to
     # PlateCarree (see https://github.com/SciTools/cartopy/issues/911)
-    if len(var.shape) == 1:
+    if var is None or len(var.shape) == 1:
         kwargs_defaults = {
             "cmap": "qualitative1",
             "s": 1,
