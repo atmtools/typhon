@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Testing the functions in typhon.latex.
 """
-import filecmp
 import os
 from tempfile import mkstemp
 
@@ -35,4 +34,6 @@ class TestLaTeX:
             delimiter=False
             )
 
-        assert filecmp.cmp(self.f, os.path.join(self.ref_dir, 'matrix.tex'))
+        ref = os.path.join(self.ref_dir, 'matrix.tex')
+        with open(self.f) as testfile, open(ref) as reffile:
+            assert testfile.readlines() == reffile.readlines()
