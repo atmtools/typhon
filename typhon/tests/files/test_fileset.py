@@ -2,6 +2,8 @@ import datetime
 from os.path import dirname, join
 
 import numpy as np
+import pytest
+
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
 
 
@@ -194,13 +196,13 @@ class TestFileSet:
 
         assert list(sorted(files, key=lambda x: x.path)) == check
 
+    @pytest.mark.skip
     def test_magic_methods(self):
         """Test magic methods on the fileset examples of the tutorial.
 
         Returns:
 
         """
-        return
         filesets = self.init_filesets()
         filters = {"satellite": "SatelliteB"}
         result = filesets["tutorial"]["2018-01-01 03:00", filters]
@@ -656,11 +658,11 @@ class TestFileSet:
         ]
         assert files == check
 
+    @pytest.mark.skip
     def test_align(self):
         """Test the align method.
         """
         # Find an adequate test
-        return
 
         filesets = self.init_filesets()
 
