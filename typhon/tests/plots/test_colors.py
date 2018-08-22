@@ -30,7 +30,7 @@ class TestColors:
                          comments='%')
         rgb = colors.cmap2rgba('viridis', 256)[:, :3]  # ignore alpha
 
-        assert np.allclose(ref, rgb)
+        assert np.allclose(ref, rgb, atol=0.001)
 
     def test_cmap2cpt(self):
         """Export colormap to cpt file."""
@@ -61,7 +61,7 @@ class TestColors:
         plt.register_cmap(cmap=viridis)  # Register original viridis.
 
         idx = np.linspace(0, 1, 256)
-        assert np.allclose(viridis(idx), cmap(idx))
+        assert np.allclose(viridis(idx), cmap(idx), atol=0.001)
 
     def test_cmap_from_act(self):
         """Import colormap from act file."""
@@ -79,4 +79,4 @@ class TestColors:
                          comments='%')
         rgb = colors.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
 
-        assert np.allclose(ref, rgb)
+        assert np.allclose(ref, rgb, atol=0.001)
