@@ -143,7 +143,8 @@ def cmap2txt(cmap, filename=None, N=None, comments='%'):
     if filename is None:
         filename = cmap + '.txt'
 
-    np.savetxt(filename, colors[:, :3], header=header, comments=comments)
+    np.savetxt(filename, colors[:, :3], fmt='%.4f', header=header,
+               comments=comments)
 
 
 def cmap2cpt(cmap, filename=None, N=None):
