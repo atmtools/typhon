@@ -37,14 +37,16 @@ class TestColors:
         colors.cmap2cpt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.cpt')
 
-        assert filecmp.cmp(self.f, ref)
+        with open(self.f) as testfile, open(ref) as reffile:
+            assert testfile.readlines() == reffile.readlines()
 
     def test_cmap2txt(self):
         """Export colormap to txt file."""
         colors.cmap2txt('viridis', filename=self.f)
         ref = os.path.join(self.ref_dir, 'viridis.txt')
 
-        assert filecmp.cmp(self.f, ref)
+        with open(self.f) as testfile, open(ref) as reffile:
+            assert testfile.readlines() == reffile.readlines()
 
     def test_cmap2act(self):
         """Export colormap to act file."""
