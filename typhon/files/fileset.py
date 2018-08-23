@@ -16,6 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
 import re
 import shutil
+from sys import platform
 import threading
 import traceback
 import warnings
@@ -244,7 +245,13 @@ class FileSet:
 
     # Special characters that show whether a path contains a regex or
     # placeholder:
-    _special_chars = ["{", "*", "[", "\\", "<", "(", "?", "!", "|"]
+    _special_chars = ["{", "*", "[", "<", "(", "?", "!", "|"]
+
+    # FIXME OLE: On windows we can't have backslash here because it is the
+    #            directory separator. Not sure if we need the \\ on Unix
+    #            in _special_chars, but left it here to not break anything
+    if platform != "win32":
+        _special_chars += "\\"
 
     def __init__(
             self, path, handler=None, name=None, info_via=None,
@@ -2530,7 +2537,7 @@ class FileSet:
         }
 
         # Mask all dots and convert the asterisk to regular expression syntax:
-        path = path.replace(".", "\.").replace("*", ".*?")
+        path = path.replace("\\", "\\\\").replace(".", "\.").replace("*", ".*?")
 
         # Python's standard regex module (re) cannot handle multiple groups
         # with the same name. Hence, we need to cover duplicated placeholders
