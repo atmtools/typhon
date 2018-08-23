@@ -10,7 +10,6 @@ import numpy as np
 
 from typhon import constants
 
-
 __all__ = [
     'ellipsoidmodels',
     'ellipsoid_r_geodetic',
@@ -657,7 +656,8 @@ def cartposlos2geocentric(x, y, z, dx, dy, dz, ppc=None,
     sinlat = np.sin(np.deg2rad(lat))
     coslon = np.cos(np.deg2rad(lon))
     sinlon = np.sin(np.deg2rad(lon))
-    dr = coslat * coslon * dx + sinlat * dz + coslat * sinlon * dy
+    dr = np.clip(coslat * coslon * dx + sinlat * dz + coslat * sinlon * dy,
+                 -1., 1.)
 
     # Get LOS angle
     if ppc is None:
