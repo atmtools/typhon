@@ -1,5 +1,5 @@
 [![PyPI version](https://badge.fury.io/py/typhon.svg)](https://badge.fury.io/py/typhon)
-[![Build Status](https://travis-ci.org/atmtools/typhon.svg?branch=master)](https://travis-ci.org/atmtools/typhon)
+[![Travis](https://img.shields.io/travis/atmtools/typhon/master.svg?label=Travis%20CI)](https://travis-ci.org/atmtools/typhon)
 [![Anaconda-Server Badge](https://anaconda.org/rttools/typhon/badges/installer/conda.svg)](https://anaconda.org/rttools/typhon)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1300318.svg)](https://doi.org/10.5281/zenodo.1300318)
 
