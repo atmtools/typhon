@@ -373,6 +373,12 @@ class Workspace:
             self.__dict__[name] = value
             return None
 
+        # Hanle empty list of None values.
+        if value == [] or value is None:
+            arts_api.set_variable_value(self.ptr, v.ws_id, v.group_id,
+                                        VariableValueStruct.empty())
+            return None
+
         t = self.add_variable(value)
 
         if not t.group_id == v.group_id:

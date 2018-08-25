@@ -170,6 +170,12 @@ class VariableValueStruct(c.Structure):
                 (("inner_ptr"), c.POINTER(c.c_int)),
                 (("outer_ptr"), c.POINTER(c.c_int))]
 
+    @classmethod
+    def empty(cls):
+        s = VariableValueStruct(0)
+        s.ptr = 0
+        return s
+
     def __init__(self, value):
         """ Create a VariableValue struct from a python object.
 

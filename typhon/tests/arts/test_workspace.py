@@ -204,3 +204,8 @@ class TestWorkspace:
                           out_inverse = ws.covmat_block,
                           vars = np.ones(ws.p_grid.value.size))
         ws.covmat_sxAddBlock(block = ws.covmat_block)
+
+    def test_variable_set_empty(self):
+        self.ws.f_grid = np.array([94e9])
+        self.ws.f_grid = []
+        assert self.ws.f_grid.value.size == 0
