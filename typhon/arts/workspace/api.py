@@ -33,7 +33,7 @@ from typhon.environment import environ
 
 arts_minimum_major    = 2
 arts_minimum_minor    = 3
-arts_minimum_revision = 1093
+arts_minimum_revision = 1099
 
 ################################################################################
 # Load ARTS C API
