@@ -398,9 +398,6 @@ class Collocator:
                         to_datetime(collocations.attrs["start_time"])
                 )
 
-                print(current_bundle_tag, match[0].path, match[0].times[0])
-                print(f"Save cache? {save_cache}")
-
                 if save_cache:
                     result = self._save_and_return(
                         cached_data,
@@ -1022,7 +1019,6 @@ class Collocator:
             data["time"].dims, data["lat"].dims, data["lon"].dims,
             key=lambda x: len(x)
         )
-
         # We want to be able to retrieve additional fields after collocating.
         # Therefore, we give each dimension that is no coordinate yet a value
         # to use them as indices later.
@@ -1040,7 +1036,6 @@ class Collocator:
         #     data[new_dim] = dim, np.arange(data.dims[dim])
         #     data.swap_dims({dim: new_dim}, inplace=True)
         #     new_dims.append(new_dim)
-
         return data.stack(collocation=dims)
 
     def _create_return(
