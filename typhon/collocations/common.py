@@ -117,7 +117,7 @@ class Collocations(FileSet):
             raise ValueError(
                 f"Unknown reading read_mode for collocations: "
                 f"{self.read_mode}!\nAllowed read_modes are: 'collapse' "
-                f"(default), 'expand' or 'fileset'."
+                f"(default), 'expand' or 'compact'."
             )
 
     def search(

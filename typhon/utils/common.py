@@ -39,6 +39,7 @@ __all__ = [
     'split_units',
     'reraise_with_stack',
     'get_xarray_groups',
+    'get_xarray_group',
     'add_xarray_groups',
     'to_array',
 ]
@@ -556,7 +557,7 @@ def reraise_with_stack(func):
     return wrapped
 
 
-def get_xarray_groups(dataset):
+def get_xarray_groups(dataset, only_names=False):
     """Get pseudo groups from xarray dataset object (only direct under root)
 
     xarray.Dataset objects does not allow the use of groups, but you can
@@ -564,16 +565,52 @@ def get_xarray_groups(dataset):
 
     Args:
         dataset: A xarray.Dataset object
+        only_names: Return only the names of the groups.
 
     Returns:
-        A set of group names.
+        A set of group names if `only_names` is True. Otherwise, a dictionary
+        with the group names and all its variables as xarray.Datasets objects.
     """
 
-    return {
+    groups = {
         var_name.split("/", 1)[0]
         for var_name in dataset.variables
         if "/" in var_name
     }
+
+    if only_names:
+        return groups
+
+    return {
+        group: get_xarray_group(dataset, group)
+        for group in groups
+    }
+
+
+def get_xarray_group(dataset, group):
+    """Get pseudo group from xarray.Dataset
+
+    Args:
+        dataset: A xarray.Dataset object with pseudo groups.
+        group: The name of the group (can also be a subgroup).
+
+    Returns:
+        A xarray.Dataset with the pseudo group.
+    """
+
+    if not group.endswith("/"):
+        group += "/"
+
+    group_vars = [
+        var
+        for var in dataset.variables
+        if var.startswith(group)
+    ]
+
+    if not group_vars:
+        raise KeyError(f"The group {group} was not found!")
+
+    return dataset[group_vars]
 
 
 def add_xarray_groups(ds, **kwargs):
@@ -581,11 +618,11 @@ def add_xarray_groups(ds, **kwargs):
 
     Args:
         ds: The root xarray.Dataset.
-        **kwargs: Keyword arguments: the is the name of the group and the value
-            must be a xarray.Dataset.
+        **kwargs: Keyword arguments: the key is the name of the group and the
+            value must be a xarray.Dataset.
 
     Returns:
-        `ds` with the added subgroup.
+        `ds` with the added subgroups
     """
     datasets = [ds]
 
