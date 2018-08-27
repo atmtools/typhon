@@ -23,17 +23,54 @@ class Agenda:
         self.ptr = ptr
 
     def clear(self):
+        """ Reset agenda to be empty."""
         arts_api.agenda_clear(self.ptr)
 
+    def append(self, agenda):
+        """Append agenda to this agenda.
+
+        Parameters:
+
+            agenda(:class:`Agenda`): The agenda to append to this agenda.
+
+        Raises:
+
+            Exception if :code:`agenda` is not of the :class:`Agenda`
+        """
+
+        if not isinstance(agenda, Agenda):
+            raise Exception("Agenda to append must be of type Agenda.")
+
+        arts_api.agenda_append(self.ptr, agenda.ptr)
+
     def add_method(*args, **kwargs):
+        """
+        Add a workspace method call to the agenda.
+
+        Parameters:
+
+            ws(typhon.arts.workspace.Workspace): A (dummy) workspace object.
+
+            m(typhon.arts.workspace.WorkspaceMethod): The method to add to the
+            agenda
+
+            *args:  Positional arguments of the WSM call to add to the agenda.
+
+            **kwargs: Key-word arguments of the WSM call to add to the agenda.
+        """
         if len(args) < 3:
-            raise Exception("Need at least self, a workspace and the method to add as arguments.")
+            raise Exception("Need at least self, a workspace and the method to"
+                            " add as arguments.")
         self = args[0]
         ws   = args[1]
         m    = args[2]
-        m_id, args_out, args_in, temps = m._parse_output_input_lists(ws, args[3:], kwargs)
-        arg_out_ptr = c.cast((c.c_long * len(args_out))(*args_out), c.POINTER(c.c_long))
-        arg_in_ptr = c.cast((c.c_long * len(args_in))(*args_in), c.POINTER(c.c_long))
+        m_id, args_out, args_in, temps = m._parse_output_input_lists(ws,
+                                                                     args[3:],
+                                                                     kwargs)
+        arg_out_ptr = c.cast((c.c_long * len(args_out))(*args_out),
+                             c.POINTER(c.c_long))
+        arg_in_ptr = c.cast((c.c_long * len(args_in))(*args_in),
+                            c.POINTER(c.c_long))
         if not m.name[-3:] == "Set":
             for t in temps:
                 arts_api.agenda_insert_set(ws.ptr, self.ptr, t.ws_id, t.group_id)

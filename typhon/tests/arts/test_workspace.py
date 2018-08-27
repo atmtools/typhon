@@ -19,7 +19,6 @@ from typhon.arts.catalogues import Sparse
 def agenda(ws):
     ws.Print(ws.y, 0)
 
-
 @pytest.mark.skipif(skip_arts_tests, reason='ARTS library not available')
 class TestWorkspace:
     def setup_method(self):
@@ -51,8 +50,12 @@ class TestWorkspace:
     def test_array_of_index_transfer(self):
         self.ws.ArrayOfIndexCreate("array_of_index_variable")
         i = [np.random.randint(0, 100) for j in range(10)]
+
         self.ws.array_of_index_variable = i
         assert self.ws.array_of_index_variable.value == i
+
+        self.ws.array_of_index_variable = []
+        assert self.ws.array_of_index_variable.value == []
 
     def test_array_of_vector_transfer(self):
         self.ws.ArrayOfVectorCreate("array_of_vector_variable")
@@ -108,9 +111,22 @@ class TestWorkspace:
         repr(self.ws.yCalc)
 
     def test_agenda(self):
+
         self.ws.atmosphere_dim = 1
-        arts_agenda(agenda)
-        assert self.ws.atmosphere_dim.value == 1
+
+        @arts_agenda
+        def add_1(ws):
+            ws.IndexAdd(ws.atmosphere_dim,
+                        ws.atmosphere_dim,
+                        1)
+        add_1.execute(self.ws)
+
+        assert self.ws.atmosphere_dim.value == 2
+
+        add_1.append(add_1)
+        add_1.execute(self.ws)
+
+        assert self.ws.atmosphere_dim.value == 4
 
     def test_execute_controlfile(self):
 
