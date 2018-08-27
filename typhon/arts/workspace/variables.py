@@ -206,6 +206,17 @@ class WorkspaceVariable:
             yield WorkspaceVariable(i, name, group, description)
 
     @property
+    def initialized(self):
+
+        ws = self.ws
+        if ws is None:
+            raise ValueError("WorkspaceVariable object needs associated"
+                             " Workspace to determine value.")
+
+        v = arts_api.get_variable_value(ws.ptr, self.ws_id, self.group_id)
+        return v.initialized
+
+    @property
     def value(self):
         """ Return the value of the variable in a given workspace.
 
