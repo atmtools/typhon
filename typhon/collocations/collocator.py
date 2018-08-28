@@ -1126,7 +1126,8 @@ class Collocator:
 
         # This holds the collocation information (pairs, intervals and
         # distances):
-        output["Collocations/pairs"] = xr.DataArray(
+        metadata = xr.Dataset()
+        metadata["pairs"] = xr.DataArray(
             np.array(pairs, dtype=int), dims=("group", "collocation"),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -1135,7 +1136,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output["Collocations/interval"] = xr.DataArray(
+        metadata["interval"] = xr.DataArray(
             intervals, dims=("collocation", ),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -1144,7 +1145,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output["Collocations/distance"] = xr.DataArray(
+        metadata["distance"] = xr.DataArray(
             distances, dims=("collocation",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -1154,12 +1155,16 @@ class Collocator:
                 "units": "kilometers",
             }
         )
-        output["Collocations/group"] = xr.DataArray(
+        metadata["group"] = xr.DataArray(
             [primary_name, secondary_name], dims=("group",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",
             }
+        )
+
+        output = add_xarray_groups(
+            output, Collocations=metadata
         )
 
         start = pd.Timestamp(
@@ -1423,7 +1428,7 @@ def concat_collocations(collocations):
     primary_size = 0
     secondary_size = 0
     collocation_coord = {
-        "Collocations": "collocation",
+        "Collocations": "Collocations/collocation",
         primary: f"{primary}/collocation",
         secondary: f"{secondary}/collocation",
     }
@@ -1436,6 +1441,7 @@ def concat_collocations(collocations):
                 # Correct the indices:
                 data["Collocations/pairs"][0, :] += primary_size
                 data["Collocations/pairs"][1, :] += secondary_size
+                data = data.drop("Collocations/group")
             groups[group].append(data)
 
         primary_size += obj.dims[f"{primary}/collocation"]
@@ -1456,6 +1462,7 @@ def concat_collocations(collocations):
         "start_time": str(start),
         "end_time": str(end),
     }
+    merged["Collocations/group"] = collocations[0]["Collocations/group"]
     return merged
 
 
