@@ -176,6 +176,7 @@ class WorkspaceMethod:
         n_args = self.n_g_out + self.n_g_in
 
         ins  = self.ins[:]
+        outs = self.outs[:]
         temps = []
 
         # Add positional arguments to kwargs
@@ -191,11 +192,17 @@ class WorkspaceMethod:
                 except:
                     raise Exception("Generic parameter " + str(name) + " set twice.")
             elif j < self.n_g_out + self.n_in:
+                k = j - self.n_g_out
                 if type(args[j]) == WorkspaceVariable:
-                    ins[j - self.n_g_out] = args[j].ws_id
+                    ins[k] = args[j].ws_id
                 else:
                     temps.append(ws.add_variable(args[j]))
-                    ins[j - self.n_g_out] = temps[-1].ws_id
+                    ins[k] = temps[-1].ws_id
+                if self.ins[k] in outs:
+                    # Need to replace variable also in output if its used as both output
+                    # and input.
+                    outs[outs.index(self.ins[k])] = ins[k]
+
             elif j < self.n_g_out + self.n_in + self.n_g_in:
                 name = self.g_in[j - self.n_g_out - self.n_in]
                 try:
@@ -250,7 +257,7 @@ class WorkspaceMethod:
 
         # Combine input and output arguments into lists.
         arts_args_out = []
-        for out in self.outs:
+        for out in outs:
             arts_args_out.append(out)
 
         for name in self.g_out:
@@ -266,7 +273,7 @@ class WorkspaceMethod:
 
         arts_args_in = []
         for i in ins:
-            if not i in self.outs:
+            if not i in outs:
                 arts_args_in.append(i)
 
         for name in self.g_in:
