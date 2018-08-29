@@ -19,7 +19,8 @@ __all__ = [
 
 
 def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             bg=False, draw_grid=False, draw_coastlines=False, **kwargs):
+             bg=False, draw_grid=False, draw_coastlines=False,
+             interpolation=False, **kwargs):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -75,7 +76,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     # It is counter-intuitive but if we want to plot our data with normal
     # latitudes and longitudes, we always have to set the transform to
     # PlateCarree (see https://github.com/SciTools/cartopy/issues/911)
-    if len(var.shape) == 1:
+    if var is None or len(var.shape) == 1:
         kwargs_defaults = {
             "cmap": "qualitative1",
             "s": 1,
@@ -86,11 +87,18 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
         plot = ax.scatter(
             lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
-    else:
+    elif interpolation:
         kwargs_defaults = {
             **kwargs
         }
         plot = ax.contourf(
+            lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
+        )
+    else:
+        kwargs_defaults = {
+            **kwargs
+        }
+        plot = ax.pcolormesh(
             lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
 

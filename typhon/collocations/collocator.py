@@ -1,3 +1,4 @@
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 import gc
@@ -9,7 +10,7 @@ import numpy as np
 import pandas as pd
 from typhon.geodesy import great_circle_distance
 from typhon.geographical import GeoIndex
-from typhon.utils import add_xarray_groups
+from typhon.utils import add_xarray_groups, get_xarray_groups
 from typhon.utils.timeutils import to_datetime, to_timedelta, Timer
 import xarray as xr
 
@@ -41,6 +42,11 @@ PROCESS_NAMES = [
 ]
 
 
+class ProcessCrashed(Exception):
+    """Helper exception for crashed processes"""
+    pass
+
+
 class Collocator:
     def __init__(
             self, threads=None, verbose=1, name=None, #log_dir=None
@@ -52,15 +58,16 @@ class Collocator:
                 here the maximum number of threads that you want to use. Which
                 number of threads is the best, may be machine-dependent. So
                 this is a parameter that you can use to fine-tune the
-                performance. Note: Not yet implemented.
+                performance. Note: Not yet implemented due to GIL usage of
+                sklearn BallTree.
             verbose: The higher this integer value the more debug messages
                 will be printed.
-            name: The name of this collocator.
+            name: The name of this collocator, will be used in log statements.
         """
 
         # If no collocations are found, this will be returned. We need empty
         # arrays to concatenate the results without problems:
-        self.empty = xr.Dataset()
+        self.empty = None  # xr.Dataset()
         self.no_pairs = np.array([[], []])
         self.no_intervals = np.array([], dtype='timedelta64[ns]')
         self.no_distances = np.array([])
@@ -80,7 +87,7 @@ class Collocator:
         self.name = name if name is not None else "Collocator"
 
     def __call__(self, *args, **kwargs):
-        return self.do(*args, **kwargs)
+        return self.collocate(*args, **kwargs)
 
     def _debug(self, msg):
         if self.verbose > 1:
@@ -95,13 +102,24 @@ class Collocator:
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
-            bundle=False, skip_file_errors=False, post_processor=None,
+            bundle=None, skip_file_errors=False, post_processor=None,
             post_processor_kwargs=None, **kwargs
     ):
         """Find collocation between the data of two filesets
 
+        If you want to save the collocations directly to disk, it may be easier
+        to use :meth:`~typhon.collocations.Collocations.search` directly.
+
         Args:
-            filesets: A list of two FileSet objects
+            filesets: A list of two :class:`FileSet` objects, the primary and
+                the secondary fileset. Can be also
+                :class:`~typhon.collocations.common.Collocations` objects with
+                `read_mode=collapse`. The order of the filesets is irrelevant
+                for the results of the collocation search but files from the
+                secondary fileset might be read multiple times if  using
+                parallel processing (`processes` is greater than one). The
+                number of output files could be different (see also the option
+                `bundle`).
             start: Start date either as datetime object or as string
                 ("YYYY-MM-DD hh:mm:ss"). Year, month and day are required.
                 Hours, minutes and seconds are optional. If not given, it is
@@ -112,10 +130,18 @@ class Collocator:
                 performance significantly. Pass here the number of processes to
                 use.
             output: Fileset object where the collocated data should be stored.
-            bundle: Not yet implemented.
-            skip_file_errors: If a file could not be read, the file and its
-                match will be skipped and a warning will be printed. Otheriwse
-                the program will stop (default).
+            bundle: Set this to *primary* if you want to bundle the output 
+                files by their collocated primaries, i.e. there will be only 
+                one output file per primary. *daily* is also possible, then all
+                files from one day are bundled together. Per default, all
+                collocations for each file match will be saved separately.
+                This might lead to a high number of output files.
+                Note: *daily* means one process bundles all collocations from
+                one day into one output file. If using multiple processes, this
+                could still produce several daily output files per day.
+            skip_file_errors: If this is *True* and a file could not be read, 
+                the file and its match will be skipped and a warning will be 
+                printed. Otheriwse the program will stop (default).
             post_processor: A function for post-processing the collocated data
                 before saving it to `output`. Must accept two parameters: a
                 xarray.Dataset with the collocated data and a dictionary with
@@ -127,17 +153,17 @@ class Collocator:
 
         Yields:
             A xarray.Dataset with the collocated data if `output` is not set.
-            If `output` is set to a FileSet-like object, only the filename is
-            yielded. The results are not ordered if you use more than one
-            process. For more information about the yielded value, have a look
-            at :meth:`collocate`.
+            If `output` is set to a FileSet-like object, only the filename of
+            the stored collocations is yielded. The results are not ordered if
+            you use more than one process. For more information about the 
+            yielded xarray.Dataset have a look at :meth:`collocate`.
 
         Examples:
 
         .. code-block:: python
 
         """
-        timer = time.time()
+        timer = Timer().start()
 
         if len(filesets) != 2:
             raise ValueError("Only collocating two filesets at once is allowed"
@@ -160,6 +186,7 @@ class Collocator:
 
         self._info(f"Collocate from {start} to {end}")
 
+        # Find the files from both filesets which overlap tempoerally.
         matches = list(filesets[0].match(
             filesets[1], start=start, end=end, max_interval=max_interval,
         ))
@@ -170,20 +197,22 @@ class Collocator:
         # Make sure that there are never more processes than matches
         processes = min(processes, len(matches))
 
-        self._info(f"using {processes} process(es) on {len(matches)} matches")
+        total_matches = sum(len(match[1]) for match in matches)
+        self._info(f"using {processes} process(es) on {total_matches} matches")
 
         # MAGIC with processes
         # Each process gets a list with matches. Important: the matches should
         # be continuous to guarantee a good performance. After finishing one
-        # match, the process yields the results.
+        # match, the process pushes its results to the result queue. If errors
+        # are raised during collocating, the raised errors are pushed to the 
+        # error queue,
+        matches_chunks = np.array_split(matches, processes)
 
         # This queue collects all results:
         results = Queue(maxsize=processes)
 
         # This queue collects all error exceptions
         errors = Queue()
-
-        matches_chunks = np.array_split(matches, processes)
 
         # Extend the keyword arguments that we are going to pass to
         # _collocate_files:
@@ -198,7 +227,7 @@ class Collocator:
             "post_processor_kwargs": post_processor_kwargs,
         })
 
-        # This contains all running processes
+        # This list contains all running processes
         process_list = [
             Process(
                 target=Collocator._process_caller,
@@ -211,6 +240,13 @@ class Collocator:
             for i, matches_chunk in enumerate(matches_chunks)
         ]
 
+        # We want to keep track of the progress of the collocation search since
+        # it may take a while.
+        process_progress = {
+            name: 0.  # Each process is at 0 percent at the beginning
+            for name in PROCESS_NAMES[:processes]
+        }
+
         # Start all processes:
         for process in process_list:
             process.start()
@@ -219,23 +255,35 @@ class Collocator:
         running = process_list.copy()
 
         processed_matches = 0
-        total_matches = sum(len(match[1]) for match in matches)
 
+        # The main process has two tasks during its child processes are
+        # collocating. 
+        # 1) Collect their results and yield them to the user
+        # 2) Display the progress and estimate the remaining processing time
         while running:
 
-            # Filter out all processes that are dead:
+            # Filter out all processes that are dead: they either crashed or
+            # complete their task
             running = [
                 process for process in running if process.is_alive()
             ]
 
-            # Yield all results that are currently in the queue:
+            # Get all results from the result queue
             while not results.empty():
-                processed_matches += 1
+                process, progress, result = results.get()
+
+                # The process might be crashed. To keep the remaining time
+                # estimation useful, we exclude the crashed process from the
+                # calculation.
+                if result is ProcessCrashed:
+                    del process_progress[process]
+                else:
+                    process_progress[process] = progress
+
                 self._print_progress(
-                    timer, total_matches, processed_matches, len(running),
+                    timer.elapsed, process_progress, len(running),
                     errors.qsize()
                 )
-                result = results.get()
                 if result is not None:
                     yield result
 
@@ -261,111 +309,244 @@ class Collocator:
             print("-" * 79 + "\n")
 
     @staticmethod
-    def _print_progress(timer, total, current, processes, errors):
-        if current == 0:
-            progress = 0
-            elapsed_time = time.time() - timer
+    def _print_progress(elapsed_time, process_progress, processes, errors):
+
+        elapsed_time -= timedelta(microseconds=elapsed_time.microseconds)
+        if len(process_progress) == 0:
+            msg = "-"*79 + "\n"
+            msg += f"100% | {elapsed_time} hours elapsed | " \
+                   f"{errors} processes failed\n"
+            msg += "-"*79 + "\n"
+            print(msg)
+            return
+
+        progress = sum(process_progress.values()) / len(process_progress)
+
+        try:
+            expected_time = elapsed_time * (100 / progress - 1)
+            expected_time -= timedelta(
+                    microseconds=expected_time.microseconds)
+        except ZeroDivisionError:
             expected_time = "unknown"
-        else:
-            progress = current / total
-
-            elapsed_time = time.time() - timer
-            expected_time = timedelta(
-                seconds=int(elapsed_time * (1 / progress - 1))
-            )
-
-        elapsed_time = timedelta(
-            seconds=int(elapsed_time)
-        )
 
         msg = "-"*79 + "\n"
-        msg += f"{100*progress:.0f}% | {elapsed_time} hours elapsed, " \
+        msg += f"{progress:.0f}% | {elapsed_time} hours elapsed, " \
                f"{expected_time} hours left | {processes} proc running, " \
                f"{errors} failed\n"
         msg += "-"*79 + "\n"
         print(msg)
 
     @staticmethod
-    def _process_caller(collocator, results, errors, name, *args, **kwargs):
-        collocator.name = name
+    def _process_caller(
+            self, results, errors, name, output, bundle, post_processor,
+            post_processor_kwargs, **kwargs):
+        """Wrapper around _collocate_matches
+
+        This function is called for each process. It communicates with the main
+        process via the result and error queue.
+
+        Result Queue:
+            Adds for each collocated file match the process name, its progress
+            and the actual results.
+
+        Error Queue:
+            If an error is raised, 
+        """
+        self.name = name
 
         # We keep track of how many file pairs we have already processed to
-        # make the error debugging easier:
-        processed = 0
+        # make the error debugging easier. We need the match in flat form:
+        matches = [
+            [match[0], secondary]
+            for match in kwargs['matches']
+            for secondary in match[1]
+        ]
+
+        # If we want to bundle the output, we need to collect some contents.
+        # The current_bundle_tag stores a certain information for the current
+        # bundle (e.g. filename of primary or day of the year). If it changes,
+        # the bundle is stored to disk and a new bundle is created.
+        cached_data = []
+        cached_attributes = {}
+        current_bundle_tag = None
         try:
-            for result in collocator._collocate_files(*args, **kwargs):
-                results.put(result)
+            processed = 0
+            collocated_matches = self._collocate_matches(**kwargs)
+            for collocations, attributes in collocated_matches:
+                match = matches[processed]
                 processed += 1
+                progress = 100 * processed / len(matches)
+
+                if collocations is None:
+                    results.put([name, progress, None])
+                    continue
+
+                # The user does not want to bundle anything therefore just save
+                # the current collocations
+                if bundle is None:
+                    result = self._save_and_return(
+                            collocations, attributes, output,
+                            post_processor, post_processor_kwargs
+                    )
+                    results.put([name, progress, result])
+                    continue
+
+                # The user may want to bundle the collocations before writing
+                # them to disk, e.g. by their primaries.
+                save_cache = self._should_save_cache(
+                        bundle, current_bundle_tag, match,
+                        to_datetime(collocations.attrs["start_time"])
+                )
+
+                if save_cache:
+                    result = self._save_and_return(
+                        cached_data,
+                        cached_attributes, output,
+                        post_processor, post_processor_kwargs
+                    )
+                    results.put([name, progress, result])
+
+                    cached_data = []
+                    cached_attributes = {}
+
+                # So far, we have not cached any collocations or we still need
+                # to wait before saving them to disk.
+                cached_data.append(collocations)
+                cached_attributes.update(**attributes)
+
+                if bundle == "primary":
+                    current_bundle_tag = match[0].path
+                elif bundle == "daily":
+                    current_bundle_tag = \
+                        to_datetime(collocations.attrs["start_time"]).date()
+
+            # After all iterations, save last cached data to disk:
+            if cached_data:
+                result = self._save_and_return(
+                    cached_data,
+                    cached_attributes, output,
+                    post_processor, post_processor_kwargs
+                )
+                results.put([name, progress, result])
+
         except Exception as exception:
-            collocator._error("ERROR: I got a problem and terminate!")
+            # Tell the main process to stop considering this process for the 
+            # remaining processing time:
+            results.put(
+                [name, 100., ProcessCrashed]
+            )
+
+            self._error("ERROR: I got a problem and terminate!")
 
             # Build a message that contains all important information for
             # debugging:
-            i = 0
-            msg = None
-            for match in kwargs['matches']:
-                for secondary in match[1]:
-                    if processed != i:
-                        i += 1
-                        continue
 
-                    i += 1
-                    msg = f"Failed to collocate {match[0]} with {secondary}"
-                    break
-
-                if msg is not None:
-                    break
-
-            msg += "\n"
+            msg = f"Failed to collocate {matches[processed]} with"\
+                f"{matches[processed]}\n"
 
             # The main process needs to know about this exception!
             error = [
                 name, exception.__traceback__,
-                msg + str(exception), processed
+                msg + str(exception)
             ]
             errors.put(error)
 
             # Finally, raise the exception to terminate this process:
             raise exception
 
-        collocator._info(f"Finished all {processed} matches")
+        self._info(f"Finished all {len(matches)} matches")
 
-    def _collocate_files(
-        self, filesets, matches, output, bundle, skip_file_errors,
-            post_processor, post_processor_kwargs, **kwargs
+    def _save_and_return(self, collocations, attributes, output,
+            post_processor, post_processor_kwargs):
+        """Save collocations to disk or return them"""
+
+        if isinstance(collocations, list):
+            collocations = concat_collocations(
+                    collocations
+            )
+
+        if output is None:
+            return collocations, attributes
+        else:
+            filename = output.get_filename(
+                [to_datetime(collocations.attrs["start_time"]),
+                 to_datetime(collocations.attrs["end_time"])],
+                fill=attributes
+            )
+
+            # Apply a post processor function from the user
+            if post_processor is not None:
+                if post_processor_kwargs is None:
+                    post_processor_kwargs = {}
+
+                collocations = post_processor(
+                    collocations, attributes, **post_processor_kwargs
+                )
+
+            if collocations is None:
+                return None
+
+            self._info(f"Store collocations to\n{filename}")
+
+            # Write the data to the file.
+            output.write(collocations, filename)
+            return filename
+
+    @staticmethod
+    def _should_save_cache(bundle, current_bundle_tag, match, start_time):
+        """Return true if the cache should be saved otherwise false
+        """
+        if current_bundle_tag is None:
+            return False
+        elif bundle == "primary":
+            # Check whether the primary has changed since the last time:
+            return current_bundle_tag != match[0].path
+        elif bundle == "daily":
+            # Has the day changed since last time?
+            return current_bundle_tag != start_time.date()
+
+        # In all other cases, the bundle should not be saved yet:
+        return False
+
+    def _collocate_matches(
+        self, filesets, matches, skip_file_errors, **kwargs
     ):
+        """Load file matches and collocate their content
 
-        # Get all primary and secondary data that overlaps with each other
-        file_pairs = filesets[0].align(
+        Yields:
+            A tuple of two items: the first is always the current percentage
+            of progress. If output is True, the second is only the filename of
+            the saved collocations. Otherwise, it is a tuple of collocations
+            and their collected :class:`~typhon.files.handlers.common.FileInfo`
+            attributes as a dictionary.
+        """
+        # Load all matches in a parallized queue:
+        loaded_matches = filesets[0].align(
             filesets[1], matches=matches, return_info=True, compact=False,
             skip_errors=skip_file_errors,
         )
 
-        debug_timer = time.time()
 
-        # If we want to bundle the output
-        result_cache = []
-        for i, file_pair in enumerate(file_pairs):
-            files = file_pair[1][0], file_pair[1][0]
-            primary, secondary = file_pair[0][1].copy(), file_pair[1][1].copy()
+        for loaded_match in loaded_matches:
+            # The FileInfo objects of the matched files:
+            files = loaded_match[0][0], loaded_match[1][0]
 
-            self._debug(f"{time.time() - debug_timer:.2f}s for reading")
+            # We copy the data from the matches since they might be used for
+            # other matches as well:
+            primary, secondary = \
+                loaded_match[0][1].copy(), loaded_match[1][1].copy()
 
-            current_start = np.datetime64(primary["time"].min().item(0), "ns")
-            current_end = np.datetime64(primary["time"].max().item(0), "ns")
-            self._debug(f"Collocating {current_start} to {current_end}\n"
-                        f"{files[0].path}\nwith {files[1].path}")
+            self._debug(f"Collocate {files[0].path}\nwith {files[1].path}")
 
-            debug_timer = time.time()
             collocations = self.collocate(
                 (filesets[0].name, primary),
                 (filesets[1].name, secondary), **kwargs,
             )
-            self._debug(f"{time.time()-debug_timer:.2f}s for collocating")
 
-            if not collocations.variables:
+            if collocations is None:
                 self._debug("Found no collocations!")
-                yield None
+                # At least, give the process caller a progress update:
+                yield None, None
                 continue
 
             # Check whether the collocation data is compatible and was build
@@ -384,73 +565,59 @@ class Collocator:
 
             # Add the names of the processed files:
             for f in range(2):
-                if f"{filesets[f].name}_file" not in collocations.attrs:
-                    collocations.attrs[f"{filesets[f].name}_file"] = \
-                        files[f].path
+                if f"{filesets[f].name}/__file" in collocations.variables:
+                    continue
 
-            # Collect the attributes of the input files
+                collocations[f"{filesets[f].name}/__file"] = files[f].path
+
+            # Collect the attributes of the input files. The attributes get a
+            # prefix, primary or secondary, to allow not-unique names.
             attributes = {
-                p: v
-                for file in files
+                f"primary.{p}" if f == 0 else f"secondary.{p}": v
+                for f, file in enumerate(files)
                 for p, v in file.attr.items()
             }
 
-            if output is None:
-                yield collocations, attributes
-            else:
-                debug_timer = time.time()
-                filename = output.get_filename(
-                    [to_datetime(collocations.attrs["start_time"]),
-                     to_datetime(collocations.attrs["end_time"])],
-                    fill=attributes
-                )
+            yield collocations, attributes
 
-                # Apply a post processor function from the user
-                if post_processor is not None:
-                    if post_processor_kwargs is None:
-                        post_processor_kwargs = {}
-
-                    collocations = post_processor(
-                        collocations, attributes, **post_processor_kwargs
-                    )
-
-                if collocations is None:
-                    yield None
-                    continue
-
-                # Write the data to the file.
-                output.write(collocations, filename)
-                self._debug(
-                    f"{time.time()-debug_timer:.2f}s for storing to {filename}"
-                )
-                yield filename
-
-            debug_timer = time.time()
 
     def collocate(
             self, primary, secondary, max_interval=None, max_distance=None,
             bin_factor=1, magnitude_factor=10, tunnel_limit=None, start=None,
             end=None, leaf_size=40
     ):
-        """Find collocations between two data objects
+        """Find collocations between two xarray.Dataset objects
 
         Collocations are two or more data points that are located close to each
         other in space and/or time.
 
-        A data object must be a dictionary, a xarray.Dataset or a
-        pandas.DataFrame object with the keys *time*, *lat*, *lon*. Its values
-        must be 1-dimensional numpy.array-like objects and share the same
-        length. The field *time* must have the data type *numpy.datetime64*,
-        *lat* must be latitudes between *-90* (south) and *90* (north) and
-        *lon* must be longitudes between *-180* (west) and *180* (east)
+        Each xarray.Dataset contain the variables *time*, *lat*, *lon*. They
+        must be - if they are coordinates - unique. Otherwise, their
+        coordinates must be unique, i.e. they cannot contain duplicated values.
+        *time* must be a 1-dimensional array with a *numpy.datetime64*-like
+        data type. *lat* and *lon* can be gridded, i.e. they can be multi-
+        dimensional. However, they must always share the first dimension with
+        *time*. *lat* must be latitudes between *-90* (south) and *90* (north)
+        and *lon* must be longitudes between *-180* (west) and *180* (east)
         degrees. See below for examples.
+
+        The collocation searched is performed with a fast ball tree
+        implementation by scikit-learn. The ball tree is cached and reused
+        whenever the data points from `primary` or `secondary` have not
+        changed.
 
         If you want to find collocations between FileSet objects, use
         :class:`collocate_filesets` instead.
 
         Args:
-            primary: Data object that fulfill the specifications from above.
-            secondary: Data object that fulfill the specifications from above.
+            primary: A tuple of a string with the dataset name and a
+                xarray.Dataset that fulfill the specifications from above. Can
+                be also a xarray.Dataset only, the name is then automatically
+                set to *primary*.
+            secondary: A tuple of a string with the dataset name and a
+                xarray.Dataset that fulfill the specifications from above. Can
+                be also a xarray.Dataset only, the name is then automatically
+                set to *secondary*.
             max_interval: Either a number as a time interval in seconds, a
                 string containing a time with a unit (e.g. *100 minutes*) or a
                 timedelta object. This is the maximum time interval between two
@@ -458,7 +625,7 @@ class Collocator:
                 spatial collocations only.
             max_distance: Either a number as a length in kilometers or a string
                 containing a length with a unit (e.g. *100 meters*). This is
-                the maximum distance between two data points in to meet the
+                the maximum distance between two data points to meet the
                 collocation criteria. If this is None, the data will be
                 searched for temporal collocations only. Either `max_interval`
                 or *max_distance* must be given.
@@ -466,20 +633,25 @@ class Collocator:
                 from tunnel to haversine distance metric. Per default this
                 algorithm uses the tunnel metric, which simply transform all
                 latitudes and longitudes to 3D-cartesian space and calculate
-                their euclidean distance. This produces an error that grows
-                with larger distances. When searching for distances exceeding
-                this limit (`max_distance` is greater than this parameter), the
-                haversine metric is used, which is more accurate but takes more
-                time. Default is 1000 kilometers.
+                their euclidean distance. This is faster than the haversine
+                metric but produces an error that grows with larger distances.
+                When searching for distances exceeding this limit
+                (`max_distance` is greater than this parameter), the haversine
+                metric is used, which is more accurate but takes more time.
+                Default is 1000 kilometers.
             magnitude_factor: Since building new trees is expensive, this
                 algorithm tries to use the last tree when possible (e.g. for
                 data with fixed grid). However, building the tree with the
                 larger dataset and query it with the smaller dataset is faster
                 than vice versa. Depending on which premise to follow, there
                 might have a different performance in the end. This parameter
-                is the factor that... TODO
+                is the factor of that one dataset must be larger than the other
+                to throw away an already-built ball tree and rebuild it with
+                the larger dataset.
             leaf_size: The size of one leaf in the Ball Tree. The higher the
-                faster is the tree building but the slower is the tree query.
+                leaf size the faster is the tree building but the slower is the
+                tree query. The optimal leaf size is dataset-dependent. Default
+                is 40.
             bin_factor: When using a temporal criterion via `max_interval`, the
                 data will be temporally binned to speed-up the search. The bin
                 size is `bin_factor` * `max_interval`. Which bin factor is the
@@ -493,16 +665,29 @@ class Collocator:
                 datetime.max per default.
 
         Returns:
-            Three numpy.arrays: the pairs of collocations (as indices in the
-            original data), the interval for the time dimension and the
-            distance for the spatial dimension. The pairs are a 2xN numpy.array
-            where N is the number of found collocations. The first row contains
-            the indices of the collocations in `data1`, the second row the
-            indices in `data2`.
+            None if no collocations were found. Otherwise,
+            a xarray.Dataset with the collocated data in *compact* form. It
+            consists of three groups (groups of variables containing */* in
+            their name): the *primary*, *secondary* and the *Collocations*
+            group. If you passed `primary` or `secondary` with own names,
+            they will be used in the output. The *Collocations* group contains
+            information about the found collocations. *Collocations/pairs* is
+            a 2xN array where N is the number of found collocations. It
+            contains the indices of the *primary* and *secondary* data points
+            which are collocations. The indices refer to the data points stored
+            in the *primary* or *secondary* group. *Collocations/interval* and
+            *Collocations/distance* are the intervals and distances between the
+            collocations in seconds and kilometers, respectively. Collocations
+            in *compact* form are efficient when saving them to disk but it
+            might be complicated to use them directly. Consider applying
+            :func:`~typhon.collocations.common.collapse` or
+            :func:`~typhon.collocations.common.expand` on them.
 
         Examples:
 
             .. code-block: python
+                
+                # TODO: Update this example!
 
                 import numpy as np
                 from typhon.collocations import Collocator
@@ -548,10 +733,12 @@ class Collocator:
         start = datetime.min if start is None else to_datetime(start)
         end = datetime.max if end is None else to_datetime(end)
 
+        # Did the user give the datasets specific names?
         primary_name, primary, secondary_name, secondary = self._get_names(
             primary, secondary
         )
 
+        # Select the common time period of both datasets and flat them.
         primary, secondary = self._prepare_data(
             primary, secondary, max_interval, start, end
         )
@@ -566,6 +753,8 @@ class Collocator:
         self.leaf_size = leaf_size
 
         timer = Timer().start()
+        
+        # We cannot allow NaNs in the time, lat or lon fields
         not_nans1 = self._get_not_nans(primary)
         not_nans2 = self._get_not_nans(secondary)
 
@@ -629,7 +818,7 @@ class Collocator:
         data_magnitude = time1.size * time2.size
 
         if data_magnitude > 100_0000:
-            # We have enough data, do pre-binning!
+            # We have enough data, do temporal pre-binning!
             pairs, distances = self.spatial_search_with_temporal_binning(
                 {"lat": lat1, "lon": lon1, "time": time1},
                 {"lat": lat2, "lon": lon2, "time": time2},
@@ -670,7 +859,7 @@ class Collocator:
 
     @staticmethod
     def _get_names(primary, secondary):
-        # Check out if the user gave the primary and secondary any name:
+        # Check out whether the user gave the primary and secondary any name:
         if isinstance(primary, (tuple, list)):
             primary_name, primary = primary
         else:
@@ -683,6 +872,17 @@ class Collocator:
         return primary_name, primary, secondary_name, secondary
 
     def _prepare_data(self, primary, secondary, max_interval, start, end):
+        """Prepare the data for the collocation search
+        
+        This method selects the time period which should be searched for
+        collocations and flats the input datasets if they have gridded
+        variables.
+
+        Returns:
+            The datasets constraint to the common time period, sorted by time
+            and flattened. If no common time period could be found, two None
+            objects are returned.
+        """
         if max_interval is not None:
             timer = Timer().start()
             # We do not have to collocate everything, just the common time
@@ -778,11 +978,8 @@ class Collocator:
             same dimension and are all 1-dimensional. Fulfills all criteria
             from above. No action has to be taken.
         * gridded_coords (e.g. instruments on satellites with gridded swaths):
-            time, lat or lon are gridded (they have multiple dimensions). Stack
+            lat or lon are gridded (they have multiple dimensions). Stack
             the coordinates of them together to a new shared dimension.
-        * gridded_data (e.g. model output data): time, lat and lon are not
-            gridded but they grid the data variables. Stack time, lat and lon
-            to a new shared dimension.
 
         Args:
             data: xr.Dataset object
@@ -822,7 +1019,6 @@ class Collocator:
             data["time"].dims, data["lat"].dims, data["lon"].dims,
             key=lambda x: len(x)
         )
-
         # We want to be able to retrieve additional fields after collocating.
         # Therefore, we give each dimension that is no coordinate yet a value
         # to use them as indices later.
@@ -830,21 +1026,16 @@ class Collocator:
             if dim not in data.coords:
                 data[dim] = dim, np.arange(data.dims[dim])
 
-        # We assume that coordinates must be unique!
-        # We might have a problem if the dimensions are also coordinates (i.e.
-        # they have values). For example, we opened multiple MHS files and
-        # concatenated them, then the coordinate scnline contains the same
-        # values multiple times. xarray cannot stack them together and build a
-        # multi index from them because the coordinate values are not unique.
-        # Hence, we need to replace the former coordinates with new coordinates
-        # that have unique values.
+        # We assume that coordinates must be unique! Otherwise, we would have
+        # to use this ugly work-around:
+        # Replace the former coordinates with new coordinates that have unique 
+        # values.
         # new_dims = []
         # for dim in dims:
         #     new_dim = f"__replacement_{dim}"
         #     data[new_dim] = dim, np.arange(data.dims[dim])
         #     data.swap_dims({dim: new_dim}, inplace=True)
         #     new_dims.append(new_dim)
-
         return data.stack(collocation=dims)
 
     def _create_return(
@@ -857,10 +1048,6 @@ class Collocator:
 
         pairs = []
         output = {}
-
-        # We are going to save the time coverage of the data as attributes in
-        # the output dataset
-        start, end = None, None
 
         names = [primary_name, secondary_name]
         for i, dataset in enumerate([primary, secondary]):
@@ -887,19 +1074,6 @@ class Collocator:
             pairs.append(collocation_indices)
 
             output[names[i]] = dataset.isel(collocation=original_indices)
-
-            # We need the total time coverage of all datasets for the name of
-            # the output file
-            data_start = pd.Timestamp(
-                output[name]["time"].min().item(0)
-            )
-            data_end = pd.Timestamp(
-                output[name]["time"].max().item(0)
-            )
-            if start is None or start > data_start:
-                start = data_start
-            if end is None or end < data_end:
-                end = data_end
 
             # We have to convert the MultiIndex to a normal index because we
             # cannot store it to a file otherwise. We can convert it by simply
@@ -952,7 +1126,8 @@ class Collocator:
 
         # This holds the collocation information (pairs, intervals and
         # distances):
-        output["Collocations/pairs"] = xr.DataArray(
+        metadata = xr.Dataset()
+        metadata["pairs"] = xr.DataArray(
             np.array(pairs, dtype=int), dims=("group", "collocation"),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -961,7 +1136,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output["Collocations/interval"] = xr.DataArray(
+        metadata["interval"] = xr.DataArray(
             intervals, dims=("collocation", ),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -970,7 +1145,7 @@ class Collocator:
                 "secondary": secondary_name,
             }
         )
-        output["Collocations/distance"] = xr.DataArray(
+        metadata["distance"] = xr.DataArray(
             distances, dims=("collocation",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
@@ -980,12 +1155,23 @@ class Collocator:
                 "units": "kilometers",
             }
         )
-        output["Collocations/group"] = xr.DataArray(
+        metadata["group"] = xr.DataArray(
             [primary_name, secondary_name], dims=("group",),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",
             }
+        )
+
+        output = add_xarray_groups(
+            output, Collocations=metadata
+        )
+
+        start = pd.Timestamp(
+            output[primary_name+"/time"].min().item(0)
+        )
+        end = pd.Timestamp(
+            output[primary_name+"/time"].max().item(0)
         )
 
         output.attrs = {
@@ -1129,12 +1315,14 @@ class Collocator:
     def _build_spatial_index(self, lat, lon):
         # Find out whether the cached index still works with the new points:
         if self._spatial_is_cached(lat, lon):
-            print("Spatial index is cached and can be reused")
+            self._debug("Spatial index is cached and can be reused")
             return self.index
 
         return GeoIndex(lat, lon, leaf_size=self.leaf_size)
 
     def _spatial_is_cached(self, lat, lon):
+        """Return True if the cached ball tree is still applicable to the new
+        data"""
         if self.index is None:
             return False
 
@@ -1217,6 +1405,65 @@ class Collocator:
     @staticmethod
     def _get_distances(lat1, lon1, lat2, lon2):
         return great_circle_distance(lat1, lon1, lat2, lon2)
+
+
+def concat_collocations(collocations):
+    """Concat compact collocations
+
+    Compact collocations cannot be concatenated directly because indices in
+    *Collocations/pairs* won't be correct any longer afterwards. This
+    concatenate function fixes this problem.
+
+    Args:
+        collocations: A list of xarray.Dataset objects
+            with compact collocations.
+
+    Returns:
+        One xarray.Dataset object
+    """
+
+    # We need to increment the pair indices when concatening the datasets
+    primary = collocations[0]["Collocations/group"].item(0)
+    secondary = collocations[0]["Collocations/group"].item(1)
+    primary_size = 0
+    secondary_size = 0
+    collocation_coord = {
+        "Collocations": "Collocations/collocation",
+        primary: f"{primary}/collocation",
+        secondary: f"{secondary}/collocation",
+    }
+
+    # Collect all collocations for each single group:
+    groups = defaultdict(list)
+    for obj in collocations:
+        for group, data in get_xarray_groups(obj).items():
+            if group == "Collocations":
+                # Correct the indices:
+                data["Collocations/pairs"][0, :] += primary_size
+                data["Collocations/pairs"][1, :] += secondary_size
+                data = data.drop("Collocations/group")
+            groups[group].append(data)
+
+        primary_size += obj.dims[f"{primary}/collocation"]
+        secondary_size += obj.dims[f"{secondary}/collocation"]
+
+    starts = []
+    ends = []
+    for group, data_list in groups.items():
+        groups[group] = xr.concat(
+                data_list,
+                dim=collocation_coord[group]
+            )
+
+    start = pd.Timestamp(groups[primary][primary+"/time"].min().item(0))
+    end = pd.Timestamp(groups[primary][primary+"/time"].max().item(0))
+    merged = xr.merge(groups.values())
+    merged.attrs = {
+        "start_time": str(start),
+        "end_time": str(end),
+    }
+    merged["Collocations/group"] = collocations[0]["Collocations/group"]
+    return merged
 
 
 class InvalidCollocationData(Exception):

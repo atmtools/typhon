@@ -10,14 +10,32 @@ import xarray as xr
 from .common import expects_file_info, HDF5
 
 
-__all__ = ['SEVIRI', ]
+__all__ = [
+    'SEVIRI',
+]
 
 
 class SEVIRI(HDF5):
     """File handler for SEVIRI level 1.5 HDF files
     """
 
+    # Cache the grid of SEVIRI since it is expensive to calculate
     _grid = None
+
+    channel_names = {
+        'channel_1': 'VIS006',
+        'channel_2': 'VIS008',
+        'channel_3': 'IR_016',
+        'channel_4': 'IR_039',
+        'channel_5': 'WV_062',
+        'channel_6': 'WV_073',
+        'channel_7': 'IR_087',
+        'channel_8': 'IR_097',
+        'channel_9': 'IR_108',
+        'channel_10': 'IR_120',
+        'channel_11': 'IR_134',
+        'channel_12': 'HRV'
+    }
 
     def __init__(self, **kwargs):
         """
@@ -28,8 +46,6 @@ class SEVIRI(HDF5):
 
         # Call the base class initializer
         super().__init__(**kwargs)
-
-        self._grid = None
 
         # We are going to import those fields per default (not channel 12
         # because it has a different resolution):
@@ -52,81 +68,13 @@ class SEVIRI(HDF5):
             for ch in range(1, 12)
         }
         self.reverse_mapping = {
-            value: key
+            self.channel_names[value]: key
             for key, value in self.mapping.items()
         }
         self.mapping["U-MARF/MSG/Level1.5/METADATA/HEADER/RadiometricProcessing/Level15ImageCalibration_ARRAY"] = "counts_to_rad"  # noqa
 
-    @expects_file_info()
-    def read(self, file_info, fields=None, calibration=True, **kwargs):
-        """Read SEVIRI HDF5 files and load them to a xarray.Dataset
-
-        Args:
-            file_info: Path and name of the file as string or FileInfo object.
-                This can also be a tuple/list of file names or a path with
-                asterisk.
-            fields: Field names that you want to extract from this file as a
-                list.
-            **kwargs: Additional keyword arguments that are valid for
-                :class:`typhon.files.handlers.common.NetCDF4`.
-
-        Returns:
-            A xrarray.Dataset object.
-        """
-
-        # Here, the user fields overwrite the standard fields:
-        if fields is None:
-            fields = self.standard_fields | self.mandatory_fields
-        else:
-            fields = self.mandatory_fields | {
-                self.reverse_mapping[field]
-                for field in fields
-                if field not in ["time", "lat", "lon"]
-            }
-
-        # We catch the user mapping here, since we do not want to deal with
-        # user-defined names in the further processing. Instead, we use our own
-        # mapping at the moment, and apply the user mapping later.
-        user_mapping = kwargs.pop("mapping", None)
-
-        dataset = super(SEVIRI, self).read(
-            file_info, fields=fields, mapping=self.mapping
-        )
-
-        # We set the names of each channel variable explicitly:
-        for name, var in dataset.variables.items():
-            if name.startswith("channel_"):
-                dataset[name] = ["line", "column"], var.values
-
-        # Convert the counts to brightness temperatures:
-        if calibration:
-            dataset = self.counts_to_bt(dataset)
-
-        # Add the latitudes and longitudes of the grid points:
-        dataset = xr.merge([dataset, self.grid])
-
-        # Add the time variable (is derived from the filename normally):
-        if file_info.times[0] is None:
-            warnings.warn(
-                "SEVIRI: The time field was not specified by the filename! Set"
-                "it to 1970-01-01!"
-            )
-            dataset["time"] = ("time", np.array(["1970-01-01"], dtype="M8[s]"))
-        else:
-            dataset["time"] = ("time", [file_info.times[0]])
-
-        # For collocating and other things, we always need the three dimensions
-        # time, lat and lon to be "connected". Hence, add the time dimension to
-        # each data variable as extra dimension.
-        dataset = xr.concat([dataset], dim="time")
-
-        if user_mapping is not None:
-            dataset.rename(user_mapping, inplace=True)
-
-        return dataset
-
-    @property
-    def grid(self):
+    @staticmethod
+    def grid():
         """Return the geo-grid of the SEVIRI images (lat and lon)
 
         Notes:
@@ -190,6 +138,78 @@ class SEVIRI(HDF5):
         SEVIRI._grid = ds
 
         return SEVIRI._grid
+
+    @expects_file_info()
+    def read(self, file_info, fields=None, calibration=True, **kwargs):
+        """Read SEVIRI HDF5 files and load them to a xarray.Dataset
+
+        Args:
+            file_info: Path and name of the file as string or FileInfo object.
+                This can also be a tuple/list of file names or a path with
+                asterisk.
+            fields: Field names that you want to extract from this file as a
+                list.
+            **kwargs: Additional keyword arguments that are valid for
+                :class:`typhon.files.handlers.common.NetCDF4`.
+
+        Returns:
+            A xrarray.Dataset object.
+        """
+
+        # Here, the user fields overwrite the standard fields:
+        if fields is None:
+            fields = self.standard_fields | self.mandatory_fields
+        else:
+            fields = self.mandatory_fields | {
+                self.reverse_mapping[field]
+                for field in fields
+                if field not in ["time", "lat", "lon"]
+            }
+
+        # We catch the user mapping here, since we do not want to deal with
+        # user-defined names in the further processing. Instead, we use our own
+        # mapping at the moment, and apply the user mapping later.
+        user_mapping = kwargs.pop("mapping", None)
+
+        dataset = super(SEVIRI, self).read(
+            file_info, fields=fields, mapping=self.mapping
+        )
+
+        # We set the names of each channel variable explicitly:
+        for name, var in dataset.variables.items():
+            if name not in ["time", "lat", "lon", "counts_to_rad"]:
+                dataset[name] = ["line", "column"], var.values
+
+        # Convert the counts to brightness temperatures:
+        if calibration:
+            dataset = self.counts_to_bt(dataset)
+
+        # Add the latitudes and longitudes of the grid points:
+        dataset = xr.merge([dataset, self.grid()])
+
+        # Add the time variable (is derived from the filename normally):
+        if file_info.times[0] is None:
+            warnings.warn(
+                "SEVIRI: The time field was not specified by the filename! Set"
+                "it to 1970-01-01!"
+            )
+            dataset["time"] = ("time", np.array(["1970-01-01"], dtype="M8[s]"))
+        else:
+            dataset["time"] = ("time", [file_info.times[0]])
+
+        # For collocating and other things, we always need the three dimensions
+        # time, lat and lon to be "connected". Hence, add the time dimension to
+        # each data variable as extra dimension.
+        dataset = xr.concat([dataset], dim="time")
+
+        # We want the final field names to be meaningful
+        mapping = {
+            old: new
+            for old, new in self.channel_names.items()
+            if old in dataset.variables
+        }
+        dataset.rename(mapping, inplace=True)
+        return dataset
 
     @staticmethod
     def counts_to_bt(dataset):
