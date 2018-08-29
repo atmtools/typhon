@@ -12,7 +12,6 @@ import os
 from typhon.arts.workspace.api import find_controlfile, arts_api
 from typhon.arts.workspace.output import CoutCapture
 
-
 class Agenda:
     def __init__(self, ptr):
         """ Initialize Agenda object from pointer to C API Agenda object.
@@ -21,6 +20,23 @@ class Agenda:
             method of the ARTS C API.
         """
         self.ptr = ptr
+
+    @classmethod
+    def create(cls, name):
+        """
+        Create agenda with given name.
+
+        Parameters:
+
+            name(str): The name of the agenda to create.
+
+        Returns:
+
+            The newly created agenda object with the given name.
+
+        """
+        ptr = arts_api.create_agenda(name.encode())
+        return Agenda(ptr)
 
     def clear(self):
         """ Reset agenda to be empty."""
@@ -72,12 +88,23 @@ class Agenda:
         arg_in_ptr = c.cast((c.c_long * len(args_in))(*args_in),
                             c.POINTER(c.c_long))
         if not m.name[-3:] == "Set":
+
             for t in temps:
                 arts_api.agenda_insert_set(ws.ptr, self.ptr, t.ws_id, t.group_id)
+
             arts_api.agenda_add_method(c.c_void_p(self.ptr), m_id,
                                        len(args_out), arg_out_ptr,
                                        len(args_in), arg_in_ptr)
         else:
+            from typhon.arts.workspace.variables import WorkspaceVariable
+
+            name_out = WorkspaceVariable.get_variable_name(args_out[0])
+            name_in = WorkspaceVariable.get_variable_name(args_in[0])
+            wsv_out = getattr(ws, name_out)
+            wsv_in  = getattr(ws, name_in)
+
+            ws.Copy(wsv_out, wsv_in)
+
             group_id = arts_api.get_variable(args_out[0]).group
             arts_api.agenda_insert_set(ws.ptr, self.ptr, args_out[0], group_id)
 
