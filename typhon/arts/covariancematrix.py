@@ -164,7 +164,7 @@ class CovarianceMatrix(object):
     #
 
     @classmethod
-    def __from_variable_value_struct__(cls, ws, s):
+    def __from_variable_value_struct__(cls, s):
         """
         Implements ARTS-API interface for returning objects from
         an ARTS workspace.
