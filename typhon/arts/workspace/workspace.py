@@ -298,11 +298,13 @@ class Workspace:
         # Create WSV in ARTS Workspace
         group_id = WorkspaceVariable.get_group_id(var)
         ws_id    = arts_api.add_variable(self.ptr, group_id, None)
+        v        = arts_api.get_variable(ws_id)
         wsv      = WorkspaceVariable(ws_id,
-                                     str(id(var)),
+                                     "_" + v.name.decode(),
                                      group_names[group_id],
                                      "User defined variable.",
                                      self)
+
         # Set WSV value using the ARTS C API
         s  = VariableValueStruct(var)
         if s.ptr:
