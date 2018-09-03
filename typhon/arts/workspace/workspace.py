@@ -271,6 +271,31 @@ class Workspace:
         for t in ts[::-1]:
             t.erase()
 
+    def create_variable(self, group, name):
+        """
+        Create a workspace variable.
+
+        Args:
+
+            group: The group name of the variable to create.
+
+            name: The name of the variable to create. If None, the
+            ARTS API will assign a unique name.
+
+        """
+        if not name is None:
+            name = name.encode()
+
+        group_id = group_ids[group]
+        ws_id    = arts_api.add_variable(self.ptr, group_id, name)
+        v        = arts_api.get_variable(ws_id)
+        wsv      = WorkspaceVariable(ws_id,
+                                     v.name.decode(),
+                                     group_names[group_id],
+                                     "User defined variable.",
+                                     self)
+        return wsv
+
     def add_variable(self, var):
         """
         This will try to copy a given python variable to the ARTS workspace and
@@ -296,22 +321,16 @@ class Workspace:
             return var
 
         # Create WSV in ARTS Workspace
-        group_id = WorkspaceVariable.get_group_id(var)
-        ws_id    = arts_api.add_variable(self.ptr, group_id, None)
-        v        = arts_api.get_variable(ws_id)
-        wsv      = WorkspaceVariable(ws_id,
-                                     "_" + v.name.decode(),
-                                     group_names[group_id],
-                                     "User defined variable.",
-                                     self)
+        group = group_names[WorkspaceVariable.get_group_id(var)]
+        wsv = self.create_variable(group, None)
 
         # Set WSV value using the ARTS C API
         s  = VariableValueStruct(var)
         if s.ptr:
 
-            e = arts_api.set_variable_value(self.ptr, ws_id, group_id, s)
+            e = arts_api.set_variable_value(self.ptr, wsv.ws_id, wsv.group_id, s)
             if e:
-                arts_api.erase_variable(self.ptr, ws_id, group_id)
+                arts_api.erase_variable(self.ptr, wsv.ws_id, wsv.group_id)
                 raise Exception("Setting of workspace variable through C API "
                                 " failed with  the " + "following error:\n"
                                 + e.decode("utf8"))
@@ -375,10 +394,15 @@ class Workspace:
             self.__dict__[name] = value
             return None
 
-        # Hanle empty list of None values.
+        # Handle empty list or None values.
         if value == [] or value is None:
             arts_api.set_variable_value(self.ptr, v.ws_id, v.group_id,
                                         VariableValueStruct.empty())
+            return None
+
+        if type(value) == Agenda:
+            arts_api.set_variable_value(self.ptr, v.ws_id, v.group_id,
+                                        VariableValueStruct(value))
             return None
 
         t = self.add_variable(value)
