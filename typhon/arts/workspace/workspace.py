@@ -173,7 +173,9 @@ def arts_agenda(func):
             # Extract keyword arguments
             kwargs = dict()
             for k in call.keywords:
-                kwargs[k.arg] = eval(compile(Expression(k.value), "<unknown>", 'eval'), context)
+                kwargs[k.arg] = eval(
+                    compile(Expression(k.value), "<unknown>", 'eval'),
+                    context)
 
             # Add function to agenda
             agenda.add_method(*args, **kwargs)

@@ -74,6 +74,8 @@ class Agenda:
 
             **kwargs: Key-word arguments of the WSM call to add to the agenda.
         """
+        from typhon.arts.workspace.variables import group_names
+
         if len(args) < 3:
             raise Exception("Need at least self, a workspace and the method to"
                             " add as arguments.")
@@ -87,7 +89,7 @@ class Agenda:
                              c.POINTER(c.c_long))
         arg_in_ptr = c.cast((c.c_long * len(args_in))(*args_in),
                             c.POINTER(c.c_long))
-        if not m.name[-3:] == "Set":
+        if not m.name[-3:] == "Set" or not m.name[:-3] in group_names:
 
             for t in temps:
                 arts_api.agenda_insert_set(ws.ptr, self.ptr, t.ws_id, t.group_id)
