@@ -65,6 +65,17 @@ class WorkspaceVariable:
     def __str__(self):
         return self.__repr__()
 
+    def __setattr__(self, name, value):
+
+        if name == "value":
+            if self.ws is None:
+                raise Exception("Cannot set value of WSV without associated "
+                                " workspace.")
+            else:
+                self.ws.__setattr__(self.name, value)
+        else:
+            super().__setattr__(name, value)
+
     def print(self):
         """ Print variable value using ARTS Print(...) WSM.
 

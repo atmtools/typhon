@@ -236,3 +236,22 @@ class TestWorkspace:
         self.ws.f_grid = np.array([94e9])
         self.ws.f_grid = []
         assert self.ws.f_grid.value.size == 0
+
+    def test_variable_creation(self):
+
+        # Unnamed variable
+        wsv = self.ws.create_variable("Matrix", None)
+        self.ws.__setattr__(wsv.name, np.eye(5))
+        assert np.all(np.isclose(np.eye(5),
+                                 self.ws.__getattr__(wsv.name).value))
+
+        # Named variable
+        wsv = self.ws.create_variable("Matrix", "matrix_wsv")
+        self.ws.matrix_wsv = np.eye(5)
+        assert np.all(np.isclose(np.eye(5), self.ws.matrix_wsv.value))
+
+    def test_wsv_setattr(self):
+        wsv = self.ws.atmosphere_dim
+        wsv.value = 12
+        assert self.ws.atmosphere_dim.value == 12
+
