@@ -280,7 +280,7 @@ class CovarianceMatrixBlockStruct(c.Structure):
     _fields_ = [("indices", 2 * c.c_long),
                 ("position", 2 * c.c_long),
                 ("dimensions", 2 * c.c_long),
-                ("ptr", c.POINTER(c.c_double)),
+                ("ptr", c.c_void_p),
                 ("nnz", c.c_long),
                 ("inner_ptr", c.POINTER(c.c_int)),
                 ("outer_ptr", c.POINTER(c.c_int))]

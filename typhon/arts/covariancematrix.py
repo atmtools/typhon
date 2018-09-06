@@ -47,7 +47,7 @@ class Block(object):
         rs, cs = list(s.position)
         m, n   = list(s.dimensions)
 
-        if s.inner_ptr == 0:
+        if not s.inner_ptr:
             s.__array_interface__ = {"shape"  : (m, n),
                                      "typestr" : "|f8",
                                      "data" : (s.ptr, False),

@@ -226,12 +226,14 @@ class TestWorkspace:
 
         ws.covmatDiagonal(out = ws.covmat_block,
                           out_inverse = ws.covmat_block,
-                          vars = np.ones(ws.p_grid.value.size))
+                          vars = 10.0 * np.ones(ws.p_grid.value.size))
         ws.covmat_sxAddBlock(block = ws.covmat_block)
         ws.covmatDiagonal(out = ws.covmat_block,
                           out_inverse = ws.covmat_block,
-                          vars = np.ones(ws.p_grid.value.size))
+                          vars = 20.0 * np.ones(ws.p_grid.value.size))
         ws.covmat_sxAddBlock(block = ws.covmat_block)
+
+
 
     def test_variable_set_empty(self):
         self.ws.f_grid = np.array([94e9])
