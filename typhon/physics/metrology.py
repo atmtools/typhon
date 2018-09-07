@@ -3,7 +3,7 @@
 All functions in this module need sympy.
 """
 
-# Any commits made to this module between 2015-05-01 and 2017-03-01
+# Any commits made to this module between 2015-05-01 and 2019-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and
 # Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
 # Grant agreement: 638822
@@ -11,11 +11,13 @@ All functions in this module need sympy.
 # All those contributions are dual-licensed under the MIT license for use
 # in typhon, and the GNU General Public License version 3.
 
+import itertools
 import warnings
 
 def express_uncertainty(expr, aliases={}, on_failure="raise",
         collect_failures=None, return_sensitivities=False,
-        return_components=False):
+        return_components=False,
+        correlated_terms=()):
     """For a sympy expression, calculate uncertainty.
 
     Uncertainty is given in the Guides to Uncertainties and Measurements
@@ -25,9 +27,6 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
     This takes all free symbols.  If you have IndexedBase symbols, you may
     want to pass them into aliases {free_symbol:
     indexed_base_symbol[index]} is this is not identified automatically.
-
-    Limitation: currently assumes all arguments of the expression have
-    uncorrelated errors!
 
     Arguments:
         
@@ -46,6 +45,10 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
             component of evaluated uncertainty per argument/effect.
             Only considers uncorrelated part (which is the only thing
             implemented so far anyway).
+        correlated_terms (Sequence[Symbol]): Sequence of symbols for which
+            covariances will be included in the expression.  Passing a
+            sequence with less than two elements means no covariances are
+            considered.
 
     Returns:
         
@@ -84,6 +87,11 @@ def express_uncertainty(expr, aliases={}, on_failure="raise",
                     "IGNORING uncertainty on {!s}!  Derivative failed with: "
                     "{:s}".format(expr, sym, v.args[0]))
                 collect_failures.add(sym)
+    # add cross-terms following Eq. 13 in the GUM
+    for (sym_i, sym_j) in {x
+            for x in itertools.product(correlated_terms, correlated_terms)
+            if str(x[0])<str(x[-1])}:
+        rv += 2 * sensitivities[sym_i] * sensitivities[sym_j] * u(sym_i, sym_j)
     unc = sympy.sqrt(rv)
     if return_sensitivities and return_components:
         return (unc, sensitivities, components)
