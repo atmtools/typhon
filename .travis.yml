@@ -2,18 +2,22 @@ language: python
 python:
   - 3.6
 env:
-  - RUN_PEP8=0
-  - RUN_PEP8=1
+  - CONFIG=TEST
+  - CONFIG=PEP8
 matrix:
   fast_finish: true
   allow_failures:
-    - env: RUN_PEP8=1
+    - env: CONFIG=PEP8
 install:
   - pip install .[tests]
 script:
-  - pytest
   - |
-    if [[ "${RUN_PEP8}" == "1" ]]; then
-      pip install flake8
-      flake8 --statistics
-    fi
+    case ${CONFIG} in
+      TEST)
+        pytest
+        ;;
+      PEP8)
+        pip install flake8
+        flake8 --statistics
+        ;;
+    esac
