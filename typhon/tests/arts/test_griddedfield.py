@@ -285,6 +285,13 @@ class TestGriddedFieldLoad:
         # Grids should not be the same object.
         assert a.grids is not b.grids
 
+    def test_from_xarray(self):
+        a = xml.load(self.ref_dir + 'GriddedField3.xml')
+        a.dataname = 'Testdata'
+        da = a.to_xarray()
+        b = griddedfield.GriddedField.from_xarray(da)
+        assert a == b
+
 
 class TestGriddedFieldWrite:
     def setup_method(self):
