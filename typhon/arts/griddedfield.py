@@ -82,7 +82,8 @@ class GriddedField(object):
 
     def __eq__(self, other):
         """Test the equality of GriddedFields."""
-        if isinstance(other, self.__class__):
+        if (isinstance(other, self.__class__) or
+                isinstance(self, other.__class__)):
             # Check each attribute after another for readabilty.
             # Return as soon as possible for performance.
             if self.name != other.name:
