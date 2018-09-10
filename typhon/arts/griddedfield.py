@@ -513,6 +513,7 @@ class GriddedField(object):
                 if len(coor)>0})
         if self.name is not None:
             da.name = self.name
+        da.attrs['data_name'] = self.dataname
         return da
 
     @classmethod
