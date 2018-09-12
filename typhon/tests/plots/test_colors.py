@@ -7,6 +7,7 @@ from tempfile import mkstemp
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 from typhon.plots import colors
 
@@ -75,6 +76,7 @@ class TestColors:
         idx = np.linspace(0, 1, 256)
         assert np.allclose(viridis(idx), cmap(idx), atol=0.004)
 
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
     def test_mpl_colors(self):
         """Check colormap to RGB conversion."""
         ref = np.loadtxt(os.path.join(self.ref_dir, 'viridis.txt'),
