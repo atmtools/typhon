@@ -82,7 +82,8 @@ class GriddedField(object):
 
     def __eq__(self, other):
         """Test the equality of GriddedFields."""
-        if isinstance(other, self.__class__):
+        if (isinstance(other, self.__class__) or
+                isinstance(self, other.__class__)):
             # Check each attribute after another for readabilty.
             # Return as soon as possible for performance.
             if self.name != other.name:
@@ -513,6 +514,7 @@ class GriddedField(object):
                 if len(coor)>0})
         if self.name is not None:
             da.name = self.name
+        da.attrs['data_name'] = self.dataname
         return da
 
     @classmethod
@@ -579,6 +581,31 @@ class GriddedField(object):
         if 'name' in xmlelement[-1].attrib:
             obj.dataname = xmlelement[-1].attrib['name']
 
+        obj.check_dimension()
+        return obj
+
+    @classmethod
+    def from_xarray(cls, da):
+        """Create GriddedField from a xarray.DataArray object.
+
+        The data and its dimensions are returned as a :class:`GriddedField` object.
+        The DataArray name is used as name for the gridded field. If the attribute
+        `data_name` is present, it is used as `dataname` on the :class:`GriddedField`.
+
+        Parameters:
+            da (xarray.DataArray): xarray.DataArray containing the dimensions and data.
+
+        Returns:
+            GriddedField object.
+
+        """
+        obj = cls(da.ndim)
+        obj.grids = [da[c].values for c in da.dims]
+        obj.gridnames = list(da.dims)
+        obj.data = da.values
+        obj.dataname = da.attrs.get('data_name', 'Data')
+        if da.name:
+            obj.name = da.name
         obj.check_dimension()
         return obj
 
