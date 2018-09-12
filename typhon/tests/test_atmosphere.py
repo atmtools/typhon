@@ -2,10 +2,12 @@
 """Testing the functions in typhon.atmosphere.
 """
 import numpy as np
+import pytest
 
 from typhon import atmosphere
 
 
+@pytest.mark.filterwarnings('ignore::DeprecationWarning')
 class TestAtmosphere:
     """Testing the atmosphere functions."""
     def test_iwv(self):
