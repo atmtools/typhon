@@ -397,7 +397,7 @@ class Workspace:
             return None
 
         # Handle empty list or None values.
-        if value == [] or value is None:
+        if value is None or (isinstance(value, list) and not value):
             arts_api.set_variable_value(self.ptr, v.ws_id, v.group_id,
                                         VariableValueStruct.empty())
             return None
