@@ -178,8 +178,8 @@ class WorkspaceVariable:
         else:
             raise ValueError("Type " + str(type(value)) + " currently not supported.")
 
-    @staticmethod
-    def convert(group, value):
+    @classmethod
+    def convert(cls, group, value):
         """ Tries to convert a given python object to an object of the python class
         representing the given ARTS WSV group.
 
@@ -202,6 +202,15 @@ class WorkspaceVariable:
             return np.array(value, dtype=np.float64, order='C', ndmin=1)
         if (group == "Matrix"):
             return np.array(value, dtype=np.float64, order='C', ndmin=2)
+        if (group[:6] == "Tensor"):
+            dim = int(group[6])
+            return np.array(value, dtype=np.float64, order='C', ndmin=dim)
+        if group.startswith("ArrayOf"):
+            subgroup = group[7:]
+            if hasattr(value, "__iter__"):
+                return [cls.convert(subgroup, v) for v in value]
+            else:
+                return [cls.convert(subgroup, value)]
         return None
 
     @staticmethod

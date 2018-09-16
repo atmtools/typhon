@@ -7,6 +7,7 @@ import scipy as sp
 
 try:
     from typhon.arts.workspace import Workspace, arts_agenda
+    from typhon.arts.workspace.variables import WorkspaceVariable
 except:
     skip_arts_tests = True
 else:
@@ -255,3 +256,30 @@ class TestWorkspace:
         wsv.value = 12
         assert self.ws.atmosphere_dim.value == 12
 
+    def test_convert(self):
+
+        v = WorkspaceVariable.convert("Index", 1.2)
+        assert(v == 1)
+
+        v = WorkspaceVariable.convert("String", "string")
+        assert(v == "string")
+
+        v = WorkspaceVariable.convert("Numeric", 1)
+        assert(type(v) == np.float64)
+
+        v = WorkspaceVariable.convert("Vector", 1.0)
+        assert(v.shape == (1,))
+
+        v = WorkspaceVariable.convert("Matrix", 1.0)
+        assert(v.shape == (1, 1))
+
+        v = WorkspaceVariable.convert("Tensor3", 1.0)
+        assert(v.shape == (1, 1, 1))
+
+        v = WorkspaceVariable.convert("Tensor6", 1.0)
+        assert(v.shape == (1, 1, 1, 1, 1, 1))
+
+        v = WorkspaceVariable.convert("ArrayOfArrayOfIndex", 1.0)
+        assert(type(v) == list)
+        assert(type(v[0]) == list)
+        assert(type(v[0][0]) == int)
