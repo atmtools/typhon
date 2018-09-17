@@ -14,6 +14,7 @@ Attributes:
 """
 
 import ctypes as c
+import os
 import numpy as np
 import re
 import scipy as sp
@@ -22,6 +23,7 @@ import tempfile
 from typhon.arts.workspace.api import arts_api
 from typhon.arts.workspace.agendas import Agenda
 from typhon.arts.xml.names import tensor_names
+
 
 class WorkspaceVariable:
     """
@@ -365,10 +367,11 @@ class WorkspaceVariable:
         if not self.ws:
             raise Exception("Cannot retrieve the value of a variable without "
                             + " associated Workspace.")
-        tmp = tempfile.NamedTemporaryFile()
-        self.ws.WriteXML("ascii", self, tmp.name)
-        v = load(tmp.name)
-        tmp.close()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tfile = os.path.join(tmpdir, 'wsv.xml')
+            self.ws.WriteXML("binary", self, tfile)
+            v = load(tfile)
+
         return v
 
     def from_typhon(self, var):
@@ -387,9 +390,10 @@ class WorkspaceVariable:
         if not self.ws:
             raise Exception("Cannot set the value of a variable without "
                             + " associated Workspace.")
-        tmp = tempfile.NamedTemporaryFile()
-        save(var, tmp.name)
-        self.ws.ReadXML(self, tmp.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tfile = os.path.join(tmpdir, 'wsv.xml')
+            save(var, tfile, format='binary')
+            self.ws.ReadXML(self, tfile)
 
 
 # Get ARTS WSV groups
