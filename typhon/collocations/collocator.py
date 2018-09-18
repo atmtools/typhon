@@ -65,12 +65,7 @@ class Collocator:
             name: The name of this collocator, will be used in log statements.
         """
 
-        # If no collocations are found, this will be returned. We need empty
-        # arrays to concatenate the results without problems:
         self.empty = None  # xr.Dataset()
-        self.no_pairs = np.array([[], []])
-        self.no_intervals = np.array([], dtype='timedelta64[ns]')
-        self.no_distances = np.array([])
 
         self.index = None
         self.index_with_primary = False
@@ -85,6 +80,20 @@ class Collocator:
 
         self.verbose = verbose
         self.name = name if name is not None else "Collocator"
+
+    # If no collocations are found, this will be returned. We need empty
+    # arrays to concatenate the results without problems:
+    @property
+    def no_pairs(self):
+        return np.array([[], []])
+
+    @property
+    def no_intervals(self):
+        return np.array([], dtype='timedelta64[ns]')
+
+    @property
+    def no_distances(self):
+        return np.array([])
 
     def __call__(self, *args, **kwargs):
         return self.collocate(*args, **kwargs)
@@ -298,12 +307,7 @@ class Collocator:
 
         while not errors.empty():
             error = errors.get()
-            pid = PROCESS_NAMES.index(error[0])
-            # The time period that should have be processed:
-            p_start = matches_chunks[pid][0][0].times[0]
-            p_end = matches_chunks[pid][-1][0].times[1]
             print("-"*79)
-            print(f"Failed process: {error[0]} ({p_start} - {p_end})")
             print(error[2])
             print("".join(traceback.format_tb(error[1])))
             print("-" * 79 + "\n")
@@ -350,7 +354,8 @@ class Collocator:
             and the actual results.
 
         Error Queue:
-            If an error is raised, 
+            If an error is raised, the name of this proces and the error
+            messages is put to this queue.
         """
         self.name = name
 
@@ -441,15 +446,19 @@ class Collocator:
             # Build a message that contains all important information for
             # debugging:
 
-            msg = f"Failed to collocate {matches[processed]} with"\
+            msg = f"Process {name} ({matches[0][0].times[0]} -" \
+                f"{matches[-1][0].times[1]}) failed\n" \
+                f"Failed to collocate {matches[processed]} with"\
                 f"{matches[processed]}\n"
 
             # The main process needs to know about this exception!
             error = [
                 name, exception.__traceback__,
-                msg + str(exception)
+                msg + "ERROR: " + str(exception)
             ]
             errors.put(error)
+
+            self._error(exception)
 
             # Finally, raise the exception to terminate this process:
             raise exception
@@ -1252,7 +1261,6 @@ class Collocator:
         if swapped_datasets:
             # Swap the rows of the results
             pairs[[0, 1]] = pairs[[1, 0]]
-            distances[[0, 1]] = distances[[1, 0]]
 
         return pairs.astype("int64"), distances
 
