@@ -296,6 +296,7 @@ class Workspace:
                                      group_names[group_id],
                                      "User defined variable.",
                                      self)
+        self._vars[wsv.name] = wsv
         return wsv
 
     def add_variable(self, var):
@@ -345,10 +346,11 @@ class Workspace:
                 raise Exception("Could not add variable since + "
                                 + str(type(var)) + " is neither supported by "
                                 + "the C API nor typhon XML IO.")
+        self._vars[wsv.name] = wsv
         return wsv
 
     def __dir__(self):
-        return {**workspace_variables, **self.__dict__}
+        return {**self._vars, **workspace_variables, **self.__dict__}
 
     def __getattr__(self, name):
         """ Lookup the given variable in the local variables and the ARTS workspace.
@@ -368,7 +370,7 @@ class Workspace:
         else:
             i = arts_api.lookup_workspace_variable(name.encode())
             if i < 0:
-                raise ValueError("No workspace variable " + str(name) + " found.")
+                raise AttributeError("No workspace variable " + str(name) + " found.")
             vs = arts_api.get_variable(i)
             group_id    = vs.group
             description = vs.description.decode("utf8")
