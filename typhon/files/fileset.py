@@ -1873,7 +1873,10 @@ class FileSet:
                 workers = 1
 
             for func_args in worker_args:
-                new_result = len(worker_queue) >= workers
+                wait = len(worker_queue) >= workers
+
+                if wait:
+                    yield worker_queue.popleft().result()
 
                 worker_queue.append(
                     pool.submit(
@@ -1881,9 +1884,6 @@ class FileSet:
                         func_args,
                     )
                 )
-
-                if new_result:
-                    yield worker_queue.popleft().result()
 
             # Flush the rest:
             while worker_queue:
@@ -1952,6 +1952,7 @@ class FileSet:
             for file in files
         )
 
+        print(f"{self.name}: pool with {max_workers} {worker_type}")
         return pool_class, pool_args, worker_args
 
     @staticmethod
@@ -2841,12 +2842,14 @@ class FileSet:
             )
 
         if in_background:
+            warnings.warn("in_background option is deprecated!")
+
             # Run this function again but as a background thread in a queue:
-            threading.Thread(
-                target=FileSet.write, args=(self, data, file_info),
-                kwargs=write_args.update(in_background=False),
-            ).start()
-            return
+            #threading.Thread(
+            #    target=FileSet.write, args=(self, data, file_info),
+            #    kwargs=write_args.update(in_background=False),
+            #).start()
+            #return
 
         write_args = {**self.write_args, **write_args}
 
