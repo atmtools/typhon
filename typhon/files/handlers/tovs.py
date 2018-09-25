@@ -162,11 +162,12 @@ class MHS_HDF(AAPP_HDF):
             mask_and_scale=mask_and_scale, **kwargs
         )
 
+        scnlines = dataset["scnline"].values
         dataset = dataset.assign_coords(
-            scnline=dataset["scnline"]
+             scnline=dataset["scnline"]
         )
 
-        dataset["scnline"] = np.arange(1, dataset["scnline"].size + 1)
+        dataset["scnline"] = scnlines
         dataset["scnpos"] = np.arange(1, 91)
         dataset["channel"] = "channel", np.arange(1, 6)
 
