@@ -167,7 +167,7 @@ class MHS_HDF(AAPP_HDF):
              scnline=dataset["scnline"]
         )
 
-        dataset["scnline"] = scnlines
+        dataset["scnline"] = np.arange(1, dataset.scnline.size+1)
         dataset["scnpos"] = np.arange(1, 91)
         dataset["channel"] = "channel", np.arange(1, 6)
 
@@ -258,7 +258,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
             scnline=dataset["scnline"]
         )
 
-        dataset["scnline"] = scnlines
+        dataset["scnline"] = np.arange(1, dataset.scnline.size+1)
         dataset["scnpos"] = np.arange(1, 2049)
         dataset["channel"] = "channel", np.arange(1, 6)
 
