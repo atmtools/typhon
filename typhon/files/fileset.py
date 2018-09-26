@@ -1952,7 +1952,6 @@ class FileSet:
             for file in files
         )
 
-        print(f"{self.name}: pool with {max_workers} {worker_type}")
         return pool_class, pool_args, worker_args
 
     @staticmethod
