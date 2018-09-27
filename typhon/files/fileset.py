@@ -198,24 +198,24 @@ class FileSet:
     # not deleted:
     _time_placeholder = {
         # "placeholder_name": [regex to find the placeholder]
-        "year": "\d{4}",
-        "year2": "\d{2}",
-        "month": "\d{2}",
-        "day": "\d{2}",
-        "doy": "\d{3}",
-        "hour": "\d{2}",
-        "minute": "\d{2}",
-        "second": "\d{2}",
-        "millisecond": "\d{3}",
-        "end_year": "\d{4}",
-        "end_year2": "\d{2}",
-        "end_month": "\d{2}",
-        "end_day": "\d{2}",
-        "end_doy": "\d{3}",
-        "end_hour": "\d{2}",
-        "end_minute": "\d{2}",
-        "end_second": "\d{2}",
-        "end_millisecond": "\d{3}",
+        "year": r"\d{4}",
+        "year2": r"\d{2}",
+        "month": r"\d{2}",
+        "day": r"\d{2}",
+        "doy": r"\d{3}",
+        "hour": r"\d{2}",
+        "minute": r"\d{2}",
+        "second": r"\d{2}",
+        "millisecond": r"\d{3}",
+        "end_year": r"\d{4}",
+        "end_year2": r"\d{2}",
+        "end_month": r"\d{2}",
+        "end_day": r"\d{2}",
+        "end_doy": r"\d{3}",
+        "end_hour": r"\d{2}",
+        "end_minute": r"\d{2}",
+        "end_second": r"\d{2}",
+        "end_millisecond": r"\d{3}",
     }
 
     _temporal_resolution = OrderedDict({
@@ -267,7 +267,7 @@ class FileSet:
                 string can contain placeholder such as {year}, {month},
                 etc. See below for a complete list. The direct use of
                 restricted regular expressions is also possible. Please note
-                that instead of dots '.' the asterisk '\*' is interpreted as
+                that instead of dots '.' the asterisk '\\*' is interpreted as
                 wildcard. If no placeholders are given, the path must point to
                 a file. This fileset is then seen as a single file set.
                 You can also define your own placeholders by using the
@@ -2397,7 +2397,7 @@ class FileSet:
             )[1]
 
         # Retrieve the used placeholder names from the path:
-        self._path_placeholders = set(re.findall("\{(\w+)\}", self.path))
+        self._path_placeholders = set(re.findall(r"{(\w+)}", self.path))
 
         # Set additional user-defined placeholders to default values (
         # non-greedy wildcards).
@@ -2482,7 +2482,7 @@ class FileSet:
             the representing timedelta object.
         """
         if isinstance(path_or_dict, str):
-            placeholders = set(re.findall("\{(\w+)\}", path_or_dict))
+            placeholders = set(re.findall(r"{(\w+)}", path_or_dict))
             if "doy" in placeholders:
                 placeholders.remove("doy")
                 placeholders.add("day")
@@ -2537,12 +2537,12 @@ class FileSet:
         }
 
         # Mask all dots and convert the asterisk to regular expression syntax:
-        path = path.replace("\\", "\\\\").replace(".", "\.").replace("*", ".*?")
+        path = path.replace("\\", "\\\\").replace(".", r"\.").replace("*", ".*?")
 
         # Python's standard regex module (re) cannot handle multiple groups
         # with the same name. Hence, we need to cover duplicated placeholders
         # so that only the first of them does group capturing.
-        path_placeholders = re.findall("\{(\w+)\}", path)
+        path_placeholders = re.findall(r"{(\w+)}", path)
         duplicated_placeholders = {
             p: self._remove_group_capturing(p, placeholder[p])
             for p in path_placeholders if path_placeholders.count(p) > 1

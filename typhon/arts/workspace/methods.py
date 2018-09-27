@@ -47,7 +47,7 @@ class WorkspaceMethod:
     """
 
     # Regular expression to that matches <Group>Create WSMs
-    create_regexp = re.compile("^(\w*)Create$")
+    create_regexp = re.compile(r"^(\w*)Create$")
 
     def __init__(self, m_id, name, description, outs, g_out_types, ins, g_in_types):
         """Create a WorkspaceMethod object from a given id, name, description and types of
