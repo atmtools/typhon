@@ -14,7 +14,7 @@ script:
   - |
     case ${CONFIG} in
       TEST)
-        pytest
+        pytest --pyargs typhon
         ;;
       PEP8)
         pip install flake8
