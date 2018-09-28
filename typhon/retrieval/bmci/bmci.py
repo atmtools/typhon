@@ -359,6 +359,72 @@ class BMCI:
             ws_cum = np.float("nan")
         return xs, ws_cum
 
+    def pdf(self, y_obs, x2_max = -1, n_points = 21):
+        r"""
+        A posteriori probability density function (PDF).
+
+        This function approximates the a posteriori PDF
+        :math:`p(x | \mathbf{y})`. The PDF is just a weighted histogram
+        of the retrieval values :math:`x` in the databse that are below
+        the :math:`X^2` cutoff weighted by the corresponding weight
+        :math:`w_i(\mathbf{y})`.
+
+        Args:
+
+            y_obs(numpy.array): `m`-element array containing the observation
+                                 for which to compute the posterior CDF.
+
+            x2_max(float): The :math:`\chi^2` cutoff to apply to elements in the
+                           database. Ignored if less than zero.
+
+            n_points(int): The number of points at which to estimate the PDF.
+
+        Returns:
+
+            A tuple `(xs, ys)` describing the estimated PSD.
+
+        Raises:
+
+            ValueError
+                If the number of channels in the observations is different from
+                the database.
+
+        """
+        try:
+            y_obs = y_obs.reshape(1, self.m)
+        except:
+            raise ValueError("The observation vector is inconsistent"
+                             "with the database.")
+
+        i_l, i_u, ws = self.weights(y_obs, x2_max)
+
+        inds = np.where((i_l <= self.x_sorted_inds) * (self.x_sorted_inds < i_u))
+        inds = self.x_sorted_inds[inds] - i_l
+
+        ws = ws[inds]
+        xs = self.x[i_l:i_u][inds]
+
+        ws_cum = np.cumsum(ws)
+        ws_cum /= ws_cum[-1]
+
+        i_s = np.where(ws_cum > 0.01)[0][0]
+        i_e = np.where(ws_cum > 0.99)[0][0]
+
+        x_t = np.linspace(xs[i_s], xs[i_e], n_points - 1)
+
+        y = np.zeros(n_points)
+        y[1:-1], _ = np.histogram(xs,
+                                  weights = ws.ravel(),
+                                  normed = True,
+                                  bins = x_t)
+
+        x = np.zeros(n_points)
+        x[0] = xs[max(i_s, 0)]
+        x[-1] = xs[min(i_e, xs.size - 1)]
+        x[1:-1] = 0.5 * (x_t[1:] + x_t[:-1])
+
+        return x, y
+
     def predict_quantiles(self, y_obs, quantiles, x2_max = -1):
         r"""
         This estimates the quantiles given in `quantiles` by approximating

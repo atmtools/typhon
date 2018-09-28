@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
 import copy
 import os
 import pickle
@@ -754,6 +755,87 @@ class QRNN:
 
         return y_pred, qs
 
+    def pdf(self, x, use_splines = False):
+        r"""
+        Approximate the posterior probability density function (PDF) for given
+        inputs `x`.
+
+        By default, the PDF is approximated by computing the derivative of the
+        piece-wise linear approximation of the CDF as computed by the :code:`cdf`
+        function.
+
+        If :code:`use_splines` is set to :code:`True`, the PDF is computed from
+        a spline fit to the approximate CDF.
+
+        Arguments:
+
+            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
+                         to predict the conditional quantiles.
+
+            use_splines(bool): Whether or not to use a spline fit to the CDF to
+            approximate the PDF.
+
+        Returns:
+
+            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
+            values of the approximate posterior PDF :math: `F(x)` in `fs`.
+
+        """
+
+        y_pred = np.zeros(self.quantiles.size)
+        y_pred = self.predict(x).ravel()
+
+        y = np.zeros(y_pred.size + 1)
+        y[1:-1] = 0.5 * (y_pred[1:] + y_pred[:-1])
+        y[0] = 2 * y_pred[0] - y_pred[1]
+        y[-1] = 2 * y_pred[-1] - y_pred[-2]
+
+        if not use_splines:
+
+            p = np.zeros(y.size)
+            p[1:-1] = np.diff(self.quantiles) / np.diff(y_pred)
+        else:
+
+            y = np.zeros(y_pred.size + 2)
+            y[1:-1] = y_pred
+            y[0] = 3 * y_pred[0] - 2 * y_pred[1]
+            y[-1] = 3 * y_pred[-1] - 2 * y_pred[-2]
+            q = np.zeros(self.quantiles.size + 2)
+            q[1:-1] = np.array(self.quantiles)
+            q[0] = 0.0
+            q[-1] = 1.0
+
+            sr = CubicSpline(y, q, bc_type = "clamped")
+            y = np.linspace(y[0], y[-1], 101)
+            p = sr(y, nu = 1)
+
+        return y, p
+
+
+        y_pred = np.zeros(self.quantiles.size + 2)
+        y_pred[1:-1] = self.predict(x)
+        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
+        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
+
+        if use_splines:
+            x_t = np.zeros(x.size + 2)
+            x_t[1:-1] = x
+            x_t[0] = 2 * x[0] - x[1]
+            x_t[-1] = 2 * x[-1] - x[-2]
+            y_t = np.zeros(y.size + 2)
+            y_t[1:-1] = y
+            y_t[-1] = 1.0
+
+        else:
+            print(y)
+            x_new = np.zeros(x.size - 1)
+            x_new[2:-2] = 0.5 * (x[2:-3] + x[3:-2])
+            x_new[0:2] = x[0:2]
+            x_new[-2:] = x[-2:]
+            y_new = np.zeros(y.size - 1)
+            y_new[1:-1] = np.diff(y[1:-1]) / np.diff(x[1:-1])
+        return x_new, y_new
+
     def sample_posterior(self, x, n=1):
         r"""
         Generates :code:`n` samples from the estimated posterior
@@ -904,6 +986,7 @@ class QRNN:
         qrnn = pickle.load(f)
         qrnn.models = []
         for mf in qrnn.model_files:
+            mf = os.path.basename(mf)
             try:
                 mp = os.path.join(dirname, os.path.basename(mf))
                 qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
