@@ -1,9 +1,9 @@
-import os
-import gzip
 import bz2
-import zipfile
+import gzip
+import os
 import shutil
 import tempfile
+import zipfile
 from contextlib import contextmanager
 
 __all__ = [
@@ -224,3 +224,30 @@ def is_compression_format(fmt):
         True if *fmt* is a compression format.
     """
     return fmt in _known_compressions
+
+
+def get_testfiles_directory(subdir=None):
+    """Return the location of extra test input files.
+
+    The location of typhon-testfiles can be set with the environment variable
+    TYPHONTESTFILES. If not set, this function will also check for the directory
+    on the same level where the typhon directory is located. The latter one will
+    only work if typhon is installed in developer mode.
+
+    Parameters:
+        subdir (str): Optional subdir appended to the return path.
+
+    Returns:
+        None if the typhon-testfiles repository cannot be found.
+        Otherwise returns the full path with the appended subdir.
+    """
+    from typhon import __path__ as typhonpath
+    testfiles_path = os.environ.get("TYPHONTESTFILES",
+                                    os.path.join(typhonpath[0], "..", "..",
+                                                 "typhon-testfiles"))
+    if subdir is not None:
+        testfiles_path = os.path.join(testfiles_path, subdir)
+    if os.path.exists(testfiles_path):
+        return os.path.realpath(testfiles_path)
+    else:
+        return None
