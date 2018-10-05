@@ -14,6 +14,8 @@ install:
   - conda update -q conda
   - pip install pytest
   - pip install .
+  - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
+  - "set TYPHONTESTFILES=%cd%\\typhon-testfiles"
 
 test_script:
   - pytest --pyargs typhon
