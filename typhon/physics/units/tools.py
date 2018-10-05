@@ -125,6 +125,9 @@ class UnitsAwareDataArray(xarray.DataArray):
     def mean(self, *args, **kwargs):
         return self._reduce("mean", *args, **kwargs)
 
+    def median(self, *args, **kwargs):
+        return self._reduce("median", *args, **kwargs)
+
     def to(self, new_unit, *contexts, **kwargs):
         """Convert to other unit.
 
