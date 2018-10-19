@@ -24,14 +24,26 @@ def _create_tensor(n):
     return np.arange(2 ** n).reshape(2 * np.ones(n).astype(int))
 
 
+def _get_griddedfield_type(dim):
+    """Return the appropriate `GriddedField` type for given dimension."""
+    return {
+        1: griddedfield.GriddedField1,
+        2: griddedfield.GriddedField2,
+        3: griddedfield.GriddedField3,
+        4: griddedfield.GriddedField4,
+        5: griddedfield.GriddedField5,
+        6: griddedfield.GriddedField6,
+    }.get(dim)
+
+
 class TestGriddedFieldUsage:
     ref_dir = os.path.join(os.path.dirname(__file__), "reference", "")
 
-    def test_check_init(self):
+    @pytest.mark.parametrize("dim", range(1, 7))
+    def test_check_init(self, dim):
         """Test initialisation of GriddedFields."""
-        for dim in np.arange(1, 8):
-            gf = griddedfield._GriddedField(dim)
-            assert gf.dimension == dim
+        cls = _get_griddedfield_type(dim)
+        assert cls().dimension == dim
 
     def test_check_dimension1(self):
         """Test if grid and data dimension agree (positive)."""
@@ -303,9 +315,9 @@ class TestGriddedFieldWrite:
         """Delete temporary file."""
         os.remove(self.f)
 
-    @pytest.mark.parametrize("dim", range(1, 8))
+    @pytest.mark.parametrize("dim", range(1, 7))
     def test_write_load_griddedfield(self, dim):
-        gf = griddedfield._GriddedField(dim)
+        gf = _get_griddedfield_type(dim)()
         gf.grids = [np.arange(2)] * dim
         gf.data = _create_tensor(dim)
         xml.save(gf, self.f)
