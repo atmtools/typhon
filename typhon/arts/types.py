@@ -8,7 +8,6 @@ from .griddedfield import (GriddedField1,
                            GriddedField4,
                            GriddedField5,
                            GriddedField6,
-                           GriddedField7,
                            )
 from .covariancematrix import (CovarianceMatrix)
 from .scattering import (SingleScatteringData,
@@ -49,7 +48,6 @@ classes = {
     'GriddedField4': GriddedField4,
     'GriddedField5': GriddedField5,
     'GriddedField6': GriddedField6,
-    'GriddedField7': GriddedField7,
     'LineMixingRecord': LineMixingRecord,
     'QuantumIdentifier': QuantumIdentifier,
     'QuantumNumberRecord': QuantumNumberRecord,
