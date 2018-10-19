@@ -716,9 +716,10 @@ def griddedfield_from_netcdf(ncfile, **kwargs):
     Parameters:
         ncfile (str): Path to netCDF file.
         **kwargs: Additional keyword arguments are passed
-            to `_GriddedField.from_nc`.
+            to the :func:`~GriddedField1.from_nc` method.
 
-    Returns: Appropriate ARTS GriddedField.
+    Returns:
+        : Appropriate ARTS GriddedField.
     """
     with netCDF4.Dataset(ncfile) as root:
         cls = _griddedfield_from_ndim(root.ndim)
@@ -727,11 +728,13 @@ def griddedfield_from_netcdf(ncfile, **kwargs):
 
 
 def griddedfield_from_xarray(dataarray):
-    """Convert ``xr.DataArray`` to ARTS ``GriddedField``.
+    """Convert :class:`xarray.DataArray` to ARTS ``GriddedField``.
 
     Parameters:
-        da (``xr.DataArray``): ``xr.DataArray`` containing dimensions and data.
+        da (:class:`xarray.DataArray`): :class:`~xarray.DataArray` containing
+            dimensions and data.
 
-    Returns: Appropriate ARTS GriddedField.
+    Returns:
+        : Appropriate ARTS GriddedField.
     """
     return _griddedfield_from_ndim(dataarray.ndim).from_xarray(dataarray)
