@@ -30,7 +30,7 @@ class TestGriddedFieldUsage:
     def test_check_init(self):
         """Test initialisation of GriddedFields."""
         for dim in np.arange(1, 8):
-            gf = griddedfield.GriddedField(dim)
+            gf = griddedfield._GriddedField(dim)
             assert gf.dimension == dim
 
     def test_check_dimension1(self):
@@ -289,7 +289,7 @@ class TestGriddedFieldLoad:
         a = xml.load(self.ref_dir + 'GriddedField3.xml')
         a.dataname = 'Testdata'
         da = a.to_xarray()
-        b = griddedfield.GriddedField.from_xarray(da)
+        b = griddedfield.GriddedField3.from_xarray(da)
         assert a == b
 
 
@@ -305,7 +305,7 @@ class TestGriddedFieldWrite:
 
     @pytest.mark.parametrize("dim", range(1, 8))
     def test_write_load_griddedfield(self, dim):
-        gf = griddedfield.GriddedField(dim)
+        gf = griddedfield._GriddedField(dim)
         gf.grids = [np.arange(2)] * dim
         gf.data = _create_tensor(dim)
         xml.save(gf, self.f)

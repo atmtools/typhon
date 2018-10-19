@@ -2,24 +2,27 @@
 import copy
 import numbers
 
+import netCDF4
 import numpy as np
 import xarray
 from scipy import interpolate
 
 from .utils import return_if_arts_type, get_arts_typename
 
-__all__ = ['GriddedField',
-           'GriddedField1',
-           'GriddedField2',
-           'GriddedField3',
-           'GriddedField4',
-           'GriddedField5',
-           'GriddedField6',
-           'GriddedField7',
-           ]
+__all__ = [
+    'GriddedField1',
+    'GriddedField2',
+    'GriddedField3',
+    'GriddedField4',
+    'GriddedField5',
+    'GriddedField6',
+    'GriddedField7',
+    'griddedfield_from_netcdf',
+    'griddedfield_from_xarray',
+]
 
 
-class GriddedField(object):
+class _GriddedField:
     """:class:`GriddedField` implements the same-named ARTS dataype.
 
     This class provides the facility of storing gridded data. For this purpose
@@ -349,7 +352,7 @@ class GriddedField(object):
             axis (int): Axis to slice along.
 
         Returns:
-            :class:`typhon.arts.griddedfield.GriddedField`:
+            :class:`typhon.arts.griddedfield._GriddedField`:
                 GriddedField containing sliced grids and data.
         """
         gf = self.copy()
@@ -536,22 +539,20 @@ class GriddedField(object):
             Exception: If the variable key can't be found in the netCDF file.
 
         """
-        from netCDF4 import Dataset
-        nc = Dataset(inputfile)
+        with netCDF4.Dataset(inputfile) as nc:
+            if variable not in nc.variables:
+                raise Exception('netCDF file has no variable {}.'.format(variable))
 
-        if variable not in nc.variables:
-            raise Exception('netCDF file has no variable {}.'.format(variable))
+            data = nc.variables[variable]
 
-        data = nc.variables[variable]
+            obj = cls()
+            obj.grids = [nc.variables[dim][:] for dim in data.dimensions]
+            obj.gridnames = [dim for dim in data.dimensions]
 
-        obj = cls(data.ndim)
-        obj.grids = [nc.variables[dim][:] for dim in data.dimensions]
-        obj.gridnames = [dim for dim in data.dimensions]
-
-        if isinstance(data[:], np.ma.MaskedArray):
-            obj.data = data[:].filled(fill_value=fill_value)
-        else:
-            obj.data = data[:]
+            if isinstance(data[:], np.ma.MaskedArray):
+                obj.data = data[:].filled(fill_value=fill_value)
+            else:
+                obj.data = data[:]
 
         obj.check_dimension()
 
@@ -599,7 +600,7 @@ class GriddedField(object):
             GriddedField object.
 
         """
-        obj = cls(da.ndim)
+        obj = cls()
         obj.grids = [da[c].values for c in da.dims]
         obj.gridnames = list(da.dims)
         obj.data = da.values
@@ -655,50 +656,75 @@ class GriddedField(object):
         xmlwriter.close_tag()
 
 
-class GriddedField1(GriddedField):
+class GriddedField1(_GriddedField):
     """GriddedField with 1 dimension."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField1, self).__init__(1, *args, **kwargs)
 
 
-class GriddedField2(GriddedField):
+class GriddedField2(_GriddedField):
     """GriddedField with 2 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField2, self).__init__(2, *args, **kwargs)
 
 
-class GriddedField3(GriddedField):
+class GriddedField3(_GriddedField):
     """GriddedField with 3 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField3, self).__init__(3, *args, **kwargs)
 
 
-class GriddedField4(GriddedField):
+class GriddedField4(_GriddedField):
     """GriddedField with 4 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField4, self).__init__(4, *args, **kwargs)
 
 
-class GriddedField5(GriddedField):
+class GriddedField5(_GriddedField):
     """GriddedField with 5 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField5, self).__init__(5, *args, **kwargs)
 
 
-class GriddedField6(GriddedField):
+class GriddedField6(_GriddedField):
     """GriddedField with 6 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField6, self).__init__(6, *args, **kwargs)
 
 
-class GriddedField7(GriddedField):
+class GriddedField7(_GriddedField):
     """GriddedField with 7 dimensions."""
 
     def __init__(self, *args, **kwargs):
         super(GriddedField7, self).__init__(7, *args, **kwargs)
+
+
+def _griddedfield_from_ndim(ndim):
+    """Determine proper GriddedField type from number of dimensions."""
+    griddefield_dimension_map = {
+        1: GriddedField1,
+        2: GriddedField2,
+        3: GriddedField3,
+        4: GriddedField4,
+        5: GriddedField5,
+        6: GriddedField6,
+        7: GriddedField7,
+    }
+    return griddefield_dimension_map[ndim]
+
+
+def griddedfield_from_netcdf(ncfile, variable, **kwargs):
+    with netCDF4.Dataset(ncfile) as root:
+        cls = _griddedfield_from_ndim(root.ndim)
+
+    return cls.from_nc(ncfile, variable, **kwargs)
+
+
+def griddedfield_from_xarray(dataarray):
+    return _griddedfield_from_ndim(dataarray.ndim).from_xarray(dataarray)
