@@ -74,3 +74,22 @@ class TestAtmosphere:
         isa = atmosphere.standard_atmosphere
 
         assert np.isclose(isa(1000e2, coordinates='pressure'), 288.0527)
+
+    def test_pressure2height(self):
+        """Test conversion from atmospheric pressure to height."""
+        p = np.array([1000e2, 750e2, 500e2, 100e2])
+
+        z = atmosphere.pressure2height(p)
+        z_ref = np.array([2107.945, 4783.644, 10749.031, 36115.850])
+
+        assert np.allclose(z, z_ref)
+
+    def test_pressure2height_with_T(self):
+        """Test conversion from atmospheric pressure to height."""
+        p = np.array([1000e2, 750e2, 500e2, 100e2])
+        T = np.array([288, 275, 255, 215])
+
+        z = atmosphere.pressure2height(p, T=T)
+        z_ref = np.array([2107.559, 4790.794, 10762.213, 35935.839])
+
+        assert np.allclose(z, z_ref)

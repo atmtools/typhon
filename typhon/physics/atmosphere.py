@@ -16,6 +16,7 @@ __all__ = [
     'integrate_water_vapor',
     'moist_lapse_rate',
     'standard_atmosphere',
+    'pressure2height',
 ]
 
 
@@ -212,3 +213,32 @@ def standard_atmosphere(z, coordinates='height'):
             'Use "height" or "pressure".')
 
     return interp1d(z_ref, temp + constants.K, fill_value='extrapolate')(z)
+
+
+def pressure2height(p, T=None):
+    r"""Convert pressure to height based on the hydrostatic equilibrium.
+
+    .. math::
+       z = \int -\frac{\mathrm{d}p}{\rho g}
+
+    Parameters:
+        p (ndarray): Pressure [Pa].
+        T (ndarray): Temperature [K].
+            If ``None`` the standard atmosphere is assumed.
+
+    See also:
+        :func:`~typhon.physics.standard_atmosphere`:
+            Standard atmospheric temperature profile as function of pressure.
+
+    Returns:
+        ndarray: Height [m].
+    """
+    if T is None:
+        T = standard_atmosphere(p, coordinates='pressure')
+
+    dp = np.diff(p)
+    dp = np.hstack([dp, dp[-1]])
+    rho = thermodynamics.density(p, T)
+    g = constants.earth_standard_gravity
+
+    return np.cumsum(-dp / (rho * g))

@@ -22,6 +22,7 @@ physics
    planck
    planck_wavelength
    planck_wavenumber
+   pressure2height
    radiance2planckTb
    radiance2rayleighjeansTb
    rayleighjeans
