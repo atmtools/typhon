@@ -206,6 +206,41 @@ class SRF(FwmuMixin):
         response = gfs[ch - 1].data
         return cls(freq, response)
 
+    @classmethod
+    def fromRTTOV(cls, sat, instr, ch):
+        """Read SRF from RTTOV format files.
+
+        Requires that in the TYPHONRC configuration file, the fields
+        'srf_rttov' in the section corresponding to instrument `instr` are
+        defined to point to the respective files in RTTOV format.  Within
+        those definitions, {sat:s} will be substituted with the satellite
+        name and {ch:>02d} with the channel number.  For example, in
+        typhonrc, we might have:
+
+        [hirs]
+        srf_rttov = /path/to/rtcoef_{sat:s}_hirs-shifted_src_ch{ch:>02d}.txt
+
+        Arguments:
+
+            sat [str]
+
+                Satellite name, such as 'noaa-15'
+
+            instr [str]
+
+                Instrument name, such as 'hirs'.
+
+            ch [int]
+
+                Channel number (start counting at 1).
+        """
+        cf = config.conf[instr]
+        M = numpy.loadtxt(cf["srf_rttov"].format(sat=sat, ch=ch),
+                          skiprows=4)
+        wn = ureg.Quantity(M[:, 0], 1/ureg.cm)
+        W = M[:, 1]
+        return cls(wn, W)
+
     def centroid(self):
         """Calculate centre frequency
         """
