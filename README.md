@@ -6,18 +6,37 @@
 
 # typhon - Tools for atmospheric research
 
-## Requirements
+## Installation
 Typhon requires Python version 3.6 or higher. The recommended way to get Python
 is through [Anaconda]. But of course, any other Python distribution is also
 working.
 
-## Installation
-The easiest way to develop typhon is to install the cloned working copy in your
-Python environment. This can be done using ``pip``:
+### Stable release
+The following command will install the latest stable release of typhon into you
+``conda`` environment:
+```bash
+$ conda install -c rttools typhon
+```
+
+### Development version
+If you want to take part in the typhon development, you have to create
+a local working copy of the typhon repository:
 ```bash
 $ git clone https://github.com/atmtools/typhon.git
 $ cd typhon
-$ pip install --user --editable .
+```
+
+Afterwards, you can use ``conda`` to install required dependencies
+and libraries:
+```bash
+$ conda config --add channels conda-forge
+$ conda install --file requirements.txt
+```
+
+Finally, ``pip`` can be used to install the cloned working copy
+to your Python environment.
+```bash
+$ pip install --no-deps --user --editable .
 ```
 
 This will install the package in editable mode (develop mode) in the user's
