@@ -2,33 +2,49 @@
 """Testing the functions in typhon.atmosphere.
 """
 import numpy as np
+import pytest
 
 from typhon.physics import atmosphere
 
 
 class TestAtmosphere:
     """Testing the atmosphere functions."""
-    def test_integrate_water_vapor(self):
-        """Test the IWV calculation."""
-        p = np.linspace(1000, 10, 10)
-        T = 300 * np.ones(p.shape)
-        z = np.linspace(0, 75000, 10)
-        vmr = 0.1 * np.ones(p.shape)
+    def test_integrate_water_vapor_hse(self):
+        """Test the IWV calculation in hydrostatic equilibrium."""
+        p = np.linspace(1000e2, 500e2, 10)
+        vmr = np.linspace(0.025, 0.0025, p.size)
+
+        iwv = atmosphere.integrate_water_vapor(vmr, p)
+
+        assert np.allclose(iwv, 43.8845)
+
+    def test_integrate_water_vapor_nonhse(self):
+        """Test the IWV calculation in non-hydrostatic atmosphere."""
+        p = np.linspace(1000e2, 500e2, 10)
+        T = 288 * np.ones(p.size)
+        z = np.linspace(0, 5000, p.size)
+        vmr = np.linspace(0.025, 0.0025, p.size)
 
         iwv = atmosphere.integrate_water_vapor(vmr, p, T, z)
 
-        assert np.allclose(iwv, 27.3551036)
+        assert np.allclose(iwv, 42.4062)
+
+    def test_integrate_water_vapor_ivalidin(self):
+        """Test invalid number of arguments to IWV calculation."""
+        dummy = np.ones(10)
+
+        with pytest.raises(ValueError):
+            atmosphere.integrate_water_vapor(dummy, dummy, dummy)
 
     def test_integrate_water_vapor_multi(self):
         """Test multidimensional IWV calculation."""
-        p = np.linspace(1000, 10, 10)
-        T = 300 * np.ones(p.shape)
-        z = np.linspace(0, 75000, 10)
-        vmr = 0.1 * np.ones((5, *p.shape))
+        p = np.linspace(1000e2, 500e2, 10)
+        vmr = np.linspace(0.025, 0.0025, p.size)
+        vmr_multi = np.repeat(vmr[np.newaxis, :], 5, axis=0)
 
-        iwv = atmosphere.integrate_water_vapor(vmr, p, T, z, axis=1)
+        iwv = atmosphere.integrate_water_vapor(vmr_multi, p, axis=1)
 
-        assert np.allclose(iwv, np.repeat(27.3551036, 5))
+        assert np.allclose(iwv, np.repeat(43.8845, 5))
 
     def test_vmr2relative_humidity(self):
         """Test conversion from VMR into relative humidity."""

@@ -90,23 +90,48 @@ def vmr2relative_humidity(vmr, p, T, e_eq=None):
     return vmr * p / e_eq(T)
 
 
-def integrate_water_vapor(vmr, p, T, z, axis=0):
-    """Calculate the integrated water vapor (IWV).
+def integrate_water_vapor(vmr, p, T=None, z=None, axis=0):
+    r"""Calculate the integrated water vapor (IWV).
+
+    The basic implementation of the function assumes the atmosphere
+    to be in hydrostatic equilibrium.  The IWV is calculated as follows:
+
+    .. math::
+        \mathrm{IWV} = -\frac{1}{g} \int q(p)\,\mathrm{d}p
+
+    For non-hydrostatic atmospheres, additional information
+    on temperature and height are needed:
+
+    .. math::
+        \mathrm{IWV} = \int \rho_v(z)\,\mathrm{d}z
 
     Parameters:
         vmr (float or ndarray): Volume mixing ratio,
         p (float or ndarray): Pressue [Pa].
-        T (float or ndarray): Temperature [K].
-        z (ndarray): Height [m]. Size must match vmr.
-        axis (int): Axis to intergrate along.
+        T (float or ndarray): Temperature [K] (see ``z``).
+        z (float or ndarray): Height [m]. For non-hydrostatic calculation
+            both ``T`` and ``z`` have to be passed.
+        axis (int): Axis to integrate along.
 
     Returns:
         float: Integrated water vapor [kg/m**2].
     """
-    R_v = constants.gas_constant_water_vapor
-    rho = thermodynamics.density(p, T, R=R_v)  # Water vapor density.
+    if T is None and z is None:
+        # Calculate IWV assuming hydrostatic equilibrium.
+        q = thermodynamics.vmr2specific_humidity(vmr)
+        g = constants.earth_standard_gravity
 
-    return math.integrate_column(vmr * rho, z, axis=axis)
+        return -math.integrate_column(q, p, axis=axis) / g
+    elif T is None or z is None:
+        raise ValueError(
+            'Pass both `T` and `z` for non-hydrostatic calculation of the IWV.'
+        )
+    else:
+        # Integrate the water vapor mass density for non-hydrostatic cases.
+        R_v = constants.gas_constant_water_vapor
+        rho = thermodynamics.density(p, T, R=R_v)  # Water vapor density.
+
+        return math.integrate_column(vmr * rho, z, axis=axis)
 
 
 def moist_lapse_rate(p, T, e_eq=None):
