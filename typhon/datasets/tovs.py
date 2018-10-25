@@ -54,10 +54,35 @@ from . import filters
 
 from . import _tovs_defs
 
+def _noaa_names(i):
+    """Return set of possible NOAA names for sat number
+
+    - lower or UPPER case
+    - zero-padded number or not (noaa7, noaa07)
+    - with or without dash (noaa-14, noaa14)
+    - long (noaa) or short (n)
+
+    Does not include pre-launch names.
+
+    Arguments:
+
+        i [int]: Number of NOAA satellite
+
+    Returns:
+
+        Set of possible spellings for this satellite.
+    """
+    S = {f"{nm:s}{dash:s}{i:>{w:>02d}}"
+        for nm in {"noaa", "n"}
+        for dash in {"", "-", "_"}
+        for w in {1, 2}}
+    return S|{nm.upper() for nm in S}
+        
 class Radiometer(metaclass=abc.ABCMeta):
     srf_dir = ""
     srf_backend_response = ""
     srf_backend_f = ""
+    srf_rttov = ""
 
 class ATOVS:
     """Functionality in common with all ATOVS.
@@ -1173,16 +1198,9 @@ class HIRSPOD(HIRS):
 class HIRS2(HIRSPOD):
     """Sole implementation of HIRSPOD
     """
-    satellites = {"tirosn": {"TIROSN", "TN", "tn", "tirosn", "NOAA05", "NOAA5", "noaa05", "noaa5", "N05", "n05", "N5", "n5"},
-                  "noaa06": {"NOAA06", "NOAA6", "noaa06", "noaa6", "N06", "n06", "N6", "n6"},
-                  "noaa07": {"NOAA07", "NOAA7", "noaa07", "noaa7", "N07", "n07", "N7", "n7"},
-                  "noaa08": {"NOAA08", "NOAA8", "noaa08", "noaa8", "N08", "n08", "N8", "n8"},
-                  "noaa09": {"NOAA09", "NOAA9", "noaa09", "noaa9", "N09", "n09", "N9", "n9"},
-                  "noaa10": {"NOAA10", "noaa10", "N10", "n10"},
-                  "noaa11": {"NOAA11", "noaa11", "N11", "n11"},
-                  "noaa12": {"NOAA12", "noaa12", "N12", "n12"},
-                  "noaa13": {"NOAA13", "noaa13", "N13", "n13"},
-                  "noaa14": {"NOAA14", "noaa14", "N14", "n14"}}
+
+    satellites = {f"noaa{i:>02d}": _noaa_names(i) for i in range(6, 14)}
+    satellites["tirosn"] = _noaa_names(5)|{"tn", "tirosn", "TN", "TIROSN"}
     version = 2
 
     channel_order = numpy.asarray(_tovs_defs.HIRS_channel_order[2])
@@ -1575,9 +1593,7 @@ class HIRS3(HIRSKLM):
     pdf_definition_pages = (26, 37)
     version = 3
 
-    satellites = {"noaa15": {"NOAA15", "noaa15", "N15", "n15"},
-                  "noaa16": {"NOAA16", "noaa16", "N16", "n16"},
-                  "noaa17": {"NOAA17", "noaa17", "N17", "n17"}}
+    satellites = {f"noaa{i:>02d}": _noaa_names(i) for i in {15, 16, 17}}
 
     header_dtype = _tovs_defs.HIRS_header_dtypes[3]
     line_dtype = _tovs_defs.HIRS_line_dtypes[3]
@@ -1604,10 +1620,10 @@ class HIRS3(HIRSKLM):
 
 # docstring in parent
 class HIRS4(HIRSKLM):
-    satellites = {"noaa18": {"NOAA18", "noaa18", "N18", "n18"},
-                  "noaa19": {"NOAA19", "noaa19", "N19", "n19"},
-                  "metopa": {"METOPA", "metopa", "MA", "ma"},
-                  "metopb": {"METOPB", "metopb", "MB", "mb"}}
+    satellites = {"noaa18": _noaa_names(18),
+                  "noaa19": _noaa_names(19),
+                  "metopa": {"METOPA", "metopa", "MA", "ma", "metop_2"},
+                  "metopb": {"METOPB", "metopb", "MB", "mb", "metop_1"}}
     pdf_definition_pages = (38, 54)
     version = 4
 
@@ -2113,13 +2129,59 @@ def which_hirs(satname):
     else:
         raise ValueError("Unknown HIRS satellite: {:s}".format(satname))
 
-def norm_tovs_name(satname):
+def norm_tovs_name(satname, mode="default"):
     """Given a TOVS satellite name, return normalised name
 
+    Arguments:
+
+        satname [str]
+
+            The name of the satellite, or an alias of the name.  Accepts
+            many forms, for full list of accepted forms, see the
+            satellites dictionary on the classes HIRS2, HIRS3, and HIRS4.
+
+        mode [str], defaults to "default"
+            
+            What type of name to return.  Can be:
+            - "default", will be of form "noaa12" or "metopb"
+            - "ARTS", will be of form "NOAA12" or "METOPB"
+            - "RTTOV", will be of form "noaa_12" or "metop_2"
+            - "BC", will be of form "N12" or "M02"
+
+    Returns:
+
+        str, satellite name in requested dialect
     """
 
     for h in {HIRS2, HIRS3, HIRS4}:
         for (k, v) in h.satellites.items():
             if satname in {k}|v:
-                return k
+                if mode == "default":
+                    return k
+                elif mode == "ARTS":
+                    return k.upper()
+                elif mode == "RTTOV":
+                    if k == "tirosn":
+                        return "noaa_5"
+                    elif k == "metopa":
+                        return "metop_2"
+                    elif k == "metopb":
+                        return "metop_1"
+                    elif k.startswith("noaa"):
+                        return "noaa_{:>02d}".format(int(k[-2:], 10))
+                    else:
+                        raise RuntimeError(f"Should not happen: reference name {k:s}")
+                elif mode == "BC":
+                    if k == "tirosn":
+                        return "tn"
+                    elif k == "metopa":
+                        return "m2"
+                    elif k == "metopb":
+                        return "m1"
+                    elif k.startswith("noaa"):
+                        return "n{:>02d}".format(int(k[-2:], 10))
+                    else:
+                        raise RuntimeError(f"Should not happen: reference name {k:s}")
+                else:
+                    raise ValueError(f"Unknown mode: {mode:s}")
     raise ValueError(f"Unknown TOVS satellite: {satname:s}")
