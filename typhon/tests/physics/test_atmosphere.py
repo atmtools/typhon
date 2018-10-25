@@ -96,7 +96,7 @@ class TestAtmosphere:
         p = np.array([1000e2, 750e2, 500e2, 100e2])
 
         z = atmosphere.pressure2height(p)
-        z_ref = np.array([2107.945, 4783.644, 10749.031, 36115.850])
+        z_ref = np.array([0., 2358.129, 5473.647, 15132.902])
 
         assert np.allclose(z, z_ref)
 
@@ -106,6 +106,6 @@ class TestAtmosphere:
         T = np.array([288, 275, 255, 215])
 
         z = atmosphere.pressure2height(p, T=T)
-        z_ref = np.array([2107.559, 4790.794, 10762.213, 35935.839])
+        z_ref = np.array([0., 2360.809, 5482.749, 15135.793])
 
         assert np.allclose(z, z_ref)
