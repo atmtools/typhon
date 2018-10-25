@@ -252,18 +252,21 @@ def pressure2height(p, T=None):
             If ``None`` the standard atmosphere is assumed.
 
     See also:
-        :func:`~typhon.physics.standard_atmosphere`:
-            Standard atmospheric temperature profile as function of pressure.
+        .. autosummary::
+            :nosignatures:
+
+            standard_atmosphere
 
     Returns:
-        ndarray: Height [m].
+        ndarray: Relative height above lowest pressure level [m].
     """
     if T is None:
         T = standard_atmosphere(p, coordinates='pressure')
 
-    dp = np.diff(p)
-    dp = np.hstack([dp, dp[-1]])
+    layer_depth = np.diff(p)
     rho = thermodynamics.density(p, T)
-    g = constants.earth_standard_gravity
+    rho_layer = 0.5 * (rho[:-1] + rho[1:])
 
-    return np.cumsum(-dp / (rho * g))
+    z = np.cumsum(-layer_depth / (rho_layer * constants.g))
+
+    return np.hstack([0, z])
