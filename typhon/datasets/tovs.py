@@ -2168,7 +2168,7 @@ def norm_tovs_name(satname, mode="default"):
                     elif k == "metopb":
                         return "metop_1"
                     elif k.startswith("noaa"):
-                        return "noaa_{:>02d}".format(int(k[-2:], 10))
+                        return "noaa_{:>d}".format(int(k[-2:], 10))
                     else:
                         raise RuntimeError(f"Should not happen: reference name {k:s}")
                 elif mode == "BC":
