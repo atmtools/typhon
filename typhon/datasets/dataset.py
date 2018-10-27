@@ -1351,7 +1351,7 @@ class MultiFileDataset(Dataset):
                     if m is not None:
                         fit = True
                         for k in m.groupdict().keys() & extra.keys():
-                            if m[k] != extra[k]:
+                            if m[k].lower() != extra[k].lower():
                                 fit = False # not the right file
                                 break
                         if not fit:
