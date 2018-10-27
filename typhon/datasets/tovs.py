@@ -2145,6 +2145,7 @@ def norm_tovs_name(satname, mode="default"):
             What type of name to return.  Can be:
             - "default", will be of form "noaa12" or "metopb"
             - "ARTS", will be of form "NOAA12" or "METOPB"
+            - "FIDUCEO", same as ARTS but ensuring 2-digit no
             - "RTTOV", will be of form "noaa_12" or "metop_2"
             - "BC", will be of form "N12" or "M02"
 
@@ -2160,6 +2161,11 @@ def norm_tovs_name(satname, mode="default"):
                     return k
                 elif mode == "ARTS":
                     return k.upper()
+                elif mode == "FIDUCEO":
+                    if len(k)==6:
+                        return k.upper()
+                    elif len(k)==5:
+                        return "NOAA{:>d}".format(int([k[-2:], 10))
                 elif mode == "RTTOV":
                     if k == "tirosn":
                         return "noaa_5"
