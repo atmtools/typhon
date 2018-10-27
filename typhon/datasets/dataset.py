@@ -1102,7 +1102,7 @@ class MultiFileDataset(Dataset):
         self._str2path("basedir", "subdir", "granule_cache_file")
         self._open_granule_file()
         if self.re is not None:
-            self._re = re.compile(self.re)
+            self._re = re.compile(self.re, re.IGNORECASE)
 
     def _str2path(self, *args):
         for attr in args:
@@ -1351,7 +1351,7 @@ class MultiFileDataset(Dataset):
                     if m is not None:
                         fit = True
                         for k in m.groupdict().keys() & extra.keys():
-                            if m[k] != extra[k]:
+                            if m[k].lower() != extra[k].lower():
                                 fit = False # not the right file
                                 break
                         if not fit:
