@@ -2165,7 +2165,7 @@ def norm_tovs_name(satname, mode="default"):
                     if len(k)==6:
                         return k.upper()
                     elif len(k)==5:
-                        return "NOAA{:>d}".format(int([k[-2:], 10))
+                        return "NOAA{:>d}".format(int(k[-2:], 10))
                 elif mode == "RTTOV":
                     if k == "tirosn":
                         return "noaa_5"
