@@ -1199,7 +1199,7 @@ class HIRS2(HIRSPOD):
     """Sole implementation of HIRSPOD
     """
 
-    satellites = {f"noaa{i:>02d}": _noaa_names(i) for i in range(6, 14)}
+    satellites = {f"noaa{i:>02d}": _noaa_names(i) for i in range(6, 15)}
     satellites["tirosn"] = _noaa_names(5)|{"tn", "tirosn", "TN", "TIROSN"}
     version = 2
 
