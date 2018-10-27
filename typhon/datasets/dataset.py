@@ -1102,7 +1102,7 @@ class MultiFileDataset(Dataset):
         self._str2path("basedir", "subdir", "granule_cache_file")
         self._open_granule_file()
         if self.re is not None:
-            self._re = re.compile(self.re)
+            self._re = re.compile(self.re, re.IGNORECASE)
 
     def _str2path(self, *args):
         for attr in args:
