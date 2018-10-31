@@ -490,6 +490,7 @@ _cal_coding = _coding.copy()
 _cal_coding.update({
     "calendar": "proleptic_gregorian",
     "_FillValue": -2147483647,
+    "scale_factor": 0.1, # default precision 100 ms
     "dtype": "i4"})
 
 # ('hrs_scnlin',
