@@ -54,6 +54,8 @@ from . import filters
 
 from . import _tovs_defs
 
+logger = logging.getLogger(__name__)
+
 def _noaa_names(i):
     """Return set of possible NOAA names for sat number
 
@@ -981,7 +983,7 @@ class HIRSPOD(HIRS):
         rad = ac[..., 2] + ac[..., 1] * counts + ac[..., 0] * counts**2
 
         if not (cc[:, :, 0, :]==0).all():
-            logging.warning("Found non-zero values for manual coefficient! "
+            logger.warning("Found non-zero values for manual coefficient! "
                 "Usually those are zero but when they aren't, I don't know "
                 "which ones to use.  Use with care. ")
 
@@ -1738,17 +1740,17 @@ class IASIEPS(dataset.MultiFileDataset, dataset.HyperSpectral):
         # FIXME: this could use typhon.utils.decompress
         with tempfile.NamedTemporaryFile(mode="wb", dir=tmpdir, delete=True) as tmpfile:
             with gzip.open(str(path), "rb") as gzfile:
-                logging.debug("Decompressing {!s}".format(path))
+                logger.debug("Decompressing {!s}".format(path))
                 gzcont = gzfile.read()
-                logging.debug("Writing decompressed file to {!s}".format(tmpfile.name))
+                logger.debug("Writing decompressed file to {!s}".format(tmpfile.name))
                 tmpfile.write(gzcont)
                 del gzcont
 
             # All the hard work is in coda
-            logging.debug("Reading {!s}".format(tmpfile.name))
+            logger.debug("Reading {!s}".format(tmpfile.name))
             cfp = coda.open(tmpfile.name)
             c = coda.fetch(cfp)
-            logging.debug("Sorting info...")
+            logger.debug("Sorting info...")
             n_scanlines = c.MPHR.TOTAL_MDR
             start = datetime.datetime(*coda.time_double_to_parts_utc(c.MPHR.SENSING_START))
             has_mdr = numpy.array([hasattr(m, 'MDR') for m in c.MDR],
@@ -2006,7 +2008,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
                         ].data.view("i4,i4"),
                 return_index=True)
             if iiu.size < MM.size:
-                logging.warning("There were duplicates in {!s}!  Removing " 
+                logger.warning("There were duplicates in {!s}!  Removing " 
                 "{:.2%}".format(f, 1-iiu.size/MM.size))
             return (MM[ii][iiu], extra)
         elif self.read_returns == "xarray":
@@ -2062,7 +2064,7 @@ class HIRSHIRS(TOVSCollocatedDataset, dataset.NetCDFDataset, dataset.MultiFileDa
 
             (_, iiu) = numpy.unique(Msnu, return_index=True)
             if iiu.size < M.dims[self.colloc_dim]:
-                logging.warning("There were duplicates in {!s}!  Removing "
+                logger.warning("There were duplicates in {!s}!  Removing "
                     "{:.2%}".format(f, 1-iiu.size/M.dims[self.colloc_dim]))
 
             M = M[{self.colloc_dim: iiu}]
