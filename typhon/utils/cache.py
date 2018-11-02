@@ -19,6 +19,7 @@ __all__ = [
 ]
 
 
+logger = logging.getLogger(__name__)
 def mutable_cache(maxsize=10):
     """In-memory cache like functools.lru_cache but for any object
 
@@ -67,14 +68,14 @@ def mutable_cache(maxsize=10):
             key = str(args) + str(kwds)
             result = cache_get(key, sentinel)
             if result is not sentinel:
-                logging.debug(("Getting result for {!s} from cache "
+                logger.debug(("Getting result for {!s} from cache "
                                " (key {!s}").format(user_function, key))
                 # make sure we return a copy of the result; when a = f();
                 # b = f(), users should reasonably expect that a is not b.
                 return copy.copy(result)
-#            logging.debug("No result in cache")
+#            logger.debug("No result in cache")
             result = user_function(*args, **kwds)
-#            logging.debug("Storing result in cache")
+#            logger.debug("Storing result in cache")
             cache[key] = result
             keylist.append(key)
             if len(keylist) > maxsize:

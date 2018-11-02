@@ -28,6 +28,8 @@ except ImportError:
 
 from . import dataset
 
+logger = logging.getLogger(__name__)
+
 class FilterError(Exception):
     """For any errors related to filtering.
     """
@@ -119,7 +121,7 @@ class TimeMaskFilter(OrbitFilter):
         # when time is masked, we should REALLY despair.  We want
         # to have sequential scanlines.  Throw them out already!
         if scanlines["time"].mask.any():
-            logging.warning("Throwing out {:d} scanlines because "
+            logger.warning("Throwing out {:d} scanlines because "
                 "their times are flagged and not sequential".format(
                     scanlines["time"].mask.sum()))
             good = ~scanlines["time"].mask
@@ -146,7 +148,7 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
     def filter(self, scanlines, **extra):
         goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
         if not goodorder.all():
-            logging.warning("{:d} scanlines are out of "
+            logger.warning("{:d} scanlines are out of "
                 "order, resorting".format(
                 (~goodorder).sum()))
             neworder = numpy.argsort(scanlines["hrs_scnlin"].data)
@@ -155,7 +157,7 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
         # if there still are any now, it can only be due to duplicates
         goodorder = scanlines["hrs_scnlin"][1:] > scanlines["hrs_scnlin"][:-1]
         if not goodorder.all():
-            logging.warning("{:d} duplicate "
+            logger.warning("{:d} duplicate "
                 "scanlines (judging from scanline number), removing".format((~goodorder).sum()))
             (_, ii) = numpy.unique(scanlines["hrs_scnlin"],
                                    return_index=True)
@@ -165,7 +167,7 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
         # still time sequence issues?
         goodtime = numpy.argsort(scanlines["time"]) == numpy.arange(scanlines.size)
         if not goodtime.all():
-            logging.warning("Still has time sequence issues! "
+            logger.warning("Still has time sequence issues! "
                 "Dropping {:d} scanlines to be on the safe side. "
                 "This is probably overconservative.".format((~goodtime).sum()))
             scanlines = scanlines[goodtime]
@@ -175,7 +177,7 @@ class HIRSTimeSequenceDuplicateFilter(OrbitFilter):
         # the same time!
         (_, ii) = numpy.unique(scanlines["time"], return_index=True)
         if ii.size < scanlines["time"].size:
-            logging.warning("Oops!  There are scanlines with different "
+            logger.warning("Oops!  There are scanlines with different "
                 "scanline numbers but the same time!  Removing {:d} "
                 "more lines.  I hope that's it!".format(
                     scanlines["time"].size-ii.size))
@@ -309,7 +311,7 @@ class FirstlineDBFilter(OverlapFilter):
                 self._tmpdir = tmpdir # should be deleted only when object is
                 tmp_gfl = str(pathlib.Path(tmpdir.name,
                     self.granules_firstline_file.name))
-                logging.warning("Cannot read GFL DB at {!s}: {!s}, "
+                logger.warning("Cannot read GFL DB at {!s}: {!s}, "
                     "presumably in use, copying to {!s}".format(
                         self.granules_firstline_file, e.args, tmp_gfl))
                 shutil.copyfile(str(self.granules_firstline_file),
@@ -322,7 +324,7 @@ class FirstlineDBFilter(OverlapFilter):
             raise FilterError("Unable to filter firstline: {:s}".format(
                 e.args[0])) from e
         if firstline > scanlines.shape[0]:
-            logging.warning("Full granule {:s} appears contained in previous one. "
+            logger.warning("Full granule {:s} appears contained in previous one. "
                 "Refusing to return any lines.".format(dataname))
             return scanlines[0:0]
         return scanlines[scanlines["hrs_scnlin"] > firstline]    
@@ -343,7 +345,7 @@ class FirstlineDBFilter(OverlapFilter):
         end_date = end_date or self.ds.end_date
         if end_date > datetime.datetime.now():
             end_date = datetime.datetime.now()
-        logging.info("Updating firstline-db {:s} for "
+        logger.info("Updating firstline-db {:s} for "
             "{:%Y-%m-%d}--{:%Y-%m-%d}".format(satname, start_date, end_date))
         count_updated = count_all = 0
         with dbm.open(str(self.granules_firstline_file), "c") as gfd:
@@ -356,7 +358,7 @@ class FirstlineDBFilter(OverlapFilter):
             except AttributeError:
                 dobar = False
                 bar = None
-                logging.info("If you had the "
+                logger.info("If you had the "
                     "progressbar2 module, you would have gotten a "
                     "nice progressbar.")
             else:
@@ -373,11 +375,11 @@ class FirstlineDBFilter(OverlapFilter):
                     cur_time = self.ds._get_time(cur_line)
                 except (dataset.InvalidFileError,
                         dataset.InvalidDataError) as exc:
-                    logging.error("Could not read {!s}: {!s}".format(gran, exc))
+                    logger.error("Could not read {!s}: {!s}".format(gran, exc))
                     continue
                 lab = self.ds.get_dataname(cur_head, robust=True)
                 if lab in gfd and not overwrite:
-                    logging.debug("Already present: {:s}".format(lab))
+                    logger.debug("Already present: {:s}".format(lab))
                 elif prev_line is not None:
                     # what if prev_line is None?  We don't want to define any
                     # value for the very first granule we process, as we might
@@ -393,10 +395,10 @@ class FirstlineDBFilter(OverlapFilter):
                         # maximum; this allows for time sequence errors.
                         # See #139
                         first = cur_line["hrs_scnlin"][cur_time > prev_time.max()].min()
-                        logging.debug("{:s}: {:d}".format(lab, first))
+                        logger.debug("{:s}: {:d}".format(lab, first))
                     else:
                         first = cur_line["hrs_scnlin"].max()+1
-                        logging.info("{:s}: Fully contained in {:s}!".format(
+                        logger.info("{:s}: Fully contained in {:s}!".format(
                             lab, self.ds.get_dataname(prev_head, robust=True)))
                     gfd[lab] = str(first)
                     count_updated += 1
@@ -409,7 +411,7 @@ class FirstlineDBFilter(OverlapFilter):
             if dobar:
                 bar.update(1)
                 bar.finish()
-            logging.info("Updated {:d}/{:d} granules".format(count_updated, count_all))
+            logger.info("Updated {:d}/{:d} granules".format(count_updated, count_all))
 
     def finalise(self, arr):
         return arr
@@ -502,7 +504,7 @@ class HIRSBestLineFilter(OverlapFilter):
         arrsrt = arr[numpy.argsort(arr["time"])]
         _, ii, cnt = numpy.unique(arrsrt["time"],
             return_index=True, return_counts=True)
-        logging.debug("Selecting optimal scanlines for "
+        logger.debug("Selecting optimal scanlines for "
             f"{ii.size:d} overlapping pairs")
         # (mult_ii, mult_cnt) take the same values as if I were to do:
         # for (mult_ii, mult_cnt) in zip(ii[cnt>1], cnt[cnt>1]), but I

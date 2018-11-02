@@ -39,6 +39,8 @@ from ..constants import MiB
 
 from . import filters
 
+logger = logging.getLogger(__name__)
+
 try:
     import progressbar
 except ImportError:
@@ -372,7 +374,7 @@ class Dataset(metaclass=abc.ABCMeta):
             end = start + end
 
         finder = self.find_granules_sorted if sorted else self.find_granules
-        logging.info("Reading {self.name:s} {locator_args!s} "
+        logger.info("Reading {self.name:s} {locator_args!s} "
                      "for period {start:%Y-%m-%d %H:%M:%S} "
                      " – {end:%Y-%m-%d %H:%M:%S}".format(**vars()))
 
@@ -385,7 +387,7 @@ class Dataset(metaclass=abc.ABCMeta):
             bar.start()
             bar.update(0)
         else:
-            logging.info("Psst!  If you install the progressbar2 package, "
+            logger.info("Psst!  If you install the progressbar2 package, "
                 "you will get a fancy progressbar!")
         anygood = False
         arr = None
@@ -456,7 +458,7 @@ class Dataset(metaclass=abc.ABCMeta):
 
             except excs as exc:
                 if onerror == "skip": # fields that reader relies upon
-                    logging.error("Can not read file {}: {}".format(
+                    logger.error("Can not read file {}: {}".format(
                         gran, exc.args[0]))
                     continue
                 else:
@@ -495,7 +497,7 @@ class Dataset(metaclass=abc.ABCMeta):
             oldsize = cont[self.time_field].size
             for f in simple_filters:
                 cont = f(cont)
-            logging.debug("Filters reduced number from "
+            logger.debug("Filters reduced number from "
                 "{:d} to {:d}".format(oldsize, cont[self.time_field].size))
             return cont
         oldsize = cont.size
@@ -503,7 +505,7 @@ class Dataset(metaclass=abc.ABCMeta):
         for f in simple_filters:
             cont = f(cont)
         if cont.size < oldsize:
-            logging.debug("Applying limitations, reducing "
+            logger.debug("Applying limitations, reducing "
                 "{:d} to {:d}".format(oldsize, cont.size))
         return cont
 
@@ -579,7 +581,7 @@ class Dataset(metaclass=abc.ABCMeta):
                     "Sorry! ".format(
                         newsize*arr.itemsize/MiB,
                         self.maxsize/MiB))
-            logging.debug(
+            logger.debug(
                 "New size ({:d} items, {:,.0f} MiB) would exceed allocated "
                 "size ({:d} items, {:,.0f} MiB).  I'm {:.3%} "
                 "through.  Allocating new: {:d} items, {:,.0f} "
@@ -615,12 +617,12 @@ class Dataset(metaclass=abc.ABCMeta):
 
     def _finalise_arr(self, arr, N):
         if isinstance(arr, list):
-            logging.debug("Concatenating {N:d} DataArrays...".format(N=N))
+            logger.debug("Concatenating {N:d} DataArrays...".format(N=N))
             if self.concat_coor is None:
                 return utils.concat_each_time_coordinate(*arr)
             else:
                 return xarray.concat(arr, dim=self.concat_coor)
-            logging.debug("Done!")
+            logger.debug("Done!")
         else:
             return self._correct_overallocation(arr, N)
 
@@ -628,7 +630,7 @@ class Dataset(metaclass=abc.ABCMeta):
     def _correct_overallocation(arr, N):
         if isinstance(arr, xarray.Dataset):
             raise RuntimeError("We shouldn't be here.  Ever.")
-        logging.debug("Correcting overallocation ({:d}->{:d})".format(
+        logger.debug("Correcting overallocation ({:d}->{:d})".format(
             arr.size, N))
         return arr[:N]
 
@@ -718,7 +720,7 @@ class Dataset(metaclass=abc.ABCMeta):
                     all(kwargs.get(condfn) in condval
                             for (condfn, condval) in cond.items())):
                 pseudo_fields[k] = v
-        logging.debug("Reading {:s}".format(f))
+        logger.debug("Reading {:s}".format(f))
         # should not pass pseudo_fields on to reader, it will get confused
         fields = (fields if fields == "all" else
                   [f for f in fields if not f in pseudo_fields])
@@ -950,7 +952,7 @@ class Dataset(metaclass=abc.ABCMeta):
             raise ValueError("Did not find any secondaries!  Are times off?")
 
         if not near.all():
-            logging.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
+            logger.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
                 near.sum(), near.size, near.sum()/near.size))
 
         if self.read_returns == "ndarray":
@@ -1328,7 +1330,7 @@ class MultiFileDataset(Dataset):
                 else dt_end)
         found_any_dirs = False
         found_any_grans = False
-        logging.debug(("Searching for {!s} granules between {!s} and {!s} "
+        logger.debug(("Searching for {!s} granules between {!s} and {!s} "
                       ).format(self.name, dt_start, dt_end))
         before = None
         if include_last_before and dt_start > self.start_date:
@@ -1342,7 +1344,7 @@ class MultiFileDataset(Dataset):
         for (timeinfo, subdir) in self.iterate_subdirs(d_start, d_end,
                                                        **extra):
             if subdir.exists() and subdir.is_dir():
-                logging.debug("Searching directory {!s}".format(subdir))
+                logger.debug("Searching directory {!s}".format(subdir))
                 found_any_dirs = True
                 for child in subdir.iterdir():
                     if before is not None and child == before[1]: # already yielded it as "last before"
@@ -1361,7 +1363,7 @@ class MultiFileDataset(Dataset):
                             (g_start, g_end) = self.get_times_for_granule(child,
                                 **timeinfo)
                         except InvalidFileError as e:
-                            logging.error(
+                            logger.error(
                                 "Skipping {!s}.  Problem: {}".format(
                                     child, e.args[0]))
                             continue
@@ -1371,14 +1373,14 @@ class MultiFileDataset(Dataset):
                             else:
                                 yield child
         if not found_any_dirs:
-            logging.warning("Found no directories.  Make sure {self.name:s} has "
+            logger.warning("Found no directories.  Make sure {self.name:s} has "
                   "coverage in {dt_start:%Y-%m-%d %H:%M:%S} – "
                   "{dt_end:%Y-%m-%d %H:%M:%S} and that you spelt any "
                   "additional information correctly: ".format(self=self,
                   dt_start=dt_start, dt_end=dt_end) + str(extra) + " Satellite "
                   "names and other fields are case-sensitive!")
         elif not found_any_grans:
-            logging.warning("Directories searched appear to contain no matching "
+            logger.warning("Directories searched appear to contain no matching "
                   "files.  Make sure basedir, subdir, and regexp are "
                   "correct and you did not misspell any extra "
                   "information: " + str(extra))
@@ -1588,7 +1590,7 @@ class MultiFileDataset(Dataset):
             try:
                 self._granule_start_times = shelve.open(p, protocol=4)
             except OSError:
-                logging.error(("Unable to open granule file {} RW.  "
+                logger.error(("Unable to open granule file {} RW.  "
                                "Opening copy instead.").format(p))
                 tf = tempfile.NamedTemporaryFile()
                 shutil.copyfile(p, tf.name)
