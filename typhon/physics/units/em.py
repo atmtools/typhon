@@ -367,7 +367,8 @@ class SRF(FwmuMixin):
             L.to(ureg.W / (ureg.m**2 * ureg.sr * ureg.Hz),
                  "radiance")) * ureg.K
 
-    def estimate_band_coefficients(self, sat=None, instr=None, ch=None):
+    def estimate_band_coefficients(self, sat=None, instr=None, ch=None,
+            include_shift=True):
         """Estimate band coefficients for fast/explicit BT calculations
 
         In some circumstances, a fully integrated SRF may be more
@@ -390,29 +391,52 @@ class SRF(FwmuMixin):
 
         warnings.warn("Obtaining band coefficients from file", UserWarning)
         srcfile = config.conf[instr]["band_file"].format(sat=sat)
-        rxp = r"(.{5,6})_ch(\d\d?)_shift([+-]\d+)pm\.nc\s+([\d.]+)\s+(-?[\de\-.]+)\s+([\d.]+)"
-        dtp = [("satname", "S6"), ("channel", "u1"), ("shift", "i2"),
-               ("centre", "f4"), ("alpha", "f4"), ("beta", "f4")]
-        M = numpy.fromregex(srcfile, rxp, dtp).reshape(19, 7)
-        dims = ("channel", "shiftno")
-        ds = xarray.Dataset(
-            {"centre": (dims, M["centre"]),
-             "alpha": (dims, M["alpha"]),
-             "beta": (dims, M["beta"]),
-             "shift": (dims, M["shift"])},
-            coords = {"channel": M["channel"][:, 0]})
+        if include_shift:
+            rxp = r"(.{5,6})_ch(\d\d?)_shift([+-]\d+)pm\.nc\s+([\d.]+)\s+(-?[\de\-.]+)\s+([\d.]+)"
+            dtp = [("satname", "S6"), ("channel", "u1"), ("shift", "i2"),
+                   ("centre", "f4"), ("alpha", "f4"), ("beta", "f4")]
+            M = numpy.fromregex(srcfile, rxp, dtp).reshape(19, 7)
+            dims = ("channel", "shiftno")
+            ds = xarray.Dataset(
+                {"centre": (dims, M["centre"]),
+                 "alpha": (dims, M["alpha"]),
+                 "beta": (dims, M["beta"]),
+                 "shift": (dims, M["shift"])},
+                coords = {"channel": M["channel"][:, 0]})
 
+        else:
+            rxp = r"(.{5,6})_ch(\d\d?)_rttov\.nc\s+([\d.]+)\s+(-?[\de\-.]+)\s+([\d.]+)"
+            dtp = [("satname", "S6"), ("channel", "u1"), 
+                   ("centre", "f4"), ("alpha", "f4"), ("beta", "f4")]
+            M = numpy.fromregex(srcfile, rxp, dtp)
+            dims = ("channel",)
+            ds = xarray.Dataset(
+                {"centre": (dims, M["centre"]),
+                 "alpha": (dims, M["alpha"]),
+                 "beta": (dims, M["beta"])},
+                coords = {"channel": M["channel"]})
         ds = ds.sel(channel=ch)
 
-        ds0 = ds.sel(shiftno=0) # varies 1.1 – 15.2 nm depending on channel
+        if include_shift:
+            ds0 = ds.sel(shiftno=0) # varies 1.1 – 15.2 nm depending on channel
+        else:
+            ds0 = ds
         lambda_c = UADA(ds0["centre"], attrs={"units": "1/cm"})
         alpha = UADA(ds0["alpha"], attrs={"units": "K"})
         beta = UADA(ds0["beta"], attrs={"units": "1"})
 
-        delta_ds = ds.sel(shiftno=1) - ds0
-        delta_lambda_c = abs(UADA(delta_ds["centre"], attrs={"units": "1/cm"}))
-        delta_alpha = abs(UADA(delta_ds["alpha"], attrs={"units": "K"}))
-        delta_beta = abs(UADA(delta_ds["beta"], attrs={"units": "1"}))
+        if include_shift:
+            delta_ds = ds.sel(shiftno=1) - ds0
+            delta_lambda_c = abs(UADA(delta_ds["centre"], attrs={"units": "1/cm"}))
+            delta_alpha = abs(UADA(delta_ds["alpha"], attrs={"units": "K"}))
+            delta_beta = abs(UADA(delta_ds["beta"], attrs={"units": "1"}))
+        else:
+            delta_alpha = xarray.zeros_like(alpha)
+            delta_alpha.attrs["units"] = "K"
+            delta_beta = xarray.zeros_like(alpha)
+            delta_beta.attrs["units"] = "1"
+            delta_lambda_c = xarray.zeros_like(alpha)
+            delta_lambda_c.attrs["units"] = "1/cm"
 
         return (alpha, beta, lambda_c, delta_alpha, delta_beta, delta_lambda_c)
 
