@@ -66,7 +66,7 @@ class TestFileSet:
             ),
             name="sequence-placeholder",
             info_via="both",
-            placeholder={"id": "\d{4}"}
+            placeholder={"id": r"\d{4}"}
         )
 
         self.filesets += FileSet(
@@ -78,7 +78,7 @@ class TestFileSet:
             name="regex-HIRS",
         )
         self.filesets["regex-HIRS"].set_placeholders(
-            satcode=".{2}", B="\d{7}", station=".{2}",
+            satcode=".{2}", B=r"\d{7}", station=".{2}",
         )
 
         return self.filesets

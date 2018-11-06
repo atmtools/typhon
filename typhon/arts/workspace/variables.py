@@ -51,7 +51,7 @@ class WorkspaceVariable:
             self.ndim = 1
         if self.group == "Matrix":
             self.ndim = 2
-        m = re.match("^Tensor(\d)$", self.group)
+        m = re.match(r"^Tensor(\d)$", self.group)
         if m:
             self.ndim = int(m.group(1))
 
