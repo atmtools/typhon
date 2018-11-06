@@ -10,8 +10,6 @@ init:
 
 install:
   - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%PATH%"
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
   - pip install pytest
   - pip install .
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
