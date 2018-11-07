@@ -1,17 +1,22 @@
 from os.path import dirname, join
+import sys
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pytest
 from typhon.collocations import collapse, Collocator, Collocations, expand
 from typhon.files import FileSet, MHS_HDF
+from typhon.files.utils import get_testfiles_directory
 import xarray as xr
 
 
 class TestCollocations:
     """Testing the collocation functions."""
 
-    refdir = join(dirname(__file__), 'reference')
+    refdir = get_testfiles_directory("collocations")
 
+    @pytest.mark.skipif(sys.platform == "darwin", reason="Test does not work on OSX.")
+    @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
     def test_search(self):
         """Collocate fake MHS filesets"""
         fake_mhs1 = FileSet(
