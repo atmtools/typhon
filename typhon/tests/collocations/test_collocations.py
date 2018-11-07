@@ -1,12 +1,44 @@
+from os.path import dirname, join
+import sys
+from tempfile import TemporaryDirectory
+
 import numpy as np
-from typhon.collocations import collapse, Collocator, expand
+import pytest
+from typhon.collocations import collapse, Collocator, Collocations, expand
+from typhon.files import FileSet, MHS_HDF
+from typhon.files.utils import get_testfiles_directory
 import xarray as xr
 
 
 class TestCollocations:
     """Testing the collocation functions."""
 
-    # refdir = join(dirname(__file__), 'reference')
+    refdir = get_testfiles_directory("collocations")
+
+    @pytest.mark.skipif(sys.platform == "darwin", reason="Test does not work on OSX.")
+    @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
+    def test_search(self):
+        """Collocate fake MHS filesets"""
+        fake_mhs1 = FileSet(
+            path=join(self.refdir,
+                "{satname}_mhs_{year}", "{month}", "{day}", 
+                "*NSS.MHSX.*.S{hour}{minute}.E{end_hour}{end_minute}.*.h5"),
+            handler=MHS_HDF(),
+        )
+        fake_mhs2 = fake_mhs1.copy()
+
+        with TemporaryDirectory() as outdir:
+            collocations = Collocations(
+                path=join(outdir, "{year}-{month}-{day}", 
+                                  "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}"),
+            )
+            collocations.search(
+                [fake_mhs1, fake_mhs2],
+                start="2007",
+                end="2008", 
+                max_interval="1h",
+                max_distance="10km"
+            )
 
     def test_flat_to_main_coord(self):
         """Tests Collocator._flat_to_main_coord
