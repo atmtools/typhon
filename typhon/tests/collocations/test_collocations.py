@@ -15,7 +15,6 @@ class TestCollocations:
 
     refdir = get_testfiles_directory("collocations")
 
-    @pytest.mark.skipif(sys.platform == "darwin", reason="Test does not work on OSX.")
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
     def test_search(self):
         """Collocate fake MHS filesets"""
