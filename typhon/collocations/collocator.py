@@ -289,10 +289,13 @@ class Collocator:
                 else:
                     process_progress[process] = progress
 
+                try:
+                    nerrors = errors.qsize()
+                except NotImplementedError:
+                    nerrors = 'unknown'
+
                 self._print_progress(
-                    timer.elapsed, process_progress, len(running),
-                    errors.qsize()
-                )
+                    timer.elapsed, process_progress, len(running), nerrors)
                 if result is not None:
                     yield result
 
