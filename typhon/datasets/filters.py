@@ -2,7 +2,7 @@
 
 """
 
-# Any commits made to this module between 2015-05-01 and 2017-03-01
+# Any commits made to this module between 2015-05-01 and 2019-02-01
 # by Gerrit Holl are developed for the EC project “Fidelity and
 # Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
 # Grant agreement: 638822
@@ -45,8 +45,9 @@ class MEDMAD(OutlierFilter):
 
     """
 
-    def __init__(self, cutoff):
+    def __init__(self, cutoff, fallback_min_std=0.1):
         self.cutoff = cutoff
+        self.fallback_min_std = 0.1
     
     def filter_outliers(self, C):
         cutoff = self.cutoff
@@ -63,7 +64,13 @@ class MEDMAD(OutlierFilter):
         else:
             raise ValueError("Cannot filter outliers on "
                 "input with {ndim:d}>3 dimensions".format(ndim=C.ndim))
-        fracdev = ((C - med)/mad)
+        if mad > 0:
+            fracdev = ((C - med)/mad)
+        else:
+            # fallback, seems to be mostly constant, probably due to
+            # digitisation.
+            logger.debug("MAD=0, moving to fallback on mean/std")
+            fracdev = (C-C.mean())/max(C.std(), self.fallback_min_std)
         return abs(fracdev) > cutoff
 
 class OrbitFilter:
