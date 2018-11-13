@@ -431,11 +431,13 @@ class SRF(FwmuMixin):
             delta_alpha = abs(UADA(delta_ds["alpha"], attrs={"units": "K"}))
             delta_beta = abs(UADA(delta_ds["beta"], attrs={"units": "1"}))
         else:
-            delta_alpha = xarray.zeros_like(alpha)
+            # workaround for https://github.com/pydata/xarray/issues/2542
+            # by passing to UADA
+            delta_alpha = UADA(xarray.zeros_like(alpha))
             delta_alpha.attrs["units"] = "K"
-            delta_beta = xarray.zeros_like(alpha)
+            delta_beta = UADA(xarray.zeros_like(alpha))
             delta_beta.attrs["units"] = "1"
-            delta_lambda_c = xarray.zeros_like(alpha)
+            delta_lambda_c = UADA(xarray.zeros_like(alpha))
             delta_lambda_c.attrs["units"] = "1/cm"
 
         return (alpha, beta, lambda_c, delta_alpha, delta_beta, delta_lambda_c)
