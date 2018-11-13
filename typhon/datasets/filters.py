@@ -58,19 +58,22 @@ class MEDMAD(OutlierFilter):
             mad = numpy.ma.median(
                 abs(C - med).reshape(C.shape[0]*C.shape[1], C.shape[2]),
                 0)
+            if (mad==0).any():
+                # use fallback
+                med[mad==0] = C[..., mad==0].reshape(C.shape[0]*C.shape[1], (mad==0).sum()).mean(0)
+                mad[mad==0] = numpy.c_[
+                    C[..., mad==0].reshape(C.shape[0]*C.shape[1], (mad==0).sum()).std(0),
+                    numpy.tile(self.fallback_min_std, (mad==0).sum())].max(1)
         elif C.ndim < 3:
             med = numpy.ma.median(C.reshape((-1,)))
             mad = numpy.ma.median(abs(C - med).reshape((-1,)))
+            if mad==0:
+                med = C.mean()
+                mad = max(C.std(), self.fallback_min_std)
         else:
             raise ValueError("Cannot filter outliers on "
-                "input with {ndim:d}>3 dimensions".format(ndim=C.ndim))
-        if mad > 0:
-            fracdev = ((C - med)/mad)
-        else:
-            # fallback, seems to be mostly constant, probably due to
-            # digitisation.
-            logger.debug("MAD=0, moving to fallback on mean/std")
-            fracdev = (C-C.mean())/max(C.std(), self.fallback_min_std)
+                "input with ndim={ndim:d}>3 dimensions".format(ndim=C.ndim))
+        fracdev = ((C - med)/mad)
         return abs(fracdev) > cutoff
 
 class OrbitFilter:
