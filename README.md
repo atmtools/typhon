@@ -12,36 +12,19 @@ is through [Anaconda]. But of course, any other Python distribution is also
 working.
 
 ### Stable release
-The following command will install the latest stable release of typhon into you
-``conda`` environment:
+The latest stable release of typhon can be installed using ``conda`` 
+(recommended)
 ```bash
 $ conda install -c rttools typhon
 ```
+or ``pip``
+```bash
+$ pip install typhon
+```
 
 ### Development version
-If you want to take part in the typhon development, you have to create
-a local working copy of the typhon repository:
-```bash
-$ git clone https://github.com/atmtools/typhon.git
-$ cd typhon
-```
-
-Afterwards, you can use ``conda`` to install required dependencies
-and libraries:
-```bash
-$ conda config --add channels conda-forge
-$ conda install --file requirements.txt
-```
-
-Finally, ``pip`` can be used to install the cloned working copy
-to your Python environment.
-```bash
-$ pip install --no-deps --user --editable .
-```
-
-This will install the package in editable mode (develop mode) in the user's
-home directory. That way, local changes to the package are directly available
-in the current environment.
+Check our [contribution guidelines](CONTRIBUTING.md#Anaconda-development-environment)
+for information on how to setup a development environment for typhon.
 
 ## Testing
 Typhon contains a simple testing framework using [pytest]. It is good
