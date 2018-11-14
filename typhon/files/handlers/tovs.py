@@ -184,7 +184,7 @@ class MHS_HDF(AAPP_HDF):
         check_lat_lon(dataset)
 
         if user_mapping is not None:
-            dataset.rename(user_mapping, inplace=True)
+            dataset = dataset.rename(user_mapping)
 
         return dataset
 
@@ -289,7 +289,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         check_lat_lon(dataset)
 
         if user_mapping is not None:
-            dataset.rename(user_mapping, inplace=True)
+            dataset = dataset.rename(user_mapping)
 
         return dataset
 

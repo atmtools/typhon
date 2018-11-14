@@ -462,16 +462,13 @@ def expand(dataset):
     for i in range(2):
         expanded["collocation"] = groups[i] + "/collocation", \
                                   np.arange(pairs[i].size)
-        expanded.swap_dims(
-            {groups[i] + "/collocation": "collocation"}, inplace=True
+        expanded = expanded.swap_dims(
+            {groups[i] + "/collocation": "collocation"}
         )
 
     # The variable pairs is useless now:
     expanded = expanded.drop("Collocations/pairs")
 
-    expanded.rename(
-        {"Collocations/collocation": "collocation"},
-        inplace=True
-    )
+    expanded = expanded.rename({"Collocations/collocation": "collocation"})
 
     return expanded
