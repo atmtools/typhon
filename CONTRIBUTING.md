@@ -23,6 +23,9 @@ by Davide Coppola. It also serves as a table of contents.
 8. [Code review](#code-review)
 9. [Follow up](#follow-up)
 
+General information on how to setup a development environment using Anaconda
+can be found on the [bottom of this page](#anaconda-development-environment)
+
 ## Fork the project
 The first step is to fork the typhon project. This is done by clicking the Fork
 button on the project site.
@@ -115,47 +118,42 @@ To delete the branch in your local repository and on GitHub:
 $ git branch -D BRANCH_NAME
 $ git push origin --delete BRANCH_NAME
 ```
+
+
 # Anaconda development environment
 We strongly recommend to use
 [Anaconda](https://conda.io/docs/user-guide/install/download.html) for your
 Python development. Follow the instructions on the linked page to set up
 a working Anaconda system.
 
-For the development of typhon, you need to have a few more dependencies
-installed than the average user. To make it as easy as possible for typhon
-developers, an `environment.yml` file is distributed in the toplevel directory
-of the typhon package. This can be used to install all needed dependencies for
-typhon development in a separate Anaconda environment.
-If you would like to know more about Python environments, check the
-[Managing environments](https://conda.io/docs/user-guide/tasks/manage-environments.html)
-section of the Anaconda documentation.
-
-To setup a typhon environment, execute the following command in the toplevel
-typhon directory:
-
+Afterwards, you have to create a local working copy of the typhon repository:
 ```bash
-conda env create -f environment.yml -n typhondev
+$ git clone https://github.com/atmtools/typhon.git  # or your own fork
+$ cd typhon
 ```
 
-This will take a while as packages are downloaded and installed.
-In a current version of Anaconda, you can now activate this environment with:
-
+Now you can use ``conda`` to install required dependencies and libraries:
 ```bash
-conda activate typhondev
+$ conda config --add channels conda-forge
+$ conda install --file requirements.txt
 ```
 
-If the environment was successfully activated, your terminal prompt should be
-preceeded by the string `(typhondev)`.
-
-Now install typhon as usual:
-
+Finally, ``pip`` can be used to install the cloned working copy
+to your Python environment (make sure to use the ``pip`` installed with 
+``conda`` and not the system version.)
 ```bash
-pip install -e .
+$ pip install --no-deps --user --editable .
 ```
 
-With all the dependencies available you can now also build the documentation in
-the `doc/` subdirectory:
+This will install the package in editable mode (develop mode) in the user's
+home directory. That way, local changes to the package are directly available
+in the current environment.
 
+With all the dependencies available you can now run the checks
+```bash
+pytest
+```
+and also build the documentation in the `doc/` subdirectory: 
 ```bash
 cd doc
 make clean html
