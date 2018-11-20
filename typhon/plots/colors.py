@@ -55,13 +55,18 @@ def mpl_colors(cmap=None, N=None):
     return plt.get_cmap(cmap)(np.linspace(0, 1, N))
 
 
-def cmap2rgba(cmap=None, N=None):
+def cmap2rgba(cmap=None, N=None, interpolate=True):
     """Convert a colormap into a list of RGBA values.
 
     Parameters:
         cmap (str): Name of a registered colormap.
         N (int): Number of RGBA-values to return.
             If ``None`` use the number of colors defined in the colormap.
+        interpolate (bool): Toggle the interpolation of values in the
+            colormap.  If ``False``, only values from the colormap are
+            used. This may lead to the re-use of a color, if the colormap
+            provides less colors than requested. If ``True``, a lookup table
+            is used to interpolate colors (default is ``True``).
 
     Returns:
         ndarray: RGBA-values.
@@ -74,13 +79,19 @@ def cmap2rgba(cmap=None, N=None):
             [ 0.369214,  0.788888,  0.382914,  1.      ],
             [ 0.993248,  0.906157,  0.143936,  1.      ]])
     """
-    if cmap is None:
-        cmap = plt.rcParams['image.cmap']
+    cmap = plt.get_cmap(cmap)
 
     if N is None:
-        N = plt.get_cmap(cmap).N
+        N = cmap.N
 
-    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
+    nlut = N if interpolate else None
+
+    if interpolate and isinstance(cmap, colors.ListedColormap):
+        # `ListedColormap` does not support lookup table interpolation.
+        cmap = colors.LinearSegmentedColormap.from_list('', cmap.colors)
+        return cmap(np.linspace(0, 1, N))
+
+    return plt.get_cmap(cmap.name, lut=nlut)(np.linspace(0, 1, N))
 
 
 def _to_hex(c):
