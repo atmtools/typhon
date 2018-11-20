@@ -33,6 +33,34 @@ class TestColors:
 
         assert np.allclose(ref, rgb, atol=0.001)
 
+    def test_cmap2rgba_interpolation(self):
+        """Check colormap to RGBA interpolation."""
+        max_planck_duplicates = np.array([
+            [0., 0.4627451, 0.40784314, 1.],
+            [0.48235294, 0.70980392, 0.67843137, 1.],
+            [0.74901961, 0.85098039, 0.83137255, 1.],
+            [0.96078431, 0.97254902, 0.97647059, 1.],
+            [0.96078431, 0.97254902, 0.97647059, 1.],
+        ])
+
+        max_planck_interpolated = np.array([
+            [0., 0.4627451, 0.40784314, 1.],
+            [0.36176471, 0.64803922, 0.61078431, 1.],
+            [0.61568628, 0.78039216, 0.75490196, 1.],
+            [0.80196079, 0.88137255, 0.86764706, 1.],
+            [0.96078431, 0.97254902, 0.97647059, 1.],
+        ])
+
+        assert np.allclose(
+            max_planck_interpolated,
+            colors.cmap2rgba('max_planck', 5, interpolate=True)
+        )
+
+        assert np.allclose(
+            max_planck_duplicates,
+            colors.cmap2rgba('max_planck', 5, interpolate=False)
+        )
+
     def test_cmap2cpt(self):
         """Export colormap to cpt file."""
         colors.cmap2cpt('viridis', filename=self.f)
