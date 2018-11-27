@@ -1014,7 +1014,7 @@ class Collocator:
                 data["collocation"] = shared_dims[0], np.arange(
                     data[shared_dims[0]].size)
                 data = data.swap_dims({shared_dims[0]: "collocation"})
-                data.reset_coords(shared_dims[0], inplace=True)
+                data = data.reset_coords(shared_dims[0])
 
                 # So far, collocation is a coordinate. We want to make it to a
                 # dimension,  so drop its values:
@@ -1046,7 +1046,7 @@ class Collocator:
         # for dim in dims:
         #     new_dim = f"__replacement_{dim}"
         #     data[new_dim] = dim, np.arange(data.dims[dim])
-        #     data.swap_dims({dim: new_dim}, inplace=True)
+        #     data = data.swap_dims({dim: new_dim})
         #     new_dims.append(new_dim)
         return data.stack(collocation=dims)
 

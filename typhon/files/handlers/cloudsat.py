@@ -105,7 +105,7 @@ class CloudSat(HDF4):
         )
 
         if user_mapping is not None:
-            dataset.rename(user_mapping, inplace=True)
+            dataset = dataset.rename(user_mapping)
 
         return dataset
 

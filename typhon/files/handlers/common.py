@@ -124,7 +124,7 @@ def _xarray_rename_fields(dataset, mapping):
             if old_name in names
         }
 
-        dataset.rename(mapping, inplace=True)
+        dataset = dataset.rename(mapping)
 
     return dataset
 
@@ -786,12 +786,12 @@ class NetCDF4(FileHandler):
                 full: NetCDF4._split_path(full)[1]
                 for full in ds.data_vars
             }
-            ds.rename(mapping, inplace=True)
+            ds = ds.rename(mapping)
             mapping = {
                 dim: NetCDF4._split_path(dim)[1]
                 for dim in ds.dims
             }
-            ds.rename(mapping, inplace=True)
+            ds = ds.rename(mapping)
 
             ds.to_netcdf(
                 filename.path, group=group,

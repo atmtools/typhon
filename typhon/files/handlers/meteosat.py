@@ -208,7 +208,7 @@ class SEVIRI(HDF5):
             for old, new in self.channel_names.items()
             if old in dataset.variables
         }
-        dataset.rename(mapping, inplace=True)
+        dataset = dataset.rename(mapping)
         return dataset
 
     @staticmethod
