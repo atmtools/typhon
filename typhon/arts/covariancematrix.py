@@ -202,7 +202,7 @@ class CovarianceMatrix(object):
 
         blocks = []
         inv_blocks = []
-        for b in xmlelement.getchildren():
+        for b in list(xmlelement):
 
             i = b.get("row_index")
             j = b.get("column_index")
