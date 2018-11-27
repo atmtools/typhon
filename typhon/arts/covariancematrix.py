@@ -296,7 +296,7 @@ class CovarianceMatrix(object):
             dm = b.matrix.shape[0]
             dn = b.matrix.shape[1]
             if sp.sparse.issparse(b.matrix):
-                mat[m0 : m0 + dm, n0 : n0 + dn] = b.matrix.todense()
+                mat[m0 : m0 + dm, n0 : n0 + dn] = b.matrix.toarray()
             else:
                 mat[m0 : m0 + dm, n0 : n0 + dn] = b.matrix
         return mat
@@ -318,7 +318,7 @@ def plot_covariance_matrix(covariance_matrix, ax = None):
     for b in covariance_matrix.blocks:
         y = np.arange(b.row_start, b.row_start + b.matrix.shape[0] + 1) - 0.5
         x = np.arange(b.column_start, b.column_start + b.matrix.shape[1] + 1) - 0.5
-        ax.pcolormesh(x, y, np.array(b.matrix.todense()))
+        ax.pcolormesh(x, y, np.array(b.matrix.toarray()))
 
 
 
