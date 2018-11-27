@@ -32,7 +32,7 @@ class TestCovarianceMatrix:
     def test_to_dense(self):
         m = self.covmat.to_dense()
         assert(np.allclose(m[:10, :10], self.covmat.blocks[0].matrix))
-        assert(np.allclose(m[10:, 10:], self.covmat.blocks[1].matrix.todense()))
+        assert(np.allclose(m[10:, 10:], self.covmat.blocks[1].matrix.toarray()))
 
     def teardown_method(self):
         # Remove temp file

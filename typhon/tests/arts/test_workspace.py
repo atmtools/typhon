@@ -89,7 +89,7 @@ class TestWorkspace:
             i = sp.sparse.identity(11)
             self.ws.sensor_response = i
             print(self.ws.sensor_response.value)
-            assert  np.all(i.todense() == self.ws.sensor_response.value.todense())
+            assert  np.all(i.toarray() == self.ws.sensor_response.value.toarray())
 
     def test_supergeneric_overload_resolution(self):
         self.ws.ArrayOfIndexCreate("array_of_index")

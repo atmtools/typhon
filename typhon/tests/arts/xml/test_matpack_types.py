@@ -116,7 +116,7 @@ class TestLoad:
         """Load reference XML file for ARTS type Sparse."""
         reference = _create_sparse(10) * 7
         test_data = xml.load(self.ref_dir + 'sparse' + suffix)
-        assert np.array_equal(test_data.todense(), reference.todense())
+        assert np.array_equal(test_data.toarray(), reference.toarray())
 
     @pytest.mark.parametrize('n', range(3, 8))
     def test_load_tensor(self, n):
@@ -259,7 +259,7 @@ class TestSave:
         reference = _create_sparse(10)
         xml.save(reference, self.f, format=fileformat)
         test_data = xml.load(self.f)
-        assert np.array_equal(test_data.todense(), reference.todense())
+        assert np.array_equal(test_data.toarray(), reference.toarray())
 
     def test_save_complex_matrix(self):
         """Save complex Matrix to file, read it and compare the results."""
