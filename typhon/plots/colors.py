@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
-
-"""Utility functions related to plotting.
-"""
+"""Utility functions related to plotting."""
+import csv
 import os
 import re
+from functools import lru_cache
+from warnings import warn
+
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
-from warnings import warn
 
 from typhon.utils import deprecated
 
@@ -23,6 +23,7 @@ __all__ = [
     'cmap2ggr',
     'cmap_from_act',
     'cmap_from_txt',
+    'get_material_design',
 ]
 
 
@@ -367,3 +368,60 @@ def cmap_from_txt(file, name=None, N=-1, comments='%'):
     plt.register_cmap(cmap=cmap_r)
 
     return cmap
+
+
+@lru_cache(16)
+def get_material_design(name, shade=None):
+    """Return material design colors.
+
+    Parameters:
+        name (str): Color name (e.g. 'red').
+        shade (str): Color shade (e.g. '500').
+            If ``None`` all defined shades are returned.
+
+    Returns:
+        str or list[str]: Hex RGB value or list of hex RGB values.
+
+    References:
+        https://material.io/design/color/the-color-system.html
+
+    Raises:
+        ValueError: If the specified ``name`` or ``shade`` is not defined.
+
+    Examples:
+        >>> get_material_design('red', shade='500')
+        '#F44336'
+
+        >>> get_material_design('red')
+        ['#FFEBEE', '#FFCDD2', '#EF9A9A', '#E57373', '#EF5350', '#F44336',
+        '#E53935', '#D32F2F', '#C62828', '#B71C1C', '#FF8A80', '#FF5252',
+        '#FF1744', '#D50000']
+
+    """
+    material_source = os.path.join(os.path.dirname(__file__), 'material.csv')
+    with open(material_source, newline='') as csvfile:
+        reader = csv.DictReader(csvfile, delimiter=',')
+
+        available_colors = []
+        for row in reader:
+            available_colors.append(row['name'])
+            if available_colors[-1] == name:
+                available_shades = [k for k, v in row.items()
+                                    if v and k != 'name']
+
+                if shade is None:
+                    return [c for c in
+                            list(row.values())[1:len(available_shades) + 1]]
+
+                if shade in available_shades:
+                    return row[shade]
+                else:
+                    raise ValueError(
+                        f'Shade "{shade}" not defined for color "{name}". '
+                        f'Available shades are:\n{available_shades}'
+                    )
+
+        raise ValueError(
+            f'Color "{name}" not defined. '
+            f'Available colors are:\n{available_colors}.'
+        )

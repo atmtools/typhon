@@ -112,3 +112,22 @@ class TestColors:
         rgb = colors.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
 
         assert np.allclose(ref, rgb, atol=0.001)
+
+    def test_get_material_design(self):
+        """Test the retrieval of material design colors."""
+        hex_color = colors.get_material_design('red', shade='500')
+        assert(hex_color, '#F44336')
+
+        hex_colors = colors.get_material_design('red', shade=None)
+        assert (hex_colors,
+                ['#FFEBEE', '#FFCDD2', '#EF9A9A', '#E57373', '#EF5350',
+                 '#F44336', '#E53935', '#D32F2F', '#C62828', '#B71C1C',
+                 '#FF8A80', '#FF5252', '#FF1744', '#D50000'])
+
+    def test_get_material_design_valuerror(self):
+        """Test the behavior for undefined material design colors or shades."""
+        with pytest.raises(ValueError):
+            colors.get_material_design('undefined_color')
+
+        with pytest.raises(ValueError):
+            colors.get_material_design('red', 'undefined_shade')
