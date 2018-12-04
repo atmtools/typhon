@@ -45,9 +45,9 @@ class TestColors:
 
         max_planck_interpolated = np.array([
             [0., 0.4627451, 0.40784314, 1.],
-            [0.36176471, 0.64803922, 0.61078431, 1.],
-            [0.61568628, 0.78039216, 0.75490196, 1.],
-            [0.80196079, 0.88137255, 0.86764706, 1.],
+            [0.36318339, 0.64876586, 0.61158016, 1.],
+            [0.6172549, 0.7812226, 0.75580161, 1.],
+            [0.8038293, 0.88244521, 0.86892734, 1.],
             [0.96078431, 0.97254902, 0.97647059, 1.],
         ])
 
@@ -112,3 +112,22 @@ class TestColors:
         rgb = colors.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
 
         assert np.allclose(ref, rgb, atol=0.001)
+
+    def test_get_material_design(self):
+        """Test the retrieval of material design colors."""
+        hex_color = colors.get_material_design('red', shade='500')
+        assert(hex_color, '#F44336')
+
+        hex_colors = colors.get_material_design('red', shade=None)
+        assert (hex_colors,
+                ['#FFEBEE', '#FFCDD2', '#EF9A9A', '#E57373', '#EF5350',
+                 '#F44336', '#E53935', '#D32F2F', '#C62828', '#B71C1C',
+                 '#FF8A80', '#FF5252', '#FF1744', '#D50000'])
+
+    def test_get_material_design_valuerror(self):
+        """Test the behavior for undefined material design colors or shades."""
+        with pytest.raises(ValueError):
+            colors.get_material_design('undefined_color')
+
+        with pytest.raises(ValueError):
+            colors.get_material_design('red', 'undefined_shade')

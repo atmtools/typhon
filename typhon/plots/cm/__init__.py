@@ -9,7 +9,7 @@ applications.
 
 .. _cmocean: http://matplotlib.org/cmocean/
 """
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import (LinearSegmentedColormap, ListedColormap)
 from matplotlib.cm import register_cmap
 
 from ._cmocean import datad as _cmocean_datad
@@ -29,15 +29,13 @@ def _rev_cdict(cdict):
 
 cmaps = {}
 for (name, data) in datad.items():
-    if 'red' in data:
+    if isinstance(data, dict):
         cmaps[name] = LinearSegmentedColormap(name, data)
         cmaps[name + '_r'] = LinearSegmentedColormap(
             name + '_r', _rev_cdict(data))
-    else:
-        cmaps[name] = LinearSegmentedColormap.from_list(
-            name, data, N=len(data))
-        cmaps[name + '_r'] = LinearSegmentedColormap.from_list(
-            name + '_r', data[::-1], N=len(data))
+    elif isinstance(data, list):
+        cmaps[name] = ListedColormap(data, name)
+        cmaps[name + '_r'] = ListedColormap(data[::-1], name + '_r')
 
 locals().update(cmaps)
 

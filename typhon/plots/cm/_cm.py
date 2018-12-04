@@ -36,8 +36,29 @@ _max_planck = [
     [0.74901961, 0.85098039, 0.83137255],
     [0.96078431, 0.97254902, 0.97647059]]
 
+_material = [
+    # dark,    light
+    '#F44336', '#EF9A9A',  # red
+    '#2196F3', '#90CAF9',  # blue
+    '#4CAF50', '#A5D6A7',  # green
+    '#9C27B0', '#CE93D8',  # purple
+    '#FF9800', '#FFCC80',  # orange
+    '#795548', '#BCAAA4',  # brown
+    '#E91E63', '#F48FB1',  # pink
+    '#00BCD4', '#80DEEA',  # cyan
+    '#CDDC39', '#E6EE9C',  # lime
+    '#607D8B', '#B0BEC5',  # blue gray
+]
+
+_uhh = [
+    [0.88627451, 0.00000000, 0.10196078],
+    [0.00000000, 0.61176471, 0.81960784],
+    [0.23137255, 0.31764706, 0.35686275]]
+
 datad = {
     'qualitative1': _qualitative1_data,
     'qualitative2': _qualitative2_data,
     'max_planck': _max_planck,
+    'material': _material,
+    'uhh': _uhh,
 }

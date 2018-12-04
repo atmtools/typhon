@@ -5,6 +5,7 @@ include typhon/VERSION
 recursive-include typhon *.act
 recursive-include typhon *.arts
 recursive-include typhon *.cpt
+recursive-include typhon *.csv
 recursive-include typhon *.dat
 recursive-include typhon *.gz
 recursive-include typhon *.mplstyle
