@@ -13,6 +13,7 @@ install:
   - C:\\Miniconda36-x64\\python.exe -m pip install -U pip
   - pip install Cython
   - pip install pytest
+  - pip install git+https://github.com/Unidata/cftime
   - pip install .
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
   - "set TYPHONTESTFILES=%cd%\\typhon-testfiles"
