@@ -50,9 +50,15 @@ _material = [
     '#607D8B', '#B0BEC5',  # blue gray
 ]
 
+_uhh = [
+    [0.88627451, 0.00000000, 0.10196078],
+    [0.00000000, 0.61176471, 0.81960784],
+    [0.23137255, 0.31764706, 0.35686275]]
+
 datad = {
     'qualitative1': _qualitative1_data,
     'qualitative2': _qualitative2_data,
     'max_planck': _max_planck,
     'material': _material,
+    'uhh': _uhh,
 }
