@@ -14,7 +14,7 @@ import numpy  as np
 
 import ast
 from   ast      import iter_child_nodes, parse, NodeVisitor, Call, Attribute, Name, \
-                       Expression, Expr, FunctionDef, Starred
+                       Expression, Expr, FunctionDef, Starred, Module, expr
 from   inspect  import getsource, getclosurevars
 from contextlib import contextmanager
 from copy       import copy
@@ -113,7 +113,35 @@ def arts_agenda(func):
     nls, _, _, _ = getclosurevars(func)
     context.update(nls)
 
+    #
+    # Helper functions
+    #
+
+    callback_body = []
+    def callback_make_fun(body):
+        """
+        Helper function that creates a wrapper function around
+        python code to be executed withing an ARTS agenda.
+        """
+        m = Module(body)
+
+        print("Making callback: " , body)
+
+        def callback(ptr):
+            try:
+                context[arg_name].ptr = ptr
+                eval(compile(m , "<unknown>", 'exec'), context)
+            except Exception as e:
+                print(r"Exception in Python callback:\n", e)
+            context[arg_name].ptr = None
+
+        callback_body = []
+        return callback
+
     def eval_argument(expr):
+        """
+        Evaluate argument of workspace method call.
+        """
         if not hasattr(expr, "lineno"):
             setattr(expr, "lineno", 0)
         return eval(compile(Expression(expr), "<unknown>", 'eval'), context)
@@ -126,41 +154,63 @@ def arts_agenda(func):
         "Agenda definitions may only contain calls to WSMs of the"
         "workspace argument " + arg_name + " or INCLUDE statements.")
 
+    #
+    # Here the body of the function definition is traversed. Cases
+    # that are treated specieal are INCLUDE statements and calls
+    # of workspace methods. Remaining statements are accumulated
+    # in callback_body and then added to the agenda as a single callback.
+    #
+
     for e in func_ast.body:
-        try:
+        if not isinstance(e, Expr):
+            callback_body += [e]
+            continue
+        else:
             call = e.value
-        except:
-            raise Exception("Agendas may only contain call expressions.")
+
+        if not isinstance(call, Call):
+            callback_body += [e]
+            continue
+
+        print(call)
 
         # Include statement
         if type(call.func) == Name:
+            print(call.func.id)
             if not call.func.id == "INCLUDE":
-                raise illegal_statement_exception
+                print(call.func.id)
+                callback_body += [e]
             else:
                 args = []
                 for a in call.args:
                     args.append(eval_argument(a))
                     include = Include(*args)
+
+                    if len(callback_body) > 0:
+                        agenda.add_callback(callback_make_fun(callback_body))
+                        callback_body = []
+
                     arts_api.agenda_append(agenda.ptr, include.agenda.ptr)
         else:
             att  = call.func.value
             if not att.id == arg_name:
-                raise illegal_statement_exception
+                callback_body += [e]
+                continue
 
             # Extract method name.
-            try:
-                name = call.func.attr
-                m    = workspace_methods[name]
-                if not type(m) == WorkspaceMethod:
-                    raise Exception(name + " is not a known WSM.")
-            except:
-                raise Exception(name + " is not a known WSM.")
+            name = call.func.attr
 
-            # Extract positional arguments
+            # m is not a workspace method
+            if not name in workspace_methods:
+                callback_body += [e]
+                continue
+
+            # m is a workspace method.
+            m  = workspace_methods[name]
+
             args = [ws, m]
 
             for a in call.args:
-
                 # Handle starred expression
                 if type(a) == Starred:
                     bs = eval_argument(a.value)
@@ -178,7 +228,17 @@ def arts_agenda(func):
                     context)
 
             # Add function to agenda
+            if len(callback_body) > 0:
+                agenda.add_callback(callback_make_fun(callback_body))
+                callback_body = []
+
             agenda.add_method(*args, **kwargs)
+
+    # Check if there's callback code left to add to the agenda.
+    if len(callback_body) > 0:
+        agenda.add_callback(callback_make_fun(callback_body))
+        callback_body = []
+
     return agenda
 
 
@@ -253,8 +313,9 @@ class Workspace:
         """
         Cleans up the C API.
         """
-        if (arts_api):
-            arts_api.destroy_workspace(self.ptr)
+        if not self.ptr is None:
+            if not arts_api is None:
+                arts_api.destroy_workspace(self.ptr)
 
     def __verbosity_init__(self):
         """

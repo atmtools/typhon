@@ -19,7 +19,8 @@ class Agenda:
             ptr(c.c_void_p): Pointer to Agenda object created with the parse_agenda
             method of the ARTS C API.
         """
-        self.ptr = ptr
+        self.ptr       = ptr
+        self.callbacks = []
 
     @classmethod
     def create(cls, name):
@@ -109,6 +110,23 @@ class Agenda:
 
             group_id = arts_api.get_variable(args_out[0]).group
             arts_api.agenda_insert_set(ws.ptr, self.ptr, args_out[0], group_id)
+
+    def add_callback(self, f):
+        """
+        Add a Python callback to the agenda.
+
+        The function f must except one argument, which is the the pointer to
+        the workspace object on which the callback is executed.
+
+        Parameters:
+
+            f(callable): Python callable.
+
+        """
+        callback = c.CFUNCTYPE(None, c.c_void_p)(f)
+        arts_api.agenda_insert_callback(self.ptr, callback)
+        self.callbacks += [callback]
+
 
     def execute(self, ws):
         """ Execute this agenda on the given workspace.

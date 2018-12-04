@@ -285,3 +285,27 @@ class TestWorkspace:
         assert(type(v) == list)
         assert(type(v[0]) == list)
         assert(type(v[0][0]) == int)
+
+    def test_callbacks(self):
+
+        @arts_agenda
+        def agenda(ws):
+            """
+            This agenda sets a workspace variable in a very
+            obscure way.
+            """
+
+            class Foo:
+                def __init__(self, ws):
+                    self.ws = ws
+
+                def ooo(self):
+                    self.ws.IndexSet(ws.stokes_dim, 42)
+
+            foo = Foo(ws)
+            ws.IndexSet(ws.stokes_dim, 21)
+            foo.ooo()
+
+        agenda.execute(self.ws)
+
+        assert self.ws.stokes_dim.value == 42

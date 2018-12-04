@@ -33,7 +33,7 @@ from typhon.environment import environ
 
 arts_minimum_major    = 2
 arts_minimum_minor    = 3
-arts_minimum_revision = 1100
+arts_minimum_revision = 1167
 
 ################################################################################
 # Load ARTS C API
@@ -461,6 +461,10 @@ arts_api.execute_workspace_method.restype  = c.c_char_p
 # Print method documentation.
 arts_api.method_print_doc.argtypes = [c.c_long]
 arts_api.method_print_doc.restype  = c.c_char_p
+
+# Callback
+arts_api.agenda_insert_callback.argtypes = [c.c_void_p, c.c_void_p]
+arts_api.agenda_insert_callback.restype  = None
 
 ################################################################################
 # Setup ARTS Environment
