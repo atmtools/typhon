@@ -10,6 +10,7 @@ init:
 
 install:
   - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%PATH%"
+  - pip install Cython
   - pip install pytest
   - pip install .
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
