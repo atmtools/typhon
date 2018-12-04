@@ -462,7 +462,8 @@ arts_api.execute_workspace_method.restype  = c.c_char_p
 arts_api.method_print_doc.argtypes = [c.c_long]
 arts_api.method_print_doc.restype  = c.c_char_p
 
-# Callback
+# Callback insertion
+arts_api.callbacks = []
 arts_api.agenda_insert_callback.argtypes = [c.c_void_p, c.c_void_p]
 arts_api.agenda_insert_callback.restype  = None
 

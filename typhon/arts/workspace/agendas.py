@@ -20,7 +20,6 @@ class Agenda:
             method of the ARTS C API.
         """
         self.ptr       = ptr
-        self.callbacks = []
 
     @classmethod
     def create(cls, name):
@@ -125,7 +124,7 @@ class Agenda:
         """
         callback = c.CFUNCTYPE(None, c.c_void_p)(f)
         arts_api.agenda_insert_callback(self.ptr, callback)
-        self.callbacks += [callback]
+        arts_api.callbacks += [callback]
 
 
     def execute(self, ws):
