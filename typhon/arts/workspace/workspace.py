@@ -125,8 +125,6 @@ def arts_agenda(func):
         """
         m = Module(body)
 
-        print("Making callback: " , body)
-
         def callback(ptr):
             try:
                 context[arg_name].ptr = ptr
@@ -172,13 +170,9 @@ def arts_agenda(func):
             callback_body += [e]
             continue
 
-        print(call)
-
         # Include statement
         if type(call.func) == Name:
-            print(call.func.id)
             if not call.func.id == "INCLUDE":
-                print(call.func.id)
                 callback_body += [e]
             else:
                 args = []
