@@ -317,6 +317,12 @@ class Workspace:
             if not arts_api is None:
                 arts_api.destroy_workspace(self.ptr)
 
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self):
+        pass
+
     def __verbosity_init__(self):
         """
         Executes verbosityInit WSM directly through the ARTS api to suppress

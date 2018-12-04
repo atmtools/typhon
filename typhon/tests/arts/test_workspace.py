@@ -286,6 +286,9 @@ class TestWorkspace:
         assert(type(v[0]) == list)
         assert(type(v[0][0]) == int)
 
+        v = WorkspaceVariable.convert("ArrayOfArrayOfIndex", 1)
+        return v
+
     def test_callbacks(self):
 
         @arts_agenda
