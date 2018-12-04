@@ -9,6 +9,8 @@ matrix:
   allow_failures:
     - env: CONFIG=PEP8
 install:
+  - pip install -U pip
+  - pip install Cython
   - pip install .[tests]
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
   - export TYPHONTESTFILES=$PWD/typhon-testfiles
