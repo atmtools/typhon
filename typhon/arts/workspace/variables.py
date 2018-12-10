@@ -216,7 +216,6 @@ class WorkspaceVariable:
             dim = int(group[6])
             return np.array(value, dtype=np.float64, order='C', ndmin=dim)
         if group.startswith("ArrayOf"):
-            print(group)
             subgroup = group[7:]
             if hasattr(value, "__iter__"):
                 return [cls.convert(subgroup, v) for v in value]
