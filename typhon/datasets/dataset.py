@@ -949,7 +949,21 @@ class Dataset(metaclass=abc.ABCMeta):
                         for (f_my, f_oth) in trans.items()], 0)
 
         if not near.any():
-            raise ValueError("Did not find any secondaries!  Are times off?")
+            # check time coverage
+            first_found = other_data["time"].min().values.astype("M8[ms]").astype(datetime.datetime)
+            last_found = other_data["time"].max().values.astype("M8[ms]").astype(datetime.datetime)
+            if (abs(first_found - first) > timetol and
+                abs(last_found - last) > timetol):
+                raise ValueError(f"Primary covers "
+                    f"{first:%Y-%m-%d %H:%M:%S}–{last:%Y-%m-%d %H:%M:%S}, "
+                    "but secondary only covers "
+                    f"{first_found:%Y-%m-%d %H:%M:%S}–{last_found:%Y-%m-%d %H:%M:%S}. "
+                    "Finding secondary fails.  Perhaps the "
+                    "secondary is coming from a derived dataset compared "
+                    "to where the original collocations were made, and the "
+                    "derived dataset is temporarily absent.")
+            else:
+                raise ValueError("Did not find any secondaries!  Are times off?")
 
         if not near.all():
             logger.warn("Only {:d}/{:d} ({:%}) of secondaries found".format(
