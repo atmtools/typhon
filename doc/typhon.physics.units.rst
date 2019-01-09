@@ -27,3 +27,14 @@ physics.units.constants
 .. autosummary::
    :toctree: generated
 
+physics.units.tools
+===================
+
+.. automodule:: typhon.physics.units.tools
+
+.. currentmodule:: typhon.physics.units.tools
+
+.. autosummary::
+   :toctree: generated
+
+   UnitsAwareDataArray

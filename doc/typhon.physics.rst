@@ -55,4 +55,4 @@ physics.metrology
    :toctree: generated
 
    express_uncertainty
-
+   recursive_args
