@@ -33,6 +33,30 @@ datasets.dataset
    SingleFileDataset
    SingleMeasurementPerFileDataset
 
+datasets.filters
+================
+
+.. automodule:: typhon.datasets.filters
+
+.. currentmodule:: typhon.datasets.filters
+
+.. autosummary::
+   :toctree: generated
+
+   FilterError
+   OutlierFilter
+   MEDMAD
+   OrbitFilter
+   TimeMaskFilter
+   HIRSTimeSequenceDuplicateFilter
+   HIRSFlagger
+   HIRSCalibCountFilter
+   HIRSPRTTempFilter
+   OverlapFilter
+   FirstlineDBFilter
+   NullLineFilter
+   HIRSBestLineFilter
+
 datasets.model
 ==============
 
