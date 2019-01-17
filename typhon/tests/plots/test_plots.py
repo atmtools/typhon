@@ -3,6 +3,8 @@
 """
 import os
 
+import pytest
+
 from typhon import plots
 
 
@@ -19,13 +21,19 @@ class TestPlots:
         shape = plots.get_subplot_arrangement(8)
         assert shape == (3, 3)
 
-    def test_get_available_styles(self):
-        """Check matplotlib stylesheet paths.
+    def test_get_style_path_method(self):
+        assert os.path.isfile(plots.styles.get('typhon'))
 
-        This test checks the consinstency of the in and outputs
-        of styles() and get_available_styles().
-        """
-        style_paths = [
-            plots.styles(s) for s in plots.get_available_styles()]
+    def test_get_style_path_call(self):
+        assert os.path.isfile(plots.styles('typhon'))
 
-        assert all(os.path.isfile(s) for s in style_paths)
+    def test_undefined_style(self):
+        with pytest.raises(ValueError):
+            plots.styles.get('Undefined Stylesheet Name')
+
+    def test_available_styles(self):
+        style_paths = plots.styles.available
+
+        assert isinstance(style_paths, list)
+        assert len(style_paths) > 0
+        assert all(os.path.isfile(plots.styles(s)) for s in style_paths)
