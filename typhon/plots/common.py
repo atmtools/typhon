@@ -145,7 +145,15 @@ class _StyleHandler:
         if name is None:
             name = 'typhon'
 
-        return os.path.join(self.stylelib_dir, name + '.mplstyle')
+        style_path = os.path.join(self.stylelib_dir, name + '.mplstyle')
+
+        if os.path.isfile(style_path):
+            return style_path
+        else:
+            raise ValueError(
+                f'"{name}" is not a valid style. '
+                f'See ``styles.available`` for list of available styles.'
+        )
 
     def get(self, name=None):
         """Return absolute path to typhon stylesheet.
