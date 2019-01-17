@@ -27,6 +27,9 @@ class TestPlots:
     def test_get_style_path_call(self):
         assert os.path.isfile(plots.styles('typhon'))
 
+    def test_get_style_path_default(self):
+        assert os.path.isfile(plots.styles())
+
     def test_undefined_style(self):
         with pytest.raises(ValueError):
             plots.styles.get('Undefined Stylesheet Name')

@@ -140,11 +140,8 @@ class _StyleHandler:
         """
         return self.get(name)
 
-    def _get_style(self, name=None):
+    def _get_style(self, name):
         """Return absolute path to a single typhon stylesheet."""
-        if name is None:
-            name = 'typhon'
-
         style_path = os.path.join(self.stylelib_dir, name + '.mplstyle')
 
         if os.path.isfile(style_path):
@@ -161,6 +158,9 @@ class _StyleHandler:
         Parameters:
             name (str, list): Style name or list of style names.
         """
+        if name is None:
+            name = 'typhon'
+
         if isinstance(name, list):
             return [self._get_style(n) for n in name]
         elif isinstance(name, str):
