@@ -3,7 +3,7 @@
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import typhon
+from typhon.plots import styles
 
 
 def simple_plot(stylename):
@@ -27,9 +27,8 @@ def simple_plot(stylename):
 simple_plot('matplotlib 2.0')
 
 # Create a plot for each available typhon style.
-for style_name in typhon.plots.get_available_styles():
-    style_path = typhon.plots.styles(style_name)
-    with plt.style.context(style_path):
+for style_name in styles.available:
+    with plt.style.context(styles(style_name)):
         simple_plot(style_name)
 
 plt.show()

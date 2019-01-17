@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typhon import constants
 
+from typhon.utils import deprecated
+
+
 __all__ = [
     'center_colorbar',
     'figsize',
@@ -165,10 +168,18 @@ class _StyleHandler:
         """
         plt.style.use(self.get(name))
 
+    @property
+    def available(self):
+        """Return list of available typhon styles."""
+        pattern = os.path.join(self.stylelib_dir, '*.mplstyle')
+
+        return [os.path.splitext(os.path.basename(s))[0]
+                for s in glob.glob(pattern)]
 
 styles = _StyleHandler()
 
 
+@deprecated(new_name='typhon.plots.styles.available')
 def get_available_styles():
     """Return list of names of all styles shipped with typhon.
 
