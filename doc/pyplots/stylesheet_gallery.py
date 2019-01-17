@@ -8,6 +8,10 @@ from typhon.plots import styles
 
 def simple_plot(stylename):
     """Generate a simple plot using a given matplotlib style."""
+    if stylename == 'typhon-dark':
+        # TODO: Sphinx build is broken for non-white figure facecolor.
+        return
+
     x = np.linspace(0, np.pi, 20)
 
     fig, ax = plt.subplots()
