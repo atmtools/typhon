@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typhon import constants
 
+from typhon.utils import deprecated
+
+
 __all__ = [
     'center_colorbar',
     'figsize',
@@ -116,6 +119,10 @@ class _StyleHandler:
 
         >>> styles.use('typhon')
 
+        You can also get/use several styles at a time:
+
+        >>> styles.use(['typhon', 'typhon-dark'])
+
     Parameters:
         name (str): Style name.
 
@@ -126,24 +133,61 @@ class _StyleHandler:
         self.stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
 
     def __call__(self, name=None):
-        """Return absolute path to typhon stylesheet."""
+        """Return absolute path to typhon stylesheet.
+
+        Parameters:
+            name (str, list): Style name or list of style names.
+        """
         return self.get(name)
 
-    def get(self, name=None):
-        """Return absolute path to typhon stylesheet."""
+    def _get_style(self, name=None):
+        """Return absolute path to a single typhon stylesheet."""
         if name is None:
             name = 'typhon'
 
-        return os.path.join(self.stylelib_dir, name + '.mplstyle')
+        style_path = os.path.join(self.stylelib_dir, name + '.mplstyle')
+
+        if os.path.isfile(style_path):
+            return style_path
+        else:
+            raise ValueError(
+                f'"{name}" is not a valid style. '
+                f'See ``styles.available`` for list of available styles.'
+        )
+
+    def get(self, name=None):
+        """Return absolute path to typhon stylesheet.
+
+        Parameters:
+            name (str, list): Style name or list of style names.
+        """
+        if isinstance(name, list):
+            return [self._get_style(n) for n in name]
+        elif isinstance(name, str):
+            return self._get_style(name)
+        else:
+            raise TypeError('``name`` has to be of type str or list.')
 
     def use(self, name=None):
-        """Use matplotlib style settings from a typhon style specification."""
+        """Use matplotlib style settings from a typhon style specification.
+
+        Parameters:
+            name (str, list): Style name or list of style names.
+        """
         plt.style.use(self.get(name))
 
+    @property
+    def available(self):
+        """Return list of available typhon styles."""
+        pattern = os.path.join(self.stylelib_dir, '*.mplstyle')
+
+        return [os.path.splitext(os.path.basename(s))[0]
+                for s in glob.glob(pattern)]
 
 styles = _StyleHandler()
 
 
+@deprecated(new_name='typhon.plots.styles.available')
 def get_available_styles():
     """Return list of names of all styles shipped with typhon.
 
