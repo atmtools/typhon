@@ -19,7 +19,102 @@ __all__ = ['ARTSCAT5',
            'PressureBroadening',
            'LineMixing',
            'PartitionFunctions',
+           'LineFunctionsData',
            ]
+
+class LineFunctionsData:
+    def __init__(self):
+        self.LS = None
+        self.LM = None
+        self.species = None
+        self.data = None
+    
+        
+    def len_of_key(self, key):
+        if key in ["LM_AER"]:
+            return 12
+        elif key in ["#"]:
+            return 0
+        elif key in ["T0"]:
+            return 1
+        elif key in ["T1", "T3", "T5"]:
+            return 2
+        elif key in ["T2", "T4"]:
+            return 3
+    
+    def fill_data(self, array, ndata, start=0):
+        pos = 1*start
+        i = 0
+        while i < self.species:
+            self.data[i]['spec'] = array[pos]
+            pos += 1
+            j = 0
+            while j < ndata:
+                self.data[i]['data'][j]['key'] = array[pos]
+                pos += 1
+                for k in range(self.len_of_key(self.data[i]['data'][j]['key'])):
+                    self.data[i]['data'][j]['val'].append(array[pos])
+                    pos += 1
+                j += 1
+            i += 1
+        return pos
+
+    def read_as_part_of_artscat5(self, array, i):
+        self.LS = array[i+0]
+        self.LM = array[i+1]
+        self.species = int(array[i+2])
+        j = i + 3
+        return self.fill_data(array, self.set_data_shape(), j)
+    
+    def len_of_data(self):
+        if self.LS in ['DP']:
+            shape_len = 0
+        elif self.LS in ['LP', 'VP']:
+            shape_len = 2
+        elif self.LS in ['SDVP']:
+            shape_len = 4
+        elif self.LS in ['HTP']:
+            shape_len = 6
+        else:
+            raise InputError("Bad input, is typhon out-of-sync with arts?")
+        if self.LM in ['#']:
+            mixing_len = 0
+        if self.LM in ['LM1', 'INT', 'ConstG']:
+            mixing_len = 1
+        if self.LM in ['LM2']:
+            mixing_len = 3
+        else:
+            raise InputError("Bad input, is typhon out-of-sync with arts?")
+
+        return mixing_len + shape_len
+        
+    
+    def set_data_shape(self):
+        ndata = self.len_of_data()
+        
+        self.data = {}
+        i = 0
+        while i < self.species:
+            self.data[i] = {'spec': None, 'data': {}}
+            j = 0
+            while j < ndata:
+                self.data[i]['data'][j] = {'key': None, 'val': []}
+                j += 1
+            i += 1
+        return ndata
+    
+    def __repr__(self):
+        ndata = self.len_of_data()
+        st = ''
+        st += self.LS + ' ' + self.LM + ' ' + str(self.species) + ' '
+        for x in range(self.species):
+            st += self.data[x]['spec'] + ' '
+            for y in range(ndata):
+                st += self.data[x]['data'][y]['key'] + ' '
+                for z in self.data[x]['data'][y]['val']:
+                    st += z + ' '
+        return st
+    __str__=__repr__
 
 
 class ARTSCAT5:
@@ -61,7 +156,8 @@ class ARTSCAT5:
     _qn_ind = 10
     _lm_ind = 11
     _ze_ind = 12
-    _lsm_ind = 13
+    _lf_ind = 13
+    _lsm_ind = 14
 
     def __init__(self, init_data=None):
         self._dictionaries = np.array([], dtype=dict)
@@ -97,6 +193,7 @@ class ARTSCAT5:
                                                "Data": np.array([])},
                                         "LM": {"Type": None,
                                                "Data": np.array([])},
+                                        "LF": LineFunctionsData(),
                                         "ZE": None,
                                         "LSM": {}})
 
@@ -127,7 +224,7 @@ class ARTSCAT5:
         ze = {"POL": None}
         while i < len_lr:
             this = lr[i]
-            if this in ['QN', 'PB', 'LM', 'ZE', 'LSM']:
+            if this in ['QN', 'PB', 'LM', 'ZE', 'LSM', 'LF']:
                 key = this
             elif key == 'QN':
                 qnr += ' ' + this
@@ -141,6 +238,8 @@ class ARTSCAT5:
                 for nothing in range(x):
                     self._dictionaries[-1]['LSM'][lr[i]] = lr[i+1]
                     i += 2
+            elif key == 'LF':
+                i=self._dictionaries[-1]['LF'].read_as_part_of_artscat5(lr, i)-1
             else:
                 try:
                     self._dictionaries[-1][key]["Data"] = \
@@ -181,6 +280,7 @@ class ARTSCAT5:
                                         'QN': line[self._qn_ind],
                                         'LM': line[self._lm_ind],
                                         'ZE': line[self._ze_ind],
+                                        'LF': line[self._lf_ind],
                                         'LSM': line[self._lsm_ind]})
         self._n += 1
 
@@ -453,6 +553,7 @@ class ARTSCAT5:
                 self.quantumnumbers(index),
                 self.linemixing(index),
                 self.zeemandata(index),
+                self.linefunctionsdata(index),
                 self.lineshapemodifiers(index))
 
     def get_arts_str(self, index):
@@ -480,6 +581,9 @@ class ARTSCAT5:
             s += ' ZE ' + str(self.zeemandata(index)['POL']) + ' '
             s += str(self.zeemandata(index)['GU']) + ' '
             s += str(self.zeemandata(index)['GL'])
+        text = str(self.linefunctionsdata(index))
+        if len(text) > 0:
+            s += ' LF ' + text
 
         if len(self.lineshapemodifiers(index)):
             s += ' LSM ' + str(len(self.lineshapemodifiers(index)))
@@ -503,9 +607,14 @@ class ARTSCAT5:
         return self._dictionaries[index]['LM']
 
     def zeemandata(self, index):
-        """Return line mixing entries for line at index
+        """Return Zeeman entries for line at index
         """
         return self._dictionaries[index]['ZE']
+
+    def linefunctionsdata(self, index):
+        """Return line function entries for line at index
+        """
+        return self._dictionaries[index]['LF']
 
     def lineshapemodifiers(self, index):
         """Return line mixing entries for line at index
