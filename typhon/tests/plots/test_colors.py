@@ -104,15 +104,6 @@ class TestColors:
         idx = np.linspace(0, 1, 256)
         assert np.allclose(viridis(idx), cmap(idx), atol=0.004)
 
-    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
-    def test_mpl_colors(self):
-        """Check colormap to RGB conversion."""
-        ref = np.loadtxt(os.path.join(self.ref_dir, 'viridis.txt'),
-                         comments='%')
-        rgb = colors.mpl_colors('viridis', 256)[:, :3]  # ignore alpha
-
-        assert np.allclose(ref, rgb, atol=0.001)
-
     def test_get_material_design(self):
         """Test the retrieval of material design colors."""
         hex_color = colors.get_material_design('red', shade='500')

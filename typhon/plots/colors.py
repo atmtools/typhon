@@ -13,7 +13,6 @@ import numpy as np
 from typhon.utils import deprecated
 
 __all__ = [
-    'mpl_colors',
     'cmap2rgba',
     'colors2cmap',
     'cmap2txt',
@@ -25,35 +24,6 @@ __all__ = [
     'cmap_from_txt',
     'get_material_design',
 ]
-
-
-@deprecated(new_name='typhon.plots.cmap2rgba')
-def mpl_colors(cmap=None, N=None):
-    """Return a list of RGB values.
-
-    Parameters:
-        cmap (str): Name of a registered colormap.
-        N (int): Number of colors to return.
-            If ``None`` use the number of colors defined in the colormap.
-
-    Returns:
-        np.array: Array with RGB and alpha values.
-
-    Examples:
-        >>> mpl_colors('viridis', 5)
-        array([[ 0.267004,  0.004874,  0.329415,  1.      ],
-            [ 0.229739,  0.322361,  0.545706,  1.      ],
-            [ 0.127568,  0.566949,  0.550556,  1.      ],
-            [ 0.369214,  0.788888,  0.382914,  1.      ],
-            [ 0.993248,  0.906157,  0.143936,  1.      ]])
-    """
-    if cmap is None:
-        cmap = plt.rcParams['image.cmap']
-
-    if N is None:
-        N = plt.get_cmap(cmap).N
-
-    return plt.get_cmap(cmap)(np.linspace(0, 1, N))
 
 
 def cmap2rgba(cmap=None, N=None, interpolate=True):

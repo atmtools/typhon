@@ -9,7 +9,6 @@ except:
 
 if not __TYPHON_SETUP__:
     from . import arts
-    from . import atmosphere
     from . import cloudmask
     from . import config
     from . import constants
