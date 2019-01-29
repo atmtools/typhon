@@ -21,7 +21,6 @@ plots
    colored_bars
    colors2cmap
    figsize
-   get_available_styles
    get_subplot_arrangement
    get_material_design
    heatmap

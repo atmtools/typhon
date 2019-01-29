@@ -11,14 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typhon import constants
 
-from typhon.utils import deprecated
-
 
 __all__ = [
     'center_colorbar',
     'figsize',
     'styles',
-    'get_available_styles',
     'get_subplot_arrangement',
     'label_axes',
     'supcolorbar',
@@ -185,21 +182,6 @@ class _StyleHandler:
                 for s in glob.glob(pattern)]
 
 styles = _StyleHandler()
-
-
-@deprecated(new_name='typhon.plots.styles.available')
-def get_available_styles():
-    """Return list of names of all styles shipped with typhon.
-
-    Returns:
-        list[str]: List of available styles.
-
-    """
-    stylelib_dir = os.path.join(os.path.dirname(__file__), 'stylelib')
-    pattern = os.path.join(stylelib_dir, '*.mplstyle')
-
-    return [os.path.splitext(os.path.basename(s))[0]
-            for s in glob.glob(pattern)]
 
 
 def label_axes(axes=None, labels=None, loc=(.02, .9), **kwargs):
