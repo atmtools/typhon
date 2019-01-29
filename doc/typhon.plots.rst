@@ -28,7 +28,6 @@ plots
    HectoPascalFormatter
    HectoPascalLogFormatter
    label_axes
-   mpl_colors
    plot_arts_lookup
    plot_bitfield
    plot_distribution_as_percentiles
