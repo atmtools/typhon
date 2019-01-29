@@ -337,7 +337,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 np.random.seed(0)
-
-plt.rcParams['font.size'] = 16
-plt.rcParams['savefig.bbox'] = 'tight'
 """
+
+plot_rcparams = {
+    'font.size': 16,
+    'savefig.bbox': 'tight',
+}
