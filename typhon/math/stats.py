@@ -24,6 +24,11 @@ def bin(x, y, bins):
     Returns list of arrays, one element with values for bin.
     Digitising happens with numpy.digitize.
 
+    You can use this for geographical data, but if your x and
+    y are in lat/lons the bins will be equirectangular (if you
+    want equal-area bins you will have to reproject / change
+    coordinates).
+
     Arguments:
 
         x (ndarray): Coordinate that y is binned along
@@ -54,6 +59,11 @@ def bin_nd(binners, bins, data=None):
     which hopefully corresponds to indices in your actual data.
 
     Data that does not fit in any bin, is not binned anywhere.
+
+    You can use this for geographical data, but if your x and
+    y are in lat/lons the bins will be equirectangular (if you
+    want equal-area bins you will have to reproject / change
+    coordinates).
 
     Note: do NOT pass the 3rd argument, `data`.  This is used purely for
     the implementation using recursion.  Passing anything here explicitly
