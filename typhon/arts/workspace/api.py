@@ -203,6 +203,8 @@ class VariableValueStruct(c.Structure):
         initialized = True
         dimensions  = [0] * 7
 
+        self._temporaries = []
+
         # Generic interface
         if hasattr(value, "__to_value_struct__"):
             d = value.__to_value_struct__()
@@ -228,7 +230,8 @@ class VariableValueStruct(c.Structure):
                     dimensions[i] = value.shape[i]
         # Scipy sparse matrices
         elif sp.sparse.issparse(value):
-            m = value.tocoo()
+            m = sp.sparse.coo_matrix(value)
+            self._temporaries += [m]
             dimensions[0] = m.shape[0]
             dimensions[1] = m.shape[1]
             dimensions[2] = m.nnz

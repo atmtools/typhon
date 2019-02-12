@@ -212,6 +212,8 @@ class WorkspaceVariable:
             return np.array(value, dtype=np.float64, order='C', ndmin=1)
         if (group == "Matrix"):
             return np.array(value, dtype=np.float64, order='C', ndmin=2)
+        if (group == "Sparse"):
+            return sp.sparse.coo_matrix(value)
         if (group[:6] == "Tensor"):
             dim = int(group[6])
             return np.array(value, dtype=np.float64, order='C', ndmin=dim)
@@ -296,6 +298,7 @@ class WorkspaceVariable:
             if nnz == 0:
                 return sp.sparse.csr_matrix(0)
             else:
+                print(m, n, nnz)
                 data = np.ctypeslib.as_array(c.cast(v.ptr,
                                                     c.POINTER(c.c_double)),
                                              (nnz,))
