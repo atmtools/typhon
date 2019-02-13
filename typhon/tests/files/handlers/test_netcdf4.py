@@ -57,6 +57,25 @@ class TestNetCDF4:
 
         assert after.equals(check)
 
+    def test_scalar_masked(self):
+        """Test if scalar masked values read OK
+
+        Test for issue #277
+        """
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"a":
+                        xr.DataArray(
+                            42,
+                            encoding={"_FillValue": 42})})
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+            assert np.isnan(after["a"]) # fill value should become nan
+
     def test_times(self):
         """Test if times are read correctly
         """
