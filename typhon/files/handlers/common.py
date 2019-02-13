@@ -11,6 +11,7 @@ import warnings
 import netCDF4
 import pandas as pd
 import xarray as xr
+import numpy as np
 
 # The HDF4 file handler needs pyhdf, this might be very tricky to install if
 # you cannot use anaconda. Hence, I do not want it to be a hard dependency:
@@ -717,7 +718,10 @@ class NetCDF4(FileHandler):
             for var_name, var in group.variables.items():
                 if fields is None or path + var_name in fields:
                     dims = [dim_map[dim] for dim in var.dimensions]
-                    ds[path + var_name] = dims, var[:], dict(var.__dict__)
+                    if len(dims) == 0 and var[:] is np.ma.masked:
+                        ds[path + var_name] = dims, np.nan, dict(var.__dict__)
+                    else:
+                        ds[path + var_name] = dims, var[:], dict(var.__dict__)
         except RuntimeError:
             raise KeyError(f"Could not load the variable {path + var_name}!")
 
