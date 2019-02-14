@@ -77,3 +77,23 @@ class TestNetCDF4:
             fh.write(before, tfile)
             after = fh.read(tfile)
             assert np.array_equal(before["a"], after["a"])
+
+    def test_scalefactor(self):
+        """Test if scale factors written/read correctly
+        """
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"a":
+                        xr.DataArray(
+                            np.array([0.1, 0.2]))})
+            before["a"].encoding = {
+                    "scale_factor": 0.1,
+                    "FillValue": 42,
+                    "dtype": "int16"}
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+            assert np.array_equal(before["a"], after["a"])
