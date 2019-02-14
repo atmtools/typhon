@@ -56,3 +56,44 @@ class TestNetCDF4:
             })
 
         assert after.equals(check)
+
+    def test_times(self):
+        """Test if times are read correctly
+        """
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"a":
+                        xr.DataArray(
+                            np.array(
+                                ["2019-02-14T09:00:00", "2019-02-14T09:00:01"],
+                                dtype="M8[ns]"))})
+            before["a"].encoding = {
+                    "units": "seconds since 2019-02-14 09:00:00",
+                    "scale_factor": 0.1}
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+            assert np.array_equal(before["a"], after["a"])
+
+    def test_scalefactor(self):
+        """Test if scale factors written/read correctly
+        """
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"a":
+                        xr.DataArray(
+                            np.array([0.1, 0.2]))})
+            before["a"].encoding = {
+                    "scale_factor": 0.1,
+                    "FillValue": 42,
+                    "dtype": "int16"}
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+            assert np.allclose(before["a"], after["a"])

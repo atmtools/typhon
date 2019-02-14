@@ -656,6 +656,8 @@ class NetCDF4(FileHandler):
         # xarray dataset.
 
         with netCDF4.Dataset(file_info.path, "r") as root:
+            # xarray decode_cf scales, don't do it twice!
+            root.set_auto_scale(False)
             dataset = xr.Dataset()
             self._load_group(dataset, None, root, fields)
 
