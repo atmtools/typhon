@@ -96,4 +96,4 @@ class TestNetCDF4:
                     "dtype": "int16"}
             fh.write(before, tfile)
             after = fh.read(tfile)
-            assert np.array_equal(before["a"], after["a"])
+            assert np.allclose(before["a"], after["a"])
