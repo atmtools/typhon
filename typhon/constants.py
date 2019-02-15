@@ -11,6 +11,7 @@ Physical constants
 ``c``                           Speed of light in :math:`\sf ms^{-1}`
 ``N_A``                         Avogadro constant in :math:`\sf mol^{-1}`
 ``K``, ``zero_celsius``         Kelvin at 0 Celsius
+``triple_point_water``          Triple point temperature of water :math:`\sf K`
 ``R``                           Universal gas constant in
                                 :math:`\sf J mol^{-1}K{^-1}`
 ``molar_mass_dry_air``          Molar mass for dry air in
@@ -107,6 +108,7 @@ k = boltzmann = spc.Boltzmann  # J K^-1
 c = speed_of_light = spc.speed_of_light  # m s^-1
 N_A = avogadro = N = spc.Avogadro  # mol^-1
 K = zero_celsius = 273.15  # Kelvin at 0 Celsius
+triple_point_water = 273.16  # Triple point temperature in K
 R = gas_constant = spc.gas_constant  # J mol^-1 K^-1
 mu_B = spc.e * spc.Planck * (0.25 / spc.pi) / spc.m_e  # J T^-1
 molar_mass_dry_air = 28.9645e-3  # kg mol^-1
