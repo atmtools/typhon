@@ -7,19 +7,242 @@ Implementation of classes to handle various ARTS internal structures.
 
 import typhon.constants as constants
 import typhon.spectroscopy as spectroscopy
-
+import typhon
+    
 import numpy as np
 import scipy.interpolate as _ip
 from scipy.special import wofz as _Faddeeva_
 from fractions import Fraction as _R
 from numpy.polynomial import Polynomial as _P
 
+import os
+
 __all__ = ['ARTSCAT5',
            'Rational',
            'PressureBroadening',
            'LineMixing',
            'PartitionFunctions',
+           'LineFunctionsData',
+           'read_hitran_online'
            ]
+
+def read_hitran_online(hitran_file, fmin=0, fmax=1e9999,
+                       hit_tmp='HITRAN2012.par', remove_hit_tmp=True,
+                       reset_qn=True):
+    """ Reads catalog from HITRAN online
+    
+    This function is meant for specific input, so failure is an option.  This
+    code might also break in the future should HITRAN update their format again
+    
+    The format has to be [.par line, qns', qns''] in that order
+    
+    There is a temporary file generated.  This must be named so that the ARTS
+    function abs_linesReadFromHitran can read the file.  After the temporary
+    file has been read by ARTS, the catalog is accessed for each line to set
+    their quantum numbers of qns' and qns''.  Note that these are added as 
+    additions to existing numbers.  Caveats follow.
+    
+    The following qunatum numbers are ignored at present:
+        kronigParity
+        
+        ElecStateLabel
+        
+    The following are reinterpreted for ARTS:
+        v to v1
+        
+        nuclearSpinRef to F
+        
+    The following are given values despite having none:
+        parity=- is set as -1
+        
+        parity=+ is set as +1
+        
+    All other variables are written to verbatim.  This means that if ARTS does
+    not have the quantum number keys prescribed, the catalog that is produced
+    will not be possible to read with ARTS.  Take care!
+    
+    Input:
+        hitran_file:
+            a file generated from hitran.org
+        
+        fmin:
+            fmin in abs_linesReadFromHitran
+        
+        fmax:
+            fmax in abs_linesReadFromHitran
+        
+        hit_tmp:
+            temporary filename for abs_linesReadFromHitran
+        
+        remove_hit_tmp:
+            Flag to remove or not the file hit_tmp using os.remove
+    
+    Output:
+        ARTSCAT5 catalog of lines
+    """
+    assert not hitran_file == hit_tmp, "Must have separate files"
+
+    # setup a quiet workspace
+    from typhon.arts.workspace import Workspace
+    arts = Workspace(verbosity=0)
+
+    # read a file from hitran of format [par, qn upper, qn lower]
+    f = open(hitran_file, 'r')
+    par_data = ''
+    up_data = []
+    lo_data = []
+    line = f.readline().split('\t')
+    while len(line) > 2:
+        par_data += line[0]
+        up_data.append(line[1].split(';'))
+        lo_data.append(line[2].split(';'))
+        lo_data[-1][-1].replace('\n', '')
+        line = f.readline().split('\t')
+        if len(line) > 2:
+            par_data += '\n'
+    f.close()
+
+    # Create a temporary file and read it into arts
+    f = open(hit_tmp, 'w')
+    f.write(par_data)
+    f.close()
+    arts.abs_linesReadFromHitran(filename=hit_tmp, fmin=float(fmin),
+                                 fmax=float(fmax))
+
+    # delete previous file
+    if remove_hit_tmp:
+        os.remove(hit_tmp)
+
+    # replace quantum numbers by
+    arts.abs_linesNewestArtscatFromLegacyCatalog()
+    cat = arts.abs_lines.value.as_ARTSCAT5()
+
+    for i in range(len(cat)):
+        if reset_qn:
+            cat._dictionaries[i]['QN'] = typhon.arts.catalogues.QuantumNumberRecord(typhon.arts.catalogues.QuantumNumbers(''), typhon.arts.catalogues.QuantumNumbers(''))
+        for qn in up_data[i]:
+            key, data = qn.split('=')
+            if 'ElecStateLabel' in key:
+                pass
+            elif 'nuclearSpinRef' in key:
+                cat.quantumnumbers(i)['UP']['F'] = Rational(data)
+            elif 'kronigParity' in key:
+                pass
+            elif 'parity' in key:
+                if data == '-':
+                    cat.quantumnumbers(i)['UP'][key] = Rational(-1)
+                elif data == '+':
+                    cat.quantumnumbers(i)['UP'][key] = Rational(+1)
+            elif 'v' == key:
+                cat.quantumnumbers(i)['UP']['v1'] = Rational(data)
+            else:
+                cat.quantumnumbers(i)['UP'][key] = Rational(data)
+        for qn in lo_data[i]:
+            key, data = qn.split('=')
+            if 'ElecStateLabel' in key:
+                pass
+            elif 'nuclearSpinRef' in qn:
+                cat.quantumnumbers(i)['LO']['F'] = Rational(data)
+            elif 'kronigParity' in key:
+                pass
+            elif 'parity' in key:
+                if data == '-':
+                    cat.quantumnumbers(i)['LO'][key] = Rational(-1)
+                elif data == '+':
+                    cat.quantumnumbers(i)['LO'][key] = Rational(+1)
+            elif 'v' == key:
+                cat.quantumnumbers(i)['LO']['v1'] = Rational(data)
+            else:
+                cat.quantumnumbers(i)['LO'][key] = Rational(data)
+    return cat
+
+
+class LineFunctionsData:
+    def __init__(self):
+        self.LS = None
+        self.LM = None
+        self.species = None
+        self.data = None
+        
+    def len_of_key(self, key):
+        if key in ["LM_AER"]:
+            return 12
+        elif key in ["#"]:
+            return 0
+        elif key in ["T0"]:
+            return 1
+        elif key in ["T1", "T3", "T5"]:
+            return 2
+        elif key in ["T2", "T4"]:
+            return 3
+    
+    def fill_data(self, array, ndata, start=0):
+        pos = 1*start
+        i = 0
+        while i < self.species:
+            self.data[i]['spec'] = array[pos]
+            pos += 1
+            j = 0
+            while j < ndata:
+                self.data[i]['data'][j]['key'] = array[pos]
+                pos += 1
+                for k in range(self.len_of_key(self.data[i]['data'][j]['key'])):
+                    self.data[i]['data'][j]['val'].append(array[pos])
+                    pos += 1
+                j += 1
+            i += 1
+        return pos
+
+    def read_as_part_of_artscat5(self, array, i):
+        self.LS = array[i+0]
+        self.LM = array[i+1]
+        self.species = int(array[i+2])
+        j = i + 3
+        return self.fill_data(array, self.set_data_shape(), j)
+    
+    def len_of_data(self):
+        if self.LS in ['DP']:
+            shape_len = 0
+        elif self.LS in ['LP', 'VP']:
+            shape_len = 2
+        elif self.LS in ['SDVP']:
+            shape_len = 4
+        elif self.LS in ['HTP']:
+            shape_len = 6
+        if self.LM in ['#']:
+            mixing_len = 0
+        if self.LM in ['LM1', 'INT', 'ConstG']:
+            mixing_len = 1
+        if self.LM in ['LM2']:
+            mixing_len = 3
+        return mixing_len + shape_len
+        
+    def set_data_shape(self):
+        ndata = self.len_of_data()
+        
+        self.data = {}
+        i = 0
+        while i < self.species:
+            self.data[i] = {'spec': None, 'data': {}}
+            j = 0
+            while j < ndata:
+                self.data[i]['data'][j] = {'key': None, 'val': []}
+                j += 1
+            i += 1
+        return ndata
+    
+    def __repr__(self):
+        ndata = self.len_of_data()
+        st = ''
+        st += self.LS + ' ' + self.LM + ' ' + str(self.species) + ' '
+        for x in range(self.species):
+            st += self.data[x]['spec'] + ' '
+            for y in range(ndata):
+                st += self.data[x]['data'][y]['key'] + ' '
+                for z in self.data[x]['data'][y]['val']:
+                    st += z + ' '
+        return st
+    __str__=__repr__
 
 
 class ARTSCAT5:
@@ -61,7 +284,8 @@ class ARTSCAT5:
     _qn_ind = 10
     _lm_ind = 11
     _ze_ind = 12
-    _lsm_ind = 13
+    _lf_ind = 13
+    _lsm_ind = 14
 
     def __init__(self, init_data=None):
         self._dictionaries = np.array([], dtype=dict)
@@ -97,6 +321,7 @@ class ARTSCAT5:
                                                "Data": np.array([])},
                                         "LM": {"Type": None,
                                                "Data": np.array([])},
+                                        "LF": LineFunctionsData(),
                                         "ZE": None,
                                         "LSM": {}})
 
@@ -127,7 +352,7 @@ class ARTSCAT5:
         ze = {"POL": None}
         while i < len_lr:
             this = lr[i]
-            if this in ['QN', 'PB', 'LM', 'ZE', 'LSM']:
+            if this in ['QN', 'PB', 'LM', 'ZE', 'LSM', 'LF']:
                 key = this
             elif key == 'QN':
                 qnr += ' ' + this
@@ -141,6 +366,8 @@ class ARTSCAT5:
                 for nothing in range(x):
                     self._dictionaries[-1]['LSM'][lr[i]] = lr[i+1]
                     i += 2
+            elif key == 'LF':
+                i=self._dictionaries[-1]['LF'].read_as_part_of_artscat5(lr, i)-1
             else:
                 try:
                     self._dictionaries[-1][key]["Data"] = \
@@ -181,6 +408,7 @@ class ARTSCAT5:
                                         'QN': line[self._qn_ind],
                                         'LM': line[self._lm_ind],
                                         'ZE': line[self._ze_ind],
+                                        'LF': line[self._lf_ind],
                                         'LSM': line[self._lsm_ind]})
         self._n += 1
 
@@ -453,6 +681,7 @@ class ARTSCAT5:
                 self.quantumnumbers(index),
                 self.linemixing(index),
                 self.zeemandata(index),
+                self.linefunctionsdata(index),
                 self.lineshapemodifiers(index))
 
     def get_arts_str(self, index):
@@ -480,6 +709,9 @@ class ARTSCAT5:
             s += ' ZE ' + str(self.zeemandata(index)['POL']) + ' '
             s += str(self.zeemandata(index)['GU']) + ' '
             s += str(self.zeemandata(index)['GL'])
+        text = str(self.linefunctionsdata(index))
+        if len(text) > 0:
+            s += ' LF ' + text
 
         if len(self.lineshapemodifiers(index)):
             s += ' LSM ' + str(len(self.lineshapemodifiers(index)))
@@ -503,9 +735,14 @@ class ARTSCAT5:
         return self._dictionaries[index]['LM']
 
     def zeemandata(self, index):
-        """Return line mixing entries for line at index
+        """Return Zeeman entries for line at index
         """
         return self._dictionaries[index]['ZE']
+
+    def linefunctionsdata(self, index):
+        """Return line function entries for line at index
+        """
+        return self._dictionaries[index]['LF']
 
     def lineshapemodifiers(self, index):
         """Return line mixing entries for line at index

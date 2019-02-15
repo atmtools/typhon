@@ -1237,6 +1237,39 @@ class PropagationMatrix:
             raise RuntimeError("Bad input")
 
         self.data = data.reshape(self.aa, self.za, self.nf, data.shape[-1])
+    
+    def Kjj(self, aa=0, za=0):
+        return self.data[aa, za, :, 0]
+    
+    def K12(self, aa=0, za=0):
+        return self.data[aa, za, :, 1]
+    
+    def K13(self, aa=0, za=0):
+        return self.data[aa, za, :, 2]
+    
+    def K14(self, aa=0, za=0):
+        return self.data[aa, za, :, 3]
+    
+    def K23(self, aa=0, za=0):
+        return self.data[aa, za, :, 4]
+    
+    def K24(self, aa=0, za=0):
+        return self.data[aa, za, :, 5]
+    
+    def K34(self, aa=0, za=0):
+        return self.data[aa, za, :, 6]
+    
+    def __add__(self, other):
+        if isinstance(other, PropagationMatrix):
+            return PropagationMatrix(self.data + other.data)
+        else:
+            return PropagationMatrix(self.data + other)
+    __radd__ = __add__
+    
+    def __repr__(self):
+        size = "Stokes Dim: {}, Freqs: {}, Zeniths: {}, Azimuths: {}".format(self.stokes, self.nf, self.za, self.aa)
+        return "PropagationMatrix of size <{}>".format(size)
+    __str__=__repr__
 
     @classmethod
     def from_xml(cls, xmlelement):
