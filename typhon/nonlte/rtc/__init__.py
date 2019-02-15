@@ -54,6 +54,9 @@ def SOSC(tau1, tau3, S1, S2, S3, I1):
     lambda_2 = np.empty_like(tau1)
     lambda_3 = np.empty_like(tau1)
 
+    tau1[tau1 != tau1] = 0
+    tau3[tau3 != tau3] = 0
+
     linear = np.logical_or(tau1 < 1.e-4,
                            tau3 < 1.e-10)  # Computational error region
     exp_tau = np.exp(-tau1)

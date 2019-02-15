@@ -72,9 +72,9 @@ class MolecularConsts:
         fn.close()
         self.ni = int(self.fr[3])  # NUMBER OF ENERGY LEVELS
         self.e_cm1 = np.array([float(self.fr[xx].split()[1])
-                               for xx in range(5, 12)])
+                               for xx in range(5, 5 + self.ni)])
         self.weighti = np.array([float(self.fr[xx].split()[2])
-                                 for xx in range(5, 12)])
+                                 for xx in range(5, 5 + self.ni)])
 
         Ai = np.zeros((self.ni, self.ni))
         Freqi = np.zeros((self.ni, self.ni))
@@ -82,7 +82,8 @@ class MolecularConsts:
         B_place = np.ones((self.ni, self.ni))*-1.
         Tran_tag = []
         Ai_tag = []
-        for xx in range(15, 24):  # Nt Number of transition ,24,twolevel ->16):
+        Nt = int(self.fr[3+self.ni+3])  # int(9)
+        for xx in range(8+self.ni, 8+self.ni+Nt):  # Nt Number of transition ,24,twolevel ->16):
             """up: temp[1]-1, low: temp[2]-1"""
             temp = np.array(self.fr[xx].split()).astype(np.float64)
             Tran_tag.append(temp[:3]-1)  # for 1... -> 0....
@@ -150,7 +151,7 @@ class MolecularConsts:
         make self collisional rate matrix
         
         input parameter;
-        number of Molecules [molecules/cm3] collisional parameter
+        number of Molecules [molecules/m3] collisional parameter
         Temperature [K]
         rate constant is read from filename
         
@@ -177,6 +178,7 @@ class MolecularConsts:
                           np.exp(-h*self.freqi[_up, _low] *
                                  1.e9/k/Temp))
         rate_ul, rate_lu = Mole*col_ul, Mole*col_lu  # molecules/s
+        self.Cul = rate_ul
         J_ETS, J_LTE = [], []
         for xx in range(self.nt):
             _up = int(self.tran_tag[xx][1])
@@ -755,7 +757,9 @@ def Calc(Ite_pop, Abs_ite,
         if update_population is True:
             new_pop[i, 0, :] = n_new
         else:
-            new_pop = Ite_pop #this is for no update
+            n_new = n_old
+            new_pop[i, 0, :] = n_new #this is for no update
+#        print(n_new)
         max_true_error[i] = np.abs((n_delta/n_new)*100).max()
         if (i > 0) and (i < Alt_ref.size-1) and (iteration is 'MUGA'):
             for xx in range(Nt):  # transitions
