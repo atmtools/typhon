@@ -26,6 +26,14 @@ def relative_humidity2vmr(RH, p, T, e_eq=None):
     .. math::
         VMR = \frac{RH \cdot e_s(T)}{p}
 
+    Note:
+        By default, the relative humidity is calculated with respect to
+        saturation over liquid water in accordance to the WMO standard for
+        radiosonde observations.
+        You can use :func:`~typhon.physics.e_eq_mixed_mk` to calculate
+        relative humidity with respect to saturation over the mixed-phase
+        following the IFS model documentation.
+
     Parameters:
         RH (float or ndarray): Relative humidity.
         p (float or ndarray): Pressue [Pa].
@@ -60,6 +68,14 @@ def vmr2relative_humidity(vmr, p, T, e_eq=None):
 
     .. math::
         RH = \frac{VMR \cdot p}{e_s(T)}
+
+    Note:
+        By default, the relative humidity is calculated with respect to
+        saturation over liquid water in accordance to the WMO standard for
+        radiosonde observations.
+        You can use :func:`~typhon.physics.e_eq_mixed_mk` to calculate
+        relative humidity with respect to saturation over the mixed-phase
+        following the IFS model documentation.
 
     Parameters:
         vmr (float or ndarray): Volume mixing ratio,
