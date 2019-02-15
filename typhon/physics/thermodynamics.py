@@ -2,10 +2,9 @@
 
 """Functions related to water vapor and its thermodynamic effects
 """
-from functools import lru_cache
+from numbers import Number
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 from typhon import constants
 
@@ -107,38 +106,29 @@ def e_eq_water_mk(T):
     return np.exp(e)
 
 
-@lru_cache(maxsize=8)
-def _interpolate_e_eq(Tmin=153.15, Tmax=333.15, kind='quadratic', **kwargs):
-    """Return an interpolation for the vapor pressure over the mixed phase.
+def e_eq_mixed_mk(T):
+    r"""Return equilibrium pressure of water with respect to the mixed-phase.
 
-    This helper function allows caching of interpolation functions in order
-    to save repreated code execution.
-    """
-    # Vapor pressure over ice for -100C to -23C.
-    T_ice = np.linspace(Tmin, -23 + constants.K, 960)
-    eq_ice = e_eq_ice_mk(T_ice)
+    The equilibrium pressure over water is taken for temperatures above the
+    triple point :math:`T_t` the value over ice is taken for temperatures
+    below :math:`T_t–23\,\mathrm{K}`.  For intermediate temperatures the
+    equilibrium pressure is computed as a combination
+    of the values over water and ice according to the IFS documentation:
 
-    # Vapor pressure over liquid water for 0C to 50C.
-    T_liq = np.linspace(constants.K, Tmax, 600)
-    eq_liq = e_eq_water_mk(T_liq)
+    .. math::
+        e_\mathrm{s} = \begin{cases}
+            T > T_t, & e_\mathrm{liq} \\
+            T < T_t - 23\,\mathrm{K}, & e_\mathrm{ice} \\
+            else, & e_\mathrm{ice}
+                + (e_\mathrm{liq} - e_\mathrm{ice})
+                \cdot \left(\frac{T - T_t - 23}{23}\right)^2
+        \end{cases}
 
-    # Perform an interpolation for vapor pressure over the "mixed" phase.
-    f = interp1d(
-        x=np.hstack((T_ice, T_liq)),
-        y=np.hstack((eq_ice, eq_liq)),
-        kind=kind,
-        **kwargs
-    )
-
-    return f
-
-
-def e_eq_mixed_mk(T, Tmin=153.15, Tmax=333.15, **kwargs):
-    r"""Calculate vapor pressure of water with respect to the mixed phase.
-
-    The equilibrium vapor pressure is defined with respect to saturation
-    over ice below -23°C and with respect to saturation over water above 0°C.
-    In between an interpolation is applied (defaults to ``quadratic``).
+    References:
+        IFS Documentation – Cy45r1,
+        Operational implementation 5 June 2018,
+        Part IV: Physical Processes, Chapter 12, Eq. 12.13,
+        https://www.ecmwf.int/node/18714
 
     .. plot::
         :include-source:
@@ -160,24 +150,36 @@ def e_eq_mixed_mk(T, Tmin=153.15, Tmax=333.15, **kwargs):
 
     Parameters:
         T (float or ndarray): Temperature [K].
-        Tmin (float): Lower bound of temperature interpolation [K].
-        Tmax (float): Upper bound of temperature interpolation [K].
-        **kwargs: All remaining keyword arguments are passed to
-            :class:`scipy.interpolate.interp1d`.
 
     See also:
         :func:`~typhon.physics.e_eq_ice_mk`
-            Calculate the equilibrium vapor pressure of water over ice.
+            Equilibrium pressure of water over ice.
         :func:`~typhon.physics.e_eq_water_mk`
-            Calculate the equilibrium vapor pressure over liquid water.
+            Equilibrium pressure of water over liquid water.
 
     Returns:
-        float or ndarray: Equilibrium vapor pressure [Pa].
+        float or ndarray: Equilibrium pressure [Pa].
     """
-    e_eq = _interpolate_e_eq(Tmin=Tmin, Tmax=Tmax, **kwargs)(T)
+    # Keep track of input type to match the return type.
+    is_float_input = isinstance(T, Number)
+    if is_float_input:
+        # Convert float input to ndarray to allow indexing.
+        T = np.asarray([T])
 
-    # Return float for float input (consistent with other e_eq functions).
-    return e_eq if e_eq.size > 1 else float(e_eq)
+    e_eq_water = e_eq_water_mk(T)
+    e_eq_ice = e_eq_ice_mk(T)
+
+    is_water = T > constants.triple_point_water
+
+    is_ice = T < (constants.triple_point_water - 23.)
+
+    e_eq = (e_eq_ice + (e_eq_water - e_eq_ice)
+            * ((T - constants.triple_point_water + 23) / 23)**2
+            )
+    e_eq[is_ice] = e_eq_ice[is_ice]
+    e_eq[is_water] = e_eq_water[is_water]
+
+    return float(e_eq) if is_float_input else e_eq
 
 
 def density(p, T, R=constants.gas_constant_dry_air):
