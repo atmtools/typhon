@@ -7,12 +7,15 @@ Implementation of classes to handle various ARTS internal structures.
 
 import typhon.constants as constants
 import typhon.spectroscopy as spectroscopy
-
+import typhon
+    
 import numpy as np
 import scipy.interpolate as _ip
 from scipy.special import wofz as _Faddeeva_
 from fractions import Fraction as _R
 from numpy.polynomial import Polynomial as _P
+
+import os
 
 __all__ = ['ARTSCAT5',
            'Rational',
@@ -20,7 +23,139 @@ __all__ = ['ARTSCAT5',
            'LineMixing',
            'PartitionFunctions',
            'LineFunctionsData',
+           'read_hitran_online'
            ]
+
+def read_hitran_online(hitran_file, fmin=0, fmax=1e9999,
+                       hit_tmp='HITRAN2012.par', remove_hit_tmp=True,
+                       reset_qn=True):
+    """ Reads catalog from HITRAN online
+    
+    This function is meant for specific input, so failure is an option.  This
+    code might also break in the future should HITRAN update their format again
+    
+    The format has to be [.par line, qns', qns''] in that order
+    
+    There is a temporary file generated.  This must be named so that the ARTS
+    function abs_linesReadFromHitran can read the file.  After the temporary
+    file has been read by ARTS, the catalog is accessed for each line to set
+    their quantum numbers of qns' and qns''.  Note that these are added as 
+    additions to existing numbers.  Caveats follow.
+    
+    The following qunatum numbers are ignored at present:
+        kronigParity
+        
+        ElecStateLabel
+        
+    The following are reinterpreted for ARTS:
+        v to v1
+        
+        nuclearSpinRef to F
+        
+    The following are given values despite having none:
+        parity=- is set as -1
+        
+        parity=+ is set as +1
+        
+    All other variables are written to verbatim.  This means that if ARTS does
+    not have the quantum number keys prescribed, the catalog that is produced
+    will not be possible to read with ARTS.  Take care!
+    
+    Input:
+        hitran_file:
+            a file generated from hitran.org
+        
+        fmin:
+            fmin in abs_linesReadFromHitran
+        
+        fmax:
+            fmax in abs_linesReadFromHitran
+        
+        hit_tmp:
+            temporary filename for abs_linesReadFromHitran
+        
+        remove_hit_tmp:
+            Flag to remove or not the file hit_tmp using os.remove
+    
+    Output:
+        ARTSCAT5 catalog of lines
+    """
+    assert not hitran_file == hit_tmp, "Must have separate files"
+
+    # setup a quiet workspace
+    from typhon.arts.workspace import Workspace
+    arts = Workspace(verbosity=0)
+
+    # read a file from hitran of format [par, qn upper, qn lower]
+    f = open(hitran_file, 'r')
+    par_data = ''
+    up_data = []
+    lo_data = []
+    line = f.readline().split('\t')
+    while len(line) > 2:
+        par_data += line[0]
+        up_data.append(line[1].split(';'))
+        lo_data.append(line[2].split(';'))
+        lo_data[-1][-1].replace('\n', '')
+        line = f.readline().split('\t')
+        if len(line) > 2:
+            par_data += '\n'
+    f.close()
+
+    # Create a temporary file and read it into arts
+    f = open(hit_tmp, 'w')
+    f.write(par_data)
+    f.close()
+    arts.abs_linesReadFromHitran(filename=hit_tmp, fmin=float(fmin),
+                                 fmax=float(fmax))
+
+    # delete previous file
+    if remove_hit_tmp:
+        os.remove(hit_tmp)
+
+    # replace quantum numbers by
+    arts.abs_linesNewestArtscatFromLegacyCatalog()
+    cat = arts.abs_lines.value.as_ARTSCAT5()
+
+    for i in range(len(cat)):
+        if reset_qn:
+            cat._dictionaries[i]['QN'] = typhon.arts.catalogues.QuantumNumberRecord(typhon.arts.catalogues.QuantumNumbers(''), typhon.arts.catalogues.QuantumNumbers(''))
+        for qn in up_data[i]:
+            key, data = qn.split('=')
+            if 'ElecStateLabel' in key:
+                pass
+            elif 'nuclearSpinRef' in key:
+                cat.quantumnumbers(i)['UP']['F'] = Rational(data)
+            elif 'kronigParity' in key:
+                pass
+            elif 'parity' in key:
+                if data == '-':
+                    cat.quantumnumbers(i)['UP'][key] = Rational(-1)
+                elif data == '+':
+                    cat.quantumnumbers(i)['UP'][key] = Rational(+1)
+            elif 'v' == key:
+                cat.quantumnumbers(i)['UP']['v1'] = Rational(data)
+            else:
+                cat.quantumnumbers(i)['UP'][key] = Rational(data)
+        for qn in lo_data[i]:
+            key, data = qn.split('=')
+            if 'ElecStateLabel' in key:
+                pass
+            elif 'nuclearSpinRef' in qn:
+                cat.quantumnumbers(i)['LO']['F'] = Rational(data)
+            elif 'kronigParity' in key:
+                pass
+            elif 'parity' in key:
+                if data == '-':
+                    cat.quantumnumbers(i)['LO'][key] = Rational(-1)
+                elif data == '+':
+                    cat.quantumnumbers(i)['LO'][key] = Rational(+1)
+            elif 'v' == key:
+                cat.quantumnumbers(i)['LO']['v1'] = Rational(data)
+            else:
+                cat.quantumnumbers(i)['LO'][key] = Rational(data)
+    return cat
+
 
 class LineFunctionsData:
     def __init__(self):
@@ -28,7 +163,6 @@ class LineFunctionsData:
         self.LM = None
         self.species = None
         self.data = None
-    
         
     def len_of_key(self, key):
         if key in ["LM_AER"]:
@@ -75,20 +209,14 @@ class LineFunctionsData:
             shape_len = 4
         elif self.LS in ['HTP']:
             shape_len = 6
-        else:
-            raise InputError("Bad input, is typhon out-of-sync with arts?")
         if self.LM in ['#']:
             mixing_len = 0
         if self.LM in ['LM1', 'INT', 'ConstG']:
             mixing_len = 1
         if self.LM in ['LM2']:
             mixing_len = 3
-        else:
-            raise InputError("Bad input, is typhon out-of-sync with arts?")
-
         return mixing_len + shape_len
         
-    
     def set_data_shape(self):
         ndata = self.len_of_data()
         
