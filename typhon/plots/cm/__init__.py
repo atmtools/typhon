@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 This module provides colormaps to use for the visualisation of meteorological
-data.
-
-This module heavily bases on the cmocean_ package developed by Kristen Thyng.
+data.  It heavily bases on the cmocean_ package developed by Kristen Thyng.
 Most colormaps are directly inherited and renamed for meteorological
 applications.
+
+The colormaps are registered in matplotlib after importing typhon:
+
+    >>> import typhon
+    >>> plt.get_cmap('difference')
 
 .. _cmocean: http://matplotlib.org/cmocean/
 """
