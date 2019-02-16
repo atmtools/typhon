@@ -19,14 +19,6 @@ ARTS Interface
 
    typhon.arts.workspace
 
-Atmosphere
-----------
-
-.. toctree::
-   :maxdepth: 2
-
-   typhon.atmosphere
-
 Cloud mask
 ----------
 
