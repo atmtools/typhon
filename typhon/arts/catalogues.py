@@ -20,7 +20,127 @@ __all__ = ['ArrayOfLineRecord',
            'SpeciesTag',
            'PropagationMatrix',
            'StokesVector',
+           'Ppath',
+           'GridPos',
            ]
+
+
+class GridPos:
+    """Representation of ARTS GridPos"""
+    
+    def __init__(self):
+        self.ind = None    # Index
+        self.next1 = None  # Numeric
+        self.next2 = None  # Numeric
+        
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads GridPos object from an existing file.
+        """
+        obj = cls()
+        
+        obj.ind = xmlelement[0].value()
+        obj.next1 = xmlelement[1].value()
+        obj.next2 = xmlelement[2].value()
+        
+        return obj
+    
+    def write_xml(self, xmlwriter, attr=None):
+        """Write GridPos object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag("GridPos", attr)
+        xmlwriter.write_xml(self.ind)
+        xmlwriter.write_xml(self.next1)
+        xmlwriter.write_xml(self.next2)
+        xmlwriter.close_tag()
+    
+    def __repr__(self):
+        return "GridPos {}: n1={}; n2={}".format(self.ind, self.next1, self.next2)
+
+
+class Ppath:
+    """Represents the Ppath variable in ARTS"""
+    
+    def __init__(self):
+        self.dim = None          # Index
+        self.np = None           # Index
+        self.constant = None     # Numeric
+        self.background = None   # String
+        self.start_pos = None    # Vector
+        self.start_los = None    # Vector
+        self.start_lstep = None  # Numeric
+        self.pos = None          # Matrix
+        self.los = None          # Matrix
+        self.r = None            # Vector
+        self.lstep = None        # Vector
+        self.end_pos = None      # Vector
+        self.end_los = None      # Vector
+        self.end_lstep = None    # Vector
+        self.nreal = None        # Vector
+        self.ngroup = None       # Vector
+        self.gp_p = None         # ArrayOfGridPos
+        self.gp_lat = None       # ArrayOfGridPos
+        self.gp_lon = None       # ArrayOfGridPos
+    
+    def __repr__(self):
+        return "Ppath of {} steps in {}D Atmosphere".format(self.np, self.dim)
+    
+    @classmethod
+    def from_xml(cls, xmlelement):
+        """Loads Ppath object from an existing file.
+        """
+        obj = cls()
+        
+        obj.dim = xmlelement[0].value()
+        obj.np = xmlelement[1].value()
+        obj.constant = xmlelement[2].value()
+        obj.background = xmlelement[3].value()
+        obj.start_pos = xmlelement[4].value()
+        obj.start_los = xmlelement[5].value()
+        obj.start_lstep = xmlelement[6].value()
+        obj.pos = xmlelement[7].value()
+        obj.los = xmlelement[8].value()
+        obj.r = xmlelement[9].value()
+        obj.lstep = xmlelement[10].value()
+        obj.end_pos = xmlelement[11].value()
+        obj.end_los = xmlelement[12].value()
+        obj.end_lstep = xmlelement[13].value()
+        obj.nreal = xmlelement[14].value()
+        obj.ngroup = xmlelement[15].value()
+        obj.gp_p = xmlelement[16].value()
+        obj.gp_lat = xmlelement[17].value()
+        obj.gp_lon = xmlelement[18].value()
+        return obj
+    
+    def write_xml(self, xmlwriter, attr=None):
+        """Write Ppath object to an ARTS XML file.
+        """
+        if attr is None:
+            attr = {}
+
+        xmlwriter.open_tag("Ppath", attr)
+        xmlwriter.write_xml(self.dim)
+        xmlwriter.write_xml(self.np)
+        xmlwriter.write_xml(self.constant)
+        xmlwriter.write_xml(self.background)
+        xmlwriter.write_xml(self.start_pos)
+        xmlwriter.write_xml(self.start_los)
+        xmlwriter.write_xml(self.start_lstep)
+        xmlwriter.write_xml(self.pos)
+        xmlwriter.write_xml(self.los)
+        xmlwriter.write_xml(self.r)
+        xmlwriter.write_xml(self.end_pos)
+        xmlwriter.write_xml(self.end_los)
+        xmlwriter.write_xml(self.end_lstep)
+        xmlwriter.write_xml(self.nreal)
+        xmlwriter.write_xml(self.ngroup)
+        xmlwriter.write_xml(self.gp_p)
+        xmlwriter.write_xml(self.gp_lat)
+        xmlwriter.write_xml(self.gp_lon)
+        xmlwriter.close_tag()
 
 
 class ArrayOfLineRecord:
