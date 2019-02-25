@@ -26,6 +26,8 @@ from .catalogues import (ArrayOfLineRecord,
                          SpeciesTag,
                          PropagationMatrix,
                          StokesVector,
+                         Ppath,
+                         GridPos,
                          )
 from .internals import (ARTSCAT5,
                         Rational,
@@ -66,4 +68,6 @@ classes = {
     'XsecRecord': XsecRecord,
     'PropagationMatrix': PropagationMatrix,
     'StokesVector': StokesVector,
+    'Ppath': Ppath,
+    'GridPos': GridPos,
 }
