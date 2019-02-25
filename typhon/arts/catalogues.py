@@ -39,7 +39,7 @@ class GridPos:
         """
         obj = cls()
         
-        obj.ind = xmlelement[0].value()
+        obj.ind = int(xmlelement[0].value())
         obj.next1 = xmlelement[1].value()
         obj.next2 = xmlelement[2].value()
         
@@ -52,9 +52,9 @@ class GridPos:
             attr = {}
 
         xmlwriter.open_tag("GridPos", attr)
-        xmlwriter.write_xml(self.ind)
-        xmlwriter.write_xml(self.next1)
-        xmlwriter.write_xml(self.next2)
+        xmlwriter.write_xml(self.ind, {"name": "OriginalGridIndexBelowInterpolationPoint"})
+        xmlwriter.write_xml(self.next1, {"name": "FractionalDistanceToNextPoint_1"})
+        xmlwriter.write_xml(self.next2, {"name": "FractionalDistanceToNextPoint_2"})
         xmlwriter.close_tag()
     
     def __repr__(self):
@@ -94,8 +94,8 @@ class Ppath:
         """
         obj = cls()
         
-        obj.dim = xmlelement[0].value()
-        obj.np = xmlelement[1].value()
+        obj.dim = int(xmlelement[0].value())
+        obj.np = int(xmlelement[1].value())
         obj.constant = xmlelement[2].value()
         obj.background = xmlelement[3].value()
         obj.start_pos = xmlelement[4].value()
@@ -122,24 +122,25 @@ class Ppath:
             attr = {}
 
         xmlwriter.open_tag("Ppath", attr)
-        xmlwriter.write_xml(self.dim)
-        xmlwriter.write_xml(self.np)
-        xmlwriter.write_xml(self.constant)
-        xmlwriter.write_xml(self.background)
-        xmlwriter.write_xml(self.start_pos)
-        xmlwriter.write_xml(self.start_los)
-        xmlwriter.write_xml(self.start_lstep)
-        xmlwriter.write_xml(self.pos)
-        xmlwriter.write_xml(self.los)
-        xmlwriter.write_xml(self.r)
-        xmlwriter.write_xml(self.end_pos)
-        xmlwriter.write_xml(self.end_los)
-        xmlwriter.write_xml(self.end_lstep)
-        xmlwriter.write_xml(self.nreal)
-        xmlwriter.write_xml(self.ngroup)
-        xmlwriter.write_xml(self.gp_p)
-        xmlwriter.write_xml(self.gp_lat)
-        xmlwriter.write_xml(self.gp_lon)
+        xmlwriter.write_xml(self.dim, {"name": "AtmosphericDimensionality"})
+        xmlwriter.write_xml(self.np, {"name": "NumberOfPositionInPropagationPath"})
+        xmlwriter.write_xml(self.constant, {"name": "PropagationPathConstant"})
+        xmlwriter.write_xml(self.background, {"name": "RadiativeBackground"})
+        xmlwriter.write_xml(self.start_pos, {"name": "StartPositionOfPropagationPath"})
+        xmlwriter.write_xml(self.start_los, {"name": "StartLOSOfPropagationPath"})
+        xmlwriter.write_xml(self.start_lstep, {"name": "StartLstepOfPropagationPath"})
+        xmlwriter.write_xml(self.pos, {"name": "PropagationPathPointPositions"})
+        xmlwriter.write_xml(self.los, {"name": "LineOfSight"})
+        xmlwriter.write_xml(self.r, {"name": "PropagationPathPointRadii"})
+        xmlwriter.write_xml(self.lstep, {"name": "PropagationPathPositionLength"})
+        xmlwriter.write_xml(self.end_pos, {"name": "EndPositionOfPropagationPath"})
+        xmlwriter.write_xml(self.end_los, {"name": "EndLOSOfPropagationPath"})
+        xmlwriter.write_xml(self.end_lstep, {"name": "EndLstepPropagationPath"})
+        xmlwriter.write_xml(self.nreal, {"name": "RefractiveIndexRealPart"})
+        xmlwriter.write_xml(self.ngroup, {"name": "GroupRefractiveIndex"})
+        xmlwriter.write_xml(self.gp_p, {"name": "PressureGridIndexPosition"}, arraytype="GridPos")
+        xmlwriter.write_xml(self.gp_lat, {"name": "LatitudeGridIndexPosition"}, arraytype="GridPos")
+        xmlwriter.write_xml(self.gp_lon, {"name": "LongitudeGridIndexPosition"}, arraytype="GridPos")
         xmlwriter.close_tag()
 
 
