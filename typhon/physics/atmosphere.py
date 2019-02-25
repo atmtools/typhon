@@ -24,7 +24,7 @@ def relative_humidity2vmr(RH, p, T, e_eq=None):
     r"""Convert relative humidity into water vapor VMR.
 
     .. math::
-        VMR = \frac{RH \cdot e_s(T)}{p}
+        x = \frac{\mathrm{RH} \cdot e_s(T)}{p}
 
     Note:
         By default, the relative humidity is calculated with respect to
@@ -67,7 +67,7 @@ def vmr2relative_humidity(vmr, p, T, e_eq=None):
     r"""Convert water vapor VMR into relative humidity.
 
     .. math::
-        RH = \frac{VMR \cdot p}{e_s(T)}
+        \mathrm{RH} = \frac{x \cdot p}{e_s(T)}
 
     Note:
         By default, the relative humidity is calculated with respect to
