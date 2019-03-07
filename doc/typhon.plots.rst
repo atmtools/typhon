@@ -41,7 +41,22 @@ plots
    styles
    supcolorbar
 
+Typhon named colors
+^^^^^^^^^^^^^^^^^^^
+
+Typhon provides a number of named colors that can be used after importing 
+:mod:`typhon.plots`:
+
+>>> plt.plot(x, y, color='ty:uhh-red')
+
+.. plot:: pyplots/named_colors.py
+
 Typhon style sheet
 ^^^^^^^^^^^^^^^^^^
+
+Typhon provides a number of style sheets that can be used to alter the
+default appearance of matplotlib plots.
+
+>>> plt.style.use(typhon.plots.styles.get('typhon'))
+
 .. plot:: pyplots/stylesheet_gallery.py
-    :include-source:
