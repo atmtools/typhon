@@ -6,6 +6,7 @@ import os
 from tempfile import mkstemp
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 import pytest
 
@@ -122,3 +123,12 @@ class TestColors:
 
         with pytest.raises(ValueError):
             colors.get_material_design('red', 'undefined_shade')
+
+    def test_named_color_mapping(self):
+        """Test if the typhon colors are available in the name mapping."""
+        assert all([c in mcolors.get_named_colors_mapping()
+                   for c in colors.TYPHON_COLORS.keys()])
+
+    def test_named_color_hex(self):
+        """Test if the 'ty:uhh-red' hex-value is correct."""
+        assert mcolors.get_named_colors_mapping()['ty:uhh-red'] == '#ee1d23'
