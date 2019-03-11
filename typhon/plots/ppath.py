@@ -111,7 +111,7 @@ def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
     n2 = n1 if np.isclose(n1*n1, subplots) or n1*n1 > subplots else n1 + 1
     
     if axes is None:
-        fig = plt.figure()
+        fig = plt.gcf()
         axes = []
         for i in range(subplots):
             axes.append(fig.add_subplot(n1, n2, i+1, projection='polar'))
@@ -264,7 +264,7 @@ def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000, axes=
     n2 = n1 if np.isclose(n1*n1, N) or n1*n1 > N else n1 + 1
     
     if axes is None:
-        fig = plt.figure()
+        fig = plt.gcf()
         axes = []
         for i in range(N):
             axes.append(fig.add_subplot(n1, n2, i+1, projection='polar'))
