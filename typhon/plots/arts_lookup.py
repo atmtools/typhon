@@ -75,7 +75,7 @@ def plot_lookup_xsec(lookup, ipressures, species=None, ax=None, tpert=0,
             xsec = lookup.absorptioncrosssection[
                    tpert,
                    _get_lookup_species_index(lookup, tag, vmrpert), :, pi]
-            ax.plot(lookup.frequencygrid, xsec)
+            ax.plot(lookup.frequencygrid, xsec, label=f'{pi/100.:8.3f} hPa')
 
     if len(species) > 1:
         ax.legend(fontsize='xx-small', frameon=False)
@@ -189,7 +189,7 @@ def calc_opacity_from_lookup(lookup, z=None, g=typhon.constants.g,
         p = (pgrid[1:] + pgrid[:-1]) / 2.
         z = interp1d(p, z, fill_value='extrapolate')(lookup.pressuregrid)
 
-    return np.vstack(np.trapz(ialpha, z, axis=1) for ialpha in alpha)
+    return np.vstack([np.trapz(ialpha, z, axis=1) for ialpha in alpha])
 
 
 def _add_opacity_legend(ax=None):
