@@ -28,10 +28,10 @@ __all__ = ['ArrayOfLineRecord',
 class GridPos:
     """Representation of ARTS GridPos"""
     
-    def __init__(self):
-        self.ind = None    # Index
-        self.next1 = None  # Numeric
-        self.next2 = None  # Numeric
+    def __init__(self, ind=None, n1=None, n2=None):
+        self.ind = ind  # Index
+        self.n1 = n1    # Numeric
+        self.n2 = n2    # Numeric
         
     @classmethod
     def from_xml(cls, xmlelement):
@@ -40,8 +40,8 @@ class GridPos:
         obj = cls()
         
         obj.ind = int(xmlelement[0].value())
-        obj.next1 = xmlelement[1].value()
-        obj.next2 = xmlelement[2].value()
+        obj.n1 = xmlelement[1].value()
+        obj.n2 = xmlelement[2].value()
         
         return obj
     
@@ -53,12 +53,18 @@ class GridPos:
 
         xmlwriter.open_tag("GridPos", attr)
         xmlwriter.write_xml(self.ind, {"name": "OriginalGridIndexBelowInterpolationPoint"})
-        xmlwriter.write_xml(self.next1, {"name": "FractionalDistanceToNextPoint_1"})
-        xmlwriter.write_xml(self.next2, {"name": "FractionalDistanceToNextPoint_2"})
+        xmlwriter.write_xml(self.n1, {"name": "FractionalDistanceToNextPoint_1"})
+        xmlwriter.write_xml(self.n2, {"name": "FractionalDistanceToNextPoint_2"})
         xmlwriter.close_tag()
     
     def __repr__(self):
-        return "GridPos {}: n1={}; n2={}".format(self.ind, self.next1, self.next2)
+        return "GridPos {}: n1={}; n2={}".format(self.ind, self.n1, self.n2)
+    
+    def __eq__(self, other):
+        return self.ind == other.ind and self.n1 == other.n1 and self.n2 == other.n2
+    
+    def __ne__(self, other):
+        return not (self==other)
 
 
 class Ppath:
@@ -142,6 +148,16 @@ class Ppath:
         xmlwriter.write_xml(self.gp_lat, {"name": "LatitudeGridIndexPosition"}, arraytype="GridPos")
         xmlwriter.write_xml(self.gp_lon, {"name": "LongitudeGridIndexPosition"}, arraytype="GridPos")
         xmlwriter.close_tag()
+        
+    def alt_lat_lon_za_aa(self):
+        alt = self.pos[:, 0]
+        lat = self.pos[:, 1] if self.pos.shape[1] > 1 else np.zeros_like(alt)
+        lon = self.pos[:, 2] if self.pos.shape[1] > 2 else np.zeros_like(alt)
+        
+        za = self.los[:, 0]
+        aa = self.los[:, 1] if self.los.shape[1] > 1 else np.zeros_like(za)
+        
+        return alt, lat, lon, za, aa
 
 
 class ArrayOfLineRecord:
