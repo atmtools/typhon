@@ -56,7 +56,7 @@ def plot_ppath(ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000, ax=None
         x = lat
     else:
         x = lon
-    
+
     if ax is None:
         ax = plt.subplot(111, projection='polar')
     
@@ -229,8 +229,6 @@ def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000, axes=
             (Ppath or Workspace)  Propagation path or Wosrkspace with the path
         axes:
             Either list of subplots, or None.
-        scale_alt:
-            (Numeric) Divide altitude and planetary_radius by this value
     
     Returns:
         list of axis, list of altitudes, list of maximum weights
@@ -283,7 +281,6 @@ def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000, axes=
         
         wei.append(wz.max())
         alts.append(alt[pos])
-        
         axes[i].plot(za, wz,'k')
         axes[i].set_rorigin(-0.25/np.pi)
         axes[i].set_thetamin(0)
