@@ -40,6 +40,11 @@ plots
    sorted_legend_handles_labels
    styles
    supcolorbar
+   plot_ppath
+   plot_ppath_field
+   ppath_field_minmax_posbox
+   adjust_ppath_field_box_by_minmax
+   plot_ppath_field_zenith_coverage_per_gp_p
 
 Typhon named colors
 ^^^^^^^^^^^^^^^^^^^

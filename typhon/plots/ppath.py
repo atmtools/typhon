@@ -16,12 +16,10 @@ __all__ = [
 ]
 
 
-def plot_ppath(ax, ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000):
+def plot_ppath(ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000, ax=None):
     """ Return the ARTS Ppath plotted on the surface
     
     Parameters:
-        ax:
-            (AxesSubplot): matplotlib axes to plot into.  Assumes polar project
         ppath:
             (Ppath or Workspace)  Propagation path or Wosrkspace with the path
         planetary_radius:
@@ -30,6 +28,16 @@ def plot_ppath(ax, ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000):
             (Boolean) Have lat or lon act as the x-coordinate?
         scale_alt:
             (Numeric) Divide altitude and planetary_radius by this value
+        ax:
+            (AxesSubplot) axes to plot into.  Assumes polar projection.  If None,
+            creates a plt.figure(projection='polar') and draws on its axis
+        
+        Example:
+            >>> arts = typhon.arts.workspace.Workspace()
+            >>> ###################################################
+            >>> # Run ARTS simulation that sets an external ppath #
+            >>> ###################################################
+            >>> plot_ppath(arts)
     """
     
     try:
@@ -49,12 +57,17 @@ def plot_ppath(ax, ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000):
     else:
         x = lon
     
+    if ax is None:
+        ax = plt.subplot(111, projection='polar')
+    
     ax.plot(np.deg2rad(x), alt/scale_alt)
     ax.set_rorigin(-planetary_radius/scale_alt)
+    
+    return ax
 
 
 def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
-                     scale_alt=1000, subplots=1):
+                     scale_alt=1000, subplots=1, axes=None):
     """ Return the ARTS Ppath plotted on the surface
     
     Parameters:
@@ -70,6 +83,8 @@ def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
             (Index)  Divides the ppath_field into this many equally long
             segments, so that the first len(ppath_field) // subplots plots
             are drawn on the same surface and so forth
+        axes:
+            Either list of subplots, or None.
     
     Returns:
         list of axis of the length of subplots
@@ -91,18 +106,22 @@ def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
     
     # Number of drawings per subplot
     n = N // subplots
-    path_ind = 0
     
     n1 = int(np.ceil(np.sqrt(subplots)))
     n2 = n1 if np.isclose(n1*n1, subplots) or n1*n1 > subplots else n1 + 1
     
-    axes = []
+    if axes is None:
+        fig = plt.figure()
+        axes = []
+        for i in range(subplots):
+            axes.append(fig.add_subplot(n1, n2, i+1, projection='polar'))
+    
+    assert subplots == len(axes), "Must have same number of axes as subplots"
+    
     for i in range(subplots):
-        axes.append(plt.subplot(n1, n2, i+1, projection='polar'))
         for j in range(n):
-            plot_ppath(axes[-1], ppath_field[path_ind], 
-                       planetary_radius, lat_is_x, scale_alt)
-            path_ind += 1
+            plot_ppath(ppath_field[j+n*i], planetary_radius, lat_is_x,
+                       scale_alt, ax=axes[i])
     return axes
 
 
@@ -191,28 +210,25 @@ def wzeniths(zeniths):
     zaz = np.deg2rad(zeniths[inds])
     cz = np.cos(zaz)
     
-    wz = np.zeros((3*n))
-    za = np.zeros((3*n))
+    wz = np.zeros((2*n))
+    za = np.zeros((2*n))
     for i in range(n-1):
-        N = i*3
-        za[0+N] = zaz[i]
-        za[1+N] = 0.5 * (zaz[i] + zaz[i+1])
-        za[2+N] = zaz[i+1]
-        
-        w = 0.5 * (cz[i] - cz[i+1])
-        wz[0+N] = wz[1+N] = wz[2+N] = w
+        N = i*2
+        za[N:N+2] = zaz[i:i+2]
+        wz[0+N] = wz[1+N] = 0.5 * (cz[i] - cz[i+1])
     
-    za[-1] = np.deg2rad(180)
     return za, wz
 
 
-def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000):
+def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000, axes=None):
     """Plots the zenith angle coverage of a ppath_field for all the altitudes
     in the field.
     
     Parameters:
         ppath_field:
             (Ppath or Workspace)  Propagation path or Wosrkspace with the path
+        axes:
+            Either list of subplots, or None.
         scale_alt:
             (Numeric) Divide altitude and planetary_radius by this value
     
@@ -249,9 +265,16 @@ def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000):
     n1 = int(np.ceil(np.sqrt(N)))
     n2 = n1 if np.isclose(n1*n1, N) or n1*n1 > N else n1 + 1
     
+    if axes is None:
+        fig = plt.figure()
+        axes = []
+        for i in range(N):
+            axes.append(fig.add_subplot(n1, n2, i+1, projection='polar'))
+    
+    assert N == len(axes), "Must have same number of axes as subplots"
+    
     inds = np.argsort(alt)
     
-    axes = []
     wei = []
     alts = []
     for i in range(N):
@@ -261,13 +284,12 @@ def plot_ppath_field_zenith_coverage_per_gp_p(ppath_field, scale_alt=1000):
         wei.append(wz.max())
         alts.append(alt[pos])
         
-        axes.append(plt.subplot(n1, n2, i+1, projection='polar'))
-        axes[-1].plot(za, wz,'k')
-        axes[-1].set_rorigin(-0.25/np.pi)
-        axes[-1].set_thetamin(0)
-        axes[-1].set_thetamax(180)
-        axes[-1].set_rgrids([0, wz.max()*1.05], ['', ''])
-        axes[-1].set_thetagrids([0, 90, 180], ['Zenith', 'Limb', 'Nadir'])
-        axes[-1].set_title("Alt {} km".format(alt[pos]/scale_alt))
+        axes[i].plot(za, wz,'k')
+        axes[i].set_rorigin(-0.25/np.pi)
+        axes[i].set_thetamin(0)
+        axes[i].set_thetamax(180)
+        axes[i].set_rgrids([0, wz.max()*1.05], ['', ''])
+        axes[i].set_thetagrids([0, 90, 180], ['Zenith', 'Limb', 'Nadir'])
+        axes[i].set_title("Alt {} km".format(alt[pos]/scale_alt))
     
     return axes, alts, wei
