@@ -67,7 +67,7 @@ def plot_ppath(ppath, planetary_radius=1, lat_is_x=True, scale_alt=1000, ax=None
 
 
 def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
-                     scale_alt=1000, subplots=1, axes=None):
+                     scale_alt=1000, subplots=1, auto_adjust=True, axes=None):
     """ Return the ARTS Ppath plotted on the surface
 
     Parameters:
@@ -83,6 +83,8 @@ def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
             (Index)  Divides the ppath_field into this many equally long
             segments, so that the first len(ppath_field) // subplots plots
             are drawn on the same surface and so forth
+        auto_adjust:
+            (Boolean)  If true calls adjust_ppath_field_box_by_minmax
         axes:
             Either list of subplots, or None.
 
@@ -122,6 +124,10 @@ def plot_ppath_field(ppath_field, planetary_radius=1, lat_is_x=True,
         for j in range(n):
             plot_ppath(ppath_field[j+n*i], planetary_radius, lat_is_x,
                        scale_alt, ax=axes[i])
+
+    if auto_adjust:
+        adjust_ppath_field_box_by_minmax(axes, ppath_field, lat_is_x, scale_alt, 0.05)
+
     return axes
 
 
