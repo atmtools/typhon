@@ -1,0 +1,51 @@
+{
+  "creators": [
+      {
+        "affiliation": "Universit\u00e4t Hamburg - Meteorological Institute",
+        "name": "Oliver Lemke",
+        "orcid": "0000-0002-4823-2084"
+      },
+      {
+        "affiliation": "Max Planck Institute for Meteorology",
+        "name": "Lukas Kluft",
+        "orcid": "0000-0002-6533-3928"
+      },
+      {
+        "name": "John Mrziglod"
+      },
+      {
+        "affiliation": "Chalmers University of Technology",
+        "name": "Simon Pfreundschuh"
+      },
+      {
+        "name": "Gerrit Holl",
+        "orcid": "0000-0002-8112-6814"
+      },
+      {
+        "affiliation": "Max Planck Institute for Solar System Research",
+        "name": "Richard Larsson",
+        "orcid": "0000-0001-6719-723X"
+      },
+      {
+        "name": "Takayoshi Yamada"
+      },
+      {
+        "affiliation": "Universit\u00e4t Hamburg - Meteorological Institute",
+        "name": "Theresa Mieslinger",
+        "orcid": "0000-0002-6713-8317"
+      },
+      {
+        "affiliation": "Universit\u00e4t Hamburg - Meteorological Institute",
+        "name": "Jakob Doerr"
+      }
+  ],
+  "keywords": [
+      "python3",
+      "science",
+      "radiative-transfer",
+      "atmospheric-science"
+  ],
+  "access_right": "open",
+  "upload_type": "software",
+  "license": "mit-license"
+}
