@@ -63,6 +63,7 @@ setup(
 
     # Author details
     author='The Typhon developers',
+    author_email='typhon.mi@lists.uni-hamburg.de',
 
     # Choose your license
     license='MIT',
