@@ -1,7 +1,18 @@
-"""A setuptools based setup module.
-See:
-https://packaging.python.org/en/latest/distributing.html
-https://github.com/pypa/sampleproject
+"""Typhon is a collection of tools for atmospheric research.
+
+It provides:
+- reading and writing routines for ARTS XML files
+- an API to run and access ARTS through Python
+- conversion routines for various physical quantities
+- a tool kit to collocate different data sets (e.g. satellite, ship, ...)
+- different retrievals (e.g. QRNN, SPARE-ICE, ...)
+- a subset of the cmocean color maps
+- functions to calculate and analyse cloud masks
+- various plotting utility functions
+- functions for geodetic and geographical calculations
+- and much more...
+
+Further information on ARTS can be found on http://www.radiativetransfer.org/.
 """
 
 import sys
@@ -16,6 +27,7 @@ from os.path import (abspath, dirname, join)
 import builtins
 
 builtins.__TYPHON_SETUP__ = True
+DOCLINES = (__doc__ or '').split("\n")
 
 try:
     cp = subprocess.run(
@@ -35,10 +47,6 @@ except subprocess.CalledProcessError:
 
 here = abspath(dirname(__file__))
 
-# Get the long description from the relevant file
-with open(join(here, 'DESCRIPTION.rst'), encoding='utf-8') as f:
-    long_description = f.read()
-
 setup(
     name='typhon',
 
@@ -47,11 +55,11 @@ setup(
     # https://packaging.python.org/en/latest/single_source_version.html
     version=__version__,
 
-    description='Tools for atmospheric research',
-    long_description=long_description,
+    description=DOCLINES[0],
+    long_description="\n".join(DOCLINES[2:]),
 
     # The project's main homepage.
-    url='http://www.radiativetransfer.org/tools/#typhon',
+    url='https://github.com/atmtools/typhon',
 
     # Author details
     author='The Typhon developers',
