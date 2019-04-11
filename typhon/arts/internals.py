@@ -164,7 +164,8 @@ class LineFunctionsData:
         self.species = None
         self.data = None
         
-    def len_of_key(self, key):
+    @staticmethod
+    def len_of_key(key):
         if key in ["LM_AER"]:
             return 12
         elif key in ["#"]:
