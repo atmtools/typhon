@@ -210,12 +210,16 @@ class LineFunctionsData:
             shape_len = 4
         elif self.LS in ['HTP']:
             shape_len = 6
+        else:
+            raise RuntimeError(f'Unknown LS value: {self.LS}')
         if self.LM in ['#']:
             mixing_len = 0
-        if self.LM in ['LM1', 'INT', 'ConstG']:
+        elif self.LM in ['LM1', 'INT', 'ConstG']:
             mixing_len = 1
-        if self.LM in ['LM2']:
+        elif self.LM in ['LM2']:
             mixing_len = 3
+        else:
+            raise RuntimeError(f'Unknown LM value: {self.LM}')
         return mixing_len + shape_len
         
     def set_data_shape(self):
