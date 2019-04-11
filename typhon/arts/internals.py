@@ -1037,7 +1037,7 @@ class ARTSCAT5:
             \\sigma(f) = \\sum_{k=0}^{k=n-1}
             r_k S_{0, k}(T_0) K_1 K_2 \\frac{Q(T_0)}{Q(T)}
             \\frac{1 + g_k \\; p^2 + iy_k \\; p }{\\gamma_{D,k}\\sqrt{\\pi}}
-            \\; F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            \\; F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where there are n lines,
@@ -1416,9 +1416,9 @@ class LineMixing:
         Cross-section is found from summing all lines
 
         .. math::
-            \\sigma(f) \\propto \sum_{k=0}^{k=n-1}
+            \\sigma(f) \\propto \\sum_{k=0}^{k=n-1}
             \\left[1 + G_k \\; p^2 + iY_k \\; p\\right] \\;
-            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where k indicates line dependent variables.  This function returns
@@ -1696,7 +1696,7 @@ class PressureBroadening:
 
         .. math::
             \\sigma(f) \\propto \\sum_{k=1}^{k=n-1}
-            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where k indicates line dependent variables.  This function returns

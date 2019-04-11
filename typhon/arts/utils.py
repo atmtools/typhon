@@ -62,12 +62,12 @@ def as_quantumnumbers(var):
     if possible
 
     Parameters:
-        var (dict, QuantumNumberRecord, QuantumNumbers, None, str): Quantum
-        numbers
+        var (dict, QuantumNumberRecord, QuantumNumbers, None, str):
+            Quantum numbers
 
     Returns:
         QN (QuantumNumberRecord, QuantumNumbers): Returned quantumn numbers.
-        No change if already quantum numbers type
+            No change if already quantum numbers type
     """
 
     if type(var) in [QuantumNumberRecord,
