@@ -84,19 +84,14 @@ class TestWorkspace:
         assert all(self.ws.matrix_variable.value.ravel() == m.ravel())
 
     def test_sparse_transfer(self):
-        sparse_formats = ["csc", "csr", "bsr", "lil", "dok", "coo", "dia"]
-        for f in sparse_formats:
-
-            n = 100
-            d2 = np.ones(n - 2)
-            d1 = np.ones(n - 1)
-            d  = np.ones(n)
-            m  = sp.sparse.diags(diagonals = [d2, d1, d, d1, d2],
-                                 offsets   = [2, 1, 0, -1, -2])#
-                                 #format = "coo")
-            self.ws.sensor_response = m
-            print(self.ws.sensor_response.value)
-            assert  np.all(m.todense() == self.ws.sensor_response.value.todense())
+        n = 100
+        d2 = np.ones(n - 2)
+        d1 = np.ones(n - 1)
+        d = np.ones(n)
+        m = sp.sparse.diags(diagonals=[d2, d1, d, d1, d2],
+                            offsets=[2, 1, 0, -1, -2])
+        self.ws.sensor_response = m
+        assert np.all(m.todense() == self.ws.sensor_response.value.todense())
 
     def test_supergeneric_overload_resolution(self):
         self.ws.ArrayOfIndexCreate("array_of_index")
