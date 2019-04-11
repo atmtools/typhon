@@ -453,7 +453,7 @@ class _GriddedField:
 
         Parameters:
               key (str): Name of the field to scale.
-              data (float or ndarray): Scale factor.
+              factor (float or ndarray): Scale factor.
               dtype (type): Data type used for typecasting. If the original
                 dtype of ``GriddedField.data`` is ``int``, the data array
                 gets typecasted to prevent messy behaviour when assigning
@@ -731,8 +731,8 @@ def griddedfield_from_xarray(dataarray):
     """Convert :class:`xarray.DataArray` to ARTS ``GriddedField``.
 
     Parameters:
-        da (:class:`xarray.DataArray`): :class:`~xarray.DataArray` containing
-            dimensions and data.
+        dataarray (:class:`xarray.DataArray`): :class:`~xarray.DataArray`
+            containing dimensions and data.
 
     Returns:
         : Appropriate ARTS GriddedField.
