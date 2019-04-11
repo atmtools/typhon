@@ -71,17 +71,13 @@ def autocorrelation(stats):
     for lags [0, n // 2].
     """
     n = stats[0].size
-    m = len(stats)
 
     vars  = np.array([np.var(s) for s in stats])
     means = np.array([np.mean(s) for s in stats])
-    mean  = np.mean(means)
     b = n * np.var(means)
     w = np.mean(vars)
     var_p = (n - 1) / n * w + b / n
 
-    rho_tp1 = 0.0
-    rho_tp2 = 0.0
     rho = np.zeros(n // 2)
     for t in range(n // 2):
         vt     = variogram(stats, t)
@@ -98,7 +94,6 @@ def effective_sample_size(stats):
 
     vars  = np.array([np.var(s) for s in stats])
     means = np.array([np.mean(s) for s in stats])
-    mean  = np.mean(means)
     b = n * np.var(means)
     w = np.mean(vars)
     var_p = (n - 1) / n * w + b / n

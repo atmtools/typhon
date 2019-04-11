@@ -1,7 +1,6 @@
 from ast import literal_eval
 import copy
 from importlib import import_module
-import json
 
 import numpy as np
 import pandas as pd
@@ -70,7 +69,7 @@ class RetrievalProduct:
                     "__shape__": item.shape,
                 }
             else:
-                return np.asscalar(item)
+                return item.item()
 
         def _is_numpy(item):
             return type(item).__module__ == np.__name__

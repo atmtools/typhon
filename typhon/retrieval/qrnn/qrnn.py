@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
+from scipy.interpolate import CubicSpline
 import copy
 import os
 import pickle
@@ -930,7 +930,7 @@ class QRNN:
             inputs in `x`.
 
         """
-        return QRNN.crps(self.predict(x), y, self.quantiles)
+        return QRNN.crps(self.predict(x), y_test, self.quantiles)
 
     def save(self, path):
         r"""
@@ -979,7 +979,6 @@ class QRNN:
             The loaded QRNN object.
         """
         filename = os.path.basename(path)
-        name = os.path.splitext(filename)[0]
         dirname = os.path.dirname(path)
 
         f = open(path, "rb")
@@ -990,7 +989,7 @@ class QRNN:
             try:
                 mp = os.path.join(dirname, os.path.basename(mf))
                 qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
-            except(e):
+            except:
                 raise Exception("Error loading the neural network models. " \
                                 "Please make sure all files created during the"\
                                 " saving are in this folder.")
