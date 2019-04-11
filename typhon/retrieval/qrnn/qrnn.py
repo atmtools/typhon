@@ -930,7 +930,7 @@ class QRNN:
             inputs in `x`.
 
         """
-        return QRNN.crps(self.predict(x), y, self.quantiles)
+        return QRNN.crps(self.predict(x), y_test, self.quantiles)
 
     def save(self, path):
         r"""

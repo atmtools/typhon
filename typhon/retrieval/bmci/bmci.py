@@ -425,7 +425,7 @@ class BMCI:
 
         return x, y
 
-    def predict_quantiles(self, y_obs, quantiles, x2_max = -1):
+    def predict_quantiles(self, y_obs, quantiles, x2_max=-1):
         r"""
         This estimates the quantiles given in `quantiles` by approximating
         the CDF of the posterior as
@@ -465,7 +465,7 @@ class BMCI:
                 If any of the percentiles lies outside the interval [0, 1].
 
         """
-        taus = np.asarray(taus).reshape((-1, ))
+        taus = np.asarray(quantiles).reshape((-1, ))
 
         m = y_obs.shape[1]
         n = y_obs.shape[0]
