@@ -945,8 +945,6 @@ class QuantumNumberRecord:
     def zeeman_splitting(self, type=None, case=None, H=1):
         from ..physics.em import zeeman_splitting, landau_g_factor, \
             zeeman_transitions
-        if case is None:
-            raise RuntimeError("No unknown cases allowed")
 
         if case.lower() == 'a':
             gu = landau_g_factor(self.upper['Omega'], self.upper['J'],
@@ -962,6 +960,8 @@ class QuantumNumberRecord:
             gl = landau_g_factor(self.lower['N'], self.lower['J'],
                                  self.lower['S'], self.lower['Lambda'],
                                  gs=2, gl=1, case='b')
+        else:
+            raise RuntimeError("No unknown cases allowed")
 
         if type is not None:
             mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], type)
