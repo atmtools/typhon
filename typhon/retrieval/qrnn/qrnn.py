@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
+from scipy.interpolate import CubicSpline
 import copy
 import os
 import pickle
@@ -979,7 +979,6 @@ class QRNN:
             The loaded QRNN object.
         """
         filename = os.path.basename(path)
-        name = os.path.splitext(filename)[0]
         dirname = os.path.dirname(path)
 
         f = open(path, "rb")
