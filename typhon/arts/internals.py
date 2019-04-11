@@ -1814,8 +1814,6 @@ class PartitionFunctions:
             self._from_species_aux_data_(data)
         elif type(data) is dict:
             self._from_dict_(data)
-        elif type(data) is list:
-            self._from_list_(data)
         elif type(data) is PartitionFunctions:
             self.data = PartitionFunctions.data
         elif data is not None:
