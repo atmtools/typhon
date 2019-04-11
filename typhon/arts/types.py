@@ -42,7 +42,7 @@ __all__ = []
 classes = {
     'ArrayOfLineRecord': ArrayOfLineRecord,
     'CIARecord': CIARecord,
-    'CovarianceMatrix' : CovarianceMatrix,
+    'CovarianceMatrix': CovarianceMatrix,
     'GasAbsLookup': GasAbsLookup,
     'GriddedField1': GriddedField1,
     'GriddedField2': GriddedField2,
