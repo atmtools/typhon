@@ -126,7 +126,7 @@ class ARTSTypesLoadMultiplexer:
             flatarr = np.ndarray(dims)
         elif elem.binaryfp is not None:
             flatarr = np.fromfile(elem.binaryfp, dtype=np.float64,
-                                  count=np.prod(np.array(dims)))
+                                  count=np.prod(np.array(dims)).item())
             flatarr = flatarr.reshape(dims)
         else:
             flatarr = np.fromstring(elem.text, sep=' ')
@@ -143,7 +143,7 @@ class ARTSTypesLoadMultiplexer:
             flatarr = np.ndarray(dims, dtype=np.complex128)
         elif elem.binaryfp is not None:
             flatarr = np.fromfile(elem.binaryfp, dtype=np.complex128,
-                                  count=np.prod(np.array(dims)))
+                                  count=np.prod(np.array(dims)).item())
             flatarr = flatarr.reshape(dims)
         else:
             flatarr = np.fromstring(elem.text, sep=' ', dtype=np.float64)
