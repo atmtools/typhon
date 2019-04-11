@@ -1,20 +1,19 @@
 # -*- encoding: utf-8 -*-
+import os
+
 import numpy as np
 import pytest
-import os
-import typhon
 import scipy as sp
+
+import typhon
 
 try:
     from typhon.arts.workspace import Workspace, arts_agenda
     from typhon.arts.workspace.variables import WorkspaceVariable
-except:
+except ImportError:
     skip_arts_tests = True
 else:
     skip_arts_tests = False
-
-from typhon.arts.catalogues import Sparse
-
 
 
 def agenda(ws):
