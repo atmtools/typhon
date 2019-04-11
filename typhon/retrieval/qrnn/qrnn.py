@@ -990,7 +990,7 @@ class QRNN:
             try:
                 mp = os.path.join(dirname, os.path.basename(mf))
                 qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
-            except(e):
+            except:
                 raise Exception("Error loading the neural network models. " \
                                 "Please make sure all files created during the"\
                                 " saving are in this folder.")
