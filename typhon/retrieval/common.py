@@ -69,7 +69,7 @@ class RetrievalProduct:
                     "__shape__": item.shape,
                 }
             else:
-                return np.asscalar(item)
+                return item.item()
 
         def _is_numpy(item):
             return type(item).__module__ == np.__name__
