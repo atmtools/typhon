@@ -55,7 +55,7 @@ class _GriddedField:
 
     """
 
-    def __init__(self, dimension, grids=None, data=None, gridnames=None,
+    def __init__(self, dimension=None, grids=None, data=None, gridnames=None,
                  dataname=None, name=None):
         """Create a GriddedField object.
 
@@ -68,7 +68,9 @@ class _GriddedField:
             name (str): name of the GriddedField.
 
         """
-        self._dimension = return_if_arts_type(dimension, 'Index')
+        if not isinstance(dimension, numbers.Integral) or dimension < 1:
+            raise ValueError('dimension must be a scalar greater 0')
+        self._dimension = dimension
         self.grids = copy.deepcopy(grids)
         self.data = copy.copy(data)
         self.gridnames = copy.copy(gridnames)

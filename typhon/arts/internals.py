@@ -496,7 +496,7 @@ class ARTSCAT5:
             other (str, ARTSCAT5, ArrayOfLineRecord, tuple): Data to append,
             Must fit with internal structures.  Easiest to guarantee if other
             is another ARTSCAT5 or an ArrayOfLineRecord containing ARTSCAT-5
-            data
+            data.
 
             sort: Sorts the lines by frequency if True
         """
@@ -883,6 +883,8 @@ class ARTSCAT5:
             add = False
             sub = False
             keep = True
+        else:
+            raise RuntimeError(f'Invalid value for kind: {kind}')
         assert remove or change or add or keep or sub, "Invalid kind"
 
         # Check if the quantum number information is for level or transition
