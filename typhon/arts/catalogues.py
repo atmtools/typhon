@@ -868,38 +868,40 @@ class QuantumNumberRecord:
     def __contains__(self, value):
         return value in ['UP', 'LO']
 
-    def from_dict(dict):
-        """Creates a QuantumNumberRecord from dict
+    @classmethod
+    def from_dict(cls, d):
+        """Creates a QuantumNumberRecord from dictionary
         """
-        if len(dict) == 0:
+        if len(d) == 0:
             return QuantumNumberRecord(upper=QuantumNumbers(),
                                        lower=QuantumNumbers())
 
-        assert 'UP' in dict and 'LO' in dict, "Need UP and LO to create"
-        qnr = QuantumNumberRecord(upper=QuantumNumbers(dict['UP']),
-                                  lower=QuantumNumbers(dict['LO']))
+        assert 'UP' in d and 'LO' in d, "Need UP and LO to create"
+        qnr = QuantumNumberRecord(upper=QuantumNumbers(d['UP']),
+                                  lower=QuantumNumbers(d['LO']))
         return qnr
 
-    def from_str(str):
-        """Creates a QuantumNumberRecord from dict
+    @classmethod
+    def from_str(cls, s):
+        """Creates a QuantumNumberRecord from string
         """
-        str = str.strip()
-        if len(str) == 0:
+        s = s.strip()
+        if len(s) == 0:
             return QuantumNumberRecord(upper=QuantumNumbers(),
                                        lower=QuantumNumbers())
 
-        assert 'UP' in str and 'LO' in str, "Need UP and LO to create"
-        _t1 = str.split('UP')
-        assert len(_t1) == 2, "Unexpectedly many/few UP in str"
+        assert 'UP' in s and 'LO' in s, "Need UP and LO to create"
+        _t1 = s.split('UP')
+        assert len(_t1) == 2, "Unexpectedly many/few UP in s"
         if len(_t1[0]) == 0:
             _t2 = _t1[1].split('LO')
-            assert len(_t2) == 2, "Unexpectedly many/few LO in str"
+            assert len(_t2) == 2, "Unexpectedly many/few LO in s"
             lo = _t2[1]
             up = _t2[0]
         else:
             up = _t1[1]
             _t2 = _t1[0].split('LO')
-            assert len(_t2) == 2, "Unexpectedly many/few LO in str"
+            assert len(_t2) == 2, "Unexpectedly many/few LO in s"
             lo = _t2[1]
 
         qnr = QuantumNumberRecord(upper=QuantumNumbers(up),
@@ -943,8 +945,6 @@ class QuantumNumberRecord:
     def zeeman_splitting(self, type=None, case=None, H=1):
         from ..physics.em import zeeman_splitting, landau_g_factor, \
             zeeman_transitions
-        if case is None:
-            raise RuntimeError("No unknown cases allowed")
 
         if case.lower() == 'a':
             gu = landau_g_factor(self.upper['Omega'], self.upper['J'],
@@ -960,6 +960,8 @@ class QuantumNumberRecord:
             gl = landau_g_factor(self.lower['N'], self.lower['J'],
                                  self.lower['S'], self.lower['Lambda'],
                                  gs=2, gl=1, case='b')
+        else:
+            raise RuntimeError("No unknown cases allowed")
 
         if type is not None:
             mu, ml = zeeman_transitions(self.upper['J'], self.lower['J'], type)

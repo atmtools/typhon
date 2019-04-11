@@ -55,7 +55,7 @@ class _GriddedField:
 
     """
 
-    def __init__(self, dimension, grids=None, data=None, gridnames=None,
+    def __init__(self, dimension=None, grids=None, data=None, gridnames=None,
                  dataname=None, name=None):
         """Create a GriddedField object.
 
@@ -68,7 +68,9 @@ class _GriddedField:
             name (str): name of the GriddedField.
 
         """
-        self._dimension = return_if_arts_type(dimension, 'Index')
+        if not isinstance(dimension, numbers.Integral) or dimension < 1:
+            raise ValueError('dimension must be a scalar greater 0')
+        self._dimension = dimension
         self.grids = copy.deepcopy(grids)
         self.data = copy.copy(data)
         self.gridnames = copy.copy(gridnames)
@@ -453,7 +455,7 @@ class _GriddedField:
 
         Parameters:
               key (str): Name of the field to scale.
-              data (float or ndarray): Scale factor.
+              factor (float or ndarray): Scale factor.
               dtype (type): Data type used for typecasting. If the original
                 dtype of ``GriddedField.data`` is ``int``, the data array
                 gets typecasted to prevent messy behaviour when assigning
@@ -731,8 +733,8 @@ def griddedfield_from_xarray(dataarray):
     """Convert :class:`xarray.DataArray` to ARTS ``GriddedField``.
 
     Parameters:
-        da (:class:`xarray.DataArray`): :class:`~xarray.DataArray` containing
-            dimensions and data.
+        dataarray (:class:`xarray.DataArray`): :class:`~xarray.DataArray`
+            containing dimensions and data.
 
     Returns:
         : Appropriate ARTS GriddedField.

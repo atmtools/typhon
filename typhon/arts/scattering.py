@@ -336,26 +336,6 @@ class SingleScatteringData:
 
         return S.getvalue()
 
-    def normalise(self):
-        """Normalises Z to E-A.
-        """
-
-        Z_int = self.integrate()
-        E_min_A = self.ext_mat_data.squeeze() - self.abs_vec_data.squeeze()
-        # use where to prevent divide by zero
-        factor = E_min_A / np.where(Z_int == 0, 1, Z_int)
-        factor.shape = (factor.size, 1, 1, 1, 1, 1)
-        self.pha_mat_data[..., 0] *= factor
-        # self.pha_mat_data[..., 0] = self.pha_mat_data[..., 0] * factor
-
-    def normalised(self):
-        """Returns normalised copy
-        """
-
-        c = copy.deepcopy(self)
-        c.normalise()
-        return c
-
     def __getitem__(self, v):
         """Get subset of single-scattering-data
 

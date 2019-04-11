@@ -164,7 +164,8 @@ class LineFunctionsData:
         self.species = None
         self.data = None
         
-    def len_of_key(self, key):
+    @staticmethod
+    def len_of_key(key):
         if key in ["LM_AER"]:
             return 12
         elif key in ["#"]:
@@ -209,12 +210,16 @@ class LineFunctionsData:
             shape_len = 4
         elif self.LS in ['HTP']:
             shape_len = 6
+        else:
+            raise RuntimeError(f'Unknown LS value: {self.LS}')
         if self.LM in ['#']:
             mixing_len = 0
-        if self.LM in ['LM1', 'INT', 'ConstG']:
+        elif self.LM in ['LM1', 'INT', 'ConstG']:
             mixing_len = 1
-        if self.LM in ['LM2']:
+        elif self.LM in ['LM2']:
             mixing_len = 3
+        else:
+            raise RuntimeError(f'Unknown LM value: {self.LM}')
         return mixing_len + shape_len
         
     def set_data_shape(self):
@@ -496,7 +501,7 @@ class ARTSCAT5:
             other (str, ARTSCAT5, ArrayOfLineRecord, tuple): Data to append,
             Must fit with internal structures.  Easiest to guarantee if other
             is another ARTSCAT5 or an ArrayOfLineRecord containing ARTSCAT-5
-            data
+            data.
 
             sort: Sorts the lines by frequency if True
         """
@@ -883,6 +888,8 @@ class ARTSCAT5:
             add = False
             sub = False
             keep = True
+        else:
+            raise RuntimeError(f'Invalid value for kind: {kind}')
         assert remove or change or add or keep or sub, "Invalid kind"
 
         # Check if the quantum number information is for level or transition
@@ -1030,7 +1037,7 @@ class ARTSCAT5:
             \\sigma(f) = \\sum_{k=0}^{k=n-1}
             r_k S_{0, k}(T_0) K_1 K_2 \\frac{Q(T_0)}{Q(T)}
             \\frac{1 + g_k \\; p^2 + iy_k \\; p }{\\gamma_{D,k}\\sqrt{\\pi}}
-            \\; F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            \\; F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where there are n lines,
@@ -1409,9 +1416,9 @@ class LineMixing:
         Cross-section is found from summing all lines
 
         .. math::
-            \\sigma(f) \\propto \sum_{k=0}^{k=n-1}
+            \\sigma(f) \\propto \\sum_{k=0}^{k=n-1}
             \\left[1 + G_k \\; p^2 + iY_k \\; p\\right] \\;
-            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where k indicates line dependent variables.  This function returns
@@ -1689,7 +1696,7 @@ class PressureBroadening:
 
         .. math::
             \\sigma(f) \\propto \\sum_{k=1}^{k=n-1}
-            F\\left(\\frac{f - f_{0,k} -  \Delta f_k \\; p^2 -
+            F\\left(\\frac{f - f_{0,k} -  \\Delta f_k \\; p^2 -
             \\delta f_kp + i\\gamma_{p,k}p} {\\gamma_{D,k}}\\right),
 
         where k indicates line dependent variables.  This function returns
@@ -1811,8 +1818,6 @@ class PartitionFunctions:
             self._from_species_aux_data_(data)
         elif type(data) is dict:
             self._from_dict_(data)
-        elif type(data) is list:
-            self._from_list_(data)
         elif type(data) is PartitionFunctions:
             self.data = PartitionFunctions.data
         elif data is not None:
