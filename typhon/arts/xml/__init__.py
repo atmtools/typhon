@@ -3,8 +3,6 @@
 """This module provides functionality for reading and writing ARTS XML files.
 """
 
-from __future__ import absolute_import
-
 import gzip
 import glob
 import itertools
