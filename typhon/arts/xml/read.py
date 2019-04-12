@@ -5,8 +5,6 @@
 This packages contains the internal implementation for reading ARTS XML files.
 """
 
-from __future__ import absolute_import
-
 from xml.etree import ElementTree
 
 import numpy as np
