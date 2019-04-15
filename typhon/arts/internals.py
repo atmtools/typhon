@@ -167,7 +167,7 @@ class LineFunctionsData:
     @staticmethod
     def len_of_key(key):
         if key in ["LM_AER"]:
-            return 13
+            return 12
         elif key in ["#"]:
             return 0
         elif key in ["T0"]:
