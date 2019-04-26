@@ -14,6 +14,7 @@ __all__ = [
     'promote_maximally',
     'calculate_precisely',
     'squeezable_logspace',
+    'multiple_logical',
 ]
 
 
@@ -310,3 +311,20 @@ def squeezable_logspace(start, stop, num=50, squeeze=1., fixpoint=0.):
     # Combine the bottom and top parts to the final grid. Drop the fixpoint
     # in the bottom part to avoid duplicates.
     return np.exp(np.append(bottom[:-1], top))
+
+
+def multiple_logical(*args, func=np.logical_or):
+    """Apply logical function on multiple arguments.
+
+    Parameters:
+        *args (ndarray[bool]): Arrays to be combined.
+        func (callable): Logical function, default :func:`numpy.logical_or`.
+
+    Returns:
+        ndarray[bool]: Combined boolean array.
+    """
+    mask = args[0]
+    for arg in args[1:]:
+        mask = func(mask, arg)
+
+    return mask

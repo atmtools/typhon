@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """Functions to work with ASTER L1B satellite data.
 """
+import datetime
+import os
+from collections import namedtuple
+
 import gdal
 import numpy as np
-
-from datetime import datetime
 from skimage.measure import block_reduce
+
+from typhon.math import multiple_logical
 
 
 __all__ = [
-    'cloudmask_ASTER',
-    'read_ASTER_L1B',
-    'convert_ASTERdn2ref',
-    'convert_ASTERdn2bt',
-    'multiple_logical',
+    'ASTERimage',
     'cloudtopheight_IR',
     'lapserate_modis',
     'lapserate_moist_adiabate',
@@ -22,357 +22,393 @@ __all__ = [
 ]
 
 
-def multiple_logical(*args, func=np.logical_or):
-    """Apply logical function on multiple arguments.
+class ASTERimage:
+    """ASTER L1B image object."""
+    channels = (
+        '1', '2', '3N', '3B',  # VNIR
+        '4', '5', '6', '7', '8', '9',  # SWIR
+        '10', '11', '12', '13', '14'  # TIR
+    )
 
-    Parameters:
-        *args (ndarray[bool]): Arrays to be combined.
-        func (callable): Logical function, default :func:`numpy.logical_or`.
+    def __init__(self, filename):
+        """Initialize ASTER image object.
 
-    Returns:
-        ndarray[bool]: Combined boolean array.
-    """
-    mask = args[0]
-    for arg in args[1:]:
-        mask = func(mask, arg)
+        Parameters:
+            filename (str): Path to ASTER L1B HDF file.
+        """
+        self.filename = filename
 
-    return mask
+        meta = self.get_metadata()
+        SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation'])
+        self.solardirection = SolarDirection(
+            *self._convert_metastr(meta['SOLARDIRECTION'], dtype=tuple)
+        )
+        self.sunelevation = self.solardirection[1]
+        self.datetime = datetime.datetime.strptime(
+            meta['CALENDARDATE'] + meta['TIMEOFDAY'], '%Y-%m-%d%H:%M:%S.%f0')
+        self.scenecenter = self._convert_metastr(meta['SCENECENTER'],
+                                                 dtype=tuple)
 
+    @property
+    def basename(self):
+        """Filename without path."""
+        return os.path.basename(self.filename)
 
-def cloudmask_ASTER(filename):
-    """Cloud mask derivation from ASTER image.
-
-    Four thresholding test based on visual bands distringuish between the 
-    dark ocean surface and bright clouds. An additional test five corrects 
-    uncertain labeled pixels during broken cloud conditions and pixels with 
-    sun glint. A detailed description can be found in Werner et al., 2016.
-    Original cloud mask flags:  0 - confidently cloudy
-                                1 - probably cloudy
-                                2 - probably clear
-                                3 - confidently clear
-    For the output binary cloud mask flag 0, 1 are merged to 'cloudy - 1' and
-    flag 2, 3 are merged to 'clear - 0'.
-    
-    See also:
-        :func:`read_ASTER_L1B`: Used to convert ASTER L1B digital
-        numbers to physical values, either reflectances in the short wave
-        channels, or brightness temperatures from the thermal channels.
-        :func:`convert_dn2ref`: Used to convert instrument digital numbers from
-        ASTER L1B near-infrared and short-wave channels to reflectance values.
-        :func:`convert_dn2bt`: Used to convert instrument digital numbers from
-        ASTER L1B thermal channels to brightness temperature values.
-    
-    Parameters: 
-        filename (str): filename of ASTER L1B HDF file. 
-    
-    Returns:
-        ndarray: binary cloud mask (clear - 0, cloudy - 1).
-        
-    References:
-        Werner, F., Wind, G., Zhang, Z., Platnick, S., Di Girolamo, L., 
-        Zhao, G., Amarasinghe, N., and Meyer, K.: Marine boundary layer 
-        cloud property retrievals from high-resolution ASTER observations: 
-        case studies and comparison with Terra MODIS, Atmos. Meas. Techannel., 9, 
-        5869-5894, https://doi.org/10.5194/amt-9-5869-2016, 2016. 
-    """
-    # Read visual near infrared (VNIR) bands.
-    r1 = read_ASTER_L1B(filename, channel='1')
-    r2 = read_ASTER_L1B(filename, channel='2')
-    r3N = read_ASTER_L1B(filename, channel='3N')
-    
-    # Read short-wave infrared (SWIR) bands and match VNIR resolution.
-    r5 = read_ASTER_L1B(filename, channel='5')
-    r5 = np.repeat(np.repeat(r5, 2, axis=0), 2, axis=1)
-
-    # Read thermal (TIR) bands.
-    bt14 = read_ASTER_L1B(filename, channel='14')
-    # Remap band 14 brightness temperatures to match VNIR band resolution.
-    bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
-
-    # Ratios for clear-cloudy-tests.
-    r3N2 = r3N / r2
-    r12 = r1 / r2
-
-    # Test 1-4: distinguishing between ocean and cloud pixels
-    # Set cloudmask to default "confidently clear".
-    clmask = np.ones(r1.shape, dtype=np.float) * 3  
-
-    # combined edge values of swath channel1, channel2, channel3N and channel5.
-    clmask[multiple_logical(np.isnan(r1), np.isnan(r2), np.isnan(r3N),
-                            np.isnan(r5), func=np.logical_or )] = np.nan
-    
-    # Set "probably clear" pixels.
-    clmask[multiple_logical( r3N > 0.03, r5 > 0.01, 0.7 < r3N2,
-                             r3N2 < 1.75, r12 < 1.45,
-                             func=np.logical_and )] = 2
-    
-    # Set "probably cloudy" pixels.
-    clmask[np.logical_and(r3N > 0.03, 
-                np.logical_and(r5 > 0.015,
-                np.logical_and(0.75 < r3N2, 
-                np.logical_and(r3N2 < 1.75, r12 < 1.35))))] = 1
-    
-    # Set "confidently cloudy" pixels
-    clmask[np.logical_and(r3N > 0.065, 
-                np.logical_and(r5 > 0.02,
-                np.logical_and(0.8 < r3N2, 
-                np.logical_and(r3N2 < 1.75, r12 < 1.2))))] = 0
-
-    # Test 5: correct broken cloud conditions and pixels with sun glint.
-    # threshold for Tb14: 5th percentil sampled over all clear pixels.
-    Tb14_p05 = np.nanpercentile(bt14[clmask == 3], 5)
-    
-    # fraction of clear pixels with flag "3"
-    nc = np.sum(clmask == 3) / np.sum(~np.isnan(clmask))
-    
-    # ADDITIONAL CONDITION (not included in Werner et al., 2016):
-    # if fraction of clear pixels nc < 0.03 use also "probably clear"-pixels 
-    # to derive Tb threshold.
-    if (nc < 0.03):
-        Tb14_p05 = np.nanpercentile(
-            bt14[np.logical_or(clmask == 3, clmask == 2)], 5)
-
-    # Cloud mask including Test 5
-    clmask_Tb14 = clmask.copy()
-    clmask_Tb14[bt14 > Tb14_p05] = 3
-    clmask_Tb14[np.logical_or(np.isnan(clmask), np.isnan(bt14))] = np.nan
-
-    # Final binary cloud mask
-    cloudmask = clmask_Tb14.copy()
-    cloudmask[cloudmask == 0] = 1 # cloudy
-    cloudmask[np.logical_or(cloudmask == 2, cloudmask == 3)] = 0 # clear
-
-    return cloudmask
-
-
-def read_ASTER_L1B(filename, channel):
-    """Read orginal ASTER HDF file.
-
-    Digital numbers (DN) are converted to physical variables. VNIR and SWIR
-    channels are converted to reflectance at TOA and TIR channels are converted
-    to brightness temperature.
-
-    Parameters:
-        filename (str): filename of ASTER L1B HDF file.
-        channel (str): ASTER channel: 1, 2, 3N, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-            13, 14
-    Returns:
-        var (ndarray): physical variable, either reflectance or brightness
-            temperature. Shape according to data resolution of respective
-            channel.
-    """
-    # Extract date and time from ASTER file name.
-    im_name = filename.split(sep="/")[-1]
-    im_date = datetime( int(im_name[15:19]), int(im_name[11:13]),
-                        int(im_name[13:15]), int(im_name[19:21]),
-                        int(im_name[21:23]), int(im_name[23:25]) )
-
-    # open ASTER data file.
-    g = gdal.Open(filename)
-    meta = g.GetMetadata()
-
-    # convert DN to r or Tb.
-    if channel in ('1', '2', '3N', '4', '5', '6', '7', '8', '9'):
-        # channeleck metadata if solar elevation angle is >0°, i.e. daytime
-        if float(meta['SOLARDIRECTION'].split(',')[1][1:-1]) > 0.:
-            # read swath
-            if channel in ('1', '2', '3N'):
-                swath = gdal.Open('HDF4_EOS:EOS_SWATH:"' +
-                                  filename+'":VNIR_Swath:ImageData'+channel)
-            elif channel in ('4', '5', '6', '7', '8', '9'):
-                swath = gdal.Open('HDF4_EOS:EOS_SWATH:"' +
-                                  filename+'":SWIR_Swath:ImageData'+channel)
-            data = swath.ReadAsArray()
-            data = data.astype('float')
-            data[data == 0] = np.nan
-            # calculate reflectance r
-            var = convert_ASTERdn2ref(dn=data,
-                         gain=meta['GAIN.'+channel[0]].split(',')[1].strip(),
-                         sun_el=float(
-                             meta['SOLARDIRECTION'].split(',')[1].strip()),
-                         im_date=im_date,
-                         channel=channel,
-                         )
+    @staticmethod
+    def _convert_metastr(metastr, dtype=str):
+        """Convert metadata data type."""
+        if dtype == tuple:
+            return tuple(float(f.strip()) for f in metastr.split(','))
         else:
-            print('Night: no reflectance is calculated from visible channels')
-            return
-    elif channel in ('10', '11', '12', '13', '14'):
-        # read swath
-        swath = gdal.Open('HDF4_EOS:EOS_SWATH:"'+filename +
-                          '":TIR_Swath:ImageData'+channel)
-        data = swath.ReadAsArray()
-        data = data.astype('float')
-        data[data == 0] = np.nan
-        # calculate brightness temperature Tb
-        var = convert_ASTERdn2bt(dn=data, channel=channel)
-    else:
-        print('channeloose one of the available ASTER channels: 1, 2, 3N, 4, 5, 6,'
-              '7, 8, 9, 10, 11, 12, 13, 14')
+            return dtype(metastr)
 
-    g = None # Close ASTER data file.
+    def get_metadata(self):
+        """Read full ASTER metadata information."""
+        return gdal.Open(self.filename).GetMetadata()
 
-    return var
+    def read_digitalnumbers(self, channel):
+        """Read ASTER L1B raw digital numbers.
 
+         Parameters:
+             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
 
-def convert_ASTERdn2ref(dn, gain, sun_el, image_date, channel):
-    """Converts re-calibrated digital numbers (dn) from ASTER L1B data to 
-    spectral radiances [W m-2 sr-1 um-1] and further to reflectance at TOA.
+         Returns:
+            ndarray: Digital numbers. Shape according to data resolution of
+                the respective channel.
+        """
+        if channel in ('1', '2', '3N', '3B'):
+            subsensor = 'VNIR'
+        elif channel in ('4', '5', '6', '7', '8', '9'):
+            subsensor = 'SWIR'
+        elif channel in ('10', '11', '12', '13', '14'):
+            subsensor = 'TIR'
 
-    Parameters:
-        dn (float): re-calibrated digital numbers from ASTER L1B data
-        gain (str): gain settings 'HGH', 'NOR', 'LO1', 'LO2' (e.g. from HDF
-            metadata).
-        sun_el (float): sun elevantion angle in [°] (e.g. from HDF metadata)
-        image_date (:class: datetime): recording date.
-        channel (str): ASTER channel: 1, 2, 3N, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-            13, 14
-        
-    Returns:
-        float: reflectance at TOA.
-        
-    References:
-        ﻿M. Abrams, S. H., & Ramachannelandran, B. (2002). Aster user handbook
-            version 2, p25 [Computer software manual]. Retrieved 2017-05-25,
-            https://asterweb.jpl.nasa.gov/content/03 data/04 Documents/
-            aster user guide v2.pdf
-        Thome, K.; Biggar, S.; Slater, P. Effects of assumed solar spectral
-            irradiance on intercomparisons of earth-observing sensors. In
-            Sensors, Systems, and Next-Generation Satellites; Proceedings of
+        data_path = (f'HDF4_EOS:EOS_SWATH:{self.filename}:{subsensor}_Swath:'
+                     f'ImageData{channel}')
+        swath = gdal.Open(data_path)
+
+        data = swath.ReadAsArray().astype('float')
+        data[data == 0] = np.nan  # Set edge pixels to NaN.
+
+        return data
+
+    def get_radiance(self, channel):
+        """Get ASTER radiance values.
+
+        Read digital numbers from ASTER L1B file and convert them to spectral
+        radiance values in [W m-2 sr-1 um-1] at TOA by means of unit conversion
+        coefficients ucc [W m-2 sr-1 um-1] and the gain settings at the sensor.
+
+        See also:
+            :func:`read_digitalnumbers`: Reads the raw digital numbers from
+                ASTER L1B HDF4 files.
+
+        Parameters:
+             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
+
+         Returns:
+            ndarray: Radiance values at TOA. Shape according to data
+                resolution of the respective channel.
+
+        References:
+            ﻿M. Abrams, S. H., & Ramachandran, B. (2002). Aster user handbook
+            version 2, p.25 [Computer software manual]. Retrieved 2017-05-25,
+            from https://asterweb.jpl.nasa.gov/content/03 data/04 Documents/
+            aster user guide v2.pdf.
+        """
+        dn = self.read_digitalnumbers(channel)
+
+        # Unit conversion coefficients ucc [W m-2 sr-1 um-1] for different gain
+        # settings, high, normal, low1, and low2.
+        ucc = {'1': (0.676, 1.688, 2.25, np.nan),
+               '2': (0.708, 1.415, 1.89, np.nan),
+               '3N': (0.423, 0.862, 1.15, np.nan),
+               '3B': (0.423, 0.862, 1.15, np.nan),
+               '4': (0.1087, 0.2174, 0.290, 0.290),
+               '5': (0.0348, 0.0696, 0.0925, 0.409),
+               '6': (0.0313, 0.0625, 0.0830, 0.390),
+               '7': (0.0299, 0.0597, 0.0795, 0.332),
+               '8': (0.0209, 0.0417, 0.0556, 0.245),
+               '9': (0.0159, 0.0318, 0.0424, 0.265),
+               '10': 6.882e-3,
+               '11': 6.780e-3,
+               '12': 6.590e-3,
+               '13': 5.693e-3,
+               '14': 5.225e-3,
+               }
+
+        if channel in ['1', '2', '3N', '3B', '4', '5', '6', '7', '8', '8',
+                       '9']:
+            meta = self.get_metadata()
+            gain = meta[f'GAIN.{channel[0]}'].split(',')[1].strip()
+            if gain == 'LO1':
+                gain = 'LOW' # both refer to column 3 in ucc table.
+            radiance = (dn - 1) * ucc[channel][
+                                    ['HGH', 'NOR', 'LOW', 'LO2'].index(gain)]
+        elif channel in ['10', '11', '12', '13', '14']:
+            radiance = (dn - 1) * ucc[channel]
+        else:
+            raise ValueError('Invalid channel "{channel}".')
+
+        return radiance
+
+    def get_reflectance(self, channel):
+        """Get ASTER L1B reflectance values at TOA.
+
+        Spectral radiance values are converted to reflectance values for
+        ASTER's near-infrared and short-wave channels (1-9).
+
+        See also:
+            :func:`get_radiance`: Reads the raw digital numbers from
+                ASTER L1B HDF4 files and converts them to radiance values at
+                TOA.
+
+        Parameters:
+             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9'.
+
+        Returns:
+            ndarray: Reflectance values at TOA. Shape according to data
+                resolution of the respective channel.
+
+        References:
+        Thome, K.; Biggar, S.; Slater, P (2001). Effects of assumed solar
+            spectral irradiance on intercomparisons of earth-observing sensors.
+            In Sensors, Systems, and Next-Generation Satellites; Proceedings of
             SPIE; December 2001; Fujisada, H., Lurie, J., Weber, K., Eds.;
             Vol. 4540, pp. 260–269.
+        http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectance.pdf
+        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
+        """
+        # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according
+        # to Thome et al. 2001.
+        E_sun = (1848, 1549, 1114, 1114,
+                 225.4, 86.63, 81.85, 74.85, 66.49, 59.85,
+                 np.nan, np.nan, np.nan, np.nan, np.nan)
+
+        sunzenith = 90 - self.solardirection.elevation
+
+        doy = self.datetime.timetuple().tm_yday # day of the year (doy)
+
+        distance = (0.016790956760352183
+                    * np.sin(-0.017024566555637135 * doy
+                             + 4.735251041365579)
+                    + 0.9999651354429786) # acc. to Landsat Handbook
+
+        return (np.pi * self.get_radiance(channel) * distance**2 /
+                E_sun[self.channels.index(channel)] /
+                np.cos(np.radians(sunzenith))
+                )
+
+    def get_brightnesstemperature(self, channel):
+        """Get ASTER L1B reflectances values at TOA.
+
+        Spectral radiance values are converted to brightness temperature values
+        in [K] for ASTER's thermal channels (10-14).
+
+        See also:
+            :func:`get_radiance`: Reads the raw digital numbers from
+                ASTER L1B HDF4 files and converts them to radiance values at
+                TOA.
+
+        Parameters:
+             channel (str): ASTER channel number. '10', '11', '12', '13', '14'.
+
+        Returns:
+            ndarray: Brightness temperature values in [K] at TOA. Shape
+                according to data resolution of the respective channel.
+
+        References:
         http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectan
             ce.pdf
         http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
-    """
-    # Constants / Definitions
-    channels = ['1', '2', '3N', '3B',
-                '4', '5', '6', '7', '8', '9',
-                '10', '11', '12', '13', '14']
-    if gain == 'LO1':
-        gain = 'LOW'
-    gain_list = ['HGH', 'NOR', 'LOW', 'LO2']
+        """
+        K1 = {'10': 3040.136402, # Constant K1 [W m-2 um-1].
+              '11': 2482.375199,
+              '12': 1935.060183,
+              '13': 866.468575,
+              '14': 641.326517}
 
-    # Unit conversion coefficients ucc [W m-2 sr-1 um-1] depending on gain
-    # settings (ASTER user handbook, channelapter 5.0 ASTER Radiometry (p.25)).
-    # syntax: ucc_table={'channel':(ucc_gain_high, ucc_gain_normal, ucc_gain_low1,
-    #                           ucc_gain_low2)}
-    ucc_table = {'1': (0.676, 1.688, 2.25, np.nan),
-                 '2': (0.708, 1.415, 1.89, np.nan),
-                 '3N': (0.423, 0.862, 1.15, np.nan),
-                 '3B': (0.423, 0.862, 1.15, np.nan),
-                 '4': (0.1087, 0.2174, 0.290, 0.290),
-                 '5': (0.0348, 0.0696, 0.0925, 0.409),
-                 '6': (0.0313, 0.0625, 0.0830, 0.390),
-                 '7': (0.0299, 0.0597, 0.0795, 0.332),
-                 '8': (0.0209, 0.0417, 0.0556, 0.245),
-                 '9': (0.0159, 0.0318, 0.0424, 0.265),
-                 '10': (np.nan, 6.822e-3, np.nan),
-                 '11': (np.nan, 6.780e-3, np.nan)}
+        K2 = {'10': 1735.337945, # Constant K2 [K].
+              '11': 1666.398761,
+              '12': 1585.420044,
+              '13': 1350.069147,
+              '14': 1271.221673}
 
-    # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according to
-    # Thome et al. 2001.
-    E_sun = (1848, 1549, 1114,
-             1114, 225.4, 86.63,
-             81.85, 74.85, 66.49,
-             59.85, np.nan, np.nan,
-             np.nan, np.nan, np.nan)
+        return (K2[channel] /
+                np.log((K1[channel] / self.get_radiance(channel)) + 1)
+                )
 
-    # solar zenith angle theta_z [°]
-    theta_z = 90 - sun_el
+    def retrieve_cloudmask(self, output_binary=True, include_thermal_test=True,
+                           include_channel_r5=True):
+        """ASTER cloud mask.
 
-    # day of year (doy) ASTER scene
-    doy = image_date.timetuple().tm_yday
-    
-    # Sun-earth-distance for corresponding day of the year (doy)
-    # (http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html).
-    # Fitting sinus curve to discrete values results in the following
-    # parameters for distance in [AU] = A * np.sin(w*doy + p) + c.
-    distance = (0.016790956760352183 
-                * np.sin(-0.017024566555637135 * doy
-                         + 4.735251041365579) 
-                + 0.9999651354429786)
+        Four thresholding test based on visual bands distringuish between the
+        dark ocean surface and bright clouds. An additional test corrects
+        uncertain labeled pixels during broken cloud conditions and pixels with
+        sun glint. A detailed description can be found in Werner et al., 2016.
 
-    # Radiance values in [W m-2 sr-1 um-1] at TOA.
-    radiance = (dn - 1) * ucc_table[channel][gain_list.index(gain)]
+        See also:
+            :func:`get_reflectance`: Get reflectance values from ASTER's
+                near-infrared and short-wave channels.
+            :func:`get_brightnesstemperature`: Get brightness temperature
+                values from ASTER's thermal channels.
+            :func:multiple_logical`: Apply logical function to multiple
+                arguments.
 
-    return (np.pi * radiance * distance**2 /
-        (E_sun[channels.index(channel)] * np.cos(np.radians(theta_z))))
+        Parameters:
+            output_binary (bool): Switch between binary and full cloud mask
+                flags.
+                binary: 0 - clear (flag 2 & flag 3)
+                        1 - cloudy (flag 4 & flag 5)
+                full:   2 - confidently clear
+                        3 - probably clear
+                        4 - probably cloudy
+                        5 - confidently cloudy
+            include_thermal_test (bool): Switch for including test 5, which
+                uses the thermal channel 14 at 11mu with 90m pixel resolution.
+                The reduced resolution can introduce artificial straight cloud
+                boundaries.
+            include_channel_r5 (bool): Switch for including channel 5 in the
+                thresholding tests. The SWIR sensor, including channel 5,
+                suffered from temperature problems after May 2007. Per default,
+                later recorded images are set to a value that has no influence
+                on the thresholding tests.
+
+        Returns:
+            ndarray[int]: Cloud mask.
+
+        References:
+            Werner, F., Wind, G., Zhang, Z., Platnick, S., Di Girolamo, L.,
+            Zhao, G., Amarasinghe, N., and Meyer, K.: Marine boundary layer
+            cloud property retrievals from high-resolution ASTER observations:
+            case studies and comparison with Terra MODIS, Atmos. Meas.
+            Techannel., 9, 5869-5894, https://doi.org/10.5194/amt-9-5869-2016,
+            2016.
+        """
+
+        # Read visual near infrared (VNIR) channels at 15m resolution.
+        r1 = self.get_reflectance(channel='1')
+        r2 = self.get_reflectance(channel='2')
+        r3N = self.get_reflectance(channel='3N')
+
+        # Read short-wave infrared (SWIR) channels at 30m resolution and match
+        # VNIR resolution.
+        r5 = self.get_reflectance(channel='5')
+        if (self.datetime > datetime.datetime(2007, 5, 1)
+            or not include_channel_r5):
+            # The SWIR sensor suffered from temperature problems after May
+            # 2007. Images later on are set to a dummy value "1", which won't
+            # influence the following thresholding tests. Swath edge NaN pixels
+            # stay NaN.
+            r5[~np.isnan(r5)] = 1
+        r5 = np.repeat(np.repeat(r5, 2, axis=0), 2, axis=1)
+
+        # Read thermal (TIR) channel at 90m resolution and match VNIR
+        # resolution.
+        bt14 = self.get_brightnesstemperature(channel='14')
+        bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
+
+        # Ratios for clear-cloudy-tests.
+        r3N2 = r3N / r2
+        r12 = r1 / r2
+
+        ### TEST 1-4 ###
+        # Set cloud mask to default "confidently clear".
+        clmask = np.ones(r1.shape, dtype=np.float) * 2
+
+        with np.warnings.catch_warnings():
+            np.warnings.filterwarnings('ignore', r'invalid value encountered')
+
+            # Set "probably clear" pixels.
+            clmask[multiple_logical(r3N > 0.03, r5 > 0.01, 0.7 < r3N2,
+                                    r3N2 < 1.75, r12 < 1.45,
+                                    func=np.logical_and)] = 3
 
 
-def convert_ASTERdn2bt(dn, channel):
-    """Conversion to brightness temperature.
-    ASTER L1B re-calibrated digital numbers (DN) from thermal channels are
-    converted to spectral radiances [W m-2 sr-1 um-1] and further to
-    brightness temperatures [K] through the inverse Planck function.
+            # Set "probably cloudy" pixels.
+            clmask[multiple_logical(r3N > 0.03, r5 > 0.015, 0.75 < r3N2,
+                                    r3N2 < 1.75, r12 < 1.35,
+                                    func=np.logical_and)] = 4
 
-    Parameters:
-        dn (float): re-calibrated digital numbers from ASTER L1B data
-        channel (str): ASTER channel: 1, 2, 3N, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-            13, 14
+            # Set "confidently cloudy" pixels
+            clmask[multiple_logical(r3N > 0.065, r5 > 0.02, 0.8 < r3N2,
+                                    r3N2 < 1.75, r12 < 1.2,
+                                    func=np.logical_and)] = 5
 
-    Returns:
-        float: brightness temperature in [K].
+            # Combine swath edge pixels.
+            clmask[multiple_logical(np.isnan(r1), np.isnan(r2), np.isnan(r3N),
+                                    np.isnan(r5), func=np.logical_or)] = np.nan
 
-    References:
-        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
-        https://lpdaac.usgs.gov/dataset_discovery/aster/aster_products_table/as
-        t_l1t
-    """
-    # Unit conversion coefficients ucc [W m-2 sr-1 um-1].
-    ucc = {'10': 6.882e-3,
-           '11': 6.780e-3,
-           '12': 6.590e-3,
-           '13': 5.693e-3,
-           '14': 5.225e-3}
-    # Constant K1 [W m-2 um-1].
-    K1 = {'10': 3040.136402,
-          '11': 2482.375199,
-          '12': 1935.060183,
-          '13': 866.468575,
-          '14': 641.326517}
-    # Constant K2 [K].
-    K2 = {'10': 1735.337945,
-          '11': 1666.398761,
-          '12': 1585.420044,
-          '13': 1350.069147,
-          '14': 1271.221673}
+        if include_thermal_test:
+            ### TEST 5 ###
+            # Uncertain warm ocean pixels, higher than the 5th percentile of
+            # brightness temperature values from all "confidently clear"
+            # labeled pixels, are overwritten with "confidently clear".
 
-    # Radiance [W m-2 sr-1 um-1]
-    rad = (dn - 1) * ucc[channel]
+            # Check for available "confidently clear" pixels.
+            nc = np.sum(clmask == 2) / np.sum(~np.isnan(clmask))
+            if (nc > 0.03):
+                bt14_p05 = np.nanpercentile(bt14[clmask == 2], 5)
+            else:
+                # If less than 3% of pixels are "confidently clear", test 5
+                # cannot be applied according to Werner et al., 2016. However,
+                # a sensitivity study showed that combining "probably clear"
+                # and "confidently clear" pixels in such cases leads to
+                # plausible results and we derive a threshold correspondingly.
+                bt14_p05 = np.nanpercentile(bt14[np.logical_or(clmask == 2,
+                                                               clmask == 3)],5)
 
-    return K2[channel] / np.log((K1[channel] / rad) + 1)
-    
-    
+            with np.warnings.catch_warnings():
+                np.warnings.filterwarnings('ignore',
+                                           r'invalid value encountered')
+                # Pixels with brightness temperature values above the 5th
+                # percentile of clear ocean pixels are overwritten with
+                # "confidently clear".
+                clmask[np.logical_and(bt14 > bt14_p05, ~np.isnan(clmask))] = 2
+
+            # Combine swath edge pixels.
+            clmask[np.logical_or(np.isnan(clmask), np.isnan(bt14))] = np.nan
+
+        if output_binary:
+            clmask[np.logical_or(clmask == 2, clmask == 3)] = 0 # clear
+            clmask[np.logical_or(clmask == 4, clmask == 5)] = 1 # cloudy
+
+        return clmask.astype(int)
+
+
 def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                       month=None):
-    """Cloud Top Height (CTH) from 11 micron channel. 
-    ASTER brightness temperatures from channel 14 are converted to CTHs using 
-    the IR window approachannel: (Tb_clear - Tb_cloudy) / lapse_rate. 
-    
+    """Cloud Top Height (CTH) from 11 micron channel.
+    ASTER brightness temperatures from channel 14 are converted to CTHs using
+    the IR window approachannel: (Tb_clear - Tb_cloudy) / lapse_rate.
+
     Note:
         `cloudmask` shape must matchannel that of the thermal channel, (700,830).
-    
+
     See also:
         :func:`skimage.measure.block_reduce`: Down-sample image by applying
             function to local blocks.
         :func:`lapserate_moist_adiabate`: Constant value 6.5 [K/km]
         :func:`lapserate_modis`: Estimate of the apparent lapse rate in [K/km]
             depending on month and latitude acc. to Baum et al., 2012.
-        
+
     Parameters:
         cloudmask (ndarray): binary ASTER cloud mask image.
         Tb14 (ndarray): brightness temperatures form ASTER channel 14.
         method (str): approachannel used to derive CTH: 'simple' or 'modis'.
         latitudes (ndarray): latitudes in [°], positive North, negative South.
         month (int): month of the year.
-    
+
     Returns:
         ndarray: cloud top height.
-    """    
+    """
     # Lapse rate
     if method=='simple':
         lapserate = lapserate_moist_adiabate()
-        
+
     elif method=='modis':
         latitude = latitudes[np.shape(latitudes)[0] // 2,
                              np.shape(latitudes)[1] // 2]
@@ -384,10 +420,10 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     cloudmask_inverted[np.isnan(cloudmask_inverted)] = 1
     cloudmask_inverted = np.asarray(np.invert(np.asarray(
                                 cloudmask_inverted, dtype=bool)), dtype=int)
-    
+
     cloudmask[np.isnan(cloudmask)] = 0
     cloudmask = np.asarray(cloudmask, dtype=int)
-    
+
     # Matchannel cloudmask resolution and Tb14 resolution.
     if resolution_ratio > 1:
         # On Tb14 resolution, flag pixels as cloudy only if all subgrid pixels
@@ -396,14 +432,14 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
         # Searchannel for 90m only clear pixels to derive a Tb clearsky/ocean value.
-        mask_clear = block_reduce(cloudmask_inverted, 
+        mask_clear = block_reduce(cloudmask_inverted,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
     elif resolution_ratio < 1:
         try:
             mask_cloudy = np.repeat(np.repeat(cloudmask, resolution_ratio,
                                         axis=0), resolution_ratio, axis=1)
-            mask_clear = np.repeat(np.repeat(cloudmask_inverted, 
+            mask_clear = np.repeat(np.repeat(cloudmask_inverted,
                                                   resolution_ratio, axis=0),
                                                   resolution_ratio, axis=1)
         except ValueError:
@@ -411,10 +447,10 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     else:
         mask_cloudy = cloudmask.copy()
         mask_clear = cloudmask_inverted.copy()
-        
+
     Tb_cloudy = np.ones(np.shape(Tb14)) * np.nan
     Tb_cloudy[mask_cloudy] = Tb14[mask_cloudy]
-    
+
     Tb_clear_avg = np.nanmean(Tb14[mask_clear])
 
     return (Tb_clear_avg - Tb_cloudy) / lapserate
@@ -502,27 +538,27 @@ def lapserate_moist_adiabate():
 
 
 def get_reflection_angle(cloudmask, metadata):
-    """Calculate a sun reflection angle for a given ASTER image depending on 
-    the sensor-sun geometry and the sensor settings. 
-    
+    """Calculate a sun reflection angle for a given ASTER image depending on
+    the sensor-sun geometry and the sensor settings.
+
     Note:
         All angular values are given in [°].
-    
+
     Parameters:
         cloudmask (ndarray): binary ASTER cloud mask image.
         metadata (dict): ASTER  HDF meta data information.
-        
+
     Returns:
         reflection_angle (ndarray): 2d field of size `cloudmask` of reflection
         angles for eachannel pixel.
-    
+
     References:
          Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
          & Dongling Li (2015) Observation of submarine sand waves using ASTER
          stereo sun glitter imagery, International Journal of Remote Sensing,
          36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
     """
-    
+
     # Angular data from ASTER metadata data.
     S = float(metadata['MAPORIENTATIONANGLE'])
     P = float(metadata['POINTINGANGLE.1'])
@@ -531,57 +567,57 @@ def get_reflection_angle(cloudmask, metadata):
     # sun zenith = 90 - sun elevation
     sun_zenith = 90 - float(metadata['SOLARDIRECTION'].split(',')[1].strip())
 
-    # Instrument view angles of the Visual Near Infrared (VNIR) sensor: 
+    # Instrument view angles of the Visual Near Infrared (VNIR) sensor:
     # Field Of View (FOV)
     FOV_vnir = 6.09
     # Instantaneous FOV (IVOF)
     IFOV = FOV_vnir / cloudmask.shape[1]
-    
-    # Construct n-array indexing pixels n=- right and n=+ left from the image 
+
+    # Construct n-array indexing pixels n=- right and n=+ left from the image
     # central in flight direction.
     n = np.zeros(np.shape(cloudmask))
-    
+
     for i in range(cloudmask.shape[0]):
         if np.sum(~np.isnan(cloudmask[i,:])) > 0:
             # get index of swath edge pixels and calculate swath mid pixel
             ind1 = next(x[0] for x in
                         enumerate(cloudmask[i]) if ~np.isnan(x[1]) )
-            ind2 = (cloudmask.shape[1] - next(x[0] for x in 
+            ind2 = (cloudmask.shape[1] - next(x[0] for x in
                     enumerate(cloudmask[i][::-1]) if ~np.isnan(x[1]) ) )
             ind_mid = (ind1 + ind2) / 2
             # Assign n-values correspondingly to left and right sides
-            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1, 
+            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1,
                                   dtype=int)
-            left_arr = np.arange(start=1, 
+            left_arr = np.arange(start=1,
                                  stop=cloudmask.shape[1] - round(ind_mid) + 1,
                                  step=1, dtype=int)
             n[i] = np.asarray(list(right_arr) + list(left_arr))
         else:
             # Put NaN if ONLY NaN values are in cloudmask row.
             n[i] = np.nan
-    
+
     n[np.isnan(cloudmask)] = np.nan
-    
+
     # Thresholding index for separating left and right from nadir in
     # azimuth calculation.
     n_az = n * IFOV + P
-    
+
     # ASTER zenith angle
     ast_zenith = abs(np.asarray(n) * IFOV + P)
-    
+
     # ASTER azimuth angle
     ast_azimuth = np.ones(cloudmask.shape) * np.nan
     # swath right side
     ast_azimuth[np.logical_and(n_az<0, ~np.isnan(n))] = 90 + S
     # swath left side
     ast_azimuth[np.logical_and(n_az>=0, ~np.isnan(n))] = 270 + S
-        
+
     # Reflection angle, i.e. the angle between the sensor and the reflected sun
     # in the sensor-sun-plane.
     reflection_angle = theta_r(sun_zenith=sun_zenith,
                                # +180° corresponds to "anti-/reflected" sun
                                sun_azimuth=sun_azimuth + 180,
-                               sensor_zenith=ast_zenith, 
+                               sensor_zenith=ast_zenith,
                                sensor_azimuth=ast_azimuth)
 
     return reflection_angle
