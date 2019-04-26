@@ -133,6 +133,7 @@ setup(
         'tests': [
             'pytest',
             'pint',
+            'gdal',
         ],
     },
 

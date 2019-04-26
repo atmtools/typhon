@@ -133,6 +133,12 @@ try:
 except ImportError:
     exclude_patterns.append('typhon.retrieval.rst')
 
+try:
+    import typhon.cloudmask.aster
+except ImportError:
+    exclude_patterns.append('typhon.cloudmask.aster.rst')
+
+
 # Allows to automatically number figures, tables and code-blocks:
 numfig = True
 
