@@ -26,6 +26,9 @@ Cloud mask
    :maxdepth: 2
 
    typhon.cloudmask
+   typhon.cloudmask.aster
+   typhon.cloudmask.cloudstatistics
+
 
 Collocations
 ------------
