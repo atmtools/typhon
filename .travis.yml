@@ -10,9 +10,14 @@ matrix:
   fast_finish: true
   allow_failures:
     - env: CONFIG=PEP8
+before_install:
+  - sudo add-apt-repository -y ppa:nextgis/ppa
+  - sudo apt update 
+  - sudo apt-get install -y libgdal-dev
 install:
   - pip install -U pip
   - pip install Cython
+  - pip install GDAL==$(gdal-config --version) --global-option=build_ext --global-option="-I/usr/include/gdal -L/usr/local/lib -lgdal"
   - pip install .[tests]
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
   - export TYPHONTESTFILES=$PWD/typhon-testfiles
