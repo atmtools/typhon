@@ -49,6 +49,7 @@ class ASTERimage:
         self.scenecenter = self._convert_metastr(meta['SCENECENTER'],
                                                  dtype=tuple)
 
+
     @property
     def basename(self):
         """Filename without path."""
@@ -278,7 +279,7 @@ class ASTERimage:
                 on the thresholding tests.
 
         Returns:
-            ndarray[int]: Cloud mask.
+            ndarray[float]: Cloud mask.
 
         References:
             Werner, F., Wind, G., Zhang, Z., Platnick, S., Di Girolamo, L.,
@@ -376,7 +377,7 @@ class ASTERimage:
             clmask[np.logical_or(clmask == 2, clmask == 3)] = 0 # clear
             clmask[np.logical_or(clmask == 4, clmask == 5)] = 1 # cloudy
 
-        return clmask.astype(int)
+        return clmask
 
 
 def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
@@ -386,7 +387,7 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     the IR window approachannel: (Tb_clear - Tb_cloudy) / lapse_rate.
 
     Note:
-        `cloudmask` shape must matchannel that of the thermal channel, (700,830).
+        `cloudmask` shape must match that of the thermal channel, (700,830).
 
     See also:
         :func:`skimage.measure.block_reduce`: Down-sample image by applying
@@ -424,14 +425,14 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     cloudmask[np.isnan(cloudmask)] = 0
     cloudmask = np.asarray(cloudmask, dtype=int)
 
-    # Matchannel cloudmask resolution and Tb14 resolution.
+    # Match cloudmask resolution and Tb14 resolution.
     if resolution_ratio > 1:
         # On Tb14 resolution, flag pixels as cloudy only if all subgrid pixels
         # are cloudy in the original cloud mask.
         mask_cloudy = block_reduce(cloudmask,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
-        # Searchannel for 90m only clear pixels to derive a Tb clearsky/ocean value.
+        # Search for 90m only clear pixels to derive a Tb clearsky/ocean value.
         mask_clear = block_reduce(cloudmask_inverted,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
@@ -443,7 +444,7 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                                                   resolution_ratio, axis=0),
                                                   resolution_ratio, axis=1)
         except ValueError:
-            print('Problems matchanneling the shapes of cloudmask and Tb14.')
+            print('Problems matching the shapes of cloudmask and Tb14.')
     else:
         mask_cloudy = cloudmask.copy()
         mask_clear = cloudmask_inverted.copy()
