@@ -224,13 +224,6 @@ class VariableValueStruct(c.Structure):
             ptr = c.cast(c.c_char_p(value.encode()), c.c_void_p)
         # Vector, Matrix
         elif type(value) == np.ndarray:
-
-            # Need to make a copy of the array if it is not contiguous.
-            if not value.flags["C_CONTIGUOUS"]:
-                self._value = np.array(value, copy = True, dtype = np.float64, order = "C")
-                value = self._value
-
-            value = np.array(value, dtype = np.float64, )
             if value.dtype == np.float64:
                 ptr = value.ctypes.data
                 for i in range(value.ndim):
