@@ -224,6 +224,9 @@ class VariableValueStruct(c.Structure):
             ptr = c.cast(c.c_char_p(value.encode()), c.c_void_p)
         # Vector, Matrix
         elif type(value) == np.ndarray:
+            # arrays need to be contiguous when passed to the ARTS API
+            value = np.ascontiguousarray(value)
+
             if value.dtype == np.float64:
                 ptr = value.ctypes.data
                 for i in range(value.ndim):
@@ -253,6 +256,7 @@ class VariableValueStruct(c.Structure):
                 ptr = c.cast(c.pointer((c.c_long * len(value))(*value)), c.c_void_p)
             dimensions[0] = len(value)
 
+        self._value = value
         self.ptr = ptr
         self.initialized = initialized
         self.dimensions  = (c.c_long * 7)(*dimensions)
