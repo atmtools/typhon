@@ -313,3 +313,16 @@ class TestWorkspace:
         agenda.execute(self.ws)
 
         assert self.ws.stokes_dim.value == 42
+
+    def test_contiguous_arrays(self):
+        x = np.linspace(0, 1, 256)
+
+        xf = np.asarray(x, order='F')
+        self.ws.f_grid = xf
+        assert np.array_equal(self.ws.f_grid.value, xf)
+
+        self.ws.f_grid = x[::2]
+        assert np.array_equal(self.ws.f_grid.value, x[::2])
+
+        self.ws.f_grid = np.ascontiguousarray(x[::2])
+        assert np.array_equal(self.ws.f_grid.value, x[::2])
