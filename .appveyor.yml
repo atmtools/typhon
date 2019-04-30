@@ -11,10 +11,11 @@ init:
 install:
   - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%PATH%"
   - C:\\Miniconda36-x64\\python.exe -m pip install -U pip
-  - pip install numpy==1.15.4
+  - pip install numpy==1.16.3
   - pip install Cython
   - pip install pytest
   - pip install git+https://github.com/Unidata/cftime
+  - pip install netCDF4==1.5.0
   - pip install .
   - git clone --depth=1 https://github.com/atmtools/typhon-testfiles.git
   - "set TYPHONTESTFILES=%cd%\\typhon-testfiles"
