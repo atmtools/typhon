@@ -8,6 +8,7 @@ from collections import namedtuple
 
 import gdal
 import numpy as np
+from scipy import interpolate
 from skimage.measure import block_reduce
 
 from typhon.math import multiple_logical
@@ -382,6 +383,176 @@ class ASTERimage:
 
         return clmask
 
+    def get_latlon_grid(self, channel='1'):
+        """Create latitude-longitude-grid for specified channel data.
+
+        A latitude-logitude grid is created from the corner coordinates of the
+        ASTER image. The coordinates stated in the HDF4 meta data information
+        correspond the edge pixels shifted by one in flight direction and to
+        the left. The resolution and dimension of the image depends on the
+        specified channel.
+
+        Parameters:
+            channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
+
+        Returns:
+            ndarray[tuple]: Latitude longitude grid.
+
+        References:
+            M. Abrams, S. H., & Ramachandran, B. (2002). Aster user handbook
+            version 2, p.25 [Computer software manual]. Retrieved 2017-05-25,
+            from https://asterweb.jpl.nasa.gov/content/03 data/04 Documents/
+            aster user guide v2.pdf.
+        """
+        meta = self.get_metadata()
+        ImageDimension = namedtuple('ImageDimension', ['lon', 'lat'])
+        imagedimension = ImageDimension(
+            *self._convert_metastr(meta[f'IMAGEDATAINFORMATION{channel}'],
+                                   tuple)[:2])
+
+        # Image corner coordinates (file, NOT swath) according to the ASTER
+        # Users Handbook p.57.
+        LL = self._convert_metastr(meta['LOWERLEFT'],
+                                 dtype=tuple)  # (latitude, longitude)
+        LR = self._convert_metastr(meta['LOWERRIGHT'], dtype=tuple)
+        UL = self._convert_metastr(meta['UPPERLEFT'], dtype=tuple)
+        UR = self._convert_metastr(meta['UPPERRIGHT'], dtype=tuple)
+        lat = np.array([[UL[0], UR[0]],
+                        [LL[0], LR[0]]])
+        lon = np.array([[UL[1], UR[1]],
+                        [LL[1], LR[1]]])
+
+        # Function for interpolation to full domain grid.
+        flat = interpolate.interp2d([0, 1], [0, 1], lat, kind='linear')
+        flon = interpolate.interp2d([0, 1], [0, 1], lon, kind='linear')
+
+        # Grid matching shifted corner coordinates (see above).
+        latgrid = np.linspace(0, 1, imagedimension.lat + 1)
+        longrid = np.linspace(0, 1, imagedimension.lon + 1)
+
+        # Apply lat-lon-function to grid and cut off last row and column to get
+        # the non-shifted grid.
+        lons = flon(longrid, latgrid)[:-1, :-1]
+        lats = flat(longrid, latgrid)[:-1, :-1]
+
+        return lats, lons
+
+    def retrieve_lapserate(self):
+        """Estimate of the apparent lapse rate in [K/km].
+        Typical lapse rates are assumed for each month and depending on the
+        location on Earth, i.e. southern hemisphere, tropics, or northern
+        hemisphere. For a specific case the lapse rate is estimated by a 4th order
+        polynomial and polynomial coefficients given in the look-up table.
+        This approach is based on the MODIS cloud top height retrieval and applies
+        to data recorded at 11 microns. According to Baum et al., 2012, the
+        predicted lapse rates are restricted to a maximum and minimum of
+        10 and 2 K/km, respectively.
+
+
+        Parameters:
+            month (int): Month of the year.
+            latitude (float): Latitude of center coordinate.
+
+        Returns:
+            float: Lapse rate estimate.
+
+        References:
+            Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
+            Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
+            Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
+            1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
+        """
+        lapserate_lut = {
+            'month': np.arange(1, 13),
+            'SH_transition': np.array([-3.8, -21.5, -2.8, -23.4, -12.3, -7.0,
+                                       -10.5, -7.8, -8.6, -7.0, -9.2, -3.7]),
+            'NH_transition': np.array([22.1, 12.8, 10.7, 29.4, 14.9, 16.8,
+                                       15.0, 19.5, 17.4, 27.0, 22.0, 19.0]),
+            'a0': np.array([(2.9769801, 2.9426577, 1.9009563),  # Jan
+                            (3.3483239, 2.6499606, 2.4878736),  # Feb
+                            (2.4060296, 2.3652047, 3.1251275),  # Mar
+                            (2.6522387, 2.5433158, 13.3931707),  # Apr
+                            (1.9578263, 2.4994028, 1.6432070),  # May
+                            (2.7659754, 2.7641496, -5.2366360),  # Jun
+                            (2.1106812, 3.1202043, -4.7396481),  # Jul
+                            (3.0982174, 3.4331195, -1.4424843),  # Aug
+                            (3.0760552, 3.4539390, -3.7140186),  # Sep
+                            (3.6377215, 3.6013337, 8.2237401),  # Oct
+                            (3.3206165, 3.1947419, -0.4502047),  # Nov
+                            (3.0526633, 3.1276377, 9.3930897)]),  # Dec
+            'a1': np.array([(-0.0515871, -0.0510674, 0.0236905),
+                            (0.1372575, -0.0105152, -0.0076514),
+                            (0.0372002, 0.0141129, -0.1214572),
+                            (0.0325729, -0.0046876, -1.2206948),
+                            (-0.2112029, -0.0364706, 0.1151207),
+                            (-0.1186501, -0.0728625, 1.0105575),
+                            (-0.3073666, -0.1002375, 0.9625734),
+                            (-0.1629588, -0.1021766, 0.4769307),
+                            (-0.2043463, -0.1158262, 0.6720954),
+                            (-0.0857784, -0.0775800, -0.5127533),
+                            (-0.1411094, -0.1045316, 0.2629680),
+                            (-0.1121522, -0.0707628, -0.8836682)]),
+            'a2': np.array([(0.0027409, 0.0052420, 0.0086504),
+                            (0.0133259, 0.0042896, 0.0079444),
+                            (0.0096473, 0.0059242, 0.0146488),
+                            (0.0100893, 0.0059325, 0.0560381),
+                            (-0.0057944, 0.0082002, 0.0033131),
+                            (0.0011627, 0.0088878, -0.0355440),
+                            (-0.0090862, 0.0064054, -0.0355847),
+                            (-0.0020384, 0.0010499, -0.0139027),
+                            (-0.0053970, 0.0015450, -0.0210550),
+                            (0.0024313, 0.0041940, 0.0205285),
+                            (-0.0026068, 0.0049986, -0.0018419),
+                            (-0.0009913, 0.0055533, 0.0460453)]),
+            'a3': np.array([(0.0001136, 0.0001097, -0.0002167),
+                            (0.0003043, 0.0000720, -0.0001774),
+                            (0.0002334, -0.0000159, -0.0003188),
+                            (0.0002601, 0.0000144, -0.0009874),
+                            (-0.0001050, 0.0000844, -0.0001458),
+                            (0.0000937, 0.0001768, 0.0005188),
+                            (-0.0000890, 0.0002620, 0.0005522),
+                            (0.0000286, 0.0001616, 0.0001759),
+                            (-0.0000541, 0.00017117, 0.0002974),
+                            (0.0001495, 0.0000941, -0.0003016),
+                            (0.0000058, 0.0001911, -0.0000369),
+                            (0.0000180, 0.0001550, -0.0008450)]),
+            'a4': np.array([(0.00000113, -0.00000372, 0.00000151),
+                            (0.00000219, -0.0000067, 0.00000115),
+                            (0.00000165, -0.00000266, 0.00000210),
+                            (0.00000199, -0.00000346, 0.00000598),
+                            (-0.00000074, -0.00000769, 0.00000129),
+                            (0.00000101, -0.00001168, -0.00000262),
+                            (0.00000004, -0.00001079, -0.00000300),
+                            (0.00000060, 0.00000510, -0.00000080),
+                            (-0.00000002, 0.00000248, -0.00000150),
+                            (0.00000171, -0.0000041, 0.00000158),
+                            (0.00000042, -0.00000506, 0.00000048),
+                            (0.00000027, -0.00000571, 0.00000518)]),
+        }
+
+        ind_month = self.datetime.month - 1
+        latitude = self.scenecenter[0]
+
+        if latitude < lapserate_lut['SH_transition'][ind_month]:
+            region_flag = 0  # Southern hemisphere
+        elif (latitude >= lapserate_lut['SH_transition'][ind_month] and
+              latitude <= lapserate_lut['NH_transition'][ind_month]):
+            region_flag = 1  # Tropics
+        elif latitude > lapserate_lut['NH_transition'][ind_month]:
+            region_flag = 2  # Northern hemisphere
+        else:
+            raise ValueError('Latitude of center coordinate cannot be read.')
+
+        lapserate = (
+                lapserate_lut['a0'][ind_month][region_flag]
+                + lapserate_lut['a1'][ind_month][region_flag] * latitude
+                + lapserate_lut['a2'][ind_month][region_flag] * latitude ** 2
+                + lapserate_lut['a3'][ind_month][region_flag] * latitude ** 3
+                + lapserate_lut['a4'][ind_month][region_flag] * latitude ** 4
+        )
+
+        return lapserate
 
 def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                       month=None):
@@ -416,7 +587,7 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     elif method=='modis':
         latitude = latitudes[np.shape(latitudes)[0] // 2,
                              np.shape(latitudes)[1] // 2]
-        lapserate = lapserate_modis(month=month, latitude=latitude)
+        lapserate = self.retrieve_lapserate()
 
     resolution_ratio = np.shape(cloudmask)[0] // np.shape(Tb14)[0]
 
@@ -459,81 +630,6 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     Tb_clear_avg = np.nanmean(Tb14[mask_clear])
 
     return (Tb_clear_avg - Tb_cloudy) / lapserate
-
-
-def lapserate_modis(month, latitude):
-    """Estimate of the apparent lapse rate in [K/km].
-    Typical lapse rates are assumed for eachannel month and depending on the
-    location on Earth, i.e. southern hemisphere, tropics, or northern
-    hemisphere. For a specific case the lapse rate is estimated by a 4th order
-    polynomial and polynomial coefficients given in the look-up table.
-    This approachannel is based on the MODIS cloud top height retrieval and applies
-    to data recorded at 11 microns.
-
-    Note:
-        Northern hemisphere only!
-
-    Parameters:
-        month (int): month of the year.
-        latitude (float): latitude.
-
-    Returns:
-        float: lapse rate.
-
-    References:
-        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
-        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
-        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
-        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
-    """
-    lapserate_lut = {'month': np.arange(1,13),
-        'lat_split': np.array([22.1, 12.8, 10.7, 29.4, 14.9, 16.8,
-                               15.0, 19.5, 17.4, 27.0, 22.0, 19.0]),
-        'a0': np.array([(2.9426577,1.9009563), (2.6499606,2.4878736),
-                        (2.3652047,3.1251275), (2.5433158,13.3931707),
-                        (2.4994028,1.6432070), (2.7641496, -5.2366360),
-                        (3.1202043,-4.7396481), (3.4331195,-1.4424843),
-                        (3.4539390,-3.7140186), (3.6013337,8.2237401),
-                        (3.1947419,-0.4502047), (3.1276377,9.3930897) ]),
-        'a1': np.array([(-0.0510674,0.0236905), (-0.0105152, -0.0076514),
-                        (0.0141129,-0.1214572), (-0.0046876,-1.2206948),
-                        (-0.0364706,0.1151207), (-0.0728625, 1.0105575),
-                        (-0.1002375,0.9625734), (-0.1021766,0.4769307),
-                        (-0.1158262,0.6720954), (-0.0775800,-0.5127533),
-                        (-0.1045316,0.2629680), (-0.0707628,-0.8836682) ]),
-        'a2': np.array([(0.0052420,0.0086504), (0.0042896,0.0079444),
-                        (0.0059242,0.0146488), (0.0059325,0.0560381),
-                        (0.0082002,0.0033131), (0.0088878,-0.0355440),
-                        (0.0064054,-0.0355847), (0.0010499,-0.0139027),
-                        (0.0015450,-0.0210550), (0.0041940,0.0205285),
-                        (0.0049986,-0.0018419), (0.0055533,0.0460453) ]),
-        'a3': np.array([(0.0001097,-0.0002167), (0.0000720,-0.0001774),
-                        (-0.0000159,-0.0003188), (0.0000144,-0.0009874),
-                        (0.0000844,-0.0001458), (0.0001768,0.0005188),
-                        (0.0002620,0.0005522), (0.0001616,0.0001759),
-                        (0.00017117,0.0002974),(0.0000941,-0.0003016),
-                        (0.0001911,-0.0000369), (0.0001550,-0.0008450) ]),
-        'a4': np.array([(-0.00000372,0.00000151), (-0.0000067,0.00000115),
-                        (-0.00000266,0.00000210), (-0.00000346,0.00000598),
-                        (-0.00000769,0.00000129), (-0.00001168,-0.00000262),
-                        (-0.00001079,-0.00000300), (0.00000510,-0.00000080),
-                        (0.00000248,-0.00000150), (-0.0000041,0.00000158),
-                        (-0.00000506,0.00000048), (-0.00000571,0.00000518) ])}
-
-    month -= 1
-
-    if latitude < lapserate_lut['lat_split'][month]:
-        region_flag = 0
-    else:
-        region_flag = 1
-
-    lapserate = (lapserate_lut['a0'][month][region_flag]
-            + lapserate_lut['a1'][month][region_flag] * latitude
-            + lapserate_lut['a2'][month][region_flag] * latitude**2
-            + lapserate_lut['a3'][month][region_flag] * latitude**3
-            + lapserate_lut['a4'][month][region_flag] * latitude**4)
-
-    return lapserate
 
 
 def lapserate_moist_adiabate():
