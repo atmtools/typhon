@@ -524,20 +524,24 @@ def profile_p(p, x, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    # Determine min/max pressure of data in plot. The current axis limits are
-    # also taken into account. This ensures complete data coverage when using
-    # the function iteratively on the same axis.
-    pmin = np.min((np.min(p), *ax.get_ylim()))
-    pmax = np.max((np.max(p), *ax.get_ylim()))
-    ax.set_ylim(pmax, pmin)  # implicitly invert yaxis
-
     # Label and format for yaxis.
     formatter.set_yaxis_formatter(formatter.HectoPascalFormatter(), ax=ax)
     if ax.is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 
     # Actual plot.
-    return ax.plot(x, p, **kwargs)
+    ret = ax.plot(x, p, **kwargs)
+
+    if hasattr(ax.yaxis, 'set_inverted'):
+        # Matplotlib >=3.1.0
+        # In matplotlib==3.1.0 the yaxis has to be inverted after actual plot
+        # (https://github.com/matplotlib/matplotlib/issues/14615)
+        ax.yaxis.set_inverted(True)
+    elif not ax.yaxis_inverted():
+        # Matplotlib <=3.0.3
+        ax.invert_yaxis()
+
+    return ret
 
 
 def profile_p_log(p, x, ax=None, **kwargs):
@@ -580,7 +584,9 @@ def profile_p_log(p, x, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    ax.set_yscale('log')  # Call *before* plt.plot() to ensure non-zero ylims.
+    # Call ``set_yscale`` before plot to prevent reset of axis inverting in
+    # matplotlib 3.1.0 (https://github.com/matplotlib/matplotlib/issues/14620)
+    ax.set_yscale('log')
     ret = profile_p(p, x, ax=ax, **kwargs)
 
     # Set logarithmic scale.
