@@ -23,9 +23,12 @@ by Davide Coppola. It also serves as a table of contents.
 5. [Clean up](#clean-up)
 
 ## Create a branch
-Before starting to work on your feature or bug fix you need to create a local
-branch where to keep all your work. Branches help to organize the changes
-related to different developments in the project.
+Before your first contribution, make sure to
+[fork the project](GITHUB-INTRO.md#configure-a-new-project).
+
+Create a local branch to collect changes related to a new feature or bug fix. 
+Branches help to organize different developments within the project and 
+facilitate the code review process.
 
 You can do that with the following git command:
 ```bash

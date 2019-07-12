@@ -23,8 +23,8 @@ $ pip install typhon
 ```
 
 ### Development version
-Check our [contribution guidelines](CONTRIBUTING.md#Anaconda-development-environment)
-for information on how to setup a development environment for typhon.
+Check our information on how to [setup a development environment](CONDA-ENV.md)
+for typhon.
 
 ## Testing
 Typhon contains a simple testing framework using [pytest]. It is good
