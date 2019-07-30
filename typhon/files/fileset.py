@@ -205,7 +205,11 @@ class FileSet:
         "hour": r"\d{2}",
         "minute": r"\d{2}",
         "second": r"\d{2}",
+        "decisecond": r"\d{1}",
+        "centisecond": r"\d{2}",
         "millisecond": r"\d{3}",
+        "microsecond": r"\d{6}",
+        #"nanosecond": r"\d{9}",
         "end_year": r"\d{4}",
         "end_year2": r"\d{2}",
         "end_month": r"\d{2}",
@@ -214,7 +218,11 @@ class FileSet:
         "end_hour": r"\d{2}",
         "end_minute": r"\d{2}",
         "end_second": r"\d{2}",
+        "end_decisecond": r"\d{1}",
+        "end_centisecond": r"\d{2}",
         "end_millisecond": r"\d{3}",
+        "end_microsecond": r"\d{6}",
+        #"end_nanosecond": r"\d{9}",
     }
 
     _temporal_resolution = OrderedDict({
@@ -225,7 +233,10 @@ class FileSet:
         "hour": timedelta(hours=1),
         "minute": timedelta(minutes=1),
         "second": timedelta(seconds=1),
+        "decisecond": timedelta(microseconds=100000),
+        "centisecond": timedelta(microseconds=10000),
         "millisecond": timedelta(microseconds=1000),
+        "microsecond": timedelta(microseconds=1),
     })
 
     # If one has a year with two-digit representation, all years equal or
@@ -2287,8 +2298,8 @@ class FileSet:
         }
 
         return (
-            self._standardise_datetime_args(start_args,),
-            self._standardise_datetime_args(end_args,)
+            self._standardise_datetime_args(start_args),
+            self._standardise_datetime_args(end_args)
         )
 
     def _standardise_datetime_args(self, args):
@@ -2306,9 +2317,14 @@ class FileSet:
                 args["year"] = 2000 + year2
             else:
                 args["year"] = 1900 + year2
-        millisecond = args.pop("millisecond", None)
-        if millisecond is not None:
-            args["microsecond"] = millisecond * 1000
+
+        # There is only microsecond as parameter for datetime for sub-seconds:
+        args["microsecond"] = \
+            100000*args.pop("decisecond", 0) \
+            + 10000*args.pop("centisecond", 0) \
+            + 1000*args.pop("millisecond", 0) \
+            + args.pop("microsecond", 0)
+
         doy = args.pop("doy", None)
         if doy is not None:
             date = datetime(args["year"], 1, 1) + timedelta(doy - 1)
