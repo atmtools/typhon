@@ -24,7 +24,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import typhon.files
-import typhon.plots
 from typhon.trees import IntervalTree
 from typhon.utils import unique
 from typhon.utils.timeutils import set_time_resolution, to_datetime, to_timedelta
@@ -277,7 +276,7 @@ class FileSet:
                 This fileset class does not care which format its files have
                 when this file handler object is given. You can use a file
                 handler class from typhon.files, use
-                :class:`~typhon.files.handlers.common.FileHandler` or write 
+                :class:`~typhon.files.handlers.common.FileHandler` or write
                 your own class. If no file handler is given, an adequate one is
                 automatically selected for the most common filename suffixes.
                 Please note that if no file handler is specified (and none
@@ -2716,6 +2715,15 @@ class FileSet:
             # Then rename the backup file
             shutil.move(filename+".backup", filename)
 
+    def get_placeholders(self):
+        """Get placeholders for this FileSet.
+
+        Returns:
+            A dictionary of placeholder names set by the user (i.e. excluding
+            the temporal placeholders) and their regexes.
+        """
+        return self._user_placeholder.copy()
+
     def set_placeholders(self, **placeholders):
         """Set placeholders for this FileSet.
 
@@ -2771,6 +2779,68 @@ class FileSet:
         # Reset the info cache because some file information may have changed
         # now
         self.info_cache = {}
+
+
+    def to_dataframe(self, include_times=False, **kwargs):
+        """Create a pandas.Dataframe from this FileSet
+
+        This method creates a pandas.DataFrame containing all the filenames in this
+        FileSet as row indices and the placeholders as columns.
+
+        Args:
+            include_times: If True, also the start and end time of each file are
+                included. Default: False.
+            **kwargs: Additional keyword arguments which are allowed for
+                :meth:`~typhon.files.filset.FileSet.find`.
+
+        Returns:
+            A pandas.DataFrame with the filenames as row indices and the
+            placeholders as columns.
+
+        Examples:
+        .. code-block:: python
+
+            # Example directory:
+            # dir/
+            #   Satellite-A/
+            #       20190101-20190201.nc
+            #       20190201-20190301.nc
+            #   Satellite-B/
+            #       20190101-20190201.nc
+            #       20190201-20190301.nc
+
+            from typhon.files import FileSet
+
+            files = FileSet(
+                'dir/{satellite}/{year}{month}{day}'
+                '-{end_year}{end_month}{end_day}.nc'
+            )
+            df = files.to_dataframe()
+
+            # Content of df:
+            # 	                                    satellite
+            # /dir/Satellite-B/20190101-20190201.nc Satellite-B
+            # /dir/Satellite-A/20190101-20190201.nc Satellite-A
+            # /dir/Satellite-B/20190201-20190301.nc Satellite-B
+            # /dir/Satellite-A/20190201-20190301.nc Satellite-A
+        """
+        if include_times:
+            data = [
+                (file.path, *file.times, *file.attr.values())
+                for file in self.find(**kwargs)
+            ]
+            columns = ['start_time', 'end_time']
+        else:
+            data = [
+                (file.path, *file.attr.values())
+                for file in self.find(**kwargs)
+            ]
+            columns = []
+        df = pd.DataFrame(data).set_index(0)
+        columns += list(self.get_placeholders().keys())
+        df.columns = columns
+        del df.index.name
+        return df
 
     def write(self, data, file_info, in_background=False, **write_args):
         """Write content to a file by using the FileSet's file handler.
