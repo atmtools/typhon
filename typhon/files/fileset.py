@@ -2297,10 +2297,17 @@ class FileSet:
             if p.startswith("end_") and p in self._time_placeholder
         }
 
-        return (
-            self._standardise_datetime_args(start_args),
-            self._standardise_datetime_args(end_args)
-        )
+        start_datetime_args = self._standardise_datetime_args(start_args)
+
+        # If temporal placeholders are set, we need at least year, month and day
+        if (start_datetime_args
+            and not {'year', 'month', 'day'} & set(start_datetime_args.keys())):
+            raise ValueError('Cannot use temporal placeholders if year, month '
+                             'and day are not set.')
+
+        end_datetime_args = self._standardise_datetime_args(end_args)
+
+        return start_datetime_args, end_datetime_args
 
     def _standardise_datetime_args(self, args):
         """Replace some placeholders to datetime-conform placeholder.
@@ -2318,12 +2325,15 @@ class FileSet:
             else:
                 args["year"] = 1900 + year2
 
-        # There is only microsecond as parameter for datetime for sub-seconds:
-        args["microsecond"] = \
-            100000*args.pop("decisecond", 0) \
-            + 10000*args.pop("centisecond", 0) \
-            + 1000*args.pop("millisecond", 0) \
-            + args.pop("microsecond", 0)
+        # There is only microseconds as parameter for datetime for sub-seconds.
+        # So if one of them is set, we replace them and setting microsecond
+        # instead.
+        if {'decisecond', 'centisecond', 'millisecond', 'microsecond'} & set(args.keys()): # noqa
+            args["microsecond"] = \
+                100000*args.pop("decisecond", 0) \
+                + 10000*args.pop("centisecond", 0) \
+                + 1000*args.pop("millisecond", 0) \
+                + args.pop("microsecond", 0)
 
         doy = args.pop("doy", None)
         if doy is not None:
