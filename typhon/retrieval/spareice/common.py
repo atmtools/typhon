@@ -79,9 +79,6 @@ import xarray as xr
 
 from ..common import RetrievalProduct
 
-# Use the typhon style for all plots:
-plt.style.use(styles('typhon'))
-
 __all__ = [
     'SPAREICE',
 ]
