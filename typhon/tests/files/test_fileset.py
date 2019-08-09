@@ -119,8 +119,6 @@ class TestFileSet:
             placeholder={"satellite": 'SatelliteA'},
         )
 
-        self._print_files(list(files))
-
         # Sort this after paths rather than times (because the times are all
         # equal)
         check = list(sorted([
@@ -211,8 +209,6 @@ class TestFileSet:
         filesets = self.init_filesets()
         filters = {"satellite": "SatelliteB"}
         result = filesets["tutorial"]["2018-01-01 03:00", filters]
-
-        print(repr(result["time"].astype("M8[s]")))
 
         check = np.array(
             ['2018-01-01T00:00:00.000000000', '2018-01-01T00:20:00.000000000',
@@ -704,19 +700,6 @@ class TestFileSet:
 
         assert a_reference == a_retrieved
         assert b_reference == b_retrieved
-
-    def _print_files(self, files, comma=False):
-        print("[")
-        for file in files:
-            if isinstance(file, FileInfo):
-                print(self._repr_file_info(file))
-            else:
-                self._print_files(file, True)
-
-        if comma:
-            print("],")
-        else:
-            print("]")
 
     def _repr_file_info(self, file_info):
 

@@ -226,7 +226,6 @@ class TestSave:
     def test_save_empty_vector(self):
         """Save empty Vector to file, read it and compare the results."""
         reference = _create_empty_tensor(1)
-        print(reference)
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
@@ -234,7 +233,6 @@ class TestSave:
     def test_save_empty_matrix(self):
         """Save empty Matrix to file, read it and compare the results."""
         reference = _create_empty_tensor(2)
-        print(reference)
         xml.save(reference, self.f)
         test_data = xml.load(self.f)
         assert np.array_equal(test_data, reference)
