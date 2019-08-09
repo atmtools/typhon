@@ -183,22 +183,14 @@ class SingleScatteringData:
         for grid in ['f', 'T', 'za', 'aa']:
             params[grid + '_grid'] = np.array(params[grid + '_grid'])
 
-        if params['aspect_ratio'] == 1:
-            raise ValueError(
-                "'aspect_ratio' can not be set to exactly 1 due to numerical "
-                "difficulties in the T-matrix code. use 1.000001 or 0.999999 "
-                "instead.")
+        # Version needs to be set before ptype due to checks on
+        # ptype
+        obj.version = params['version']
 
-        if "description" in params:
-            obj.description = params['description']
-        else:
-            obj.description = (
-                obj.__class__.defaults['description'] +
-                "module, which uses the T-matrix code of Mishchenko to\n"
-                "calculate single scattering properties. The parameters \n"
-                "used to create this file are shown below\n" + str(params))
-            for k, v in params.items():
-                setattr(obj, k, v)
+        for k, v in params.items():
+            setattr(obj, k, v)
+
+        return obj
 
     @property
     def ptype(self):
@@ -587,22 +579,14 @@ class SpectralSingleScatteringData:
         for grid in ['f', 'T']:
             params[grid + '_grid'] = np.array(params[grid + '_grid'])
 
-        if params['aspect_ratio'] == 1:
-            raise ValueError(
-                "'aspect_ratio' can not be set to exactly 1 due to numerical "
-                "difficulties in the T-matrix code. use 1.000001 or 0.999999 "
-                "instead.")
+        # Version needs to be set before ptype due to checks on
+        # ptype
+        obj.version = params['version']
 
-        if "description" in params:
-            obj.description = params['description']
-        else:
-            obj.description = (
-                obj.__class__.defaults['description'] +
-                "module, which uses the T-matrix code of Mishchenko to\n"
-                "calculate single scattering properties. The parameters \n"
-                "used to create this file are shown below\n" + str(params))
-            for k, v in params.items():
-                setattr(obj, k, v)
+        for k, v in params.items():
+            setattr(obj, k, v)
+
+        return obj
 
     @property
     def ptype(self):
