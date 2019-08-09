@@ -1,23 +1,25 @@
-from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from datetime import datetime, timedelta
 import gc
-from multiprocessing import Process, Queue
-import time
+import logging
 import traceback
+from collections import defaultdict
+from datetime import datetime, timedelta
+from multiprocessing import Process, Queue
 
 import numpy as np
 import pandas as pd
+import xarray as xr
+
 from typhon.geodesy import great_circle_distance
 from typhon.geographical import GeoIndex
 from typhon.utils import add_xarray_groups, get_xarray_groups
 from typhon.utils.timeutils import to_datetime, to_timedelta, Timer
-import xarray as xr
 
 __all__ = [
     "Collocator",
     "check_collocation_data"
 ]
+
+logger = logging.getLogger(__name__)
 
 
 # The names for the processes. This started as an easter egg, but it actually
@@ -49,7 +51,7 @@ class ProcessCrashed(Exception):
 
 class Collocator:
     def __init__(
-            self, threads=None, verbose=1, name=None, #log_dir=None
+            self, threads=None, name=None, #log_dir=None
     ):
         """Initialize a collocator object that can find collocations
 
@@ -60,8 +62,6 @@ class Collocator:
                 this is a parameter that you can use to fine-tune the
                 performance. Note: Not yet implemented due to GIL usage of
                 sklearn BallTree.
-            verbose: The higher this integer value the more debug messages
-                will be printed.
             name: The name of this collocator, will be used in log statements.
         """
 
@@ -78,7 +78,6 @@ class Collocator:
         self.tunnel_limit = None
         self.leaf_size = None
 
-        self.verbose = verbose
         self.name = name if name is not None else "Collocator"
 
     # If no collocations are found, this will be returned. We need empty
@@ -99,15 +98,13 @@ class Collocator:
         return self.collocate(*args, **kwargs)
 
     def _debug(self, msg):
-        if self.verbose > 1:
-            print(f"[{self.name}] {msg}")
+        logger.debug(f"[{self.name}] {msg}")
 
     def _info(self, msg):
-        if self.verbose > 0:
-            print(f"[{self.name}] {msg}")
+        logger.info(f"[{self.name}] {msg}")
 
     def _error(self, msg):
-        print(f"[{self.name}] {msg}")
+        logger.error(f"[{self.name}] {msg}")
 
     def collocate_filesets(
             self, filesets, start=None, end=None, processes=None, output=None,
@@ -310,10 +307,13 @@ class Collocator:
 
         while not errors.empty():
             error = errors.get()
-            print("-"*79)
-            print(error[2])
-            print("".join(traceback.format_tb(error[1])))
-            print("-" * 79 + "\n")
+            msg = '\n'.join([
+                "-"*79,
+                error[2],
+                "".join(traceback.format_tb(error[1])),
+                "-" * 79 + "\n"
+            ])
+            self._error(msg)
 
     @staticmethod
     def _print_progress(elapsed_time, process_progress, processes, errors):
@@ -324,7 +324,7 @@ class Collocator:
             msg += f"100% | {elapsed_time} hours elapsed | " \
                    f"{errors} processes failed\n"
             msg += "-"*79 + "\n"
-            print(msg)
+            logger.error(msg)
             return
 
         progress = sum(process_progress.values()) / len(process_progress)
@@ -341,7 +341,7 @@ class Collocator:
                f"{expected_time} hours left | {processes} proc running, " \
                f"{errors} failed\n"
         msg += "-"*79 + "\n"
-        print(msg)
+        logger.error(msg)
 
     @staticmethod
     def _process_caller(

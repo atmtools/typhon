@@ -12,6 +12,7 @@ import gc
 import glob
 from itertools import tee
 import json
+import logging
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
 import re
@@ -40,6 +41,9 @@ __all__ = [
     "UnknownPlaceholderError",
     "PlaceholderRegexError",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 class InhomogeneousFilesError(Exception):
@@ -929,7 +933,7 @@ class FileSet:
         """
         return deepcopy(self)
 
-    def delete(self, verbose=True, dry_run=False, **kwargs):
+    def delete(self, dry_run=False, **kwargs):
         """Remove files in this fileset from the disk
 
         Warnings:
@@ -937,7 +941,6 @@ class FileSet:
             before deleting the files. Use this function with caution!
 
         Args:
-            verbose: If true, debug messages will be printed.
             dry_run: If true, all files that would be deleted are printed.
             **kwargs: Additional keyword arguments that are allowed
                 for :meth:`find` such as `start`, `end` or `files`.
@@ -962,14 +965,12 @@ class FileSet:
         else:
             # Delete the files
             self.map(
-                FileSet._delete_single_file,
-                kwargs={"verbose": verbose}, **kwargs
+                FileSet._delete_single_file, **kwargs
             )
 
     @staticmethod
-    def _delete_single_file(file, verbose=False):
-        if verbose:
-            print(f"Delete '{file}'!")
+    def _delete_single_file(file):
+        logger.info(f"Delete '{file}'!")
 
         os.remove(file)
 
@@ -1035,7 +1036,7 @@ class FileSet:
 
     def find(
             self, start=None, end=None, sort=True, only_path=False,
-            bundle=None, filters=None, no_files_error=True, verbose=False,
+            bundle=None, filters=None, no_files_error=True,
     ):
         """ Find all files of this fileset in a given time period.
 
@@ -1077,7 +1078,6 @@ class FileSet:
                 list (values that are not allowed).
             no_files_error: If true, raises an NoFilesError when no
                 files are found.
-            verbose: If true, debug messages will be printed.
 
         Yields:
             Either a :class:`~typhon.files.handlers.common.FileInfo` object for
@@ -1112,8 +1112,7 @@ class FileSet:
             raise ValueError(
                 "The start must be smaller than the end parameter!")
 
-        if verbose:
-            print("Find files between %s and %s!" % (start, end))
+        logger.info("Find files between %s and %s!" % (start, end))
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
@@ -1173,8 +1172,8 @@ class FileSet:
                 if f.startswith("!")
             }
 
-        if verbose and filters is not None:
-            print(f"Loaded filters:\nWhitelist: {white_list}"
+        if filters is not None:
+            logger.info(f"Loaded filters:\nWhitelist: {white_list}"
                   f"\nBlacklist: {black_list}")
 
         # Find all files by iterating over all searching paths and check

@@ -15,6 +15,7 @@ It provides:
 Further information on ARTS can be found on http://www.radiativetransfer.org/.
 """
 
+import logging
 import sys
 import subprocess
 
@@ -38,8 +39,9 @@ try:
     __version__ = so.strip().decode("ascii").lstrip("v").replace(
         "-", "+dev", 1).replace("-", ".")
 except subprocess.CalledProcessError:
-    print("Warning: could not determine version from git, extracting "
-        " latest release version from source", file=sys.stderr)
+    logging.warning(
+        "Warning: could not determine version from git, extracting "
+        " latest release version from source")
 
     # Partse version number from module-level ASCII file. This prevents
     # double-entry bookkeeping).

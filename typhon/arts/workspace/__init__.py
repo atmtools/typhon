@@ -95,12 +95,16 @@ numpy.asarray.
 
 """
 
-from warnings import warn
+import logging
 
 from typhon.environment import environ
 
+
+logger = logging.getLogger(__name__)
+
 if environ.get('ARTS_BUILD_PATH') is None:
-    warn("ARTS_BUILD_PATH environment variable required to locate ARTS API.")
+    logger.warning(
+        "ARTS_BUILD_PATH environment variable required to locate ARTS API.")
 else:
     from typhon.arts.workspace.workspace import Workspace, arts_agenda, Include
     from typhon.arts.workspace.variables import WorkspaceVariable

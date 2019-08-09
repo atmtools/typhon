@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import logging
+
 import numpy as np
 import pylab as plt
 from scipy.constants import c, k, h
@@ -10,6 +12,10 @@ from ..spectra.abscoeff import basic
 from ..rtc import SOSC, FOSC
 from ..spectra.lineshape import DopplerWind
 from typhon.physics.em import planck, rayleighjeans
+
+
+logger = logging.getLogger(__name__)
+
 
 def calcu_grid(radius, alt_ref, angle=False, speed=None):
     """ Calculation grid for given altitude and radius
@@ -564,7 +570,7 @@ def Calc(Ite_pop, Abs_ite,
                 lambda_approx_out[xx, i, ((Mu_tangent > Alt_ref[i])), :] = 0
 #                ji_in_all[xx, i, ((Mu_tangent > Alt_ref[i-1])), :] = 0
                 if np.argwhere(Mu_tangent == Alt_ref[i]).size!=1:
-                    print (i,xx,"error!")
+                    logger.error(' '.join((i, xx, "error!")))
 
             elif i == Alt_ref.size-1:  # FOSC
                 tl_1 = Abs_coeff[i] * F_vl_i[xx][i]
@@ -582,7 +588,7 @@ def Calc(Ite_pop, Abs_ite,
                                  Bul[up_tag, low_tag],
                                  Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
                 else:
-                    print('Type iteration method')
+                    raise ValueError(f'Invalid iteration method {iteration}')
                 # tdl2 = calc_abscoeff(xx, IteNum+1, i-1) * F_vl_i[xx][i-1]
                 tl1 = (0.5*np.abs(tl_1+tl_2).reshape((1, Fre_range.size)) *
                        PSC2[:, i-1].reshape((Mu_tangent.size, 1)))  # (Mu, Fre)
@@ -679,11 +685,13 @@ def Calc(Ite_pop, Abs_ite,
                              weighttemp,
                              axis=0)*0.5
                 if (L_ap>1) or (L_ap<0):
-                    print(L_ap, i, 
-                          lambda_approx_in[xx, i, :, :].min(),
-                          lambda_approx_out[xx, i, :, :].min(),
-                          lambda_approx_in[xx, i, :, :].max(),
-                          lambda_approx_out[xx, i, :, :].mmx())
+                    logger.info(
+                        L_ap, i,
+                        lambda_approx_in[xx, i, :, :].min(),
+                        lambda_approx_out[xx, i, :, :].min(),
+                        lambda_approx_in[xx, i, :, :].max(),
+                        lambda_approx_out[xx, i, :, :].mmx()
+                    )
                     L_ap[L_ap<0]=0
                     L_ap[L_ap>1]=1
                 #j_mean_corr[xx,i] = J_mean
@@ -691,7 +699,8 @@ def Calc(Ite_pop, Abs_ite,
 #            l_ap[l_ap<0]=0
 #            l_ap[l_ap>1]=1
             if (l_ap>1) or (l_ap<0):
-                print(l_ap, i, lambda_approx_in[xx, i, :, :].min(),lambda_approx_out[xx, i, :, :].min())
+                logger.info(l_ap, i, lambda_approx_in[xx, i, :, :].min(),
+                  lambda_approx_out[xx, i, :, :].min())
             B_int[B_place == xx] = J_mean*1.
             if Alt_ref[i] == 0:
                 Fre_weight = trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
@@ -752,7 +761,7 @@ def Calc(Ite_pop, Abs_ite,
         elif i == Alt_ref.size-1:
             n_new = np.linalg.inv(A_m).dot(b)
         else:
-            print('check alt. grid', i, Alt_ref[i])
+            logger.info('check alt. grid', i, Alt_ref[i])
         n_delta = n_new-n_old
         if update_population is True:
             new_pop[i, 0, :] = n_new

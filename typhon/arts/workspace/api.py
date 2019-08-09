@@ -20,12 +20,16 @@ Attributes:
 """
 
 import ctypes as c
-import numpy  as np
-import scipy  as sp
+import logging
 import os
+
+import numpy as np
+import scipy as sp
 
 from typhon.environment import environ
 
+
+logger = logging.getLogger(__name__)
 
 ################################################################################
 # Version Requirements
@@ -46,7 +50,7 @@ if environ.get("ARTS_BUILD_PATH") is None:
 try:
     lib_path = os.path.join(environ.get("ARTS_BUILD_PATH"), "src",
                             "libarts_api.so")
-    print("Loading ARTS API from: " + lib_path)
+    logging.info("Loading ARTS API from: " + lib_path)
     arts_api = c.cdll.LoadLibrary(lib_path)
 except:
     raise EnvironmentError("Could not find ARTS API in your ARTS build path. "

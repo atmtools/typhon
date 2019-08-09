@@ -1,8 +1,10 @@
-import numpy as np
-from scipy.interpolate import CubicSpline
 import copy
+import logging
 import os
 import pickle
+
+import numpy as np
+from scipy.interpolate import CubicSpline
 
 # Keras Imports
 try:
@@ -20,6 +22,9 @@ except ImportError:
 ################################################################################
 
 import keras.backend as K
+
+
+logger = logging.getLogger(__name__)
 
 
 def skewed_absolute_error(y_true, y_pred, tau):
@@ -107,7 +112,7 @@ class TrainingGenerator:
         self.i = 0
 
     def __iter__(self):
-        print("iter...")
+        logger.info("iter...")
         return self
 
     def __next__(self):
@@ -176,7 +181,7 @@ class AdversarialTrainingGenerator:
         self.eps = eps
 
     def __iter__(self):
-        print("iter...")
+        logger.info("iter...")
         return self
 
     def __next__(self):
@@ -294,7 +299,7 @@ class LRDecay(keras.callbacks.Callback):
             keras.backend.set_value(
                 self.model.optimizer.lr, lr / self.lr_decay)
             self.steps = 0
-            print("\n Reduced learning rate to " + str(lr))
+            logger.info("\n Reduced learning rate to " + str(lr))
 
             if lr < self.lr_minimum:
                 self.model.stop_training = True
@@ -527,11 +532,11 @@ class QRNN:
                 loss = self.models[0].evaluate(
                     (x_test_fold - self.x_mean) / self.x_sigma,
                     y_test_fold)
-                print(loss)
+                logger.info(loss)
                 results += [loss]
-        print(results)
+        logger.info(results)
         results = np.array(results)
-        print(results)
+        logger.info(results)
         return (np.mean(results, axis=0), np.std(results, axis=0))
 
     def fit(self,
@@ -827,7 +832,7 @@ class QRNN:
             y_t[-1] = 1.0
 
         else:
-            print(y)
+            logger.info(y)
             x_new = np.zeros(x.size - 1)
             x_new[2:-2] = 0.5 * (x[2:-3] + x[3:-2])
             x_new[0:2] = x[0:2]
