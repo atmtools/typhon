@@ -69,7 +69,7 @@ Adding functions / classes
 --------------------------
 
 When you add a new function or class, you also have to add its name the
-corresponing rst file in the doc/ folder.
+corresponding rst file in the doc/ folder.
 
 Common module names
 -------------------
@@ -82,3 +82,22 @@ external modules::
   import matplotlib as mpl
   import matplotlib.pyplot as plt
 
+
+Logging
+-------
+
+The standard :mod:`logging` module is used to create log messages. Make sure
+to use an appropriate log level for your message. The default level,
+comparable to a ``print``, should be ``logging.INFO``::
+
+    logger = logging.getLogger(__name__)
+    logger.info('Common log message.')
+
+In rare occasions, the ``print`` function may be used, if the output gives
+additional information to the user that exceeds the scope of a log. In those
+cases, the additional output has to be guarded by a ``verbose`` keyword
+which defaults to ``False``::
+
+    def function(verbose=False):
+        if verbose:
+            print('Message to stdout'.)
