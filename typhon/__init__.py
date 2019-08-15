@@ -66,3 +66,26 @@ def set_loglevel(level, handler=None, formatter=None):
     """
     _logger.setLevel(level)
     _ensure_handler(handler, formatter).setLevel(level)
+
+
+def set_fancy_logging(level=None):
+    """Create a basic logging config with colorful output format."""
+    color = "\033[1;%dm"
+    reset = "\033[0m"
+    black, red, green, yellow, blue, magenta, cyan, white = [
+        color % (30 + i) for i in range(8)]
+    logformat = (
+        '['
+        f'{magenta}%(levelname)s{reset}:'
+        f'{red}%(asctime)s.%(msecs)03d{reset}:'
+        f'{yellow}%(filename)s{reset}'
+        f':{blue}%(lineno)s{reset}'
+        f':{green}%(funcName)s{reset}'
+        f'] %(message)s'
+    )
+
+    logging.basicConfig(
+        format=logformat,
+        level=level if level is not None else logging.INFO,
+        datefmt = '%H:%M:%S',
+    )
