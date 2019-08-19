@@ -77,7 +77,7 @@ def DLV(Type, gct, *,Freq=0, gcp=1, gcv=1, Para=1, HWHM=False):
         outy = outy.T
         # outy = np.real(Z)
     else:
-        print('Do you wanna calculate other shape function?')
+        raise ValueError('Do you wanna calculate other shape function?')
     if HWHM is True:
         return step1, outy
     elif HWHM is False:
@@ -93,7 +93,7 @@ def Linewidth(Type, gct, Para):
 
 
 
-def DopplerWind(Temp, FreqGrid, Para, wind_v, shift_direction=False):
+def DopplerWind(Temp, FreqGrid, Para, wind_v, shift_direction='red'):
     u"""#doppler width
     #Para[transient Freq[Hz], relative molecular mass[g/mol]]"""
     # step1 = Para[0]/c*(2.*R*gct/(Para[1]*1.e-3))**0.5
@@ -104,11 +104,12 @@ def DopplerWind(Temp, FreqGrid, Para, wind_v, shift_direction=False):
     wind = wind_v.reshape(wind_v.size, 1)
     FreqGrid = FreqGrid.reshape(1, FreqGrid.size)
     deltav = Para[0]*wind/c
-    if shift_direction is 'Red' or 'red' or 'RED':
+    if shift_direction.lower() == 'red':
         D_effect = (deltav)
-    elif shift_direction is 'Blue' or 'blue' or 'BLUE':
+    elif shift_direction.lower() == 'blue':
         D_effect = (-deltav)
-    else:print('Set Direction, red shift or blue shift')
+    else:
+        raise ValueError('Set shift direction to "red" or "blue".')
 
 #    step1 = Para[0]/c*(2.*R*Temp*np.log(2.)/(Para[1]*1.e-3))**0.5  # HWHM
 #    outy = np.exp(-np.log(2.)*(FreqGrid-Para[0])**2/step1**2) *\
