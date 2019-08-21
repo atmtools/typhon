@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-"""Collection of functions concerning the Optimal Estimation Method (OEM).
-"""
+"""Collection of functions concerning the Optimal Estimation Method (OEM)."""
 
 from typhon.retrieval.oem.common import *  # noqa
 from typhon.retrieval.oem.error import *  # noqa
