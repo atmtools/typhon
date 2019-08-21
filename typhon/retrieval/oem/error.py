@@ -2,7 +2,7 @@
 """Functions to estimate the different sources of retrieval error.
 """
 
-from typhon.oem import common
+from typhon.retrieval.oem import common
 
 
 __all__ = [

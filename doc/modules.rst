@@ -88,14 +88,6 @@ Mathematics
 
    typhon.math
 
-OEM
----
-
-.. toctree::
-   :maxdepth: 2
-
-   typhon.oem
-
 Physics
 -------
 

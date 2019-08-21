@@ -18,7 +18,6 @@ if not __TYPHON_SETUP__:
     from . import latex
     from . import math
     from . import nonlte
-    from . import oem
     from . import physics
     from . import plots
     from . import spectroscopy
