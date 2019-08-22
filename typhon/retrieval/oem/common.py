@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
-"""Functions concerning the Optimal Estimation Method (OEM).
-"""
+"""Functions concerning the Optimal Estimation Method (OEM). """
 
 from scipy.linalg import inv
 
 
-__all__ = ['error_covariance_matrix',
-           'averaging_kernel_matrix',
-           'retrieval_gain_matrix',
-           ]
+__all__ = [
+    'error_covariance_matrix',
+    'averaging_kernel_matrix',
+    'retrieval_gain_matrix',
+]
 
 
 def error_covariance_matrix(K, S_a, S_y):
