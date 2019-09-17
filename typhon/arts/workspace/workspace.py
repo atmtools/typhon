@@ -105,7 +105,7 @@ def arts_agenda(func):
     except:
         raise Exception("Agenda definition needs workspace arguments.")
 
-    ws = Workspace()
+    ws = Workspace(0)
 
     context = copy(func.__globals__)
     context.update({arg_name : ws})
