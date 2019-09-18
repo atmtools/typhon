@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: bug
+assignees: ''
+
+---
+
 <!--To help us understand and resolve your issue, please fill out the form to
 the best of your ability.  You can feel free to delete the sections that do not
 apply.-->
