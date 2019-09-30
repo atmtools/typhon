@@ -19,11 +19,16 @@ __all__ = [
     'cloudtopheight_IR',
     'lapserate_modis',
     'lapserate_moist_adiabate',
-    'get_reflection_angle',
-    'theta_r',
+    'sensor_angles',
+    'reflection_angles',
 ]
 
 logger = logging.getLogger(__name__)
+
+CONFIDENTLY_CLOUDY = 5
+PROBABLY_CLOUDY = 4
+PROBABLY_CLEAR = 3
+CONFIDENTLY_CLEAR = 2
 
 
 class ASTERimage:
@@ -43,13 +48,14 @@ class ASTERimage:
         self.filename = filename
 
         meta = self.get_metadata()
-        SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation'])
+        SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation']) # SolarDirection = (0< az <360, -90< el <90)
         self.solardirection = SolarDirection(
             *self._convert_metastr(meta['SOLARDIRECTION'], dtype=tuple)
         )
         self.sunelevation = self.solardirection[1]
+        
         self.datetime = datetime.datetime.strptime(
-            meta['CALENDARDATE'] + meta['TIMEOFDAY'], '%Y-%m-%d%H:%M:%S.%f0')
+            meta['CALENDARDATE'] + meta['TIMEOFDAY'][:14], '%Y-%m-%d%H:%M:%S.%f0')
         self.scenecenter = self._convert_metastr(meta['SCENECENTER'],
                                                  dtype=tuple)
 
@@ -330,18 +336,18 @@ class ASTERimage:
             # Set "probably clear" pixels.
             clmask[multiple_logical(r3N > 0.03, r5 > 0.01, 0.7 < r3N2,
                                     r3N2 < 1.75, r12 < 1.45,
-                                    func=np.logical_and)] = 3
+                                    func=np.logical_and)] = PROBABLY_CLEAR
 
 
             # Set "probably cloudy" pixels.
             clmask[multiple_logical(r3N > 0.03, r5 > 0.015, 0.75 < r3N2,
                                     r3N2 < 1.75, r12 < 1.35,
-                                    func=np.logical_and)] = 4
+                                    func=np.logical_and)] = PROBABLY_CLOUDY
 
             # Set "confidently cloudy" pixels
             clmask[multiple_logical(r3N > 0.065, r5 > 0.02, 0.8 < r3N2,
                                     r3N2 < 1.75, r12 < 1.2,
-                                    func=np.logical_and)] = 5
+                                    func=np.logical_and)] = CONFIDENTLY_CLOUDY
 
             # Combine swath edge pixels.
             clmask[multiple_logical(np.isnan(r1), np.isnan(r2), np.isnan(r3N),
@@ -441,6 +447,138 @@ class ASTERimage:
     def retrieve_lapserate(self):
         """Retrieve lapse rate using :func:`retrieve_lapserate`."""
         return retrieve_lapserate(self.datetime.month, self.scenecenter[0])
+    
+    
+    def sensor_angles(self, sensor='vnir'):
+        """Calculate a sun reflection angle for a given ASTER image depending on
+        the sensor-sun geometry and the sensor settings.
+
+        Note:
+            All angular values are given in [°].
+
+        Parameters:
+            cloudmask (ndarray): binary ASTER cloud mask image.
+            metadata (dict): ASTER  HDF meta data information.
+
+        Returns:
+            sensor_angle (ndarray): 2d field of size `cloudmask` of reflection
+            angles for eachannel pixel.
+
+        References:
+             Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
+             & Dongling Li (2015) Observation of submarine sand waves using ASTER
+             stereo sun glitter imagery, International Journal of Remote Sensing,
+             36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
+             Algorithm Theoretical Basis Document for ASTER Level-1 Data 
+             Processing (Ver. 3.0).1996.
+        """
+        
+        metadata = self.get_metadata()
+        # Angular data from ASTER metadata data.
+        S = float(metadata['MAPORIENTATIONANGLE'])
+        
+        if sensor=='vnir':
+            P = float(metadata['POINTINGANGLE.1'])
+            FOV = 6.09 # Field of view
+            #IFOV = np.rad2deg(21.3e-6) Instantaneous field of view
+            field = self.get_radiance(channel='1')
+        elif sensor=='swir':
+            P = float(metadata['POINTINGANGLE.2'])
+            #IFOV = np.rad2deg(42.6e-6)
+            FOV = 4.9
+            field = self.get_radiance(channel='4')
+        elif sensor=='tir':
+            P = float(metadata['POINTINGANGLE.3'])
+            #IFOV = np.rad2deg(127.8e-6)
+            FOV = 4.9
+            field = self.get_radiance(channel='10')
+        else:
+            raise ValueError('ASTER sensors are named: vnir, swir, tir.')
+
+        # Instantaneous FOV (IVOF)
+        #IFOV = FOV / cloudmask.shape[1]
+
+        # Construct n-array indexing pixels n=- right and n=+ left from the image
+        # center and perpendicular to flight direction.
+        n = np.zeros(np.shape(field))
+        nswath = []
+        #assign indices n to pixel, neglegting the frist and last 5 swath rows
+        for i in np.arange(start=5, stop=field.shape[0]-5, step=1, dtype=int):
+            # for all scan rows: extract first and last not-NaN index 
+            ind1 = (next(x[0] for x in enumerate(field[i]) if ~np.isnan(x[1]) ))
+            #print('Index 1: ', ind1)
+            ind2 = (field.shape[1] - next(x[0] for x in
+                                    enumerate(field[i,5:-5][::-1]) if ~np.isnan(x[1]) ) )
+            ind_mid = (ind1 + ind2) / 2
+            nswath.append(ind2-ind1+1)
+            # create indexing arrays for right and left side of swath
+            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1,
+                                  dtype=int)*-1
+            left_arr = np.arange(start=1,
+                                 stop=field.shape[1] - round(ind_mid) + 1,
+                                 step=1, dtype=int)*-1
+            n[i] = np.asarray(list(right_arr) + list(left_arr))
+            
+        # add the first and last 5 scan lines as dupliates of the 6th and 6th-last row.
+        for i in range(5):
+            n[i] = n[5] # first
+        for i in range(field.shape[0]-5,field.shape[0]):
+            n[i] = n[field.shape[0]-6] # last
+
+        n[np.isnan(field)] = np.nan
+        
+        # instantaneous field of view (IFOV)
+        FOV_S = FOV / np.cos(np.deg2rad(S)) # correct for map orientation
+        IFOV = FOV_S / np.median(nswath) # median scan line width
+
+        # Thresholding index for separating left and right from nadir in
+        # azimuth calculation.
+        n_az = n * IFOV + P
+
+        # ASTER zenith angle
+        zenith = abs(np.asarray(n) * IFOV + P)
+
+        # ASTER azimuth angle
+        azimuth = np.ones(field.shape) * np.nan
+        # swath right side
+        azimuth[np.logical_and(n_az<0, ~np.isnan(n))] = 90 + S
+        # swath left side
+        azimuth[np.logical_and(n_az>=0, ~np.isnan(n))] = 270 + S
+
+        return (zenith, azimuth)
+
+
+    def reflection_angles(self):
+        """Calculate the reflected sun angle, theta_r, of specular reflection
+        of sunlight into an instrument sensor.
+
+        Parameters:
+            sensor_zenith (ndarray): 2D sensor zenith angle in [°] for eachannel pixel
+                                    in the image.
+            sensor_azimuth (ndarray): 2D sensor azimuth angle in [°] for eachannel
+                                    pixel in the image.
+
+        Returns:
+            (ndarray): 2d field of size `cloudmask` of reflection
+            angles in [°] for eachannel pixel.
+
+        References:
+             Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
+             & Dongling Li (2015) Observation of submarine sand waves using ASTER
+             stereo sun glitter imagery, International Journal of Remote Sensing,
+             36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
+        """
+        sun_azimuth = self.solardirection.azimuth + 180 # +180° corresponds to "anti-/reflected" sun
+        sun_zenith = 90 - self.solardirection.elevation # sun zenith = 90 - sun elevation
+        
+        sensor_zenith, sensor_azimuth = self.sensor_angles()
+
+        return np.degrees(np.arccos(np.cos(np.deg2rad(sensor_zenith))
+                                    * np.cos(np.deg2rad(sun_zenith))
+                                    + np.sin(np.deg2rad(sensor_zenith))
+                                    * np.sin(np.deg2rad(sun_zenith))
+                                    * np.cos( np.deg2rad(sensor_azimuth)
+                                    - np.deg2rad(sun_azimuth)) ) )
 
 
 def retrieve_lapserate(month, latitude):
@@ -641,118 +779,3 @@ def lapserate_moist_adiabate():
     """Moist adiabatic lapse rate in [K/km].
     """
     return 6.5
-
-
-def get_reflection_angle(cloudmask, metadata):
-    """Calculate a sun reflection angle for a given ASTER image depending on
-    the sensor-sun geometry and the sensor settings.
-
-    Note:
-        All angular values are given in [°].
-
-    Parameters:
-        cloudmask (ndarray): binary ASTER cloud mask image.
-        metadata (dict): ASTER  HDF meta data information.
-
-    Returns:
-        reflection_angle (ndarray): 2d field of size `cloudmask` of reflection
-        angles for eachannel pixel.
-
-    References:
-         Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
-         & Dongling Li (2015) Observation of submarine sand waves using ASTER
-         stereo sun glitter imagery, International Journal of Remote Sensing,
-         36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
-    """
-
-    # Angular data from ASTER metadata data.
-    S = float(metadata['MAPORIENTATIONANGLE'])
-    P = float(metadata['POINTINGANGLE.1'])
-    # SOLARDIRECTION = (0< az <360, -90< el <90)
-    sun_azimuth = float(metadata['SOLARDIRECTION'].split(',')[0].strip())
-    # sun zenith = 90 - sun elevation
-    sun_zenith = 90 - float(metadata['SOLARDIRECTION'].split(',')[1].strip())
-
-    # Instrument view angles of the Visual Near Infrared (VNIR) sensor:
-    # Field Of View (FOV)
-    FOV_vnir = 6.09
-    # Instantaneous FOV (IVOF)
-    IFOV = FOV_vnir / cloudmask.shape[1]
-
-    # Construct n-array indexing pixels n=- right and n=+ left from the image
-    # central in flight direction.
-    n = np.zeros(np.shape(cloudmask))
-
-    for i in range(cloudmask.shape[0]):
-        if np.sum(~np.isnan(cloudmask[i,:])) > 0:
-            # get index of swath edge pixels and calculate swath mid pixel
-            ind1 = next(x[0] for x in
-                        enumerate(cloudmask[i]) if ~np.isnan(x[1]) )
-            ind2 = (cloudmask.shape[1] - next(x[0] for x in
-                    enumerate(cloudmask[i][::-1]) if ~np.isnan(x[1]) ) )
-            ind_mid = (ind1 + ind2) / 2
-            # Assign n-values correspondingly to left and right sides
-            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1,
-                                  dtype=int)
-            left_arr = np.arange(start=1,
-                                 stop=cloudmask.shape[1] - round(ind_mid) + 1,
-                                 step=1, dtype=int)
-            n[i] = np.asarray(list(right_arr) + list(left_arr))
-        else:
-            # Put NaN if ONLY NaN values are in cloudmask row.
-            n[i] = np.nan
-
-    n[np.isnan(cloudmask)] = np.nan
-
-    # Thresholding index for separating left and right from nadir in
-    # azimuth calculation.
-    n_az = n * IFOV + P
-
-    # ASTER zenith angle
-    ast_zenith = abs(np.asarray(n) * IFOV + P)
-
-    # ASTER azimuth angle
-    ast_azimuth = np.ones(cloudmask.shape) * np.nan
-    # swath right side
-    ast_azimuth[np.logical_and(n_az<0, ~np.isnan(n))] = 90 + S
-    # swath left side
-    ast_azimuth[np.logical_and(n_az>=0, ~np.isnan(n))] = 270 + S
-
-    # Reflection angle, i.e. the angle between the sensor and the reflected sun
-    # in the sensor-sun-plane.
-    reflection_angle = theta_r(sun_zenith=sun_zenith,
-                               # +180° corresponds to "anti-/reflected" sun
-                               sun_azimuth=sun_azimuth + 180,
-                               sensor_zenith=ast_zenith,
-                               sensor_azimuth=ast_azimuth)
-
-    return reflection_angle
-
-
-def theta_r(sun_zenith, sun_azimuth, sensor_zenith, sensor_azimuth):
-    """Calculate the reflected sun angle, theta_r, of specular reflection
-    of sunlight into an instrument sensor.
-
-    Parameters:
-        sun_zenith (float): sun zenith angle in [°].
-        sun_azimuth (float): sun azimuth angle in [°].
-        sensor_zenith (ndarray): 2D sensor zenith angle in [°] for eachannel pixel
-                                in the image.
-        sensor_azimuth (ndarray): 2D sensor azimuth angle in [°] for eachannel
-                                pixel in the image.
-
-    Returns:
-        (ndarray): reflection angle in [°] for eachannel pixel in the image.
-
-    References:
-         Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
-         & Dongling Li (2015) Observation of submarine sand waves using ASTER
-         stereo sun glitter imagery, International Journal of Remote Sensing,
-         36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
-    """
-    return np.degrees(np.arccos(np.cos(np.deg2rad(sensor_zenith))
-                                * np.cos(np.deg2rad(sun_zenith))
-                                + np.sin(np.deg2rad(sensor_zenith))
-                                * np.sin(np.deg2rad(sun_zenith))
-                                * np.cos( np.deg2rad(sensor_azimuth)
-                                - np.deg2rad(sun_azimuth)) ) )
