@@ -860,6 +860,23 @@ class QRNN:
         y = np.interp(p, qs, y_pred)
         return y
 
+    def posterior_mean(self, x):
+        r"""
+        Computes the posterior mean by computing the first moment of the
+        estimated posterior CDF.
+
+        Arguments:
+
+            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
+                         to predict the posterior mean.
+        Returns:
+
+            Array containing the posterior means for the provided inputs.
+        """
+        y_pred, qs = self.cdf(x)
+        mus = y_pred[:, -1] - np.trapz(qs, x=y_pred, axis=1)
+        return mus
+
     @staticmethod
     def crps(y_pred, y_test, quantiles):
         r"""
