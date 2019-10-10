@@ -874,7 +874,7 @@ class QRNN:
             Array containing the posterior means for the provided inputs.
         """
         y_pred, qs = self.cdf(x)
-        mus = y_pred[:, -1] - np.trapz(qs, x=y_pred, axis=1)
+        mus = y_pred[-1] - np.trapz(qs, x=y_pred)
         return mus
 
     @staticmethod
