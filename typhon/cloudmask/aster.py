@@ -2,6 +2,7 @@
 """Functions to work with ASTER L1B satellite data.
 """
 import datetime
+import logging
 import os
 from collections import namedtuple
 
@@ -20,6 +21,8 @@ __all__ = [
     'get_reflection_angle',
     'theta_r',
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class ASTERimage:
@@ -444,7 +447,8 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                                                   resolution_ratio, axis=0),
                                                   resolution_ratio, axis=1)
         except ValueError:
-            print('Problems matching the shapes of cloudmask and Tb14.')
+            logger.warning(
+                'Problems matching the shapes of cloudmask and Tb14.')
     else:
         mask_cloudy = cloudmask.copy()
         mask_clear = cloudmask_inverted.copy()

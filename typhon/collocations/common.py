@@ -6,6 +6,8 @@ atmlab implemented by Gerrit Holl.
 Created by John Mrziglod, June 2017
 """
 
+import logging
+
 import numba
 import numpy as np
 from typhon.files import FileSet
@@ -20,6 +22,8 @@ __all__ = [
     "Collocations",
     "expand",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class Collocations(FileSet):
@@ -120,9 +124,7 @@ class Collocations(FileSet):
                 f"(default), 'expand' or 'compact'."
             )
 
-    def search(
-            self, filesets, collocator=None, log_dir=None, verbose=1,
-            **kwargs):
+    def search(self, filesets, collocator=None, **kwargs):
         """Find all collocations between two filesets and store them in files
 
         Collocations are two or more data points that are located close to each
@@ -155,9 +157,6 @@ class Collocations(FileSet):
             collocator: If you want to use your own collocator, you can pass it
                 here. It must behave like
                 :class:`~typhon.collocations.collocator.Collocator`.
-            log_dir: If given, the log files for the processes will be stored
-                in this directory.
-            verbose: If true, it prints logging messages.
             **kwargs: Additional keyword arguments that are allowed for
                 :meth:`~typhon.collocations.collocator.Collocator.collocate_filesets`.
 
@@ -199,11 +198,10 @@ class Collocations(FileSet):
             collocations.search(
                 [seviri, mhs], start="2013-12-10", end="20 Dec 2013",
                 processes=10, max_interval="5 min", max_distance="5 km",
-                verbose=2,
             )
         """
         if collocator is None:
-            collocator = Collocator(verbose=verbose)
+            collocator = Collocator()
 
         collocated_files = collocator.collocate_filesets(
             filesets, output=self, **kwargs
@@ -212,7 +210,7 @@ class Collocations(FileSet):
         timer = Timer().start()
         for _ in collocated_files:
             pass
-        print(f"{timer} for finding all collocations")
+        logger.info(f"{timer} for finding all collocations")
 
 
 @numba.jit

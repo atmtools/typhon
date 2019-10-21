@@ -10,6 +10,7 @@ Attributes:
 
 """
 import ctypes as c
+import logging
 import numpy  as np
 
 import ast
@@ -34,6 +35,8 @@ from typhon.arts.workspace.utility import unindent
 
 imports = dict()
 
+
+logger = logging.getLogger(__name__)
 
 ################################################################################
 # ARTS Agenda Macro
@@ -130,7 +133,7 @@ def arts_agenda(func):
                 context[arg_name].ptr = ptr
                 eval(compile(m , "<unknown>", 'exec'), context)
             except Exception as e:
-                print(r"Exception in Python callback:\n", e)
+                logger.error(r"Exception in Python callback:\n", e)
             context[arg_name].ptr = None
 
         callback_body = []

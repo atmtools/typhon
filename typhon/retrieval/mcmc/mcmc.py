@@ -11,7 +11,12 @@ References
 [1] Andrew Gelman et al., Bayesian Data Analysis, 3rd Edition
 
 """
+import logging
+
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 
 
 def r_factor(stats):
@@ -238,7 +243,7 @@ class MCMC:
         else:
             ar = 0.0
 
-        print("MCMC Step " + str(step) + ": " + "ar = " + str(ar))
+        logger.info("MCMC Step " + str(step) + ": " + "ar = " + str(ar))
 
     def warm_up(self, ws, x0s, n_steps):
         """

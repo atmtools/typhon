@@ -55,6 +55,7 @@ Examples:
 """
 from ast import literal_eval
 import itertools
+import logging
 import os
 from os.path import join, dirname
 import warnings
@@ -79,9 +80,6 @@ import xarray as xr
 
 from ..common import RetrievalProduct
 
-# Use the typhon style for all plots:
-plt.style.use(styles('typhon'))
-
 __all__ = [
     'SPAREICE',
 ]
@@ -89,6 +87,9 @@ __all__ = [
 # The path to the standard weights:
 PARAMETERS_DIR = join(dirname(__file__), 'parameters')
 STANDARD_FILE = join(PARAMETERS_DIR, "standard.json")
+
+
+logger = logging.getLogger(__name__)
 
 
 class SPAREICE:
@@ -124,7 +125,7 @@ class SPAREICE:
         retrieved = spareice.retrieve(standardized_data)
     """
 
-    def __init__(self, file=None, collocator=None, processes=10, verbose=2,
+    def __init__(self, file=None, collocator=None, processes=10, verbose=0,
                  sea_mask_file=None, elevation_file=None):
         """Initialize a SPAREICE object
 
@@ -137,8 +138,8 @@ class SPAREICE:
             processes: Number of processes to parallelize the training or
                 collocation search. 10 is the default. Best value depends on
                 your machine.
-            verbose: An integer value. The higher the value, the more debug
-                messages are printed.
+            verbose (int): Control ``GridSearchCV`` verbosity. The higher the
+            value, the more debug messages are printed.
         """
 
         self.verbose = verbose
@@ -161,7 +162,7 @@ class SPAREICE:
             self.elevation_grid = ds.data.squeeze().values
 
         if collocator is None:
-            self.collocator = Collocator(verbose=verbose)
+            self.collocator = Collocator()
         else:
             self.collocator = collocator
 
@@ -187,12 +188,10 @@ class SPAREICE:
             self.load(file)
 
     def _debug(self, msg):
-        if self.verbose > 1:
-            print(f"[{self.name}] {msg}")
+        logger.debug(f"[{self.name}] {msg}")
 
     def _info(self, msg):
-        if self.verbose > 0:
-            print(f"[{self.name}] {msg}")
+        logger.info(f"[{self.name}] {msg}")
 
     def _iwp_model(self, processes, cv_folds):
         """Return the default model for the IWP regressor
@@ -613,7 +612,7 @@ class SPAREICE:
                 "You need to pass a Collocations object or a list with a MHS "
                 "and AVHRR fileset!"
             )
-        print(f"Took {timer} hours to retrieve SPARE-ICE")
+        logger.info(f"Took {timer} hours to retrieve SPARE-ICE")
 
     def score(self, data):
         """Calculate the score of SPARE-ICE on testing data
@@ -706,13 +705,13 @@ class SPAREICE:
         if not hasattr(trainer, "cv_results_"):
             return
 
-        print("Best parameters found on training dataset:\n",
+        logger.info("Best parameters found on training dataset:\n",
               trainer.best_params_)
 
         means = trainer.cv_results_['mean_test_score']
         stds = trainer.cv_results_['std_test_score']
         for mean, std, params in zip(means, stds, trainer.cv_results_['params']):  # noqa
-            print("%0.3f (+/-%0.03f) for %r" % (mean, std * 2, params))
+            logger.info("%0.3f (+/-%0.03f) for %r" % (mean, std * 2, params))
 
     def report(self, output_dir, experiment, data):
         """Test the performance of SPARE-ICE and plot it
