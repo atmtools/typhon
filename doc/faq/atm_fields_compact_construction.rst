@@ -53,4 +53,4 @@ The following code snippet demonstrates how to create an
     atm_fields_compact.check_dimension()
 
     # Write the atm_fields_compact to an XML file that can be read by ARTS.
-    typhon.arts.xml.save(atm_fields_comapct, 'atmfield.xml')
+    typhon.arts.xml.save(atm_fields_compact, 'atmfield.xml')
