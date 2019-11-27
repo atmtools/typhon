@@ -26,8 +26,18 @@ class TestCovarianceMatrix:
     def test_xml_io(self):
         save(self.covmat, self.f)
         covmat2 = load(self.f)
-        assert(all([b1 == b2 for (b1, b2) in zip(self.covmat.blocks,
-                                                 covmat2.blocks)]))
+
+        def compare_matrices(args):
+            b1, b2 = args
+            m1 = b1.matrix
+            m2 = b2.matrix
+            if isinstance(m1, sp.sparse.spmatrix):
+                m1 = m1.todense()
+                m2 = m2.todense()
+                print(m1)
+            return np.allclose(m1, m2)
+
+        assert(all(map(compare_matrices, zip(self.covmat.blocks, covmat2.blocks))))
 
     def test_to_dense(self):
         m = self.covmat.to_dense()
