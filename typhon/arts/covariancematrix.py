@@ -48,11 +48,7 @@ class Block(object):
         m, n   = list(s.dimensions)
 
         if not s.inner_ptr:
-            s.__array_interface__ = {"shape"  : (m, n),
-                                     "typestr" : "|f8",
-                                     "data" : (s.ptr, False),
-                                     "version" : 3}
-            matrix = np.array(s, copy = False)
+            matrix = np.ctypeslib.as_array(c.cast(s.ptr, c.POINTER(c.c_double)), (m, n))
         else:
             nnz = s.nnz
             data = np.ctypeslib.as_array(c.cast(s.ptr, c.POINTER(c.c_double)),
@@ -208,7 +204,7 @@ class CovarianceMatrix(object):
             j = b.get("column_index")
             row_start    = int(b.get("row_start"))
             column_start = int(b.get("column_start"))
-            inverse = bool(b.get("is_inverse"))
+            inverse = bool(int(b.get("is_inverse")))
             matrix = b[0].value()
 
             b = Block(i, j, row_start, column_start, inverse, matrix)
