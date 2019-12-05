@@ -114,6 +114,7 @@ setup(
         'numexpr',
         'numpy>=1.13',
         'pandas',
+        'requests',
         'scikit-image',
         'scikit-learn',
         'scipy>=0.15.1',
