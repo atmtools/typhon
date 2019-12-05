@@ -10,6 +10,7 @@ numpy>=1.13
 pandas
 pint
 pytest
+requests>=2
 scikit-image
 scikit-learn
 scipy>=0.15.1
