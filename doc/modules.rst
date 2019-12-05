@@ -130,6 +130,15 @@ Spectroscopy
 
    typhon.spectroscopy
 
+
+Topography
+----------
+
+.. toctree::
+   :maxdepth: 2
+
+   typhon.topography
+
 Miscellaneous
 -------------
 
