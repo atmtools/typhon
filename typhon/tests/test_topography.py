@@ -24,8 +24,8 @@ class TestEnvironment:
             assert(np.allclose(lons, lons_r))
 
     def test_elevation(self):
-        lat_min = 30
-        lat_max = 50
-        lon_min = 10
-        lon_max = 30
+        lat_min = -50
+        lat_max = -20
+        lon_min = -170
+        lon_max = -110
         lats, lons, z = SRTM30.elevation(lat_min, lon_min, lat_max, lon_max)
