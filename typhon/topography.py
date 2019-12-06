@@ -61,10 +61,10 @@ import os
 import pickle
 import shutil
 import tempfile
+import urllib
 import zipfile
 
 import numpy as np
-import requests
 from scipy.spatial import KDTree
 
 import typhon
@@ -285,16 +285,15 @@ class SRTM30:
         """
         base_url = "https://dds.cr.usgs.gov/srtm/version2_1/SRTM30"
         url = base_url + "/" + name + "/" + name + ".dem.zip"
-        r = requests.get(url, stream=True)
-        r.raw.decode_content = True
+        r = urllib.request.urlopen(url)
 
-        if not r.ok:
+        if r.status >= 400:
             raise Exception("Could not access https://dds.cr.usgs.gov/srtm/version2_1/SRTM30")
 
         filename = os.path.join(data_path, name + ".dem.zip")
         path = os.path.join(filename)
         with open(path, 'wb') as f:
-            shutil.copyfileobj(r.raw, f)
+            shutil.copyfileobj(r, f)
 
         # Extract zip file.
         with zipfile.ZipFile(filename, "r") as zip_ref:
