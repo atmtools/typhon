@@ -42,7 +42,7 @@ Interpolation to given coordinates
 
 Interpolation of the elevation data to arbitrary coordinates can be performed
 using the :code:`interpolate` method. Interpolation uses nearest neighbor
-interpolation and is implemented using the :code:`pykdtree` package.
+interpolation and is implemented using a :code:`KDTree`.
 Interpolating the SRTM30 data to given latitude and longitude grids can be done
 as follows:
 
@@ -56,18 +56,19 @@ as follows:
     lons = np.linspace(lon_min, lon_max, 101)
     z = SRTM30.interpolate(lat, lont)
 """
-import tempfile
-import shutil
 import atexit
-import requests
-import pickle
-import typhon
-import numpy as np
 import os
+import pickle
+import shutil
+import tempfile
 import zipfile
 
-from typhon.environment import environ
+import numpy as np
+import requests
+from scipy.spatial import KDTree
 
+import typhon
+from typhon.environment import environ
 
 clean_up_folders = []
 def _clean_up():
@@ -350,7 +351,6 @@ class SRTM30:
         Args:
             name(str): The name of the tile.
         """
-        from scipy.spatial import KDTree
         lat_grid, lon_grid = SRTM30.get_grids(name)
         lat_grid, lon_grid = np.meshgrid(lat_grid, lon_grid, indexing = "ij")
         x, y, z = _latlon_to_cart(lat_grid, lon_grid)
