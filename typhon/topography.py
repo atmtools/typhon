@@ -287,9 +287,6 @@ class SRTM30:
         url = base_url + "/" + name + "/" + name + ".dem.zip"
         r = urllib.request.urlopen(url)
 
-        if r.status >= 400:
-            raise Exception("Could not access https://dds.cr.usgs.gov/srtm/version2_1/SRTM30")
-
         filename = os.path.join(data_path, name + ".dem.zip")
         path = os.path.join(filename)
         with open(path, 'wb') as f:
