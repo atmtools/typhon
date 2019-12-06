@@ -20,7 +20,6 @@ class TestEnvironment:
             lat_min, lon_min, lat_max, lon_max = SRTM30.get_bounds(t)
             lats_r, lons_r = SRTM30.get_grids(t)
             lats, lons = SRTM30.get_native_grids(lat_min, lon_min, lat_max, lon_max)
-            print(t)
             assert(np.allclose(lats, lats_r))
             assert(np.allclose(lons, lons_r))
 
