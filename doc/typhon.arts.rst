@@ -31,6 +31,20 @@ arts.catalogues
    SpeciesAuxData
    SpeciesTag
 
+arts.covariancematrix
+=====================
+
+.. automodule:: typhon.arts.covariancematrix
+
+.. currentmodule:: typhon.arts.covariancematrix
+
+.. autosummary::
+   :toctree: generated
+
+   Block
+   CovarianceMatrix
+   plot_covariance_matrix
+
 arts.griddedfield
 =================
 .. automodule:: typhon.arts.griddedfield
