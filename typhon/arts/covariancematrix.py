@@ -6,25 +6,15 @@ import ctypes as c
 
 class Block(object):
     """
-    Block of a covariance matrix.
+    A block of a covariance matrix.
 
-    A block in a covariance matrix is identified by its row and column
-    block indices. The block indices define to which retrieval quantities
-    the covariance matrix block corresponds to.
-
-
-    Attributes:
-
-        i(int): Row-block index of the block
-        j(int): Column-block index of the block
-        row_start(int): Row index of the left- and uppermost element of the
-            block w.r.t to the full covariance matrix.
-        column_start(int) Column index of the left- and uppermost element of
-            the block w.r.t. to the full covariance matrix.
-        inverse(bool): Flag that indicates whether this block is part of
-            the normal part of the covariance matrix or its inverse.
-        matrix(numpy.ndarray of scipy.sparse): The matrix that the block
-            consists of.
+    A covariance matrix block holds the covariances of a given retrieval
+    quantity or the covariances between todifferent retrieval quantities. A
+    block is identified by its row and column block indices. The row and column
+    indices of the block correspond to the retrieval quantity indices within
+    ARTS. A covariance matrix block consists of a matrix holding the covariances,
+    which may be either dense or sparse, as well as additional information on
+    the location of the block in the full covariance matrix.
     """
 
     @classmethod
@@ -87,26 +77,35 @@ class Block(object):
 
     @property
     def i(self):
+        """Row-index of the block."""
         return self._i
 
     @property
     def j(self):
+        """Column-index of the block"""
         return self._j
 
     @property
     def row_start(self):
+        """Row-index of the left- and uppermost element of the
+            block w.r.t to the full covariance matrix."""
         return self._row_start
 
     @property
     def column_start(self):
+        """Column index of the left- and uppermost element of
+            the block w.r.t. to the full covariance matrix."""
         return self._column_start
 
     @property
     def inverse(self):
+        """Flag that indicates whether this block is part of
+            the normal part of the covariance matrix or its inverse."""
         return self._inverse
 
     @property
     def matrix(self):
+        """The matrix containing the covariances of the block."""
         return self._matrix
 
     def write_xml(self, xmlwriter, attr = None):
@@ -145,15 +144,18 @@ class Block(object):
         xmlwriter.close_tag()
 
 class CovarianceMatrix(object):
-    """:class:`CovarianceMatrix` representing the ARTS group of the same name
+    """
+    Covariance matrix class representing the ARTS group of the same name
+    implementing covariance matrices for OEM calculations in ARTS. Covariance
+    matrices are stored as block diagonal matrices where each block represents
+    covariances between two retrieval quantities.
 
-    The CovarianceMatrix class is used to represent covariance matrices for
-    OEM calculations in ARTS. It is represented as a block diagonal matrix
-    where each block represents covariances between two retrieval quantities.
-
-    Since covariance matrices are symmetric only block lying on or above
-    the diagonal are actually stored. The covariance matrix class is
-    designed to hold both, the covariance matrix and its inverse.
+    Since covariance matrices must be symmetric only blocks lying on or above
+    the diagonal are stored. The covariance matrix class is designed to hold
+    both, the covariance matrix and its inverse. This has the advantage that
+    the inverse of the covariance matrix can be set directly by the user, which
+    is useful for Tikhonov regularization and when the inverse is available in
+    closed form.
     """
     #
     # Class methods
@@ -237,14 +239,17 @@ class CovarianceMatrix(object):
 
     @property
     def blocks(self):
+        """ The blocks contained in the covariance matrix."""
         return self._blocks
 
     @property
     def inverse_blocks(self):
+        """The blocks that contained in the inverse of the covariance matrix."""
         return self._inverse_blocks
 
     @property
     def workspace(self):
+        """The workspace associated with the covariance matrix."""
         return self._workspace
 
     #
