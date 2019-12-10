@@ -65,7 +65,6 @@ import urllib
 import zipfile
 
 import numpy as np
-from scipy.spatial import KDTree
 
 import typhon
 from typhon.environment import environ
@@ -297,31 +296,6 @@ class SRTM30:
             zip_ref.extractall(os.path.dirname(filename))
 
     @staticmethod
-    def build_kd_tree(name):
-        """
-        Builds KD-tree for the given tile and stores it to a file named
-        :code:`name.tree`. The function can be used to cache the KD-tree
-        to reduce time required for interpolation.
-
-        Args:
-            name(str): The name of the tile for which to build the KD-tree.
-        """
-        from scipy.spatial import KDTree
-        # Build KD-tree for interpolation.
-        filename = os.path.join(data_path, (name + ".dem").upper())
-        lat_grid, lon_grid = SRTM30.get_grids(name)
-        lat_grid, lon_grid = np.meshgrid(lat_grid, lon_grid, indexing = "ij")
-        x, y, z = _latlon_to_cart(lat_grid, lon_grid)
-        X = np.concatenate([x.reshape(-1, 1, order = "C"),
-                            y.reshape(-1, 1, order = "C"),
-                            z.reshape(-1, 1, order = "C")], axis = 1)
-        kdtree = KDTree(X.astype(np.float32))
-        filename = os.path.join(data_path, name + ".tree")
-        pickle.dump(kdtree, open(filename, "wb"))
-
-
-
-    @staticmethod
     def get_tile(name):
         """
         Get tile with the given name.
@@ -347,6 +321,7 @@ class SRTM30:
         Args:
             name(str): The name of the tile.
         """
+        from pykdtree.kdtree import KDTree
         lat_grid, lon_grid = SRTM30.get_grids(name)
         lat_grid, lon_grid = np.meshgrid(lat_grid, lon_grid, indexing = "ij")
         x, y, z = _latlon_to_cart(lat_grid, lon_grid)
@@ -447,4 +422,4 @@ class SRTM30:
                     elevation[inds] = dem[neighbors].mean(axis = (1))
                 else:
                     elevation[inds] = dem[neighbors]
-        return elevation, tree
+        return elevation
