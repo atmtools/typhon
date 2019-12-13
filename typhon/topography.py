@@ -67,6 +67,22 @@ import numpy as np
 import typhon
 from typhon.environment import environ
 
+data_path = None
+
+def get_data_path():
+    if data_path is None:
+    try:
+        if "TYPHON_DATA_PATH" in environ:
+            data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
+        elif "XDG_CACHE_HOME" in environ:
+            data_path = environ["XDG_CACHE_HOME"]
+        else:
+            home = os.path.expandvars("~")
+            data_path = os.path.join(home, ".cache", "typhon", "topography")
+    except:
+
+if not os.path.exists(data_path):
+    os.makedirs(data_path)
 # Determine path to store tiles.
 try:
     data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
