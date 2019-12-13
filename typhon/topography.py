@@ -54,11 +54,8 @@ as follows:
     lons = np.linspace(lon_min, lon_max, 101)
     z = SRTM30.interpolate(lat, lont)
 """
-import atexit
 import os
-import pickle
 import shutil
-import tempfile
 import urllib
 import zipfile
 
@@ -67,32 +64,21 @@ import numpy as np
 import typhon
 from typhon.environment import environ
 
-data_path = None
+_data_path = None
 
-def get_data_path():
-    if data_path is None:
-    try:
+def _get_data_path():
+    global _data_path
+    if _data_path is None:
         if "TYPHON_DATA_PATH" in environ:
-            data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
+            _data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
         elif "XDG_CACHE_HOME" in environ:
-            data_path = environ["XDG_CACHE_HOME"]
+            _data_path = environ["XDG_CACHE_HOME"]
         else:
             home = os.path.expandvars("~")
-            data_path = os.path.join(home, ".cache", "typhon", "topography")
-    except:
-
-if not os.path.exists(data_path):
-    os.makedirs(data_path)
-# Determine path to store tiles.
-try:
-    data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
-except:
-    if "XDG_CACHE_HOME" in environ:
-        data_path = environ["XDG_CACHE_HOME"]
-    else:
-        data_path = os.path.join(environ["HOME"], ".cache", "typhon", "topography")
-if not os.path.exists(data_path):
-    os.makedirs(data_path)
+            _data_path = os.path.join(home, ".cache", "typhon", "topography")
+        if not os.path.exists(_data_path):
+            os.makedirs(_data_path)
+    return _data_path
 
 def _latlon_to_cart(lat, lon, R = typhon.constants.earth_radius):
     """
@@ -295,7 +281,7 @@ class SRTM30:
         url = base_url + "/" + name + "/" + name + ".dem.zip"
         r = urllib.request.urlopen(url)
 
-        filename = os.path.join(data_path, name + ".dem.zip")
+        filename = os.path.join(_get_data_path(), name + ".dem.zip")
         path = os.path.join(filename)
         with open(path, 'wb') as f:
             shutil.copyfileobj(r, f)
@@ -315,7 +301,7 @@ class SRTM30:
         Args:
             name(str): The name of the tile.
         """
-        dem_file = os.path.join(data_path, (name + ".dem").upper())
+        dem_file = os.path.join(_get_data_path(), (name + ".dem").upper())
         if not (os.path.exists(dem_file)):
             SRTM30.download_tile(name)
         y = np.fromfile(dem_file, dtype = np.dtype('>i2')).reshape(SRTM30._tile_height,
