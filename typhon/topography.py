@@ -9,13 +9,11 @@ access. The interfaces uses the path pointed to by the :code:`TYPHON_DATA_PATH`
 environment variable as data cache. This means that data is downloaded only
 when they are not found in the cache.
 
-.. note:: If :code:`TYPHON_DATA_PATH` is not set, a temporary directory will be
-    used and the data will be downloaded each time the module is used. This will be
-    highly inefficient, so for recurring use it is recommended to use the caching
-    functionality.
+.. note:: If :code:`TYPHON_DATA_PATH` is not set, the location of the file cache
+    will be determined from the :code:`XDG_CACHE_HOME` environment variable and,
+    if this is not defined, default to :`${HOME}/.typhon/topography`.
 
-The module can be used in two ways:
-
+The module can be used in two ways: 
  1. by extracting the elevation data at native resolution
  2. by interpolating to elevation data at arbitrary locations
 
@@ -69,21 +67,16 @@ import numpy as np
 import typhon
 from typhon.environment import environ
 
-clean_up_folders = []
-def _clean_up():
-    """
-    Function that takes care of cleaning up temporary directories.
-    """
-    for f in clean_up_folders:
-        shutil.rmtree(f)
-
 # Determine path to store tiles.
 try:
-    data_path = environ["TYPHON_DATA_PATH"]
+    data_path = os.path.join(environ["TYPHON_DATA_PATH"], "topography")
 except:
-    data_path = tempfile.mkdtemp()
-    clean_up_folders += [data_path]
-    atexit.register(_clean_up)
+    if "XDG_CACHE_HOME" in environ:
+        data_path = environ["XDG_CACHE_HOME"]
+    else:
+        data_path = os.path.join(environ["HOME"], ".cache", "typhon", "topography")
+if not os.path.exists(data_path):
+    os.makedirs(data_path)
 
 def _latlon_to_cart(lat, lon, R = typhon.constants.earth_radius):
     """

@@ -23,6 +23,7 @@ class TestEnvironment:
             assert(np.allclose(lats, lats_r))
             assert(np.allclose(lons, lons_r))
 
+    @pytest.mark.skip(reason="Too expensive to run every time.")
     def test_elevation(self):
         lat_min = -50
         lat_max = -20
