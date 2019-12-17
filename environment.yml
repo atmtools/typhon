@@ -13,6 +13,7 @@ dependencies:
         - pandas
         - pint
         - pytest
+        - pykdtree
         - scikit-image
         - scikit-learn
         - scipy>=0.15.1
