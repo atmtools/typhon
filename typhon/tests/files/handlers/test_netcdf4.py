@@ -67,11 +67,8 @@ class TestNetCDF4:
 
         with tempfile.TemporaryDirectory() as tdir:
             tfile = os.path.join(tdir, "testfile.nc")
-            before = xr.Dataset(
-                    {"a":
-                        xr.DataArray(
-                            42,
-                            encoding={"_FillValue": 42})})
+            before = xr.Dataset({"a": xr.DataArray(42)})
+            before["a"].encoding = {"_FillValue": 42}
             fh.write(before, tfile)
             after = fh.read(tfile)
             assert np.isnan(after["a"]) # fill value should become nan
@@ -111,7 +108,7 @@ class TestNetCDF4:
                             np.array([0.1, 0.2]))})
             before["a"].encoding = {
                     "scale_factor": 0.1,
-                    "FillValue": 42,
+                    "_FillValue": 42,
                     "dtype": "int16"}
             fh.write(before, tfile)
             after = fh.read(tfile)
