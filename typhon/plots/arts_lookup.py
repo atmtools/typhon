@@ -319,8 +319,8 @@ def plot_arts_lookup(lookup, opacity=True, z=None, g=typhon.constants.g,
         else:
             psize = lookup.pressuregrid.size
             if pressures is not None:
-                ipressures = [np.abs(lookup.pressuregrid - p).argmin() for p
-                              in eval(pressures)]
+                ipressures = [np.abs(lookup.pressuregrid - p).argmin()
+                              for p in pressures]
             else:
                 ipressures = (lookup.pressuregrid.size - 1 - (
                     range(psize) if psize <= 5
