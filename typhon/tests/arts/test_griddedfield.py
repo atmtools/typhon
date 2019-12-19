@@ -200,6 +200,19 @@ class TestGriddedFieldUsage:
         assert gf1.data[0] == np.array([1])
         assert gf1.data[1] == np.array([0.1])
 
+    def test_add_offset(self):
+        """Test adding of offset to data in named fields."""
+        gf1 = griddedfield.GriddedField1(
+            grids=[['first_field', 'second_field']],
+            data=np.array([1., 1.]),
+        )
+
+        gf1.add('second_field', 0.5)
+
+        # Check if values if *only* values of the second fields are scaled.
+        assert gf1.data[0] == np.array([1.])
+        assert gf1.data[1] == np.array([1.5])
+
     def test_integer_scaling(self):
         """Test the scaling of integer data in named fields."""
         gf1 = griddedfield.GriddedField1(
