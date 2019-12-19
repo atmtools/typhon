@@ -81,7 +81,7 @@ def plot_lookup_xsec(lookup, ipressures, species=None, ax=None, tpert=0,
         ax.legend(fontsize='xx-small', frameon=False)
     else:
         ax.set_title(
-            ',\n'.join(re.sub('(-\*)+$', '', s) for s in species[0]),
+            ',\n'.join(re.sub(r'(-\*)+$', '', s) for s in species[0]),
             y=1. - len(species[0]) * 0.05,
             fontsize='xx-small')
 
@@ -138,7 +138,7 @@ def plot_lookup_opacity(lookup, opacity, species=None, vmrpert=0, ax=None,
     if len(species) > 1:
         ax.legend(fontsize='xx-small', frameon=False)
     else:
-        ax.set_title(',\n'.join(re.sub('(-\*)+$', '', s) for s in species[0]),
+        ax.set_title(',\n'.join(re.sub(r'(-\*)+$', '', s) for s in species[0]),
                      y=1. - len(species[0]) * 0.05,
                      fontsize='xx-small')
 
@@ -319,8 +319,8 @@ def plot_arts_lookup(lookup, opacity=True, z=None, g=typhon.constants.g,
         else:
             psize = lookup.pressuregrid.size
             if pressures is not None:
-                ipressures = [np.abs(lookup.pressuregrid - p).argmin() for p
-                              in eval(pressures)]
+                ipressures = [np.abs(lookup.pressuregrid - p).argmin()
+                              for p in pressures]
             else:
                 ipressures = (lookup.pressuregrid.size - 1 - (
                     range(psize) if psize <= 5
