@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-"""
-Implementation of classes to handle various catalogue information.
-
-"""
-
+"""Implementation of classes to handle various catalogue information. """
+import re
 
 import numpy as np
 import scipy.sparse
@@ -607,6 +603,13 @@ class SpeciesTag(str):
         xmlwriter.open_tag('SpeciesTag', attr, newline=False)
         xmlwriter.write('"' + self + '"')
         xmlwriter.close_tag()
+
+    def to_tex(self):
+        """Turn indices in species tags to LaTeX subscripts."""
+        if "FC" in self:
+            return self
+        else:
+            return re.sub("([a-zA-Z]+)([0-9]+)", r"\1$_{\2}$", self)
 
 
 class Sparse(scipy.sparse.csc_matrix):
