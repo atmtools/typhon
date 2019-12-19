@@ -5,7 +5,7 @@ patch.edgecolor: white
 
 text.color: white
 
-axes.facecolor: 333333
+axes.facecolor: 16161d
 axes.edgecolor: white
 axes.labelcolor: white
 axes.prop_cycle: cycler('color', ['ff8a80', '82b1ff', 'b9f6ca', 'ea80fc', 'ffd180', 'ff80ab', '84ffff', 'f4ff81'])
@@ -15,8 +15,8 @@ ytick.color: white
 
 grid.color: grey
 
-figure.facecolor: 333333
-figure.edgecolor: 333333
+figure.facecolor: 16161d
+figure.edgecolor: 16161d
 
-savefig.facecolor: 333333
-savefig.edgecolor: 333333
+savefig.facecolor: 16161d
+savefig.edgecolor: 16161d
