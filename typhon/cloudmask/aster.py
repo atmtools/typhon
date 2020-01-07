@@ -16,11 +16,9 @@ from typhon.math import multiple_logical
 
 __all__ = [
     'ASTERimage',
-    'cloudtopheight_IR',
-    'retrieve_lapserate',
+    'lapserate_modis',
     'lapserate_moist_adiabate',
-    'sensor_angles',
-    'reflection_angles',
+    'cloudtopheight_IR',
 ]
 
 logger = logging.getLogger(__name__)
@@ -697,6 +695,12 @@ def lapserate_modis(month, latitude):
     return lapserate
 
 
+def lapserate_moist_adiabate():
+    """Moist adiabatic lapse rate in [K/km].
+    """
+    return 6.5
+
+
 def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                       month=None):
     """Cloud Top Height (CTH) from 11 micron channel.
@@ -773,9 +777,3 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     Tb_clear_avg = np.nanmean(Tb14[mask_clear])
 
     return (Tb_clear_avg - Tb_cloudy) / lapserate
-
-
-def lapserate_moist_adiabate():
-    """Moist adiabatic lapse rate in [K/km].
-    """
-    return 6.5
