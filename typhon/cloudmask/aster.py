@@ -50,12 +50,14 @@ class ASTERimage:
         self.solardirection = SolarDirection(
             *self._convert_metastr(meta['SOLARDIRECTION'], dtype=tuple)
         )
-        self.sunelevation = self.solardirection[1]
+        self.sunzenith = 90 - self.solardirection.elevation
         
         self.datetime = datetime.datetime.strptime(
             meta['CALENDARDATE'] + meta['TIMEOFDAY'][:14], '%Y-%m-%d%H:%M:%S.%f0')
-        self.scenecenter = self._convert_metastr(meta['SCENECENTER'],
-                                                 dtype=tuple)
+        SceneCenter = namedtuple('SceneCenter', ['latitude', 'longitude'])
+        self.scenecenter = SceneCenter(
+            *self._convert_metastr(meta['SCENECENTER'], dtype=tuple)
+        )
 
 
     @property
@@ -447,6 +449,17 @@ class ASTERimage:
         return lapserate_modis(self.datetime.month, self.scenecenter[0])
     
     
+    def get_cloudtopheight(self):
+        """Estimate the cloud top height according to Baum et al., 2012 
+        using :func: `cloudtopheight_IR`."""
+        bt = self.get_brightnesstemperature('14')
+        cloudmask = self.retrieve_cloudmask()
+        latitude = self.scenecenter.latitude
+        month = self.datetime.month
+        
+        return cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis')
+    
+    
     def sensor_angles(self, sensor='vnir'):
         """Calculate a sun reflection angle for a given ASTER image depending on
         the sensor-sun geometry and the sensor settings.
@@ -701,14 +714,10 @@ def lapserate_moist_adiabate():
     return 6.5
 
 
-def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
-                      month=None):
-    """Cloud Top Height (CTH) from 11 micron channel.
-    ASTER brightness temperatures from channel 14 are converted to CTHs using
-    the IR window approachannel: (Tb_clear - Tb_cloudy) / lapse_rate.
-
-    Note:
-        `cloudmask` shape must match that of the thermal channel, (700,830).
+def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
+    """Cloud Top Height (CTH) from 11 micron channel following Baum et al., 2012.
+    Brightness temperatures (bt) are converted to CTHs using the IR window approach: 
+    (bt_clear - bt_cloudy) / lapse_rate.
 
     See also:
         :func:`skimage.measure.block_reduce`: Down-sample image by applying
@@ -718,25 +727,30 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
             depending on month and latitude acc. to Baum et al., 2012.
 
     Parameters:
-        cloudmask (ndarray): binary ASTER cloud mask image.
-        Tb14 (ndarray): brightness temperatures form ASTER channel 14.
-        method (str): approachannel used to derive CTH: 'simple' or 'modis'.
+        bt (ndarray): brightness temperatures form 11 micron channel.
+        cloudmask (ndarray): binary cloud mask.
+        method (str): approach used to derive CTH: 'modis' see Baum et al., 2012,
+            'simple' uses the moist adiabatic lapse rate.
         latitudes (ndarray): latitudes in [°], positive North, negative South.
         month (int): month of the year.
 
     Returns:
         ndarray: cloud top height.
+    
+    References:
+        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
+        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
+        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
+        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
     """
     # Lapse rate
     if method=='simple':
         lapserate = lapserate_moist_adiabate()
 
     elif method=='modis':
-        latitude = latitudes[np.shape(latitudes)[0] // 2,
-                             np.shape(latitudes)[1] // 2]
-        lapserate = retrieve_lapserate()
+        lapserate = lapserate_modis(month, latitude)
 
-    resolution_ratio = np.shape(cloudmask)[0] // np.shape(Tb14)[0]
+    resolution_ratio = np.shape(cloudmask)[0] // np.shape(bt)[0]
 
     cloudmask_inverted = cloudmask.copy()
     cloudmask_inverted[np.isnan(cloudmask_inverted)] = 1
@@ -746,14 +760,14 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     cloudmask[np.isnan(cloudmask)] = 0
     cloudmask = np.asarray(cloudmask, dtype=int)
 
-    # Match cloudmask resolution and Tb14 resolution.
+    # Match resolutions of cloud mask and brightness temperature (bt) arrays.
     if resolution_ratio > 1:
-        # On Tb14 resolution, flag pixels as cloudy only if all subgrid pixels
+        # On bt resolution, flag pixels as cloudy only if all subgrid pixels
         # are cloudy in the original cloud mask.
         mask_cloudy = block_reduce(cloudmask,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
-        # Search for 90m only clear pixels to derive a Tb clearsky/ocean value.
+        # Search for only clear pixels to derive a bt clearsky/ocean value.
         mask_clear = block_reduce(cloudmask_inverted,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
@@ -766,14 +780,13 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                                                   resolution_ratio, axis=1)
         except ValueError:
             logger.warning(
-                'Problems matching the shapes of cloudmask and Tb14.')
+                'Problems matching the shapes of provided cloud mask and bt arrays.')
     else:
         mask_cloudy = cloudmask.copy()
         mask_clear = cloudmask_inverted.copy()
 
-    Tb_cloudy = np.ones(np.shape(Tb14)) * np.nan
-    Tb_cloudy[mask_cloudy] = Tb14[mask_cloudy]
+    bt_cloudy = np.ones(np.shape(bt)) * np.nan
+    bt_cloudy[mask_cloudy] = bt[mask_cloudy]
+    bt_clear_avg = np.nanmean(bt[mask_clear])
 
-    Tb_clear_avg = np.nanmean(Tb14[mask_clear])
-
-    return (Tb_clear_avg - Tb_cloudy) / lapserate
+    return (bt_clear_avg - bt_cloudy) / lapserate
