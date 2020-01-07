@@ -17,7 +17,7 @@ from typhon.math import multiple_logical
 __all__ = [
     'ASTERimage',
     'cloudtopheight_IR',
-    'lapserate_modis',
+    'retrieve_lapserate',
     'lapserate_moist_adiabate',
     'sensor_angles',
     'reflection_angles',
@@ -444,9 +444,9 @@ class ASTERimage:
 
         return lats, lons
 
-    def retrieve_lapserate(self):
-        """Retrieve lapse rate using :func:`retrieve_lapserate`."""
-        return retrieve_lapserate(self.datetime.month, self.scenecenter[0])
+    def get_lapserate(self):
+        """Estimate lapse rate from MODIS climatology using :func:`lapserate`."""
+        return lapserate_modis(self.datetime.month, self.scenecenter[0])
     
     
     def sensor_angles(self, sensor='vnir'):
@@ -581,7 +581,7 @@ class ASTERimage:
                                     - np.deg2rad(sun_azimuth)) ) )
 
 
-def retrieve_lapserate(month, latitude):
+def lapserate_modis(month, latitude):
     """Estimate of the apparent lapse rate in [K/km].
     Typical lapse rates are assumed for each month and depending on the
     location on Earth, i.e. southern hemisphere, tropics, or northern
