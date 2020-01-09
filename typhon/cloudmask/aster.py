@@ -97,6 +97,8 @@ class ASTERimage:
             subsensor = 'SWIR'
         elif channel in ('10', '11', '12', '13', '14'):
             subsensor = 'TIR'
+        else:
+            raise ValueError('The chosen channel is not supported.')
 
         data_path = (f'HDF4_EOS:EOS_SWATH:{self.filename}:{subsensor}_Swath:'
                      f'ImageData{channel}')
@@ -752,6 +754,8 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
 
     elif method=='modis':
         lapserate = lapserate_modis(month, latitude)
+    else:
+        raise ValueError("Method is not supported.")
 
     resolution_ratio = np.shape(cloudmask)[0] // np.shape(bt)[0]
 
