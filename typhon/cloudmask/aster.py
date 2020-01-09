@@ -777,7 +777,7 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
                                                   resolution_ratio, axis=0),
                                                   resolution_ratio, axis=1)
         except ValueError:
-            logger.warning(
+            raise ValueError(
                 'Problems matching the shapes of provided cloud mask and bt arrays.')
     else:
         mask_cloudy = cloudmask.copy()
