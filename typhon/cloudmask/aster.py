@@ -66,8 +66,11 @@ class ASTERimage:
         return os.path.basename(self.filename)
 
     @staticmethod
-    def _convert_metastr(metastr, dtype=str):
+    def _convert_metastr(metastr, dtype=None):
         """Convert metadata data type."""
+        if dtype is None:
+            dtype = str
+
         if dtype == tuple:
             return tuple(float(f.strip()) for f in metastr.split(','))
         else:
