@@ -8,6 +8,7 @@ from collections import namedtuple
 
 import gdal
 import numpy as np
+from scipy import interpolate
 from skimage.measure import block_reduce
 
 from typhon.math import multiple_logical
@@ -15,14 +16,17 @@ from typhon.math import multiple_logical
 
 __all__ = [
     'ASTERimage',
-    'cloudtopheight_IR',
     'lapserate_modis',
     'lapserate_moist_adiabate',
-    'get_reflection_angle',
-    'theta_r',
+    'cloudtopheight_IR',
 ]
 
 logger = logging.getLogger(__name__)
+
+CONFIDENTLY_CLOUDY = 5
+PROBABLY_CLOUDY = 4
+PROBABLY_CLEAR = 3
+CONFIDENTLY_CLEAR = 2
 
 
 class ASTERimage:
@@ -42,15 +46,18 @@ class ASTERimage:
         self.filename = filename
 
         meta = self.get_metadata()
-        SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation'])
+        SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation']) # SolarDirection = (0< az <360, -90< el <90)
         self.solardirection = SolarDirection(
             *self._convert_metastr(meta['SOLARDIRECTION'], dtype=tuple)
         )
-        self.sunelevation = self.solardirection[1]
+        self.sunzenith = 90 - self.solardirection.elevation
+        
         self.datetime = datetime.datetime.strptime(
-            meta['CALENDARDATE'] + meta['TIMEOFDAY'], '%Y-%m-%d%H:%M:%S.%f0')
-        self.scenecenter = self._convert_metastr(meta['SCENECENTER'],
-                                                 dtype=tuple)
+            meta['CALENDARDATE'] + meta['TIMEOFDAY'][:14], '%Y-%m-%d%H:%M:%S.%f0')
+        SceneCenter = namedtuple('SceneCenter', ['latitude', 'longitude'])
+        self.scenecenter = SceneCenter(
+            *self._convert_metastr(meta['SCENECENTER'], dtype=tuple)
+        )
 
 
     @property
@@ -59,9 +66,12 @@ class ASTERimage:
         return os.path.basename(self.filename)
 
     @staticmethod
-    def _convert_metastr(metastr, dtype=str):
+    def _convert_metastr(metastr, dtype=None):
         """Convert metadata data type."""
-        if dtype == tuple:
+        if dtype is None:
+            dtype = str
+
+        if issubclass(dtype, tuple):
             return tuple(float(f.strip()) for f in metastr.split(','))
         else:
             return dtype(metastr)
@@ -87,6 +97,8 @@ class ASTERimage:
             subsensor = 'SWIR'
         elif channel in ('10', '11', '12', '13', '14'):
             subsensor = 'TIR'
+        else:
+            raise ValueError('The chosen channel is not supported.')
 
         data_path = (f'HDF4_EOS:EOS_SWATH:{self.filename}:{subsensor}_Swath:'
                      f'ImageData{channel}')
@@ -329,18 +341,18 @@ class ASTERimage:
             # Set "probably clear" pixels.
             clmask[multiple_logical(r3N > 0.03, r5 > 0.01, 0.7 < r3N2,
                                     r3N2 < 1.75, r12 < 1.45,
-                                    func=np.logical_and)] = 3
+                                    func=np.logical_and)] = PROBABLY_CLEAR
 
 
             # Set "probably cloudy" pixels.
             clmask[multiple_logical(r3N > 0.03, r5 > 0.015, 0.75 < r3N2,
                                     r3N2 < 1.75, r12 < 1.35,
-                                    func=np.logical_and)] = 4
+                                    func=np.logical_and)] = PROBABLY_CLOUDY
 
             # Set "confidently cloudy" pixels
             clmask[multiple_logical(r3N > 0.065, r5 > 0.02, 0.8 < r3N2,
                                     r3N2 < 1.75, r12 < 1.2,
-                                    func=np.logical_and)] = 5
+                                    func=np.logical_and)] = CONFIDENTLY_CLOUDY
 
             # Combine swath edge pixels.
             clmask[multiple_logical(np.isnan(r1), np.isnan(r2), np.isnan(r3N),
@@ -382,15 +394,326 @@ class ASTERimage:
 
         return clmask
 
+    def get_latlon_grid(self, channel='1'):
+        """Create latitude-longitude-grid for specified channel data.
 
-def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
-                      month=None):
-    """Cloud Top Height (CTH) from 11 micron channel.
-    ASTER brightness temperatures from channel 14 are converted to CTHs using
-    the IR window approachannel: (Tb_clear - Tb_cloudy) / lapse_rate.
+        A latitude-logitude grid is created from the corner coordinates of the
+        ASTER image. The coordinates stated in the HDF4 meta data information
+        correspond the edge pixels shifted by one in flight direction and to
+        the left. The resolution and dimension of the image depends on the
+        specified channel.
 
-    Note:
-        `cloudmask` shape must match that of the thermal channel, (700,830).
+        Parameters:
+            channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
+
+        Returns:
+            ndarray[tuple]: Latitude longitude grid.
+
+        References:
+            M. Abrams, S. H., & Ramachandran, B. (2002). Aster user handbook
+            version 2, p.25 [Computer software manual]. Retrieved 2017-05-25,
+            from https://asterweb.jpl.nasa.gov/content/03 data/04 Documents/
+            aster user guide v2.pdf.
+        """
+        meta = self.get_metadata()
+        ImageDimension = namedtuple('ImageDimension', ['lon', 'lat'])
+        imagedimension = ImageDimension(
+            *self._convert_metastr(meta[f'IMAGEDATAINFORMATION{channel}'],
+                                   tuple)[:2])
+
+        # Image corner coordinates (file, NOT swath) according to the ASTER
+        # Users Handbook p.57.
+        LL = self._convert_metastr(meta['LOWERLEFT'],
+                                 dtype=tuple)  # (latitude, longitude)
+        LR = self._convert_metastr(meta['LOWERRIGHT'], dtype=tuple)
+        UL = self._convert_metastr(meta['UPPERLEFT'], dtype=tuple)
+        UR = self._convert_metastr(meta['UPPERRIGHT'], dtype=tuple)
+        lat = np.array([[UL[0], UR[0]],
+                        [LL[0], LR[0]]])
+        lon = np.array([[UL[1], UR[1]],
+                        [LL[1], LR[1]]])
+
+        # Function for interpolation to full domain grid.
+        flat = interpolate.interp2d([0, 1], [0, 1], lat, kind='linear')
+        flon = interpolate.interp2d([0, 1], [0, 1], lon, kind='linear')
+
+        # Grid matching shifted corner coordinates (see above).
+        latgrid = np.linspace(0, 1, imagedimension.lat + 1)
+        longrid = np.linspace(0, 1, imagedimension.lon + 1)
+
+        # Apply lat-lon-function to grid and cut off last row and column to get
+        # the non-shifted grid.
+        lons = flon(longrid, latgrid)[:-1, :-1]
+        lats = flat(longrid, latgrid)[:-1, :-1]
+
+        return lats, lons
+
+    def get_lapserate(self):
+        """Estimate lapse rate from MODIS climatology using :func:`lapserate`."""
+        return lapserate_modis(self.datetime.month, self.scenecenter[0])
+    
+    
+    def get_cloudtopheight(self):
+        """Estimate the cloud top height according to Baum et al., 2012 
+        using :func: `cloudtopheight_IR`."""
+        bt = self.get_brightnesstemperature('14')
+        cloudmask = self.retrieve_cloudmask()
+        latitude = self.scenecenter.latitude
+        month = self.datetime.month
+        
+        return cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis')
+    
+    
+    def sensor_angles(self, sensor='vnir'):
+        """Calculate a sun reflection angle for a given ASTER image depending on
+        the sensor-sun geometry and the sensor settings.
+
+        Note:
+            All angular values are given in [°].
+
+        Parameters:
+            sensor (str): ASTER sensor ("vnir", "swir", or "tir").
+
+        Returns:
+            sensor_angle (ndarray): 2d field of size `cloudmask` of reflection
+            angles for eachannel pixel.
+
+        References:
+             Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
+             & Dongling Li (2015) Observation of submarine sand waves using ASTER
+             stereo sun glitter imagery, International Journal of Remote Sensing,
+             36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
+             Algorithm Theoretical Basis Document for ASTER Level-1 Data 
+             Processing (Ver. 3.0).1996.
+        """
+        
+        metadata = self.get_metadata()
+        # Angular data from ASTER metadata data.
+        S = float(metadata['MAPORIENTATIONANGLE'])
+        
+        if sensor=='vnir':
+            P = float(metadata['POINTINGANGLE.1'])
+            FOV = 6.09 # Field of view
+            #IFOV = np.rad2deg(21.3e-6) Instantaneous field of view
+            field = self.get_radiance(channel='1')
+        elif sensor=='swir':
+            P = float(metadata['POINTINGANGLE.2'])
+            #IFOV = np.rad2deg(42.6e-6)
+            FOV = 4.9
+            field = self.get_radiance(channel='4')
+        elif sensor=='tir':
+            P = float(metadata['POINTINGANGLE.3'])
+            #IFOV = np.rad2deg(127.8e-6)
+            FOV = 4.9
+            field = self.get_radiance(channel='10')
+        else:
+            raise ValueError('ASTER sensors are named: vnir, swir, tir.')
+
+        # Instantaneous FOV (IVOF)
+        #IFOV = FOV / cloudmask.shape[1]
+
+        # Construct n-array indexing pixels n=- right and n=+ left from the image
+        # center and perpendicular to flight direction.
+        n = np.zeros(np.shape(field))
+        nswath = []
+        #assign indices n to pixel, neglegting the frist and last 5 swath rows
+        for i in np.arange(start=5, stop=field.shape[0]-5, step=1, dtype=int):
+            # for all scan rows: extract first and last not-NaN index 
+            ind1 = (next(x[0] for x in enumerate(field[i]) if ~np.isnan(x[1]) ))
+            #print('Index 1: ', ind1)
+            ind2 = (field.shape[1] - next(x[0] for x in
+                                    enumerate(field[i,5:-5][::-1]) if ~np.isnan(x[1]) ) )
+            ind_mid = (ind1 + ind2) / 2
+            nswath.append(ind2-ind1+1)
+            # create indexing arrays for right and left side of swath
+            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1,
+                                  dtype=int)*-1
+            left_arr = np.arange(start=1,
+                                 stop=field.shape[1] - round(ind_mid) + 1,
+                                 step=1, dtype=int)*-1
+            n[i] = np.asarray(list(right_arr) + list(left_arr))
+            
+        # add the first and last 5 scan lines as dupliates of the 6th and 6th-last row.
+        n[:5] = n[5] # first
+        n[-5:] = n[-6] # last
+
+        n[np.isnan(field)] = np.nan
+        
+        # instantaneous field of view (IFOV)
+        FOV_S = FOV / np.cos(np.deg2rad(S)) # correct for map orientation
+        IFOV = FOV_S / np.median(nswath) # median scan line width
+
+        # Thresholding index for separating left and right from nadir in
+        # azimuth calculation.
+        n_az = n * IFOV + P
+
+        # ASTER zenith angle
+        zenith = abs(np.asarray(n) * IFOV + P)
+
+        # ASTER azimuth angle
+        azimuth = np.ones(field.shape) * np.nan
+        # swath right side
+        azimuth[np.logical_and(n_az<0, ~np.isnan(n))] = 90 + S
+        # swath left side
+        azimuth[np.logical_and(n_az>=0, ~np.isnan(n))] = 270 + S
+
+        return (zenith, azimuth)
+
+
+    def reflection_angles(self):
+        """Calculate the reflected sun angle, theta_r, of specular reflection
+        of sunlight into an instrument sensor.
+
+        Returns:
+            (ndarray): 2d field of size `cloudmask` of reflection
+            angles in [°] for eachannel pixel.
+
+        References:
+             Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
+             & Dongling Li (2015) Observation of submarine sand waves using ASTER
+             stereo sun glitter imagery, International Journal of Remote Sensing,
+             36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
+        """
+        sun_azimuth = self.solardirection.azimuth + 180 # +180° corresponds to "anti-/reflected" sun
+        sun_zenith = 90 - self.solardirection.elevation # sun zenith = 90 - sun elevation
+        
+        sensor_zenith, sensor_azimuth = self.sensor_angles()
+
+        return np.degrees(np.arccos(np.cos(np.deg2rad(sensor_zenith))
+                                    * np.cos(np.deg2rad(sun_zenith))
+                                    + np.sin(np.deg2rad(sensor_zenith))
+                                    * np.sin(np.deg2rad(sun_zenith))
+                                    * np.cos( np.deg2rad(sensor_azimuth)
+                                    - np.deg2rad(sun_azimuth)) ) )
+
+
+def lapserate_modis(month, latitude):
+    """Estimate of the apparent lapse rate in [K/km].
+    Typical lapse rates are assumed for each month and depending on the
+    location on Earth, i.e. southern hemisphere, tropics, or northern
+    hemisphere. For a specific case the lapse rate is estimated by a 4th order
+    polynomial and polynomial coefficients given in the look-up table.
+    This approach is based on the MODIS cloud top height retrieval and applies
+    to data recorded at 11 microns. According to Baum et al., 2012, the
+    predicted lapse rates are restricted to a maximum and minimum of
+    10 and 2 K/km, respectively.
+
+
+    Parameters:
+        month (int): Month of the year.
+        latitude (float): Latitude of center coordinate.
+
+    Returns:
+        float: Lapse rate estimate.
+
+    References:
+        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
+        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
+        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
+        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
+    """
+    lapserate_lut = {
+        'month': np.arange(1, 13),
+        'SH_transition': np.array([-3.8, -21.5, -2.8, -23.4, -12.3, -7.0,
+                                   -10.5, -7.8, -8.6, -7.0, -9.2, -3.7]),
+        'NH_transition': np.array([22.1, 12.8, 10.7, 29.4, 14.9, 16.8,
+                                   15.0, 19.5, 17.4, 27.0, 22.0, 19.0]),
+        'a0': np.array([(2.9769801, 2.9426577, 1.9009563),  # Jan
+                        (3.3483239, 2.6499606, 2.4878736),  # Feb
+                        (2.4060296, 2.3652047, 3.1251275),  # Mar
+                        (2.6522387, 2.5433158, 13.3931707),  # Apr
+                        (1.9578263, 2.4994028, 1.6432070),  # May
+                        (2.7659754, 2.7641496, -5.2366360),  # Jun
+                        (2.1106812, 3.1202043, -4.7396481),  # Jul
+                        (3.0982174, 3.4331195, -1.4424843),  # Aug
+                        (3.0760552, 3.4539390, -3.7140186),  # Sep
+                        (3.6377215, 3.6013337, 8.2237401),  # Oct
+                        (3.3206165, 3.1947419, -0.4502047),  # Nov
+                        (3.0526633, 3.1276377, 9.3930897)]),  # Dec
+        'a1': np.array([(-0.0515871, -0.0510674, 0.0236905),
+                        (0.1372575, -0.0105152, -0.0076514),
+                        (0.0372002, 0.0141129, -0.1214572),
+                        (0.0325729, -0.0046876, -1.2206948),
+                        (-0.2112029, -0.0364706, 0.1151207),
+                        (-0.1186501, -0.0728625, 1.0105575),
+                        (-0.3073666, -0.1002375, 0.9625734),
+                        (-0.1629588, -0.1021766, 0.4769307),
+                        (-0.2043463, -0.1158262, 0.6720954),
+                        (-0.0857784, -0.0775800, -0.5127533),
+                        (-0.1411094, -0.1045316, 0.2629680),
+                        (-0.1121522, -0.0707628, -0.8836682)]),
+        'a2': np.array([(0.0027409, 0.0052420, 0.0086504),
+                        (0.0133259, 0.0042896, 0.0079444),
+                        (0.0096473, 0.0059242, 0.0146488),
+                        (0.0100893, 0.0059325, 0.0560381),
+                        (-0.0057944, 0.0082002, 0.0033131),
+                        (0.0011627, 0.0088878, -0.0355440),
+                        (-0.0090862, 0.0064054, -0.0355847),
+                        (-0.0020384, 0.0010499, -0.0139027),
+                        (-0.0053970, 0.0015450, -0.0210550),
+                        (0.0024313, 0.0041940, 0.0205285),
+                        (-0.0026068, 0.0049986, -0.0018419),
+                        (-0.0009913, 0.0055533, 0.0460453)]),
+        'a3': np.array([(0.0001136, 0.0001097, -0.0002167),
+                        (0.0003043, 0.0000720, -0.0001774),
+                        (0.0002334, -0.0000159, -0.0003188),
+                        (0.0002601, 0.0000144, -0.0009874),
+                        (-0.0001050, 0.0000844, -0.0001458),
+                        (0.0000937, 0.0001768, 0.0005188),
+                        (-0.0000890, 0.0002620, 0.0005522),
+                        (0.0000286, 0.0001616, 0.0001759),
+                        (-0.0000541, 0.00017117, 0.0002974),
+                        (0.0001495, 0.0000941, -0.0003016),
+                        (0.0000058, 0.0001911, -0.0000369),
+                        (0.0000180, 0.0001550, -0.0008450)]),
+        'a4': np.array([(0.00000113, -0.00000372, 0.00000151),
+                        (0.00000219, -0.0000067, 0.00000115),
+                        (0.00000165, -0.00000266, 0.00000210),
+                        (0.00000199, -0.00000346, 0.00000598),
+                        (-0.00000074, -0.00000769, 0.00000129),
+                        (0.00000101, -0.00001168, -0.00000262),
+                        (0.00000004, -0.00001079, -0.00000300),
+                        (0.00000060, 0.00000510, -0.00000080),
+                        (-0.00000002, 0.00000248, -0.00000150),
+                        (0.00000171, -0.0000041, 0.00000158),
+                        (0.00000042, -0.00000506, 0.00000048),
+                        (0.00000027, -0.00000571, 0.00000518)]),
+    }
+
+    ind_month = month - 1
+
+    if latitude < lapserate_lut['SH_transition'][ind_month]:
+        region_flag = 0  # Southern hemisphere
+    elif (latitude >= lapserate_lut['SH_transition'][ind_month] and
+          latitude <= lapserate_lut['NH_transition'][ind_month]):
+        region_flag = 1  # Tropics
+    elif latitude > lapserate_lut['NH_transition'][ind_month]:
+        region_flag = 2  # Northern hemisphere
+    else:
+        raise ValueError('Latitude of center coordinate cannot be read.')
+
+    lapserate = (
+            lapserate_lut['a0'][ind_month][region_flag]
+            + lapserate_lut['a1'][ind_month][region_flag] * latitude
+            + lapserate_lut['a2'][ind_month][region_flag] * latitude ** 2
+            + lapserate_lut['a3'][ind_month][region_flag] * latitude ** 3
+            + lapserate_lut['a4'][ind_month][region_flag] * latitude ** 4
+    )
+
+    return lapserate
+
+
+def lapserate_moist_adiabate():
+    """Moist adiabatic lapse rate in [K/km].
+    """
+    return 6.5
+
+
+def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
+    """Cloud Top Height (CTH) from 11 micron channel following Baum et al., 2012.
+    Brightness temperatures (bt) are converted to CTHs using the IR window approach: 
+    (bt_clear - bt_cloudy) / lapse_rate.
 
     See also:
         :func:`skimage.measure.block_reduce`: Down-sample image by applying
@@ -400,25 +723,32 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
             depending on month and latitude acc. to Baum et al., 2012.
 
     Parameters:
-        cloudmask (ndarray): binary ASTER cloud mask image.
-        Tb14 (ndarray): brightness temperatures form ASTER channel 14.
-        method (str): approachannel used to derive CTH: 'simple' or 'modis'.
-        latitudes (ndarray): latitudes in [°], positive North, negative South.
+        bt (ndarray): brightness temperatures form 11 micron channel.
+        cloudmask (ndarray): binary cloud mask.
         month (int): month of the year.
+        latitude (ndarray): latitudes in [°], positive North, negative South.
+        method (str): approach used to derive CTH: 'modis' see Baum et al., 2012,
+            'simple' uses the moist adiabatic lapse rate.
 
     Returns:
         ndarray: cloud top height.
+    
+    References:
+        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
+        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
+        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
+        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
     """
     # Lapse rate
     if method=='simple':
         lapserate = lapserate_moist_adiabate()
 
     elif method=='modis':
-        latitude = latitudes[np.shape(latitudes)[0] // 2,
-                             np.shape(latitudes)[1] // 2]
-        lapserate = lapserate_modis(month=month, latitude=latitude)
+        lapserate = lapserate_modis(month, latitude)
+    else:
+        raise ValueError("Method is not supported.")
 
-    resolution_ratio = np.shape(cloudmask)[0] // np.shape(Tb14)[0]
+    resolution_ratio = np.shape(cloudmask)[0] // np.shape(bt)[0]
 
     cloudmask_inverted = cloudmask.copy()
     cloudmask_inverted[np.isnan(cloudmask_inverted)] = 1
@@ -428,14 +758,14 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
     cloudmask[np.isnan(cloudmask)] = 0
     cloudmask = np.asarray(cloudmask, dtype=int)
 
-    # Match cloudmask resolution and Tb14 resolution.
+    # Match resolutions of cloud mask and brightness temperature (bt) arrays.
     if resolution_ratio > 1:
-        # On Tb14 resolution, flag pixels as cloudy only if all subgrid pixels
+        # On bt resolution, flag pixels as cloudy only if all subgrid pixels
         # are cloudy in the original cloud mask.
         mask_cloudy = block_reduce(cloudmask,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
-        # Search for 90m only clear pixels to derive a Tb clearsky/ocean value.
+        # Search for only clear pixels to derive a bt clearsky/ocean value.
         mask_clear = block_reduce(cloudmask_inverted,
                                         (resolution_ratio, resolution_ratio),
                                         func=np.alltrue)
@@ -447,211 +777,14 @@ def cloudtopheight_IR(cloudmask, Tb14, method='simple', latitudes=None,
                                                   resolution_ratio, axis=0),
                                                   resolution_ratio, axis=1)
         except ValueError:
-            logger.warning(
-                'Problems matching the shapes of cloudmask and Tb14.')
+            raise ValueError(
+                'Problems matching the shapes of provided cloud mask and bt arrays.')
     else:
         mask_cloudy = cloudmask.copy()
         mask_clear = cloudmask_inverted.copy()
 
-    Tb_cloudy = np.ones(np.shape(Tb14)) * np.nan
-    Tb_cloudy[mask_cloudy] = Tb14[mask_cloudy]
+    bt_cloudy = np.ones(np.shape(bt)) * np.nan
+    bt_cloudy[mask_cloudy] = bt[mask_cloudy]
+    bt_clear_avg = np.nanmean(bt[mask_clear])
 
-    Tb_clear_avg = np.nanmean(Tb14[mask_clear])
-
-    return (Tb_clear_avg - Tb_cloudy) / lapserate
-
-
-def lapserate_modis(month, latitude):
-    """Estimate of the apparent lapse rate in [K/km].
-    Typical lapse rates are assumed for eachannel month and depending on the
-    location on Earth, i.e. southern hemisphere, tropics, or northern
-    hemisphere. For a specific case the lapse rate is estimated by a 4th order
-    polynomial and polynomial coefficients given in the look-up table.
-    This approachannel is based on the MODIS cloud top height retrieval and applies
-    to data recorded at 11 microns.
-
-    Note:
-        Northern hemisphere only!
-
-    Parameters:
-        month (int): month of the year.
-        latitude (float): latitude.
-
-    Returns:
-        float: lapse rate.
-
-    References:
-        Baum, B.A., W.P. Menzel, R.A. Frey, D.C. Tobin, R.E. Holz, S.A.
-        Ackerman, A.K. Heidinger, and P. Yang, 2012: MODIS Cloud-Top Property
-        Refinements for Collection 6. J. Appl. Meteor. Climatol., 51,
-        1145–1163, https://doi.org/10.1175/JAMC-D-11-0203.1
-    """
-    lapserate_lut = {'month': np.arange(1,13),
-        'lat_split': np.array([22.1, 12.8, 10.7, 29.4, 14.9, 16.8,
-                               15.0, 19.5, 17.4, 27.0, 22.0, 19.0]),
-        'a0': np.array([(2.9426577,1.9009563), (2.6499606,2.4878736),
-                        (2.3652047,3.1251275), (2.5433158,13.3931707),
-                        (2.4994028,1.6432070), (2.7641496, -5.2366360),
-                        (3.1202043,-4.7396481), (3.4331195,-1.4424843),
-                        (3.4539390,-3.7140186), (3.6013337,8.2237401),
-                        (3.1947419,-0.4502047), (3.1276377,9.3930897) ]),
-        'a1': np.array([(-0.0510674,0.0236905), (-0.0105152, -0.0076514),
-                        (0.0141129,-0.1214572), (-0.0046876,-1.2206948),
-                        (-0.0364706,0.1151207), (-0.0728625, 1.0105575),
-                        (-0.1002375,0.9625734), (-0.1021766,0.4769307),
-                        (-0.1158262,0.6720954), (-0.0775800,-0.5127533),
-                        (-0.1045316,0.2629680), (-0.0707628,-0.8836682) ]),
-        'a2': np.array([(0.0052420,0.0086504), (0.0042896,0.0079444),
-                        (0.0059242,0.0146488), (0.0059325,0.0560381),
-                        (0.0082002,0.0033131), (0.0088878,-0.0355440),
-                        (0.0064054,-0.0355847), (0.0010499,-0.0139027),
-                        (0.0015450,-0.0210550), (0.0041940,0.0205285),
-                        (0.0049986,-0.0018419), (0.0055533,0.0460453) ]),
-        'a3': np.array([(0.0001097,-0.0002167), (0.0000720,-0.0001774),
-                        (-0.0000159,-0.0003188), (0.0000144,-0.0009874),
-                        (0.0000844,-0.0001458), (0.0001768,0.0005188),
-                        (0.0002620,0.0005522), (0.0001616,0.0001759),
-                        (0.00017117,0.0002974),(0.0000941,-0.0003016),
-                        (0.0001911,-0.0000369), (0.0001550,-0.0008450) ]),
-        'a4': np.array([(-0.00000372,0.00000151), (-0.0000067,0.00000115),
-                        (-0.00000266,0.00000210), (-0.00000346,0.00000598),
-                        (-0.00000769,0.00000129), (-0.00001168,-0.00000262),
-                        (-0.00001079,-0.00000300), (0.00000510,-0.00000080),
-                        (0.00000248,-0.00000150), (-0.0000041,0.00000158),
-                        (-0.00000506,0.00000048), (-0.00000571,0.00000518) ])}
-
-    month -= 1
-
-    if latitude < lapserate_lut['lat_split'][month]:
-        region_flag = 0
-    else:
-        region_flag = 1
-
-    lapserate = (lapserate_lut['a0'][month][region_flag]
-            + lapserate_lut['a1'][month][region_flag] * latitude
-            + lapserate_lut['a2'][month][region_flag] * latitude**2
-            + lapserate_lut['a3'][month][region_flag] * latitude**3
-            + lapserate_lut['a4'][month][region_flag] * latitude**4)
-
-    return lapserate
-
-
-def lapserate_moist_adiabate():
-    """Moist adiabatic lapse rate in [K/km].
-    """
-    return 6.5
-
-
-def get_reflection_angle(cloudmask, metadata):
-    """Calculate a sun reflection angle for a given ASTER image depending on
-    the sensor-sun geometry and the sensor settings.
-
-    Note:
-        All angular values are given in [°].
-
-    Parameters:
-        cloudmask (ndarray): binary ASTER cloud mask image.
-        metadata (dict): ASTER  HDF meta data information.
-
-    Returns:
-        reflection_angle (ndarray): 2d field of size `cloudmask` of reflection
-        angles for eachannel pixel.
-
-    References:
-         Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
-         & Dongling Li (2015) Observation of submarine sand waves using ASTER
-         stereo sun glitter imagery, International Journal of Remote Sensing,
-         36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
-    """
-
-    # Angular data from ASTER metadata data.
-    S = float(metadata['MAPORIENTATIONANGLE'])
-    P = float(metadata['POINTINGANGLE.1'])
-    # SOLARDIRECTION = (0< az <360, -90< el <90)
-    sun_azimuth = float(metadata['SOLARDIRECTION'].split(',')[0].strip())
-    # sun zenith = 90 - sun elevation
-    sun_zenith = 90 - float(metadata['SOLARDIRECTION'].split(',')[1].strip())
-
-    # Instrument view angles of the Visual Near Infrared (VNIR) sensor:
-    # Field Of View (FOV)
-    FOV_vnir = 6.09
-    # Instantaneous FOV (IVOF)
-    IFOV = FOV_vnir / cloudmask.shape[1]
-
-    # Construct n-array indexing pixels n=- right and n=+ left from the image
-    # central in flight direction.
-    n = np.zeros(np.shape(cloudmask))
-
-    for i in range(cloudmask.shape[0]):
-        if np.sum(~np.isnan(cloudmask[i,:])) > 0:
-            # get index of swath edge pixels and calculate swath mid pixel
-            ind1 = next(x[0] for x in
-                        enumerate(cloudmask[i]) if ~np.isnan(x[1]) )
-            ind2 = (cloudmask.shape[1] - next(x[0] for x in
-                    enumerate(cloudmask[i][::-1]) if ~np.isnan(x[1]) ) )
-            ind_mid = (ind1 + ind2) / 2
-            # Assign n-values correspondingly to left and right sides
-            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1,
-                                  dtype=int)
-            left_arr = np.arange(start=1,
-                                 stop=cloudmask.shape[1] - round(ind_mid) + 1,
-                                 step=1, dtype=int)
-            n[i] = np.asarray(list(right_arr) + list(left_arr))
-        else:
-            # Put NaN if ONLY NaN values are in cloudmask row.
-            n[i] = np.nan
-
-    n[np.isnan(cloudmask)] = np.nan
-
-    # Thresholding index for separating left and right from nadir in
-    # azimuth calculation.
-    n_az = n * IFOV + P
-
-    # ASTER zenith angle
-    ast_zenith = abs(np.asarray(n) * IFOV + P)
-
-    # ASTER azimuth angle
-    ast_azimuth = np.ones(cloudmask.shape) * np.nan
-    # swath right side
-    ast_azimuth[np.logical_and(n_az<0, ~np.isnan(n))] = 90 + S
-    # swath left side
-    ast_azimuth[np.logical_and(n_az>=0, ~np.isnan(n))] = 270 + S
-
-    # Reflection angle, i.e. the angle between the sensor and the reflected sun
-    # in the sensor-sun-plane.
-    reflection_angle = theta_r(sun_zenith=sun_zenith,
-                               # +180° corresponds to "anti-/reflected" sun
-                               sun_azimuth=sun_azimuth + 180,
-                               sensor_zenith=ast_zenith,
-                               sensor_azimuth=ast_azimuth)
-
-    return reflection_angle
-
-
-def theta_r(sun_zenith, sun_azimuth, sensor_zenith, sensor_azimuth):
-    """Calculate the reflected sun angle, theta_r, of specular reflection
-    of sunlight into an instrument sensor.
-
-    Parameters:
-        sun_zenith (float): sun zenith angle in [°].
-        sun_azimuth (float): sun azimuth angle in [°].
-        sensor_zenith (ndarray): 2D sensor zenith angle in [°] for eachannel pixel
-                                in the image.
-        sensor_azimuth (ndarray): 2D sensor azimuth angle in [°] for eachannel
-                                pixel in the image.
-
-    Returns:
-        (ndarray): reflection angle in [°] for eachannel pixel in the image.
-
-    References:
-         Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
-         & Dongling Li (2015) Observation of submarine sand waves using ASTER
-         stereo sun glitter imagery, International Journal of Remote Sensing,
-         36:22, 5576-5592, DOI: 10.1080/01431161.2015.1101652
-    """
-    return np.degrees(np.arccos(np.cos(np.deg2rad(sensor_zenith))
-                                * np.cos(np.deg2rad(sun_zenith))
-                                + np.sin(np.deg2rad(sensor_zenith))
-                                * np.sin(np.deg2rad(sun_zenith))
-                                * np.cos( np.deg2rad(sensor_azimuth)
-                                - np.deg2rad(sun_azimuth)) ) )
+    return (bt_clear_avg - bt_cloudy) / lapserate
