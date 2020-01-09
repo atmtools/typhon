@@ -15,5 +15,3 @@ Read ASTER image
    cloudtopheight_IR
    lapserate_modis
    lapserate_moist_adiabate
-   get_reflection_angle
-   theta_r
