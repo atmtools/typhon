@@ -473,8 +473,7 @@ class ASTERimage:
             All angular values are given in [°].
 
         Parameters:
-            cloudmask (ndarray): binary ASTER cloud mask image.
-            metadata (dict): ASTER  HDF meta data information.
+            sensor (str): ASTER sensor ("vnir", "swir", or "tir").
 
         Returns:
             sensor_angle (ndarray): 2d field of size `cloudmask` of reflection
@@ -567,12 +566,6 @@ class ASTERimage:
     def reflection_angles(self):
         """Calculate the reflected sun angle, theta_r, of specular reflection
         of sunlight into an instrument sensor.
-
-        Parameters:
-            sensor_zenith (ndarray): 2D sensor zenith angle in [°] for eachannel pixel
-                                    in the image.
-            sensor_azimuth (ndarray): 2D sensor azimuth angle in [°] for eachannel
-                                    pixel in the image.
 
         Returns:
             (ndarray): 2d field of size `cloudmask` of reflection
@@ -734,10 +727,10 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
     Parameters:
         bt (ndarray): brightness temperatures form 11 micron channel.
         cloudmask (ndarray): binary cloud mask.
+        month (int): month of the year.
+        latitude (ndarray): latitudes in [°], positive North, negative South.
         method (str): approach used to derive CTH: 'modis' see Baum et al., 2012,
             'simple' uses the moist adiabatic lapse rate.
-        latitudes (ndarray): latitudes in [°], positive North, negative South.
-        month (int): month of the year.
 
     Returns:
         ndarray: cloud top height.
