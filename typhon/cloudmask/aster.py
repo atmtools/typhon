@@ -535,10 +535,8 @@ class ASTERimage:
             n[i] = np.asarray(list(right_arr) + list(left_arr))
             
         # add the first and last 5 scan lines as dupliates of the 6th and 6th-last row.
-        for i in range(5):
-            n[i] = n[5] # first
-        for i in range(field.shape[0]-5,field.shape[0]):
-            n[i] = n[field.shape[0]-6] # last
+        n[:5] = n[5] # first
+        n[-5:] = n[-6] # last
 
         n[np.isnan(field)] = np.nan
         
