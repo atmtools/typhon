@@ -71,7 +71,7 @@ class ASTERimage:
         if dtype is None:
             dtype = str
 
-        if dtype == tuple:
+        if issubclass(dtype, tuple):
             return tuple(float(f.strip()) for f in metastr.split(','))
         else:
             return dtype(metastr)
