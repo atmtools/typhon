@@ -149,22 +149,9 @@ def scai(cloudmask, connectivity=1):
     N = len(centroids)
 
     # potential maximum of N depending on cloud connectivity
-    if connectivity == 1:
-        chessboard = np.ones(cloudmask.shape).flatten()
-        # assign every second element with "0"
-        chessboard[np.arange(1, len(chessboard), 2)] = 0
-        # reshape to original cloudmask.shape
-        chessboard = np.reshape(chessboard, cloudmask.shape)
-        # inlcude NaNmask
-        chessboard[np.isnan(cloudmask)] = np.nan
-        N_max = np.nansum(chessboard)
-    elif connectivity == 2:
-        chessboard[np.arange(1, cloudmask.shape[0], 2), :] = 0
-        chessboard = np.reshape(chessboard, cloudmask.shape)
-        chessboard[np.isnan(cloudmask)] = np.nan
-        N_max = np.sum(chessboard)
-    else:
-        raise ValueError('Connectivity argument should be `1` or `2`.')
+    N_max = np.sum(~np.isnan(cloudmask)) / 2
+    if connectivity == 2:
+        N_max = np.sum(~np.isnan(cloudmask)) / 4
 
     # distance between points (center of mass of clouds) in pairs
     di = pdist(centroids, 'euclidean')
