@@ -44,7 +44,7 @@ def get_cloudproperties(cloudmask, connectivity=1):
     return measure.regionprops(labels)
 
 
-def neighbor_distance(cloudproperties):
+def neighbor_distance(cloudmask, connectivity=1):
     """Calculate nearest neighbor distance for each cloud.
 
     Note: 
@@ -55,14 +55,15 @@ def neighbor_distance(cloudproperties):
             Used to calculate nearest neighbor distances. 
 
     Parameters: 
-        cloudproperties (list[:class:`RegionProperties`]):
-            List of :class:`RegionProperties`
-            (see :func:`skimage.measure.regionprops` or
-            :func:`get_cloudproperties`).
+        cloudmask (ndarray): 2d binary cloud mask.
+        connectivity (int):  Maximum number of orthogonal hops to consider
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
 
     Returns: 
         ndarray: Nearest neighbor distances in pixels.
     """
+    cloudproperties = get_cloudproperties(cloudmask, connectivity=connectivity)
+    
     centroids = [prop.centroid for prop in cloudproperties]
     indices = np.arange(len(centroids))
     neighbor_distance = np.zeros(len(centroids))
@@ -77,7 +78,7 @@ def neighbor_distance(cloudproperties):
     return neighbor_distance
 
 
-def iorg(neighbor_distance, cloudmask):
+def iorg(cloudmask, connectivity=1):
     """Calculate the cloud cluster index 'I_org'.
 
     See also: 
@@ -86,9 +87,9 @@ def iorg(neighbor_distance, cloudmask):
             the composite trapezoidal rule.
 
     Parameters: 
-        neighbor_distance (list or ndarray): Nearest neighbor distances. 
-            Output of :func:`neighbor_distance`. 
         cloudmask (ndarray): 2d binary cloud mask.
+        connectivity (int):  Maximum number of orthogonal hops to consider
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
 
     Returns:
         float: cloud cluster index I_org.
@@ -99,7 +100,8 @@ def iorg(neighbor_distance, cloudmask):
         J. Adv. Model. Earth Syst., 9, 1046–1068, doi: 10.1002/2016MS000802.
         
     """
-    nn_sorted = np.sort(neighbor_distance)
+    nn = neighbor_distance(cloudmask, connectivity=connectivity)
+    nn_sorted = np.sort(nn)
     
     nncdf = np.array(range(len(neighbor_distance))) / len(neighbor_distance)
     
@@ -112,7 +114,7 @@ def iorg(neighbor_distance, cloudmask):
     return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
 
 
-def scai(cloudproperties, cloudmask, connectivity=1):
+def scai(cloudmask, connectivity=1):
     """Calculate the 'Simple Convective Aggregation Index (SCAI)'.  
 
     The SCAI is defined as the ratio of convective disaggregation
@@ -125,12 +127,9 @@ def scai(cloudproperties, cloudmask, connectivity=1):
             Used to calculate the geometric mean of all clouds in pairs. 
 
     Parameters:
-        cloudproperties (list[:class:`RegionProperties`]):
-            Output of function :func:`get_cloudproperties`. 
         cloudmask (ndarray): 2d binary cloud mask.
         connectivity (int):  Maximum number of orthogonal hops to consider
             a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
-        mask (ndarray): 2d mask of non valid pixels.
 
     Returns:
         float: SCAI.
@@ -142,6 +141,7 @@ def scai(cloudproperties, cloudmask, connectivity=1):
         https://doi.org/10.1175/JCLI-D-11-00258.1
 
     """
+    cloudproperties = get_cloudproperties(cloudmask, connectivity=connectivity)
     centroids = [prop.centroid for prop in cloudproperties]
 
     # number of cloud clusters
