@@ -103,11 +103,11 @@ def iorg(cloudmask, connectivity=1):
     nn = neighbor_distance(cloudmask, connectivity=connectivity)
     nn_sorted = np.sort(nn)
     
-    nncdf = np.array(range(len(neighbor_distance))) / len(neighbor_distance)
+    nncdf = np.array(range(len(nn))) / len(nn)
     
     # theoretical nearest neighbor cumulative frequency
     # distribution (nncdf) of a random point process (Poisson)
-    lamb = (len(neighbor_distance) /
+    lamb = (len(nn) /
             (cloudmask.shape[0] * cloudmask.shape[1]))
     nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted**2)
 
