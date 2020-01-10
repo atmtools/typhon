@@ -12,6 +12,7 @@ __all__ = [
     'neighbor_distance',
     'iorg',
     'scai',
+    'cloudfraction',
 ]
 
 
@@ -174,3 +175,15 @@ def scai(cloudmask, connectivity=1):
     L = np.sqrt(cloudmask.shape[0]**2 + cloudmask.shape[1]**2)
 
     return N / N_max * D0 / L * 1000
+
+
+def cloudfraction(cloudmask):
+    """Calculate cloud fraction based on cloud mask, while irnoring NaNs.
+    
+    Parameters:
+        cloudmask (ndarray): 2d binary cloud mask.
+        
+    Returns:
+        float: cloud fraction.
+    """
+    return np.nansum(cloudmask) / np.sum(~np.isnan(cloudmask))
