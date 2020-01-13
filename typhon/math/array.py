@@ -180,3 +180,21 @@ def mad_outliers(arr, cutoff=10, mad0="raise"):
         return numpy.ones(shape=ad.shape, dtype="?")
     else:
         return (ad / mad) > cutoff
+
+
+def argclosest(array, value, retvalue=False):
+    """Returns the index of the closest value in array.
+
+    Parameters:
+        array (ndarray): Input array.
+        value (float): Value to compare to.
+        retvalue (bool): If True, return the index and the closest value.
+
+    Returns:
+        int, float:
+        Index of closest value, Closest value (if ``retvalue`` is True)
+
+    """
+    idx = numpy.abs(array - value).argmin()
+
+    return (idx, array[idx]) if retvalue else idx

@@ -30,6 +30,7 @@ math.array
    localmin
    mad_outliers
    parity
+   argclosest
 
 math.stats
 ==========
