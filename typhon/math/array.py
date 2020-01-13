@@ -1,17 +1,16 @@
-"""Functions operating on arrays
-
-"""
+"""Functions operating on arrays."""
 
 # Any commits made to this module between 2015-05-01 and 2017-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and
 # Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
 # Grant agreement: 638822
-# 
+#
 # All those contributions are dual-licensed under the MIT license for use
 # in typhon, and the GNU General Public License version 3.
 
 import numpy as np
 import scipy.stats
+
 
 def localmin(arr):
     """Find local minima for 1-D array
@@ -33,9 +32,8 @@ def localmin(arr):
     """
 
     localmin = np.hstack(
-        (False,
-         (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]),
-         False))
+        (False, (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]), False)
+    )
 
     return localmin
 
@@ -90,7 +88,7 @@ def limit_ndarray(M, limits):
             while lelo.ndim > 1:
                 lelo = getattr(lelo, mode)(-1)
                 sthi = getattr(sthi, mode)(-1)
-            selection = (selection & lelo & sthi)
+            selection = selection & lelo & sthi
 
     return M[selection]
 
@@ -114,7 +112,7 @@ def parity(v):
     parity = np.zeros(dtype=">u1", shape=v.shape)
     while v.any():
         parity[v != 0] += 1
-        v &= (v - 1)
+        v &= v - 1
     return parity
 
 
@@ -166,11 +164,9 @@ def mad_outliers(arr, cutoff=10, mad0="raise"):
             raise ValueError("Cannot filter outliers, MAD=0")
         elif mad0 == "perc":
             # try other percentiles
-            perc = np.r_[
-                np.arange(50, 99, 1),
-                np.linspace(99, 100, 100)]
+            perc = np.r_[np.arange(50, 99, 1), np.linspace(99, 100, 100)]
             pad = scipy.stats.scoreatpercentile(ad, perc)
-            if (pad==0).all(): # all constant…?
+            if (pad == 0).all():  # all constant…?
                 raise ValueError("These data are weird!")
             p_i = pad.nonzero()[0][0]
             cutoff *= (100 - 50) / (100 - perc[p_i])
