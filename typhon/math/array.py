@@ -191,6 +191,6 @@ def argclosest(array, value, retvalue=False):
         Index of closest value, Closest value (if ``retvalue`` is True)
 
     """
-    idx = np.abs(array - value).argmin()
+    idx = np.abs(np.asarray(array) - value).argmin()
 
     return (idx, array[idx]) if retvalue else idx
