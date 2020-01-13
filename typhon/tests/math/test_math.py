@@ -81,3 +81,14 @@ class TestCommon:
         """Test ValueError if squeeze is out of bounds."""
         with pytest.raises(ValueError):
             math.squeezable_logspace(100, 1, squeeze=2.01)
+
+class TestArray:
+    """Testing array related mathematical functions."""
+    def test_argclosest(self):
+        x = np.arange(10)
+
+        idx = math.array.argclosest(x, value=5.4)
+        assert idx == 5
+
+        idx, val = math.array.argclosest(x, value=5.4, retvalue=True)
+        assert idx == 5 and val == 5.

@@ -1,17 +1,16 @@
-"""Functions operating on arrays
-
-"""
+"""Functions operating on arrays."""
 
 # Any commits made to this module between 2015-05-01 and 2017-03-01
 # by Gerrit Holl are developed for the EC project “Fidelity and
 # Uncertainty in Climate Data Records from Earth Observations (FIDUCEO)”.
 # Grant agreement: 638822
-# 
+#
 # All those contributions are dual-licensed under the MIT license for use
 # in typhon, and the GNU General Public License version 3.
 
-import numpy
+import numpy as np
 import scipy.stats
+
 
 def localmin(arr):
     """Find local minima for 1-D array
@@ -32,10 +31,9 @@ def localmin(arr):
         element are always False.
     """
 
-    localmin = numpy.hstack(
-        (False,
-         (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]),
-         False))
+    localmin = np.hstack(
+        (False, (arr[1:-1] < arr[0:-2]) & (arr[1:-1] < arr[2:]), False)
+    )
 
     return localmin
 
@@ -76,7 +74,7 @@ def limit_ndarray(M, limits):
         ndarray subset of M.  This is a view, not a copy.
     """
 
-    selection = numpy.ones(shape=M.shape, dtype="?")
+    selection = np.ones(shape=M.shape, dtype="?")
 
     for (field, val) in limits.items():
         ndim = len(M.dtype[field].shape)
@@ -90,7 +88,7 @@ def limit_ndarray(M, limits):
             while lelo.ndim > 1:
                 lelo = getattr(lelo, mode)(-1)
                 sthi = getattr(sthi, mode)(-1)
-            selection = (selection & lelo & sthi)
+            selection = selection & lelo & sthi
 
     return M[selection]
 
@@ -111,10 +109,10 @@ def parity(v):
     """
 
     v = v.copy()  # don't ruin original
-    parity = numpy.zeros(dtype=">u1", shape=v.shape)
+    parity = np.zeros(dtype=">u1", shape=v.shape)
     while v.any():
         parity[v != 0] += 1
-        v &= (v - 1)
+        v &= v - 1
     return parity
 
 
@@ -157,26 +155,42 @@ def mad_outliers(arr, cutoff=10, mad0="raise"):
     """
 
     if arr.ptp() == 0:
-        return numpy.zeros(shape=arr.shape, dtype="?")
+        return np.zeros(shape=arr.shape, dtype="?")
 
-    ad = abs(arr - numpy.ma.median(arr))
-    mad = numpy.ma.median(ad)
+    ad = abs(arr - np.ma.median(arr))
+    mad = np.ma.median(ad)
     if mad == 0:
         if mad0 == "raise":
             raise ValueError("Cannot filter outliers, MAD=0")
         elif mad0 == "perc":
             # try other percentiles
-            perc = numpy.r_[
-                numpy.arange(50, 99, 1),
-                numpy.linspace(99, 100, 100)]
+            perc = np.r_[np.arange(50, 99, 1), np.linspace(99, 100, 100)]
             pad = scipy.stats.scoreatpercentile(ad, perc)
-            if (pad==0).all(): # all constant…?
+            if (pad == 0).all():  # all constant…?
                 raise ValueError("These data are weird!")
             p_i = pad.nonzero()[0][0]
             cutoff *= (100 - 50) / (100 - perc[p_i])
             return (ad / pad[p_i]) > cutoff
-    elif mad is numpy.ma.masked:
+    elif mad is np.ma.masked:
         # all are masked already…
-        return numpy.ones(shape=ad.shape, dtype="?")
+        return np.ones(shape=ad.shape, dtype="?")
     else:
         return (ad / mad) > cutoff
+
+
+def argclosest(array, value, retvalue=False):
+    """Returns the index of the closest value in array.
+
+    Parameters:
+        array (ndarray): Input array.
+        value (float): Value to compare to.
+        retvalue (bool): If True, return the index and the closest value.
+
+    Returns:
+        int, float:
+        Index of closest value, Closest value (if ``retvalue`` is True)
+
+    """
+    idx = np.abs(np.asarray(array) - value).argmin()
+
+    return (idx, array[idx]) if retvalue else idx
