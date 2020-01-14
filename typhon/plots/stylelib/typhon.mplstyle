@@ -50,3 +50,6 @@ legend.fontsize : small
 # See http://matplotlib.org/api/figure_api.html#matplotlib.figure.Figure
 figure.figsize : 10, 6.18 # figure size in inches
 figure.titlesize : large # same as axes.titlesize
+
+### SAVING FIGURES
+savefig.dpi: 144  # dots per inches
