@@ -48,5 +48,5 @@ legend.fontsize : small
 
 ### FIGURE
 # See http://matplotlib.org/api/figure_api.html#matplotlib.figure.Figure
-figure.figsize : 10, 6.1803398874989481 # figure size in inches
+figure.figsize : 10, 6.18 # figure size in inches
 figure.titlesize : large # same as axes.titlesize
