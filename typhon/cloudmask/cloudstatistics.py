@@ -12,6 +12,7 @@ __all__ = [
     'neighbor_distance',
     'iorg',
     'scai',
+    'cloudfraction',
 ]
 
 
@@ -103,12 +104,11 @@ def iorg(cloudmask, connectivity=1):
     nn = neighbor_distance(cloudmask, connectivity=connectivity)
     nn_sorted = np.sort(nn)
     
-    nncdf = np.array(range(len(neighbor_distance))) / len(neighbor_distance)
+    nncdf = np.linspace(0, 1, len(nn))
     
     # theoretical nearest neighbor cumulative frequency
     # distribution (nncdf) of a random point process (Poisson)
-    lamb = (len(neighbor_distance) /
-            (cloudmask.shape[0] * cloudmask.shape[1]))
+    lamb = nn.size / cloudsmask.size
     nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted**2)
 
     return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
@@ -148,22 +148,9 @@ def scai(cloudmask, connectivity=1):
     N = len(centroids)
 
     # potential maximum of N depending on cloud connectivity
-    if connectivity == 1:
-        chessboard = np.ones(cloudmask.shape).flatten()
-        # assign every second element with "0"
-        chessboard[np.arange(1, len(chessboard), 2)] = 0
-        # reshape to original cloudmask.shape
-        chessboard = np.reshape(chessboard, cloudmask.shape)
-        # inlcude NaNmask
-        chessboard[np.isnan(cloudmask)] = np.nan
-        N_max = np.nansum(chessboard)
-    elif connectivity == 2:
-        chessboard[np.arange(1, cloudmask.shape[0], 2), :] = 0
-        chessboard = np.reshape(chessboard, cloudmask.shape)
-        chessboard[np.isnan(cloudmask)] = np.nan
-        N_max = np.sum(chessboard)
-    else:
-        raise ValueError('Connectivity argument should be `1` or `2`.')
+    N_max = np.sum(~np.isnan(cloudmask)) / 2
+    if connectivity == 2:
+        N_max = np.sum(~np.isnan(cloudmask)) / 4
 
     # distance between points (center of mass of clouds) in pairs
     di = pdist(centroids, 'euclidean')
@@ -174,3 +161,15 @@ def scai(cloudmask, connectivity=1):
     L = np.sqrt(cloudmask.shape[0]**2 + cloudmask.shape[1]**2)
 
     return N / N_max * D0 / L * 1000
+
+
+def cloudfraction(cloudmask):
+    """Calculate cloud fraction based on cloud mask, while irnoring NaNs.
+    
+    Parameters:
+        cloudmask (ndarray): 2d binary cloud mask.
+        
+    Returns:
+        float: cloud fraction.
+    """
+    return np.nansum(cloudmask) / np.sum(~np.isnan(cloudmask))

@@ -58,6 +58,15 @@ class ASTERimage:
         self.scenecenter = SceneCenter(
             *self._convert_metastr(meta['SCENECENTER'], dtype=tuple)
         )
+        CornerCoordinates = namedtuple('CornerCoordinates', 
+                                       ['LOWERLEFT', 'LOWERRIGHT', 
+                                        'UPPERRIGHT', 'UPPERLEFT'])
+        self.cornercoordinates = CornerCoordinates(
+            self._convert_metastr(meta['LOWERLEFT'],dtype=tuple),
+            self._convert_metastr(meta['LOWERRIGHT'], dtype=tuple),
+            self._convert_metastr(meta['UPPERRIGHT'], dtype=tuple),
+            self._convert_metastr(meta['UPPERLEFT'], dtype=tuple)
+        )
 
 
     @property
