@@ -720,15 +720,18 @@ def lapserate_moist_adiabate():
 
 
 def cloudtopheight_IR(bt, cloudmask, latitude, month, method='modis'):
-    """Cloud Top Height (CTH) from 11 micron channel following Baum et al., 2012.
+    """Cloud Top Height (CTH) from 11 micron channel.
+    
     Brightness temperatures (bt) are converted to CTHs using the IR window approach: 
     (bt_clear - bt_cloudy) / lapse_rate.
 
     See also:
-        :func:`skimage.measure.block_reduce`: Down-sample image by applying
-            function to local blocks.
-        :func:`lapserate_moist_adiabate`: Constant value 6.5 [K/km]
-        :func:`lapserate_modis`: Estimate of the apparent lapse rate in [K/km]
+        :func:`skimage.measure.block_reduce`
+            Down-sample image by applying function to local blocks.
+        :func:`lapserate_moist_adiabate`
+            Constant value 6.5 [K/km]
+        :func:`lapserate_modis`
+            Estimate of the apparent lapse rate in [K/km]
             depending on month and latitude acc. to Baum et al., 2012.
 
     Parameters:

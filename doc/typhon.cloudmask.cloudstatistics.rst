@@ -8,6 +8,7 @@ Calculate cloud mask statistics
 .. autosummary::
    :toctree: generated
 
+   cloudfraction
    get_cloudproperties
    neighbor_distance
    iorg
