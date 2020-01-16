@@ -24,9 +24,7 @@ jobs:
             os: macos-latest
 
     steps:
-      - uses: actions/checkout@v1
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v2
       - name: Install Python ${{ matrix.python-version }}
         uses: actions/setup-python@v1
         with:
