@@ -11,6 +11,8 @@ Typhon provides:
 - functions to calculate and analyse cloud masks
 - various plotting utility functions
 - functions for geodetic and geographical calculations
+- interface to the SRTM30 global elevation model
+- functions for cloudmask statistics
 - and much more...
 
 Further information on ARTS can be found on http://www.radiativetransfer.org/.
