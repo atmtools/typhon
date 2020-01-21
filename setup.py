@@ -1,6 +1,7 @@
 """Typhon is a collection of tools for atmospheric research.
 
 It provides:
+
 - reading and writing routines for ARTS XML files
 - an API to run and access ARTS through Python
 - conversion routines for various physical quantities
