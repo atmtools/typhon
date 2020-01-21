@@ -30,22 +30,27 @@ import builtins
 builtins.__TYPHON_SETUP__ = True
 DOCLINES = (__doc__ or '').split("\n")
 
-try:
-    cp = subprocess.run(
-        ["git", "describe", "--tags"],
-        stdout=subprocess.PIPE,
-        check=True)
-    so = cp.stdout
-    __version__ = so.strip().decode("ascii").lstrip("v").replace(
-        "-", "+dev", 1).replace("-", ".")
-except subprocess.CalledProcessError:
-    logging.warning(
-        "Warning: could not determine version from git, extracting "
-        " latest release version from source")
+version = open(join(dirname(__file__), 'typhon', 'VERSION')).read().strip()
 
-    # Partse version number from module-level ASCII file. This prevents
-    # double-entry bookkeeping).
-    __version__ = open(join(dirname(__file__), 'typhon', 'VERSION')).read().strip()
+if 'dev' in version:
+    try:
+        cp = subprocess.run(
+            ["git", "describe", "--tags"],
+            stdout=subprocess.PIPE,
+            check=True)
+        so = cp.stdout
+        __version__ = so.strip().decode("ascii").lstrip("v").replace(
+            "-", "+dev", 1).replace("-", ".")
+    except subprocess.CalledProcessError:
+        logging.warning(
+            "Warning: could not determine version from git, extracting "
+            " latest release version from source")
+
+        # Parse version number from module-level ASCII file. This prevents
+        # double-entry bookkeeping).
+        __version__ = version
+else:
+    __version__ = version
 
 here = abspath(dirname(__file__))
 
@@ -89,6 +94,7 @@ setup(
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
 
     # What does your project relate to?
