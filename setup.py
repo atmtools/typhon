@@ -90,8 +90,6 @@ setup(
         "setuptools>=0.7.2",
         "xarray>=0.10.2",
     ],
-    setup_requires=["pytest-runner"],
-    tests_require=["pytest"],
     extras_require={
         "docs": ["cartopy", "pint", "sphinx_rtd_theme"],
         "tests": ["pytest", "pint", "gdal"],
