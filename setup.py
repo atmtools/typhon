@@ -37,22 +37,22 @@ if "dev" in version:
         cp = subprocess.run(
             ["git", "describe", "--tags"], stdout=subprocess.PIPE, check=True
         )
+    except subprocess.CalledProcessError:
+        logging.warning(
+            "Warning: could not determine version from git, "
+            "using version from source"
+        )
+    else:
         so = cp.stdout
-        __version__ = (
+        version = (
             so.strip()
             .decode("ascii")
             .lstrip("v")
             .replace("-", "+dev", 1)
             .replace("-", ".")
         )
-    except subprocess.CalledProcessError:
-        logging.warning(
-            "Warning: could not determine version from git, extracting "
-            " latest release version from source"
-        )
-        __version__ = version
-else:
-    __version__ = version
+
+__version__ = version
 
 setup(
     name="typhon",
