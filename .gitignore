@@ -1,6 +1,7 @@
 *.pyc
 *.swp
 .idea
+conda/build
 doc/_build
 doc/generated
 typhon.egg-info
