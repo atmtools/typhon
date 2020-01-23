@@ -1,7 +1,6 @@
 import functools
 import logging
-
-from .version import __version__  # noqa
+from os.path import dirname, join
 
 from . import arts  # noqa
 from . import cloudmask  # noqa
@@ -20,6 +19,9 @@ from . import topography  # noqa
 from . import trees  # noqa
 from . import utils  # noqa
 from .environment import environ  # noqa
+
+# Parse version number from module-level ASCII file
+__version__ = open(join(dirname(__file__), "VERSION")).read().strip()
 
 
 def test():
