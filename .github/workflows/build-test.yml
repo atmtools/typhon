@@ -50,6 +50,7 @@ jobs:
         if: runner.os == 'macOS' || runner.os == 'Windows'
         run: |
           python -m pip install --upgrade pip
+          pip install pytest
           pip install .
 
       - name: Lint with flake8 (Linux)
@@ -67,11 +68,9 @@ jobs:
         if: runner.os == 'Linux' || runner.os == 'macOS'
         run: |
           export TYPHONTESTFILES=$PWD/typhon-testfiles
-          pip install pytest
           pytest --pyargs typhon
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: |
           $Env:TYPHONTESTFILES = Join-Path $pwd "typhon-testfiles"
-          pip install pytest
           pytest --pyargs typhon

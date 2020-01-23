@@ -1,38 +1,34 @@
 import functools
 import logging
+from os.path import dirname, join
 
-from .version import __version__
+from . import arts  # noqa
+from . import cloudmask  # noqa
+from . import config  # noqa
+from . import constants  # noqa
+from . import files  # noqa
+from . import geodesy  # noqa
+from . import geographical  # noqa
+from . import latex  # noqa
+from . import math  # noqa
+from . import nonlte  # noqa
+from . import physics  # noqa
+from . import plots  # noqa
+from . import spectroscopy  # noqa
+from . import topography  # noqa
+from . import trees  # noqa
+from . import utils  # noqa
+from .environment import environ  # noqa
 
-try:
-    __TYPHON_SETUP__
-except:
-    __TYPHON_SETUP__ = False
-
-if not __TYPHON_SETUP__:
-    from . import arts
-    from . import cloudmask
-    from . import config
-    from . import constants
-    from . import files
-    from . import geodesy
-    from . import geographical
-    from . import latex
-    from . import math
-    from . import nonlte
-    from . import physics
-    from . import plots
-    from . import spectroscopy
-    from . import topography
-    from . import trees
-    from . import utils
-    from .environment import environ
+# Parse version number from module-level ASCII file
+__version__ = open(join(dirname(__file__), "VERSION")).read().strip()
 
 
-    def test():
-        """Use pytest to collect and run all tests in typhon.tests."""
-        import pytest
+def test():
+    """Use pytest to collect and run all tests in typhon.tests."""
+    import pytest
 
-        return pytest.main(['--pyargs', 'typhon.tests'])
+    return pytest.main(["--pyargs", "typhon.tests"])
 
 
 _logger = logging.getLogger(__name__)
@@ -74,19 +70,20 @@ def set_fancy_logging(level=None):
     color = "\033[1;%dm"
     reset = "\033[0m"
     black, red, green, yellow, blue, magenta, cyan, white = [
-        color % (30 + i) for i in range(8)]
+        color % (30 + i) for i in range(8)
+    ]
     logformat = (
-        '['
-        f'{magenta}%(levelname)s{reset}:'
-        f'{red}%(asctime)s.%(msecs)03d{reset}:'
-        f'{yellow}%(filename)s{reset}'
-        f':{blue}%(lineno)s{reset}'
-        f':{green}%(funcName)s{reset}'
-        f'] %(message)s'
+        "["
+        f"{magenta}%(levelname)s{reset}:"
+        f"{red}%(asctime)s.%(msecs)03d{reset}:"
+        f"{yellow}%(filename)s{reset}"
+        f":{blue}%(lineno)s{reset}"
+        f":{green}%(funcName)s{reset}"
+        f"] %(message)s"
     )
 
     logging.basicConfig(
         format=logformat,
         level=level if level is not None else logging.INFO,
-        datefmt = '%H:%M:%S',
+        datefmt="%H:%M:%S",
     )
