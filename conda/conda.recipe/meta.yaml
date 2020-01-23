@@ -1,0 +1,45 @@
+{% set data = load_setup_py_data(setup_file='../../setup.py', from_recipe_dir=True) %}
+{% set name = "typhon" %}
+{% set version = data['version'] %}
+
+package:
+  name: {{ name|lower }}
+  version:  {{ version }}
+
+source:
+  #url: "https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  url: "https://test.pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  #url: https://github.com/atmtools/typhon/releases/download/{{ version }}/typhon-{{ version }}.tar.gz
+
+build:
+  number: 0
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  build:
+    - python {{ python }}
+    - pip
+    - setuptools >=0.7.2
+  host:
+    - python
+  run:
+    - python
+    {% for dep in data['install_requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+test:
+  requires:
+    - pytest
+  commands:
+    - pytest --pyargs typhon
+
+about:
+  home: {{ data['url'] }}
+  license: {{ data['license'] }}
+  license_file: LICENSE
+  summary: {{ data['description'] }}
+
+extra:
+  recipe-maintainers:
+    - olemke
