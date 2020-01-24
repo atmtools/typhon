@@ -67,7 +67,7 @@ class QuantileLoss:
     """
 
     def __init__(self, quantiles):
-        self.__name__ = "Quantile Loss"
+        self.__name__ = "QuantileLoss"
         self.quantiles = quantiles
 
     def __call__(self, y_true, y_pred):
