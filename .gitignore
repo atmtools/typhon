@@ -1,7 +1,9 @@
 *.pyc
 *.swp
-.idea
-conda/build
-doc/_build
-doc/generated
-typhon.egg-info
+/.idea
+/build
+/conda/build/
+/dist
+/doc/_build
+/doc/generated
+/typhon.egg-info
