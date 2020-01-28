@@ -108,7 +108,7 @@ def iorg(cloudmask, connectivity=1):
     
     # theoretical nearest neighbor cumulative frequency
     # distribution (nncdf) of a random point process (Poisson)
-    lamb = nn.size / cloudsmask.size
+    lamb = nn.size / cloudmask.size
     nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted**2)
 
     return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
