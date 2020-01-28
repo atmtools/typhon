@@ -448,8 +448,8 @@ class ASTERimage:
         flon = interpolate.interp2d([0, 1], [0, 1], lon, kind='linear')
 
         # Grid matching shifted corner coordinates (see above).
-        latgrid = np.linspace(0, 1, imagedimension.lat + 1)
-        longrid = np.linspace(0, 1, imagedimension.lon + 1)
+        latgrid = np.linspace(0, 1, int(imagedimension.lat)+ 1)
+        longrid = np.linspace(0, 1, int(imagedimension.lon) + 1)
 
         # Apply lat-lon-function to grid and cut off last row and column to get
         # the non-shifted grid.
