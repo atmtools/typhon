@@ -53,7 +53,7 @@ class ASTERimage:
         self.sunzenith = 90 - self.solardirection.elevation
         
         self.datetime = datetime.datetime.strptime(
-            meta['CALENDARDATE'] + meta['TIMEOFDAY'][:14], '%Y-%m-%d%H:%M:%S.%f0')
+            meta['CALENDARDATE'] + meta['TIMEOFDAY'][:13], '%Y-%m-%d%H:%M:%S.%f0')
         SceneCenter = namedtuple('SceneCenter', ['latitude', 'longitude'])
         self.scenecenter = SceneCenter(
             *self._convert_metastr(meta['SCENECENTER'], dtype=tuple)
