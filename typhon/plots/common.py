@@ -2,10 +2,14 @@
 
 """Utility functions related to plotting.
 """
+
+import pathlib
+import lzma
 import glob
 import itertools
 import os
 import string
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -321,3 +325,42 @@ def sorted_legend_handles_labels(ax=None, key=None, reverse=True):
                           ax.get_legend_handles_labels()[0]],
                          *ax.get_legend_handles_labels()),
                      reverse=reverse)))
+
+
+def write_multi(fig, name, exts=["png", "pdf", "pkz"]):
+    """Write figure to multiple files
+
+    Writes a matplotlib Figure object to multiple files.  By default, it
+    writes:
+
+        * png
+        * pdf
+        * pkz, pickle containing the figure object
+
+    but this can be configured by passing the ``exts`` argument.  Most will
+    be passed directly to ``print_figure``, except ``pkz``, which will use
+    ``pickle.dump``.
+
+    Still planned are special cases for ``info``, which will dump stack
+    information, and "tikz", which will use matplotlib2tikz to write a file
+    for use with the LaTeX pgfplots library.
+
+    Args:
+        fig (matplotlib.Figure)
+            Figure that is to be written to files.
+
+        name (str or pathlib.Path)
+            Name of destination, suffices will be added
+
+        exts (List[str], optional)
+            Extensions to write.
+    """
+
+    p = pathlib.Path(name)
+    for ext in exts:
+        of = p.with_suffix("." + ext)
+        if ext == "pkz":
+            with lzma.open(of, "wb") as fp:
+                pickle.dump(fig, fp, protocol=4)
+        else:
+            fig.canvas.print_figure(of)
