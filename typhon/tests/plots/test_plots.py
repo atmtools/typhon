@@ -59,6 +59,6 @@ class TestPlots:
         lo.assert_called_once_with(
                 pathlib.Path("/tmp/nothing.pkz"), "wb")
         pd.assert_called_once()
-        assert "Writing to /tmp/nothing.pdf" in caplog.text
-        assert "Writing to /tmp/nothing.png" in caplog.text
-        assert "Writing to /tmp/nothing.pkz" in caplog.text
+        assert "nothing.pdf" in caplog.text
+        assert "nothing.png" in caplog.text
+        assert "nothing.pkz" in caplog.text

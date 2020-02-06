@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typhon import constants
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 __all__ = [
     'center_colorbar',
@@ -343,10 +343,6 @@ def write_multi(fig, name, exts=["png", "pdf", "pkz"]):
     be passed directly to ``print_figure``, except ``pkz``, which will use
     ``pickle.dump``.
 
-    Still planned are special cases for ``info``, which will dump stack
-    information, and "tikz", which will use matplotlib2tikz to write a file
-    for use with the LaTeX pgfplots library.
-
     Args:
         fig (matplotlib.Figure)
             Figure that is to be written to files.
@@ -358,10 +354,14 @@ def write_multi(fig, name, exts=["png", "pdf", "pkz"]):
             Extensions to write.
     """
 
+    # Still planned are special cases for ``info``, which will dump stack
+    # information, and "tikz", which will use matplotlib2tikz to write a file
+    # for use with the LaTeX pgfplots library.
+
     p = pathlib.Path(name)
     for ext in exts:
         of = p.with_suffix("." + ext)
-        LOG.debug(f"Writing to {of!s}")
+        logger.debug(f"Writing to {of!s}")
         if ext == "pkz":
             with lzma.open(of, "wb") as fp:
                 pickle.dump(fig, fp, protocol=4)
