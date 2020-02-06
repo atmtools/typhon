@@ -3,6 +3,7 @@
 """
 import os
 import pathlib
+import logging
 
 import pytest
 
@@ -46,8 +47,9 @@ class TestPlots:
 
     @mock.patch("lzma.open", autospec=True)
     @mock.patch("pickle.dump", autospec=True)
-    def test_write_multi(self, pd, lo):
+    def test_write_multi(self, pd, lo, caplog):
         fig = mock.MagicMock()
+        caplog.set_level(logging.DEBUG)
         plots.common.write_multi(fig, "/tmp/nothing")
         fig.canvas.print_figure.assert_any_call(
                 pathlib.Path("/tmp/nothing.png"))
@@ -57,3 +59,6 @@ class TestPlots:
         lo.assert_called_once_with(
                 pathlib.Path("/tmp/nothing.pkz"), "wb")
         pd.assert_called_once()
+        assert "Writing to /tmp/nothing.pdf" in caplog.text
+        assert "Writing to /tmp/nothing.png" in caplog.text
+        assert "Writing to /tmp/nothing.pkz" in caplog.text

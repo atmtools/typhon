@@ -10,11 +10,13 @@ import itertools
 import os
 import string
 import pickle
+import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
 from typhon import constants
 
+LOG = logging.getLogger(__name__)
 
 __all__ = [
     'center_colorbar',
@@ -359,6 +361,7 @@ def write_multi(fig, name, exts=["png", "pdf", "pkz"]):
     p = pathlib.Path(name)
     for ext in exts:
         of = p.with_suffix("." + ext)
+        LOG.debug(f"Writing to {of!s}")
         if ext == "pkz":
             with lzma.open(of, "wb") as fp:
                 pickle.dump(fig, fp, protocol=4)
