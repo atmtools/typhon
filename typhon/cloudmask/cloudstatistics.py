@@ -8,12 +8,39 @@ from scipy.spatial.distance import pdist
 
 
 __all__ = [
-    'get_cloudproperties',
-    'neighbor_distance',
-    'iorg',
-    'scai',
-    'cloudfraction',
+    "filter_cloudmask",
+    "get_cloudproperties",
+    "neighbor_distance",
+    "iorg",
+    "scai",
+    "cloudfraction",
 ]
+
+
+def filter_cloudmask(cloudmask, threshold=1, connectivity=1):
+    """Filter a given cloudmask for small cloud objects defined by their pixel
+    number. 
+    
+    Parameters:
+        cloudmask (ndarray): 2d binary cloud mask (optional with NaNs).
+        threshold (int): minimum pixel number of objects remaining in cloudmask.
+        connectivity (int):  Maximum number of orthogonal hops to consider
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
+    
+    Return:
+        ndarray: filtered cloudmask without NaNs.
+    """
+    cloudmask[np.isnan(cloudmask)] = 0
+    labels = measure.label(cloudmask, connectivity=connectivity)
+    props = measure.regionprops(labels)
+    area = [prop.area for prop in props]
+
+    # Find objects < threshold pixle number, get their labels, set them to 0-clear.
+    smallclouds = [t[0] for t in filter(lambda a: a[1] < threshold, enumerate(area, 1))]
+    for label in smallclouds:
+        cloudmask[labels == label] = 0
+
+    return cloudmask
 
 
 def get_cloudproperties(cloudmask, connectivity=1):
@@ -64,7 +91,7 @@ def neighbor_distance(cloudmask, connectivity=1):
         ndarray: Nearest neighbor distances in pixels.
     """
     cloudproperties = get_cloudproperties(cloudmask, connectivity=connectivity)
-    
+
     centroids = [prop.centroid for prop in cloudproperties]
     indices = np.arange(len(centroids))
     neighbor_distance = np.zeros(len(centroids))
@@ -103,13 +130,13 @@ def iorg(cloudmask, connectivity=1):
     """
     nn = neighbor_distance(cloudmask, connectivity=connectivity)
     nn_sorted = np.sort(nn)
-    
+
     nncdf = np.linspace(0, 1, len(nn))
-    
+
     # theoretical nearest neighbor cumulative frequency
     # distribution (nncdf) of a random point process (Poisson)
     lamb = nn.size / cloudmask.size
-    nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted**2)
+    nncdf_poisson = 1 - np.exp(-lamb * np.pi * nn_sorted ** 2)
 
     return sc.integrate.trapz(y=nncdf, x=nncdf_poisson)
 
@@ -153,12 +180,12 @@ def scai(cloudmask, connectivity=1):
         N_max = np.sum(~np.isnan(cloudmask)) / 4
 
     # distance between points (center of mass of clouds) in pairs
-    di = pdist(centroids, 'euclidean')
+    di = pdist(centroids, "euclidean")
     # order-zero diameter
     D0 = sc.stats.mstats.gmean(di)
 
     # characteristic length of the domain (in pixels): diagonal of box
-    L = np.sqrt(cloudmask.shape[0]**2 + cloudmask.shape[1]**2)
+    L = np.sqrt(cloudmask.shape[0] ** 2 + cloudmask.shape[1] ** 2)
 
     return N / N_max * D0 / L * 1000
 
