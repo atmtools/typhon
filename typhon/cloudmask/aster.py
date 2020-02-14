@@ -100,12 +100,26 @@ class ASTERimage:
             ndarray: Digital numbers. Shape according to data resolution of
                 the respective channel.
         """
-        if channel in ('1', '2', '3N', '3B'):
-            subsensor = 'VNIR'
+        if channel in ('1', '2', '3N'):
+            if self.get_metadata()['ASTEROBSERVATIONMODE.1']=='VNIR1, ON':
+                subsensor = 'VNIR'
+            else:
+                raise ValueError('VNIR nadir observation mode OFF')
+        elif channel=='3B':
+            if self.get_metadata()['ASTEROBSERVATIONMODE.2']=='VNIR2, ON':
+                subsensor = 'VNIR'
+            else:
+                raise ValueError('VNIR back observation mode OFF')
         elif channel in ('4', '5', '6', '7', '8', '9'):
-            subsensor = 'SWIR'
+            if self.get_metadata()['ASTEROBSERVATIONMODE.3']=='SWIR, ON':
+                subsensor = 'SWIR'
+            else:
+                raise ValueError('SWIR observation mode OFF')
         elif channel in ('10', '11', '12', '13', '14'):
-            subsensor = 'TIR'
+            if self.get_metadata()['ASTEROBSERVATIONMODE.4']=='TIR, ON':
+                subsensor = 'TIR'
+            else:
+                raise ValueError('TIR observation mode OFF')
         else:
             raise ValueError('The chosen channel is not supported.')
 
@@ -213,8 +227,6 @@ class ASTERimage:
                  225.4, 86.63, 81.85, 74.85, 66.49, 59.85,
                  np.nan, np.nan, np.nan, np.nan, np.nan)
 
-        sunzenith = 90 - self.solardirection.elevation
-
         doy = self.datetime.timetuple().tm_yday # day of the year (doy)
 
         distance = (0.016790956760352183
@@ -224,7 +236,7 @@ class ASTERimage:
 
         return (np.pi * self.get_radiance(channel) * distance**2 /
                 E_sun[self.channels.index(channel)] /
-                np.cos(np.radians(sunzenith))
+                np.cos(np.radians(self.sunzenith))
                 )
 
     def get_brightnesstemperature(self, channel):

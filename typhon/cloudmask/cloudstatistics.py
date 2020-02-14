@@ -8,12 +8,40 @@ from scipy.spatial.distance import pdist
 
 
 __all__ = [
+    'filter_cloudmask',
     'get_cloudproperties',
     'neighbor_distance',
     'iorg',
     'scai',
     'cloudfraction',
 ]
+
+
+def filter_cloudmask(cloudmask, threshold=1, connectivity=1):
+    '''Filter a given cloudmask for small cloud objects defined by their pixel
+    number. 
+    
+    Parameters:
+        cloudmask (ndarray): 2d binary cloud mask (optional with NaNs).
+        threshold (int): minimum pixel number of objects remaining in cloudmask.
+        connectivity (int):  Maximum number of orthogonal hops to consider
+            a pixel/voxel as a neighbor (see :func:`skimage.measure.label`).
+    
+    Return:
+        ndarray: filtered cloudmask without NaNs.
+    '''
+    cloudmask[np.isnan(cloudmask)] = 0
+    labels = measure.label(cloudmask, connectivity=connectivity)
+    props = measure.regionprops(labels)
+    area = [prop.area for prop in props]
+    
+    # Find objects < threshold pixle number, get their labels, set them to 0-clear.
+    smallclouds = [t[0] for t in filter(lambda a: a[1] < threshold,
+                                        enumerate(area, 1))]
+    for label in smallclouds:
+        cloudmask[labels==label] = 0
+    
+    return cloudmask
 
 
 def get_cloudproperties(cloudmask, connectivity=1):
