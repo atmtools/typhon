@@ -45,7 +45,7 @@ class ASTERimage:
         """
         self.filename = filename
 
-        meta = self.get_metadata()
+        self.meta = self.get_metadata()
         SolarDirection = namedtuple('SolarDirection', ['azimuth', 'elevation']) # SolarDirection = (0< az <360, -90< el <90)
         self.solardirection = SolarDirection(
             *self._convert_metastr(meta['SOLARDIRECTION'], dtype=tuple)
@@ -53,19 +53,19 @@ class ASTERimage:
         self.sunzenith = 90 - self.solardirection.elevation
         
         self.datetime = datetime.datetime.strptime(
-            meta['CALENDARDATE'] + meta['TIMEOFDAY'][:13], '%Y-%m-%d%H:%M:%S.%f0')
+            self.meta['CALENDARDATE'] + self.meta['TIMEOFDAY'][:13], '%Y-%m-%d%H:%M:%S.%f0')
         SceneCenter = namedtuple('SceneCenter', ['latitude', 'longitude'])
         self.scenecenter = SceneCenter(
-            *self._convert_metastr(meta['SCENECENTER'], dtype=tuple)
+            *self._convert_metastr(self.meta['SCENECENTER'], dtype=tuple)
         )
         CornerCoordinates = namedtuple('CornerCoordinates', 
                                        ['LOWERLEFT', 'LOWERRIGHT', 
                                         'UPPERRIGHT', 'UPPERLEFT'])
         self.cornercoordinates = CornerCoordinates(
-            self._convert_metastr(meta['LOWERLEFT'],dtype=tuple),
-            self._convert_metastr(meta['LOWERRIGHT'], dtype=tuple),
-            self._convert_metastr(meta['UPPERRIGHT'], dtype=tuple),
-            self._convert_metastr(meta['UPPERLEFT'], dtype=tuple)
+            self._convert_metastr(self.meta['LOWERLEFT'],dtype=tuple),
+            self._convert_metastr(self.meta['LOWERRIGHT'], dtype=tuple),
+            self._convert_metastr(self.meta['UPPERRIGHT'], dtype=tuple),
+            self._convert_metastr(self.meta['UPPERLEFT'], dtype=tuple)
         )
 
 
@@ -101,22 +101,22 @@ class ASTERimage:
                 the respective channel.
         """
         if channel in ('1', '2', '3N'):
-            if self.get_metadata()['ASTEROBSERVATIONMODE.1']=='VNIR1, ON':
+            if self.meta['ASTEROBSERVATIONMODE.1']=='VNIR1, ON':
                 subsensor = 'VNIR'
             else:
                 raise ValueError('VNIR nadir observation mode OFF')
         elif channel=='3B':
-            if self.get_metadata()['ASTEROBSERVATIONMODE.2']=='VNIR2, ON':
+            if self.meta['ASTEROBSERVATIONMODE.2']=='VNIR2, ON':
                 subsensor = 'VNIR'
             else:
                 raise ValueError('VNIR back observation mode OFF')
         elif channel in ('4', '5', '6', '7', '8', '9'):
-            if self.get_metadata()['ASTEROBSERVATIONMODE.3']=='SWIR, ON':
+            if self.meta['ASTEROBSERVATIONMODE.3']=='SWIR, ON':
                 subsensor = 'SWIR'
             else:
                 raise ValueError('SWIR observation mode OFF')
         elif channel in ('10', '11', '12', '13', '14'):
-            if self.get_metadata()['ASTEROBSERVATIONMODE.4']=='TIR, ON':
+            if self.meta['ASTEROBSERVATIONMODE.4']=='TIR, ON':
                 subsensor = 'TIR'
             else:
                 raise ValueError('TIR observation mode OFF')
@@ -236,7 +236,7 @@ class ASTERimage:
 
         return (np.pi * self.get_radiance(channel) * distance**2 /
                 E_sun[self.channels.index(channel)] /
-                np.cos(np.radians(self.sunzenith))
+                np.cos(np.deg2rad(self.sunzenith))
                 )
 
     def get_brightnesstemperature(self, channel):
@@ -437,19 +437,18 @@ class ASTERimage:
             from https://asterweb.jpl.nasa.gov/content/03 data/04 Documents/
             aster user guide v2.pdf.
         """
-        meta = self.get_metadata()
         ImageDimension = namedtuple('ImageDimension', ['lon', 'lat'])
         imagedimension = ImageDimension(
-            *self._convert_metastr(meta[f'IMAGEDATAINFORMATION{channel}'],
+            *self._convert_metastr(self.meta[f'IMAGEDATAINFORMATION{channel}'],
                                    tuple)[:2])
 
         # Image corner coordinates (file, NOT swath) according to the ASTER
         # Users Handbook p.57.
-        LL = self._convert_metastr(meta['LOWERLEFT'],
+        LL = self._convert_metastr(self.meta['LOWERLEFT'],
                                  dtype=tuple)  # (latitude, longitude)
-        LR = self._convert_metastr(meta['LOWERRIGHT'], dtype=tuple)
-        UL = self._convert_metastr(meta['UPPERLEFT'], dtype=tuple)
-        UR = self._convert_metastr(meta['UPPERRIGHT'], dtype=tuple)
+        LR = self._convert_metastr(self.meta['LOWERRIGHT'], dtype=tuple)
+        UL = self._convert_metastr(self.meta['UPPERLEFT'], dtype=tuple)
+        UR = self._convert_metastr(self.meta['UPPERRIGHT'], dtype=tuple)
         lat = np.array([[UL[0], UR[0]],
                         [LL[0], LR[0]]])
         lon = np.array([[UL[1], UR[1]],
@@ -508,23 +507,21 @@ class ASTERimage:
              Algorithm Theoretical Basis Document for ASTER Level-1 Data 
              Processing (Ver. 3.0).1996.
         """
-        
-        metadata = self.get_metadata()
         # Angular data from ASTER metadata data.
-        S = float(metadata['MAPORIENTATIONANGLE'])
+        S = float(self.meta['MAPORIENTATIONANGLE'])
         
         if sensor=='vnir':
-            P = float(metadata['POINTINGANGLE.1'])
+            P = float(self.meta['POINTINGANGLE.1'])
             FOV = 6.09 # Field of view
             #IFOV = np.rad2deg(21.3e-6) Instantaneous field of view
             field = self.get_radiance(channel='1')
         elif sensor=='swir':
-            P = float(metadata['POINTINGANGLE.2'])
+            P = float(self.meta['POINTINGANGLE.2'])
             #IFOV = np.rad2deg(42.6e-6)
             FOV = 4.9
             field = self.get_radiance(channel='4')
         elif sensor=='tir':
-            P = float(metadata['POINTINGANGLE.3'])
+            P = float(self.meta['POINTINGANGLE.3'])
             #IFOV = np.rad2deg(127.8e-6)
             FOV = 4.9
             field = self.get_radiance(channel='10')
