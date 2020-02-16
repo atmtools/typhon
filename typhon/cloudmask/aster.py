@@ -63,7 +63,7 @@ class ASTERimage:
             "SolarDirection", ["azimuth", "elevation"]
         )  # SolarDirection = (0< az <360, -90< el <90)
         self.solardirection = SolarDirection(
-            *self._convert_metastr(meta["SOLARDIRECTION"], dtype=tuple)
+            *self._convert_metastr(self.meta["SOLARDIRECTION"], dtype=tuple)
         )
         self.sunzenith = 90 - self.solardirection.elevation
 
