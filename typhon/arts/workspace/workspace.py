@@ -13,18 +13,27 @@ import ctypes as c
 import logging
 import sys
 
-from   ast      import parse, Call, Name, Expression, Expr, FunctionDef, Starred, Module
-from   inspect  import getsource, getclosurevars
-from copy       import copy
+from ast import parse, Call, Name, Expression, Expr, FunctionDef, Starred, Module
+from inspect import getsource, getclosurevars
+from copy import copy
 import os
 
-from typhon.arts.workspace.api       import arts_api, VariableValueStruct, \
-                                            data_path_push, data_path_pop, \
-                                            include_path_push, include_path_pop
-from typhon.arts.workspace.methods   import workspace_methods
-from typhon.arts.workspace.variables import WorkspaceVariable, group_names, group_ids, \
-                                            workspace_variables
-from typhon.arts.workspace.agendas   import Agenda
+from typhon.arts.workspace.api import (
+    arts_api,
+    VariableValueStruct,
+    data_path_push,
+    data_path_pop,
+    include_path_push,
+    include_path_pop,
+)
+from typhon.arts.workspace.methods import workspace_methods
+from typhon.arts.workspace.variables import (
+    WorkspaceVariable,
+    group_names,
+    group_ids,
+    workspace_variables,
+)
+from typhon.arts.workspace.agendas import Agenda
 from typhon.arts.workspace.output import CoutCapture
 from typhon.arts.workspace.utility import unindent
 
