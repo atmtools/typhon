@@ -5,7 +5,7 @@ Trees are powerful structures to sort a huge amount of data and to speed up
 performing query requests on them significantly.
 """
 
-from collections import Iterable
+from collections.abc import Iterable
 
 import pandas as pd
 import numba
