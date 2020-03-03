@@ -1897,7 +1897,7 @@ class TOVSCollocatedDataset:
             # first or xarray will complain that "the new name
             # 'matchup_count' conflicts"
             timedims = utils.get_time_dimensions(MM)
-            MM = MM.drop(timedims).rename(dict.fromkeys(timedims, self.colloc_dim)
+            MM = MM.drop_vars(timedims).rename(dict.fromkeys(timedims, self.colloc_dim)
                 ).assign_coords(
                     **{d: (self.colloc_dim, MM.coords[d].values)
                        for d in utils.get_time_dimensions(MM)},

@@ -785,7 +785,7 @@ class NetCDF4(FileHandler):
                 for coord in ds.coords.keys()
                 if NetCDF4._split_path(coord)[0] != group
             ]
-            ds = ds.drop(coords_to_drop)
+            ds = ds.drop_vars(coords_to_drop)
 
             # Remove the group name from all variables (incl. dimensions):
             mapping = {

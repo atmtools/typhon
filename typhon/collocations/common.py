@@ -465,7 +465,7 @@ def expand(dataset):
         )
 
     # The variable pairs is useless now:
-    expanded = expanded.drop("Collocations/pairs")
+    expanded = expanded.drop_vars("Collocations/pairs")
 
     expanded = expanded.rename({"Collocations/collocation": "collocation"})
 

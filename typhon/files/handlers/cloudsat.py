@@ -100,7 +100,7 @@ class CloudSat(HDF4):
 
         # Remove fields that we do not need any longer (expect the user asked
         # for them explicitly)
-        dataset = dataset.drop(
+        dataset = dataset.drop_vars(
             {"UTC_start", "Profile_time"} - set(user_fields),
         )
 

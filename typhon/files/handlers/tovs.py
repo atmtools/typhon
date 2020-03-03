@@ -65,7 +65,7 @@ class AAPP_HDF(NetCDF4):
 
         # Remove the time fields that we do not need any longer (expect the
         # user asked for them explicitly)
-        dataset = dataset.drop(
+        dataset = dataset.drop_vars(
             {"Data/scnlinyr", "Data/scnlindy", "Data/scnlintime"}
             - set(user_fields),
         )
