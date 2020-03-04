@@ -1,3 +1,9 @@
+"""
+Keras backend for QRNNs
+=======================
+
+This module implements the Keras backend for QRNNs.
+"""
 import copy
 import logging
 import os
@@ -23,9 +29,7 @@ except ImportError:
 
 import keras.backend as K
 
-
 logger = logging.getLogger(__name__)
-
 
 def skewed_absolute_error(y_true, y_pred, tau):
     """
@@ -80,7 +84,6 @@ class QuantileLoss:
 # Keras Interface Classes
 ################################################################################
 
-
 class TrainingGenerator:
     """
     This Keras sample generator takes the noise-free training data
@@ -132,9 +135,6 @@ class TrainingGenerator:
             self.indices = np.random.permutation(self.x_train.shape[0])
 
         return (x_batch, y_batch)
-
-# TODO: Make y-noise argument optional
-
 
 class AdversarialTrainingGenerator:
     """
@@ -310,8 +310,7 @@ class LRDecay(keras.callbacks.Callback):
 # QRNN
 ################################################################################
 
-
-class QRNN:
+class KerasQRNN:
     r"""
     Quantile Regression Neural Network (QRNN)
 
@@ -369,6 +368,7 @@ class QRNN:
             The ensemble of Keras neural networks used for the quantile regression
             neural network.
     """
+
     def __init__(self,
                  input_dim,
                  quantiles,
@@ -406,30 +406,48 @@ class QRNN:
         self.input_dim = input_dim
         self.quantiles = np.array(quantiles)
 
-        try:
-            from typhon.retrieval.qrnn.backends.keras import KerasQRNN
-            model = KerasQRNN(input_dim, quantiles, model, ensemble_size)
-        except:
-            from typhon.retrieval.qrnn.backends.pytorch import PytorchQRNN
-            model = PytorchQRNN(input_dim, quantiles, model, ensemble_size)
+        if type(model) is tuple:
+            depth = model[0]
+            width = model[1]
+            activation = model[2]
+
+            model = Sequential()
+            if depth == 0:
+                model.add(Dense(input_dim=input_dim,
+                                units=len(quantiles),
+                                activation=None))
+            else:
+                model.add(Dense(input_dim=input_dim,
+                                units=width,
+                                activation=activation))
+                for i in range(depth - 2):
+                    model.add(Dense(units=width,
+                                    activation=activation,
+                                    **kwargs))
+                    model.add(Dense(units=len(quantiles), activation=None))
+        elif type(model) is Model:
+            pass
+        else:
+            raise Exception("The provided model is neither a suitable "
+                            "architecture tuple nor a keras model.")
+
+        self.models = [clone_model(model) for i in range(ensemble_size)]
 
 
 
-        #try:
-        #    from typhon.retrieval.qrnn.backends.keras import KerasQRNN
-        #    model = KerasQRNN(input_dim, quantiles, model, ensemble_size)
-        #except:
-        #    try:
-        #        from typhon.retrieval.qrnn.backends.pytorch import QRNNPytorch
-        #        model = QRNNPytorch(input_dim, quantiles, model)
-        #    except:
-        #        model = None
-        #if model is None:
-        #    raise Exception("Could not create model backend. Please make sure "
-        #                    "that the provided architecture string is either a "
-        #                    "valid architecture tuple, a keras model order a "
-        #                    "pytorch module.")
-        self.model = model
+    def __fit_params__(self, kwargs):
+        at = kwargs.pop("adversarial_training", False)
+        dat = kwargs.pop("delta_at", 0.01)
+        batch_size = kwargs.pop("batch_size", 512)
+        convergence_epochs = kwargs.pop("convergence_epochs", 10)
+        initial_learning_rate = kwargs.pop('initial_learning_rate', 0.01)
+        learning_rate_decay = kwargs.pop('learning_rate_decay', 2.0)
+        learning_rate_minimum = kwargs.pop('learning_rate_minimum', 1e-6)
+        maximum_epochs = kwargs.pop("maximum_epochs", 200)
+        training_split = kwargs.pop("training_split", 0.9)
+        return at, dat, batch_size, convergence_epochs, initial_learning_rate, \
+            learning_rate_decay, learning_rate_minimum, maximum_epochs, \
+            training_split, kwargs
 
     def cross_validation(self,
                         x_train,
@@ -528,7 +546,13 @@ class QRNN:
         logger.info(results)
         return (np.mean(results, axis=0), np.std(results, axis=0))
 
-    def fit(self, *args, **kwargs):
+    def fit(self,
+            x_train,
+            y_train,
+            sigma_noise=None,
+            x_val=None,
+            y_val=None,
+            **kwargs):
         r"""
         Train the QRNN on given training data.
 
@@ -612,11 +636,73 @@ class QRNN:
                                    to 0.9.
 
         """
-        self.model.fit(*args, **kwargs)
+        if not (x_train.shape[1] == self.input_dim):
+            raise Exception("Training input must have the same extent along"    /
+                            "dimension 1 as input_dim (" + str(self.input_dim)  /
+                            + ")")
 
-    def train(self, *args, **kwargs):
-        self.model.train(*args, **kwargs)
+        if not (y_train.shape[1] == 1):
+            raise Exception("Currently only scalar retrieval targets are"       /
+                            " supported.")
 
+        x_mean = np.mean(x_train, axis=0, keepdims=True)
+        x_sigma = np.std(x_train, axis=0, keepdims=True)
+        self.x_mean = x_mean
+        self.x_sigma = x_sigma
+
+        # Handle parameters
+        # at:  adversarial training
+        # bs:  batch size
+        # ce:  convergence epochs
+        # ilr: initial learning rate
+        # lrd: learning rate decay
+        # lrm: learning rate minimum
+        # me:  maximum number of epochs
+        # ts:  split ratio of training set
+        at, dat, bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params__(
+            kwargs)
+
+        # Split training and validation set if x_val or y_val
+        # are not provided.
+        n = x_train.shape[0]
+        n_train = n
+        if x_val is None and y_val is None:
+            n_train = round(ts * n)
+            n_val = n - n_train
+            inds = np.random.permutation(n)
+            x_val = x_train[inds[n_train:], :]
+            y_val = y_train[inds[n_train:]]
+            x_train = x_train[inds[:n_train], :]
+            y_train = y_train[inds[:n_train]]
+        loss = QuantileLoss(self.quantiles)
+
+        self.custom_objects = {loss.__name__: loss}
+        optimizer = SGD(lr=ilr)
+        for model in self.models:
+            model.compile(loss=loss, optimizer=optimizer)
+
+            if at:
+                inputs = [model.input, model.targets[0],
+                            model.sample_weights[0]]
+                input_gradients = K.function(
+                    inputs, K.gradients(model.total_loss, model.input))
+                training_generator = AdversarialTrainingGenerator(x_train,
+                                                                    self.x_mean,
+                                                                    self.x_sigma,
+                                                                    y_train,
+                                                                    sigma_noise,
+                                                                    bs,
+                                                                    input_gradients,
+                                                                    dat)
+            else:
+                training_generator = TrainingGenerator(x_train, self.x_mean, self.x_sigma,
+                                                        y_train, sigma_noise, bs)
+            validation_generator = ValidationGenerator(x_val, self.x_mean, self.x_sigma,
+                                                        y_val, sigma_noise)
+            lr_callback = LRDecay(model, lrd, lrm, ce)
+            model.fit_generator(training_generator, steps_per_epoch=n_train // bs,
+                                epochs=me, validation_data=validation_generator,
+                                validation_steps=1, callbacks=[lr_callback])
 
     def predict(self, x):
         r"""
@@ -636,242 +722,10 @@ class QRNN:
              quantiles of the network.
 
         """
-        return self.model.predict(x)
+        predictions = np.stack(
+            [m.predict((x - self.x_mean) / self.x_sigma) for m in self.models])
+        return np.mean(predictions, axis=0)
 
-    def cdf(self, x):
-        r"""
-        Approximate the posterior CDF for given inputs `x`.
-
-        Propagates the inputs in `x` forward through the network and
-        approximates the posterior CDF by a piecewise linear function.
-
-        The piecewise linear function is given by its values at
-        approximate quantiles $x_\tau$ for
-        :math: `\tau = \{0.0, \tau_1, \ldots, \tau_k, 1.0\}` where
-        :math: `\tau_k` are the quantiles to be estimated by the network.
-        The values for :math:`x_0.0` and :math:`x_1.0` are computed using
-
-        .. math::
-            x_0.0 = 2.0 x_{\tau_1} - x_{\tau_2}
-
-            x_1.0 = 2.0 x_{\tau_k} - x_{\tau_{k-1}}
-
-        Arguments:
-
-            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the conditional quantiles.
-
-        Returns:
-
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the posterior CDF :math: `F(x)` in `fs`.
-
-        """
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
-
-        qs = np.zeros(self.quantiles.size + 2)
-        qs[1:-1] = self.quantiles
-        qs[0] = 0.0
-        qs[-1] = 1.0
-
-        return y_pred, qs
-
-    def pdf(self, x, use_splines = False):
-        r"""
-        Approximate the posterior probability density function (PDF) for given
-        inputs `x`.
-
-        By default, the PDF is approximated by computing the derivative of the
-        piece-wise linear approximation of the CDF as computed by the :code:`cdf`
-        function.
-
-        If :code:`use_splines` is set to :code:`True`, the PDF is computed from
-        a spline fit to the approximate CDF.
-
-        Arguments:
-
-            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the conditional quantiles.
-
-            use_splines(bool): Whether or not to use a spline fit to the CDF to
-            approximate the PDF.
-
-        Returns:
-
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the approximate posterior PDF :math: `F(x)` in `fs`.
-
-        """
-
-        y_pred = np.zeros(self.quantiles.size)
-        y_pred = self.predict(x).ravel()
-
-        y = np.zeros(y_pred.size + 1)
-        y[1:-1] = 0.5 * (y_pred[1:] + y_pred[:-1])
-        y[0] = 2 * y_pred[0] - y_pred[1]
-        y[-1] = 2 * y_pred[-1] - y_pred[-2]
-
-        if not use_splines:
-
-            p = np.zeros(y.size)
-            p[1:-1] = np.diff(self.quantiles) / np.diff(y_pred)
-        else:
-
-            y = np.zeros(y_pred.size + 2)
-            y[1:-1] = y_pred
-            y[0] = 3 * y_pred[0] - 2 * y_pred[1]
-            y[-1] = 3 * y_pred[-1] - 2 * y_pred[-2]
-            q = np.zeros(self.quantiles.size + 2)
-            q[1:-1] = np.array(self.quantiles)
-            q[0] = 0.0
-            q[-1] = 1.0
-
-            sr = CubicSpline(y, q, bc_type = "clamped")
-            y = np.linspace(y[0], y[-1], 101)
-            p = sr(y, nu = 1)
-
-        return y, p
-
-
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
-
-        if use_splines:
-            x_t = np.zeros(x.size + 2)
-            x_t[1:-1] = x
-            x_t[0] = 2 * x[0] - x[1]
-            x_t[-1] = 2 * x[-1] - x[-2]
-            y_t = np.zeros(y.size + 2)
-            y_t[1:-1] = y
-            y_t[-1] = 1.0
-
-        else:
-            logger.info(y)
-            x_new = np.zeros(x.size - 1)
-            x_new[2:-2] = 0.5 * (x[2:-3] + x[3:-2])
-            x_new[0:2] = x[0:2]
-            x_new[-2:] = x[-2:]
-            y_new = np.zeros(y.size - 1)
-            y_new[1:-1] = np.diff(y[1:-1]) / np.diff(x[1:-1])
-        return x_new, y_new
-
-    def sample_posterior(self, x, n=1):
-        r"""
-        Generates :code:`n` samples from the estimated posterior
-        distribution for the input vector :code:`x`. The sampling
-        is performed by the inverse CDF method using the estimated
-        CDF obtained from the :code:`cdf` member function.
-
-        Arguments:
-
-            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the conditional quantiles.
-
-            n(int): The number of samples to generate.
-
-        Returns:
-
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the posterior CDF :math: `F(x)` in `fs`.
-        """
-        y_pred, qs = self.cdf(x)
-        p = np.random.rand(n)
-        y = np.interp(p, qs, y_pred)
-        return y
-
-    def posterior_mean(self, x):
-        r"""
-        Computes the posterior mean by computing the first moment of the
-        estimated posterior CDF.
-
-        Arguments:
-
-            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the posterior mean.
-        Returns:
-
-            Array containing the posterior means for the provided inputs.
-        """
-        y_pred, qs = self.cdf(x)
-        mus = y_pred[-1] - np.trapz(qs, x=y_pred)
-        return mus
-
-    @staticmethod
-    def crps(y_pred, y_test, quantiles):
-        r"""
-        Compute the Continuous Ranked Probability Score (CRPS) for given quantile
-        predictions.
-
-        This function uses a piece-wise linear fit to the approximate posterior
-        CDF obtained from the predicted quantiles in :code:`y_pred` to
-        approximate the continuous ranked probability score (CRPS):
-
-        .. math::
-            CRPS(\mathbf{y}, x) = \int_{-\infty}^\infty (F_{x | \mathbf{y}}(x')
-            - \mathrm{1}_{x < x'})^2 \: dx'
-
-        Arguments:
-
-            y_pred(numpy.array): Array of shape `(n, k)` containing the `k`
-                                 estimated quantiles for each of the `n`
-                                 predictions.
-
-            y_test(numpy.array): Array containing the `n` true values, i.e.
-                                 samples of the true conditional distribution
-                                 estimated by the QRNN.
-
-            quantiles: 1D array containing the `k` quantile fractions :math:`\tau`
-                       that correspond to the columns in `y_pred`.
-
-        Returns:
-
-            `n`-element array containing the CRPS values for each of the
-            predictions in `y_pred`.
-        """
-        y_cdf = np.zeros((y_pred.shape[0], quantiles.size + 2))
-        y_cdf[:, 1:-1] = y_pred
-        y_cdf[:, 0] = 2.0 * y_pred[:, 1] - y_pred[:, 2]
-        y_cdf[:, -1] = 2.0 * y_pred[:, -2] - y_pred[:, -3]
-
-        ind = np.zeros(y_cdf.shape)
-        ind[y_cdf > y_test.reshape(-1, 1)] = 1.0
-
-        qs = np.zeros((1, quantiles.size + 2))
-        qs[0, 1:-1] = quantiles
-        qs[0, 0] = 0.0
-        qs[0, -1] = 1.0
-
-        return np.trapz((qs - ind)**2.0, y_cdf)
-
-    def evaluate_crps(self, x, y_test):
-        r"""
-        Predict quantiles and compute the Continuous Ranked Probability Score (CRPS).
-
-        This function evaluates the networks prediction on the
-        inputs in `x` and evaluates the CRPS of the predictions
-        against the materializations in `y_test`.
-
-        Arguments:
-
-            x(numpy.array): Array of shape `(n, m)` containing the `n`
-                            `m`-dimensional inputs for which to evaluate
-                            the CRPS.
-
-            y_test(numpy.array): Array containing the `n` materializations of
-                                 the true conditional distribution.
-
-        Returns:
-
-            `n`-element array containing the CRPS values for each of the
-            inputs in `x`.
-
-        """
-        return QRNN.crps(self.predict(x), y_test, self.quantiles)
 
     def save(self, path):
         r"""
