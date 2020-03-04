@@ -2,14 +2,12 @@
 """Functions related to plotting maps. """
 from collections import namedtuple
 
-try:
-    import cartopy.crs as ccrs
-    from cartopy.feature import NaturalEarthFeature, COLORS
-except ImportError:
-    raise ImportError('You have to install `cartopy` to use functions '
-                      'located in `typhon.plots.maps`.')
-else:
-    from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
+
+
+_CartopyError = ImportError(
+    'You have to install `cartopy` to use functions located in `typhon.plots.maps`.'
+)
 
 
 __all__ = [
@@ -43,6 +41,11 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     Returns:
         Scatter plot objects.
     """
+    try:
+        import cartopy.crs as ccrs
+    except ImportError:
+        raise _CartopyError
+
     # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
         "cmap": "qualitative1",
@@ -123,6 +126,11 @@ def get_cfeatures_at_scale(scale='110m'):
         '50m'
 
     """
+    try:
+        from cartopy.feature import NaturalEarthFeature, COLORS
+    except ImportError:
+        raise _CartopyError
+
     d = {}
 
     d['BORDERS'] = NaturalEarthFeature(
