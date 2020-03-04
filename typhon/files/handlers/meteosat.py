@@ -255,4 +255,4 @@ class SEVIRI(HDF5):
             )
 
         # Drop the conversion variable:
-        return dataset.drop("counts_to_rad")
+        return dataset.drop_vars("counts_to_rad")

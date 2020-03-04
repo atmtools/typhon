@@ -1018,7 +1018,7 @@ class Collocator:
 
                 # So far, collocation is a coordinate. We want to make it to a
                 # dimension,  so drop its values:
-                return data.drop("collocation")
+                return data.drop_vars("collocation")
 
             return data.rename({
                 shared_dims[0]: "collocation"
@@ -1127,7 +1127,7 @@ class Collocator:
                 if var.startswith("__replacement_")
             ]
 
-            output[name] = output[name].drop([
+            output[name] = output[name].drop_vars([
                 f"collocation", *vars_to_drop
             ])
 
@@ -1452,7 +1452,7 @@ def concat_collocations(collocations):
                 # Correct the indices:
                 data["Collocations/pairs"][0, :] += primary_size
                 data["Collocations/pairs"][1, :] += secondary_size
-                data = data.drop("Collocations/group")
+                data = data.drop_vars("Collocations/group")
             groups[group].append(data)
 
         primary_size += obj.dims[f"{primary}/collocation"]
