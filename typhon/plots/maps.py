@@ -1,26 +1,27 @@
-# -*- coding: utf-8 -*-
 """Functions related to plotting maps. """
 from collections import namedtuple
 
-try:
-    import cartopy.crs as ccrs
-    from cartopy.feature import NaturalEarthFeature, COLORS
-except ImportError:
-    raise ImportError('You have to install `cartopy` to use functions '
-                      'located in `typhon.plots.maps`.')
-else:
-    from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 
-__all__ = [
-    'worldmap',
-    'get_cfeatures_at_scale',
-]
+_CartopyError = ImportError(
+    "You have to install `cartopy` to use functions located in `typhon.plots.maps`."
+)
 
 
-def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
-             bg=False, draw_grid=False, draw_coastlines=False,
-             interpolation=False, **kwargs):
+def worldmap(
+    lat,
+    lon,
+    var=None,
+    fig=None,
+    ax=None,
+    projection=None,
+    bg=False,
+    draw_grid=False,
+    draw_coastlines=False,
+    interpolation=False,
+    **kwargs,
+):
     """Plots the track of a variable on a worldmap.
 
     Args:
@@ -43,13 +44,18 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     Returns:
         Scatter plot objects.
     """
+    try:
+        import cartopy.crs as ccrs
+    except ImportError:
+        raise _CartopyError
+
     # Default keyword arguments to pass to hist2d().
     kwargs_defaults = {
         "cmap": "qualitative1",
         "s": 1,
         # This accelerates the drawing of many points:
         "rasterized": lat.size > 100_000,
-        **kwargs
+        **kwargs,
     }
 
     if fig is None:
@@ -82,22 +88,18 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
             "s": 1,
             # This accelerates the drawing of many points:
             "rasterized": lat.size > 100_000,
-            **kwargs
+            **kwargs,
         }
         plot = ax.scatter(
             lon, lat, c=var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
     elif interpolation:
-        kwargs_defaults = {
-            **kwargs
-        }
+        kwargs_defaults = {**kwargs}
         plot = ax.contourf(
             lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
     else:
-        kwargs_defaults = {
-            **kwargs
-        }
+        kwargs_defaults = {**kwargs}
         plot = ax.pcolormesh(
             lon, lat, var, transform=ccrs.PlateCarree(), **kwargs_defaults
         )
@@ -105,7 +107,7 @@ def worldmap(lat, lon, var=None, fig=None, ax=None, projection=None,
     return plot
 
 
-def get_cfeatures_at_scale(scale='110m'):
+def get_cfeatures_at_scale(scale="110m"):
     """Return a collection of `NaturalEarthFeature` at given scale.
 
     Parameters:
@@ -123,76 +125,81 @@ def get_cfeatures_at_scale(scale='110m'):
         '50m'
 
     """
+    try:
+        from cartopy.feature import NaturalEarthFeature, COLORS
+    except ImportError:
+        raise _CartopyError
+
     d = {}
 
-    d['BORDERS'] = NaturalEarthFeature(
-        category='cultural',
-        name='admin_0_boundary_lines_land',
+    d["BORDERS"] = NaturalEarthFeature(
+        category="cultural",
+        name="admin_0_boundary_lines_land",
         scale=scale,
-        edgecolor='black',
-        facecolor='none',
+        edgecolor="black",
+        facecolor="none",
     )
 
-    d['STATES'] = NaturalEarthFeature(
-        category='cultural',
-        name='admin_1_states_provinces_lakes',
+    d["STATES"] = NaturalEarthFeature(
+        category="cultural",
+        name="admin_1_states_provinces_lakes",
         scale=scale,
-        edgecolor='black',
-        facecolor='none',
+        edgecolor="black",
+        facecolor="none",
     )
 
-    d['COASTLINE'] = NaturalEarthFeature(
-        category='physical',
-        name='coastline',
+    d["COASTLINE"] = NaturalEarthFeature(
+        category="physical",
+        name="coastline",
         scale=scale,
-        edgecolor='black',
-        facecolor='none',
+        edgecolor="black",
+        facecolor="none",
     )
 
-    d['LAKES'] = NaturalEarthFeature(
-        category='physical',
-        name='lakes',
+    d["LAKES"] = NaturalEarthFeature(
+        category="physical",
+        name="lakes",
         scale=scale,
-        edgecolor='face',
-        facecolor=COLORS['water'],
+        edgecolor="face",
+        facecolor=COLORS["water"],
     )
 
-    d['LAND'] = NaturalEarthFeature(
-        category='physical',
-        name='land',
+    d["LAND"] = NaturalEarthFeature(
+        category="physical",
+        name="land",
         scale=scale,
-        edgecolor='face',
-        facecolor=COLORS['land'],
+        edgecolor="face",
+        facecolor=COLORS["land"],
         zorder=-1,
     )
 
-    d['OCEAN'] = NaturalEarthFeature(
-        category='physical',
-        name='ocean',
+    d["OCEAN"] = NaturalEarthFeature(
+        category="physical",
+        name="ocean",
         scale=scale,
-        edgecolor='face',
-        facecolor=COLORS['water'],
+        edgecolor="face",
+        facecolor=COLORS["water"],
         zorder=-1,
     )
 
-    d['RIVERS'] = NaturalEarthFeature(
-        category='physical',
-        name='rivers_lake_centerlines',
+    d["RIVERS"] = NaturalEarthFeature(
+        category="physical",
+        name="rivers_lake_centerlines",
         scale=scale,
-        edgecolor=COLORS['water'],
-        facecolor='none',
+        edgecolor=COLORS["water"],
+        facecolor="none",
     )
 
     NaturalEarthFeatures = namedtuple(
-        typename='NaturalEarthFeatures',
+        typename="NaturalEarthFeatures",
         field_names=(
-            'BORDERS',
-            'STATES',
-            'COASTLINE',
-            'LAKES',
-            'LAND',
-            'OCEAN',
-            'RIVERS',
+            "BORDERS",
+            "STATES",
+            "COASTLINE",
+            "LAKES",
+            "LAND",
+            "OCEAN",
+            "RIVERS",
         ),
     )
 

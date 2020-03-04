@@ -70,11 +70,10 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from typhon.collocations import collapse, Collocations, Collocator
 from typhon.geographical import sea_mask
-from typhon.plots import binned_statistic, heatmap, styles, worldmap
+from typhon.plots import binned_statistic, heatmap
 from typhon.utils import to_array, Timer
 import xarray as xr
 
