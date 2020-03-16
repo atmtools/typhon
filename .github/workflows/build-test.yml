@@ -51,6 +51,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
+          pip install numpy  # cftime requires numpy already during setup
           pip install .
 
       - name: Lint with flake8 (Linux)
