@@ -35,6 +35,7 @@ plots
    profile_z
    ScalingFormatter
    scatter_density_plot_matrix
+   set_colorbar_limits
    set_xaxis_formatter
    set_yaxis_formatter
    sorted_legend_handles_labels
