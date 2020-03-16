@@ -19,6 +19,7 @@ from typhon import constants
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    'set_colorbar_limits',
     'center_colorbar',
     'figsize',
     'styles',
@@ -29,8 +30,36 @@ __all__ = [
 ]
 
 
-def center_colorbar(cb):
-    """Center a diverging colorbar around zero.
+def set_colorbar_limits(cb, vmin=-1, vmax=1):
+    """Set colorbar limits.
+
+    Note:
+        The normalization of the :class:`~matplotlib.cm.ScalarMappable`
+        is not affected.
+
+    Parameters:
+        cb (matplotlib.colorbar.Colorbar): Colorbar to center.
+        vmin (float): Lower limit of the colorbar axis.
+        vmax (float): Upper limit of the colorbar axis.
+
+    See also:
+            :func:`~typhon.plots.center_colorbar`
+                Center a diverging colorbar.
+    """
+    cb.ax.set_ylim(vmin, vmax)
+    cb.outline.set_transform(cb.ax.transAxes)
+    cb.outline.set_xy(
+        np.array([
+            [0, 0],
+            [0, 1],
+            [1, 1],
+            [1, 0],
+        ]),
+    )
+
+
+def center_colorbar(cb, center=0.0):
+    """Center a diverging colorbar.
 
     Convenience function to adjust the color limits of a colorbar. The function
     multiplies the absolute maximum of the data range by ``(-1, 1)`` and uses
@@ -42,6 +71,11 @@ def center_colorbar(cb):
 
     Parameters:
         cb (matplotlib.colorbar.Colorbar): Colorbar to center.
+        center (float): Fix point to center the colorbar around.
+
+    See also:
+            :func:`~typhon.plots.set_colorbar_limits`
+                Set colorbar limits.
 
     Examples:
 
@@ -60,8 +94,11 @@ def center_colorbar(cb):
 
         plt.show()
     """
-    # Set color limits to +- the absolute maximum of the data range.
-    cb.set_clim(np.multiply((-1, 1), np.max(np.abs(cb.get_clim()))))
+    vmin, vmax = cb.mappable.get_clim()
+    absmax = np.max(np.abs([vmin, vmax]))
+    cb.mappable.set_clim(-absmax + center, absmax + center)
+
+    set_colorbar_limits(cb, vmin + center, vmax + center)
 
 
 def figsize(w, portrait=False):
