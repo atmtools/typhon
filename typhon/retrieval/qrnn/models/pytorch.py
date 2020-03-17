@@ -15,11 +15,21 @@ activations = {"elu" : nn.ELU,
                "hardshrink" : nn.Hardshrink,
                "hardtanh" : nn.Hardtanh,
                "prelu" : nn.PReLU,
+               "relu" : nn.ReLU,
                "selu" : nn.SELU,
                "celu" : nn.CELU,
                "sigmoid" : nn.Sigmoid,
-               "softplus" : nn.Softplus
+               "softplus" : nn.Softplus,
                "softmin" : nn.Softmin}
+
+
+def load(f):
+    model = torch.load(f)
+    return model
+
+################################################################################
+# Quantile loss
+################################################################################
 
 class QuantileLoss:
     r"""
@@ -86,7 +96,7 @@ class QuantileLoss:
 # QRNN
 ################################################################################
 
-class PytorchQRNN:
+class PytorchModel:
     """
     Quantile regression neural network (QRNN)
 
@@ -95,56 +105,15 @@ class PytorchQRNN:
     """
     def __init__(self,
                  input_dimension,
-                 quantiles,
-                 model = (3, 128, "relu"),
-                 depth = 3,
-                 width = 128,
-                 activation = nn.ReLU):
+                 quantiles):
         """
         Arguments:
             input_dimension(int): The number of input features.
             quantiles(array): Array of the quantiles to predict.
-            depth(int): Number of layers of the network.
-            width(int): The number of neurons in the inner layers of the network.
-            activation: The activation function to use for the inner layers of the network.
         """
         self.input_dimension = input_dimension
         self.quantiles = np.array(quantiles)
-        self.depth = depth
-        self.width = width
-        self.activation = nn.ReLU
         self.criterion = QuantileLoss(self.quantiles)
-
-        n_quantiles = len(quantiles)
-
-        if type(model) is tuple:
-            depth = model[0]
-            width = model[1]
-            act = model[2]
-            if type(act) is str:
-                if act in activations:
-                    act = activations[act]
-                else:
-                    raise ValueError("{} is not one of the available "
-                                     " activations ({}) to use in a pytorch "
-                                     "network.".format(act,
-                                                       list(activations.keys())))
-
-            self.model = nn.Sequential()
-            self.model.add_module("fc_0", nn.Linear(input_dimension, width))
-            self.model.add_module("act_0", activation())
-            for i in range(1, depth - 1):
-                self.model.add_module("fc_{}".format(i), nn.Linear(width, width))
-                self.model.add_module("act_{}".format(i), activation())
-                self.model.add_module("fc_{}".format(depth - 1), nn.Linear(width, n_quantiles))
-
-            self.criterion = QuantileLoss(self.quantiles)
-        elif isinstance(model, nn.Module):
-            self.model = model
-        else:
-            raise ValueError("Provided model must either be a valid architecture"
-                             " tuple or an instance of pytorch.nn.Module.")
-
         self.training_errors = []
         self.validation_errors = []
 
@@ -157,16 +126,7 @@ class PytorchQRNN:
         x_adv = x.detach() + eps * torch.sign(x.grad.detach())
         return x_adv
 
-    def train(self,
-              training_data,
-              validation_data,
-              n_epochs = 1,
-              adversarial_training = False,
-              eps_adv = 1e-6,
-              lr = 1e-2,
-              momentum = 0.0,
-              gpu = False):
-
+    def train(self, *args, **kwargs):
         """
         Train the network.
 
@@ -184,17 +144,27 @@ class PytorchQRNN:
             adversarial_training: whether or not to use adversarial training
             eps_adv: The scaling factor to use for adversarial training.
         """
-        self.optimizer = optim.SGD(self.model.parameters(),
+        if len(args) < 2:
+            return nn.Sequential.train(self, *args)
+
+        training_data, validation_data = args
+        n_epochs = kwargs.get("n_epochs", 1)
+        adversarial_training = kwargs.get("adversarial_training", False)
+        eps_adv = kwargs.get("eps_adv", 1e-6)
+        lr = kwargs.get("lr", 1e-2)
+        momentum = kwargs.get("momentum", 0.0)
+        gpu = kwargs.get("gpu", False)
+
+        self.optimizer = optim.SGD(self.parameters(),
                                    lr = lr,
                                    momentum = momentum)
-
-        self.model.train()
+        self.train()
 
         if torch.cuda.is_available() and gpu:
             dev = torch.device("cuda")
         else:
             dev = torch.device("cpu")
-        self.model.to(dev)
+        self.to(dev)
 
         self.criterion.to(dev)
 
@@ -208,10 +178,11 @@ class PytorchQRNN:
                 y = y.to(dev)
 
                 shape = x.size()
-                y = y.reshape((shape[0], 1, shape[2], shape[3]))
+                shape = (shape[0], 1) + shape[2:]
+                y = y.reshape(shape)
 
                 self.optimizer.zero_grad()
-                y_pred = self.model(x)
+                y_pred = self(x)
                 c = self.criterion(y_pred, y)
                 c.backward()
                 self.optimizer.step()
@@ -222,7 +193,7 @@ class PytorchQRNN:
                 if adversarial_training:
                     self.optimizer.zero_grad()
                     x_adv = self._make_adversarial_samples(x, y, eps_adv)
-                    y_pred = self.model(x)
+                    y_pred = self(x)
                     c = self.criterion(y_pred, y)
                     c.backward()
                     self.optimizer.step()
@@ -241,16 +212,17 @@ class PytorchQRNN:
                 y = y.to(dev)
 
                 shape = x.size()
-                y = y.reshape((shape[0], 1, shape[2], shape[3]))
+                shape = (shape[0], 1) + shape[2:]
+                y = y.reshape(shape)
 
-                y_pred = self.model(x)
+                y_pred = self(x)
                 c = self.criterion(y_pred, y)
 
                 val_err += c.item() * x.size()[0]
                 n += x.size()[0]
 
             self.validation_errors.append(val_err / n)
-        self.model.eval()
+        self.eval()
 
     def predict(self, x):
         """
@@ -264,7 +236,7 @@ class PytorchQRNN:
             tensor: 2D tensor containing the predicted quantiles along
                 the last dimension.
         """
-        return self.model(x)
+        return self(x)
 
     def calibration(self,
                     data,
@@ -285,7 +257,7 @@ class PytorchQRNN:
             dev = torch.device("cuda")
         else:
             dev = torch.device("cpu")
-        self.model.to(dev)
+        self.to(dev)
 
         n_intervals = self.quantiles.size // 2
         qs = self.quantiles
@@ -299,21 +271,20 @@ class PytorchQRNN:
             x = x.to(dev)
             y = y.to(dev)
             shape = x.size()
-            y = y.reshape((shape[0], 1, shape[2], shape[3]))
+            shape = (shape[0], 1) + shape[2:]
+            y = y.reshape(shape)
 
             y_pred = self.predict(x)
             y_pred = y_pred.cpu()
             y = y.cpu()
 
             for i in range(n_intervals):
-                l = y_pred[:, i]
-                r = y_pred[:, -(i + 1)]
-                counts[i] += np.logical_and(y.cpu() >= l, y.cpu() < r).sum()
+                l = y_pred[:, [i]]
+                r = y_pred[:, [-(i + 1)]]
+                counts[i] += np.logical_and(y >= l, y < r).sum()
 
             total += np.prod(y.size())
-
         return intervals[::-1], (counts / total)[::-1]
-
 
     def save(self, path):
         """
@@ -327,7 +298,7 @@ class PytorchQRNN:
                     "width" : self.width,
                     "depth" : self.depth,
                     "activation" : self.activation,
-                    "network_state" : self.model.state_dict(),
+                    "network_state" : self.state_dict(),
                     "optimizer_state" : self.optimizer.state_dict()},
                     path)
 
@@ -342,5 +313,48 @@ class PytorchQRNN:
         state = torch.load(path)
         keys = ["input_dimension", "quantiles", "depth", "width", "activation"]
         qrnn = QRNN(*[state[k] for k in keys])
-        qrnn.model.load_state_dict["network_state"]
+        qrnn.load_state_dict["network_state"]
         qrnn.optimizer.load_state_dict["optimizer_state"]
+
+class FullyConnected(PytorchModel, nn.Sequential):
+    """
+    Convenience class to represent fully connected models with
+    given number of input and output features and depth and
+    width of hidden layers.
+    """
+    def __init__(self,
+                 input_dimension,
+                 quantiles,
+                 arch):
+
+        """
+        Create a fully-connected neural network.
+
+        Args:
+            input_dimension(int): Number of input features
+            output_dimension(int): Number of output features
+            arch(tuple): Tuple (d, w) of d, the number of hidden
+                layers in the network, and w, the width of the net-
+                work.
+        """
+        PytorchModel.__init__(self, input_dimension, quantiles)
+        output_dimension = quantiles.size
+        self.arch = arch
+
+        if len(arch) == 0:
+            layers = [nn.Linear(input_dimension, output_dimension)]
+        else:
+            d, w, act = arch
+            if type(act) == str:
+                act = activations[act]
+            layers = [nn.Linear(input_dimension, w)]
+            for i in range(d - 1):
+                layers.append(nn.Linear(w, w))
+                if not act is None:
+                    layers.append(act())
+            layers.append(nn.Linear(w, output_dimension))
+        nn.Sequential.__init__(self, *layers)
+
+    def save(self, f):
+        torch.save(self, f)
+

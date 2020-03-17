@@ -5,4 +5,4 @@ methods as well as functions for the assessment of their performance.
 
 from .common import *  # noqa
 from .oem import *  # noqa
-#from .spareice import *  # noqa
+from .spareice import *  # noqa

@@ -15,7 +15,7 @@ from scipy.interpolate import CubicSpline
 # Keras Imports
 try:
     import keras
-    from keras.models import Sequential, clone_model
+    from keras.models import Sequential, clone_model, Model
     from keras.layers import Dense, Activation, Dropout
     from keras.optimizers import SGD
 except ImportError:
@@ -425,15 +425,13 @@ class KerasQRNN:
                                     activation=activation,
                                     **kwargs))
                     model.add(Dense(units=len(quantiles), activation=None))
-        elif type(model) is Model:
-            pass
+        elif isinstance(model, Model):
+            self.models = [clone_model(model) for i in range(ensemble_size)]
+        elif isinstance(model, list) and isinstance(model[0], Model):
+            self.models = model
         else:
             raise Exception("The provided model is neither a suitable "
                             "architecture tuple nor a keras model.")
-
-        self.models = [clone_model(model) for i in range(ensemble_size)]
-
-
 
     def __fit_params__(self, kwargs):
         at = kwargs.pop("adversarial_training", False)
@@ -776,20 +774,23 @@ class KerasQRNN:
         filename = os.path.basename(path)
         dirname = os.path.dirname(path)
 
-        f = open(path, "rb")
-        qrnn = pickle.load(f)
-        qrnn.models = []
-        for mf in qrnn.model_files:
-            mf = os.path.basename(mf)
-            try:
-                mp = os.path.join(dirname, os.path.basename(mf))
-                qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
-            except:
-                raise Exception("Error loading the neural network models. " \
-                                "Please make sure all files created during the"\
-                                " saving are in this folder.")
-        f.close()
-        return qrnn
+        with open(path, "rb") as f:
+
+            qrnn = pickle.load(f)
+            qrnn.models = []
+            for mf in qrnn.model_files:
+                mf = os.path.basename(mf)
+                try:
+                    mp = os.path.join(dirname, os.path.basename(mf))
+                    qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
+                except:
+                    raise Exception("Error loading the neural network models. " \
+                                    "Please make sure all files created during the"\
+                                    " saving are in this folder.")
+            keras_qrnn = KerasQRNN(qrnn.input_dim, qrnn.quantiles, qrnn.models)
+            keras_qrnn.x_mean = qrnn.x_mean
+            keras_qrnn.x_sigma = qrnn.x_sigma
+        return keras_qrnn
 
     def __getstate__(self):
         dct = copy.copy(self.__dict__)
