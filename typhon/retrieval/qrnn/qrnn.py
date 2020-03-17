@@ -14,7 +14,6 @@ try:
     import typhon.retrieval.qrnn.models.keras as keras
     backend = keras
 except Exception as e:
-    raise e
     try:
         import typhon.retrieval.qrnn.models.pytorch as pytorch
         backend = pytorch
