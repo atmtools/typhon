@@ -22,5 +22,5 @@ dependencies:
         - sphinx_rtd_theme
         - xarray>=0.10.2
 channels:
-        - conda-forge
         - defaults
+        - conda-forge
