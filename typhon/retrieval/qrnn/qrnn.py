@@ -23,6 +23,14 @@ except Exception as e:
                         " module.")
 
 def set_backend(name):
+    """
+    Set the neural network package to use as backend.
+
+    The currently available backend are "keras" and "pytorch".
+
+    Args:
+        name(str): The name of the backend.
+    """
     global backend
     if name == "keras":
         try:
@@ -52,7 +60,7 @@ def create_model(input_dim,
         input_dim(int): Number of input features.
         output_dim(int): Number of output features.
         arch: Tuple (d, w, a) containing the depth, i.e. number of
-            hidden layers, and width of the hidden layers, i. e.
+            hidden layers width of the hidden layers, i. e.
             the number of neurons in them, and the name of the
             activation function as string.
     Return:
@@ -71,11 +79,11 @@ class QRNN:
     Quantile Regression Neural Network (QRNN)
 
     This class provides a high-level implementation of  quantile regression
-    neural networks. They can be used to estimate quantiles of the posterior
+    neural networks. It can be used to estimate quantiles of the posterior
     distribution of remote sensing retrievals.
 
-    The QRNN uses a generic neural network model, that is trained to minimize
-    the quantile loss function
+    The :class:`QRNN`` class uses an arbitrary neural network model, that is
+    trained to minimize the quantile loss function
 
     .. math::
             \mathcal{L}_\tau(y_\tau, y_{true}) =
@@ -87,28 +95,24 @@ class QRNN:
     has one output neuron for each quantile to estimate.
 
     The QRNN class provides a generic QRNN implementation in the sense that it
-    does not assumed a fixed neural network infrastructure. Instead, this
+    does not assume a fixed neural network infrastructure. Instead, this
     functionality is off-loaded to a model object, which can be an arbitrary
-    regression model such as a fully-connected or a convolutional network.
-    A range of different models are provided in the typhon.retrieval.qrnn.models
-    module. This QRNN class just implements high-level operation on the QRNN
-    output while training and prediction are delegated to the model object. For
-    details on the respective implementation refer to the documentation of the
-    corresponding model class.
+    regression network such as a fully-connected or a convolutional network. A
+    range of different models are provided in the typhon.retrieval.qrnn.models
+    module. The :class:`QRNN`` class just implements high-level operation on
+    the QRNN output while training and prediction are delegated to the model
+    object. For details on the respective implementation refer to the
+    documentation of the corresponding model class.
 
     .. note:: For the QRNN implementation :math:`x` is used to denote the input
               vector and :math:`y` to denote the output. While this is opposed
-              to typical inverse problem notation, it is in line with machine
-              learning notation and felt more natural for the implementation.
-              If this annoys you, I am sorry. But the other way round it would
-              have annoyed other people and in particular me.
+              to inverse problem notation typically used for retrievals, it is
+              in line with machine learning notation and felt more natural for
+              the implementation. If this annoys you, I am sorry.
 
     Attributes:
-
-        quantiles (numpy.array):
-            The 1D-array containing the quantiles :math:`\tau \in [0, 1]` that the
-            network learns to predict.
-
+        quantiles (numpy.array): The 1D-array containing the quantiles
+            :math:`\tau \in [0, 1]` that the network learns to predict.
         model: The model object that implements the actual neural network
             regressor.
     """
@@ -129,8 +133,8 @@ class QRNN:
                 within the range [0, 1].
             model: A (possible trained) model instance or a tuple
                 :code:`(d, w, act)` describing the architecture of a
-                fully-connected neural network with d hidden layers
-                with w neurons and act activation functions.
+                fully-connected neural network with :code:`d` hidden layers
+                with :code:`w` neurons and :code:`act` activation functions.
             ensemble_size: The size of the ensemble if an ensemble model
                 should be used.
         """

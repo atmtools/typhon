@@ -1,87 +1,29 @@
-retrieval
-=========
+The retrieval submodule contains implementations of different retrieval methods
+as well as functions for the assessment of their performance.
 
-.. automodule:: typhon.retrieval
-.. currentmodule:: typhon.retrieval
+Retrieval methods
+=================
 
-.. autosummary::
-   :toctree: generated
+.. toctree::
+   :maxdepth: 1
 
-retrieval.bmci
-==============
+   typhon.retrieval.bmci
+   typhon.retrieval.mcmc
+   typhon.retrieval.qrnn
+   typhon.retrieval.oem
 
-.. automodule:: typhon.retrieval.bmci
-
-.. currentmodule:: typhon.retrieval.bmci
-
-.. autosummary::
-   :toctree: generated
-
-   BMCI
-
-retrieval.mcmc
-==============
-
-.. automodule:: typhon.retrieval.mcmc
-
-.. currentmodule:: typhon.retrieval.mcmc
-
-.. autosummary::
-   :toctree: generated
-
-   MCMC
-
-retrieval.oem
-=============
-
-.. automodule:: typhon.retrieval.oem
-
-.. currentmodule:: typhon.retrieval.oem
-
-.. autosummary::
-   :toctree: generated
-
-   error_covariance_matrix
-   averaging_kernel_matrix
-   retrieval_gain_matrix
-   smoothing_error
-   retrieval_noise
-
-retrieval.qrnn
-==============
-
-.. automodule:: typhon.retrieval.qrnn
-
-.. currentmodule:: typhon.retrieval.qrnn
-
-.. autosummary::
-   :toctree: generated
-
-   QRNN
-
-retrieval.scores
-================
-
-.. automodule:: typhon.retrieval.scores
-
-.. currentmodule:: typhon.retrieval.scores
-
-.. autosummary::
-   :toctree: generated
-
-    mape
-    bias
-    quantile_score
-    mean_quantile_score
-
-retrieval.spareice
+Retrieval products
 ==================
 
-.. automodule:: typhon.retrieval.spareice
+.. toctree::
+   :maxdepth: 1
 
-.. currentmodule:: typhon.retrieval.spareice
+   typhon.retrieval.spareice
 
-.. autosummary::
-   :toctree: generated
 
-   SPAREICE
+Utility functions
+==================
+.. toctree::
+   :maxdepth: 1
+
+   typhon.retrieval.scores
