@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import pickle
+import importlib
 
 import numpy as np
 from scipy.interpolate import CubicSpline
@@ -244,11 +245,35 @@ class QRNN:
         logger.info(results)
         return (np.mean(results, axis=0), np.std(results, axis=0))
 
-    def fit(self, *args, **kwargs):
-        self.model.fit(*args, **kwargs)
-
-    def train(self, *args, **kwargs):
-        self.model.train(*args, **kwargs)
+    def train(self,
+              training_data,
+              validation_data = None,
+              batch_size = 256,
+              sigma_noise = None,
+              adversarial_training = False,
+              delta_at = 0.01,
+              initial_learning_rate = 1e-2,
+              momentum = 0.0,
+              convergence_epochs = 5,
+              learning_rate_decay = 2.0,
+              learning_rate_minimum = 1e-6,
+              maximum_epochs = 200,
+              training_split = 0.9,
+              gpu = True):
+        self.model.train(training_data,
+                         validation_data,
+                         batch_size,
+                         sigma_noise,
+                         adversarial_training,
+                         delta_at,
+                         initial_learning_rate,
+                         momentum,
+                         convergence_epochs,
+                         learning_rate_decay,
+                         learning_rate_minimum,
+                         maximum_epochs,
+                         training_split,
+                         gpu)
 
     def predict(self, x):
         r"""
@@ -531,7 +556,8 @@ class QRNN:
         """
         f = open(path, "wb")
         pickle.dump(self, f)
-        self.model.save(f)
+        backend = importlib.import_module(self.backend)
+        backend.save_model(self.model, f)
         f.close()
 
     @staticmethod
@@ -549,11 +575,10 @@ class QRNN:
 
             The loaded QRNN object.
         """
-        import importlib
         with open(path, 'rb') as f:
             qrnn = pickle.load(f)
             backend = importlib.import_module(qrnn.backend)
-            model = backend.load(f)
+            model = backend.load_model(f, qrnn.quantiles)
             qrnn.model = model
         return qrnn
 

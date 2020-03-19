@@ -9,6 +9,8 @@ import torch
 import numpy as np
 from torch import nn
 from torch import optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
 activations = {"elu" : nn.ELU,
@@ -23,9 +25,84 @@ activations = {"elu" : nn.ELU,
                "softmin" : nn.Softmin}
 
 
-def load(f):
+def save_model(f, model):
+    """
+    Save pytorch model.
+
+    Args:
+        f(:code:`str` or binary stream): Either a path or a binary stream
+            to store the data to.
+        model(:code:`pytorch.nn.Moduel`): The pytorch model to save
+    """
+    torch.save(model, f)
+
+def load_model(f, quantiles):
+    """
+    Load pytorch model.
+
+    Args:
+        f(:code:`str` or binary stream): Either a path or a binary stream
+            to read the model from
+        quantiles(:code:`np.ndarray`): Array containing the quantiles
+            that the model predicts.
+
+    Returns:
+        The loaded pytorch model.
+    """
     model = torch.load(f)
     return model
+
+def handle_input(data, device = None):
+    """
+    Handle input data.
+
+    This function handles data supplied
+
+      - as tuple of :code:`np.ndarray`
+      - a single :code:`np.ndarray`
+      - torch :code:`dataloader`
+
+    If a numpy array is provided it is converted to a torch tensor
+    so that it can be fed into a pytorch model.
+    """
+    if type(data) == tuple:
+        x, y = data
+        x = torch.tensor(x, dtype=torch.float)
+        y = torch.tensor(y, dtype=torch.float)
+        if not device is None:
+            x = x.to(device)
+            y = y.to(device)
+        return x, y
+    if type(data) == np.ndarray:
+        x = torch.tensor(data, dtype=torch.float)
+        if not device is None:
+            x = x.to(device)
+        return x
+    else:
+        return data
+
+class BatchedDataset(Dataset):
+    """
+    Batches an un-bactched dataset.
+    """
+    def __init__(self, x, y, batch_size):
+        self.x = x
+        self.y = y
+        self.batch_size = batch_size
+
+    def __len__(self):
+        # This is required because x and y are tensors and don't throw these
+        # errors themselves.
+        return self.x.shape[0] // self.batch_size
+
+    def __getitem__(self, i):
+        if i >= len(self):
+            raise IndexError()
+        i_start = i * self.batch_size
+        i_end = (i + 1) * self.batch_size
+        x = self.x[i_start : i_end]
+        y = self.y[i_start : i_end]
+        return (x, y)
 
 ################################################################################
 # Quantile loss
@@ -130,12 +207,12 @@ class PytorchModel:
         """
         Train the network.
 
-        This trains the network for the given number of epochs using the provided
-        training and validation data.
+        This trains the network for the given number of epochs using the
+        provided training and validation data.
 
-        If desired, the training can be augmented using adversarial training. In this
-        case the network is additionally trained with an adversarial batch of examples
-        in each step of the training.
+        If desired, the training can be augmented using adversarial training.
+        In this case the network is additionally trained with an adversarial
+        batch of examples in each step of the training.
 
         Arguments:
             training_data: pytorch dataloader providing the training data
@@ -144,38 +221,93 @@ class PytorchModel:
             adversarial_training: whether or not to use adversarial training
             eps_adv: The scaling factor to use for adversarial training.
         """
-        if len(args) < 2:
-            return nn.Sequential.train(self, *args)
+        # Handle overload of train() method
+        if len(args) < 1 or (len(args) == 1 and type(args[0]) == bool):
+            return nn.Sequential.train(self, *args, **kwargs)
 
-        training_data, validation_data = args
-        n_epochs = kwargs.get("n_epochs", 1)
-        adversarial_training = kwargs.get("adversarial_training", False)
-        eps_adv = kwargs.get("eps_adv", 1e-6)
-        lr = kwargs.get("lr", 1e-2)
-        momentum = kwargs.get("momentum", 0.0)
-        gpu = kwargs.get("gpu", False)
+        #
+        # Parse training arguments
+        #
 
-        self.optimizer = optim.SGD(self.parameters(),
-                                   lr = lr,
-                                   momentum = momentum)
-        self.train()
+        training_data = args[0]
+        arguments = {"validation_data" : None,
+                     "batch_size" : 256,
+                     "sigma_noise" : None,
+                     "adversarial_training" : False,
+                     "delta_at" : 0.01,
+                     "initial_learning_rate" : 1e-2,
+                     "momentum" : 0.0,
+                     "convergence_epochs" : 5,
+                     "learning_rate_decay" : 2.0,
+                     "learning_rate_minimum" : 1e-6,
+                     "maximum_epochs" : 1,
+                     "training_split" : 0.9,
+                     "gpu" : False}
+        argument_names = arguments.keys()
+        for a, n in zip(args[1:], argument_names):
+            arguments[n] = a
+        for k in kwargs:
+            if k in arguments:
+                arguments[k] = kwargs[k]
+            else:
+                raise ValueError("Unknown argument to {}.".print(k))
 
+        validation_data = arguments["validation_data"]
+        batch_size = arguments["batch_size"]
+        sigma_noise = arguments["sigma_noise"]
+        adversarial_training = arguments["adversarial_training"]
+        delta_at = arguments["delta_at"]
+        initial_learning_rate = arguments["initial_learning_rate"]
+        convergence_epochs = arguments["convergence_epochs"]
+        learning_rate_decay = arguments["learning_rate_decay"]
+        learning_rate_minimum = arguments["learning_rate_minimum"]
+        maximum_epochs = arguments["maximum_epochs"]
+        training_split = arguments["training_split"]
+        gpu = arguments["gpu"]
+        momentum = arguments["momentum"]
+
+        #
+        # Determine device to use
+        #
         if torch.cuda.is_available() and gpu:
-            dev = torch.device("cuda")
+            device = torch.device("cuda")
         else:
-            dev = torch.device("cpu")
-        self.to(dev)
+            device = torch.device("cpu")
+        self.to(device)
 
-        self.criterion.to(dev)
+        #
+        # Handle input data
+        #
+        try:
+            x, y = handle_input(training_data, device)
+            training_data = BatchedDataset(x, y, batch_size)
+        except:
+            pass
 
-        for i in range(n_epochs):
 
+        self.train()
+        self.optimizer = optim.SGD(self.parameters(),
+                                   lr = initial_learning_rate,
+                                   momentum = momentum)
+        self.criterion.to(device)
+        scheduler = ReduceLROnPlateau(self.optimizer,
+                                            factor=1.0 / learning_rate_decay,
+                                            patience=convergence_epochs,
+                                            min_lr=learning_rate_minimum)
+        training_errors = []
+        validation_errors = []
+
+        #
+        # Training loop
+        #
+
+        for i in range(maximum_epochs):
             err = 0.0
             n = 0
             iterator = tqdm(enumerate(training_data), total = len(training_data))
             for j, (x, y) in iterator:
-                x = x.to(dev)
-                y = y.to(dev)
+                x = x.to(device)
+                y = y.to(device)
 
                 shape = x.size()
                 shape = (shape[0], 1) + shape[2:]
@@ -192,7 +324,7 @@ class PytorchModel:
 
                 if adversarial_training:
                     self.optimizer.zero_grad()
-                    x_adv = self._make_adversarial_samples(x, y, eps_adv)
+                    x_adv = self._make_adversarial_samples(x, y, delta_at)
                     y_pred = self(x)
                     c = self.criterion(y_pred, y)
                     c.backward()
@@ -202,41 +334,42 @@ class PytorchModel:
                     iterator.set_postfix({"Training errror" : err / n})
 
             # Save training error
-            self.training_errors.append(err / n)
+            training_errors.append(err / n)
 
             val_err = 0.0
             n = 0
+            if not validation_data is None:
+                print(validation_data)
+                for x, y in validation_data:
+                    x = x.to(device)
+                    y = y.to(device)
 
-            for x, y in validation_data:
-                x = x.to(dev)
-                y = y.to(dev)
+                    shape = x.size()
+                    shape = (shape[0], 1) + shape[2:]
+                    y = y.reshape(shape)
 
-                shape = x.size()
-                shape = (shape[0], 1) + shape[2:]
-                y = y.reshape(shape)
+                    y_pred = self(x)
+                    c = self.criterion(y_pred, y)
 
-                y_pred = self(x)
-                c = self.criterion(y_pred, y)
+                    val_err += c.item() * x.size()[0]
+                    n += x.size()[0]
+            validation_errors.append(val_err)
 
-                val_err += c.item() * x.size()[0]
-                n += x.size()[0]
-
-            self.validation_errors.append(val_err / n)
+        self.training_errors += training_errors
+        self.validation_errors += validation_errors
         self.eval()
+        return {"training_errors" : self.training_errors,
+                "validation_errors" : self.validation_errors}
 
-    def predict(self, x):
-        """
-        Predict quantiles for given input.
-
-        Args:
-            x: 2D tensor containing the inputs for which for which to
-                predict the quantiles.
-
-        Returns:
-            tensor: 2D tensor containing the predicted quantiles along
-                the last dimension.
-        """
-        return self(x)
+    def predict(self, x, gpu=False):
+        ""
+        if torch.cuda.is_available() and gpu:
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+        x = handle_input(x, device)
+        self.to(device)
+        return self(x).detach()
 
     def calibration(self,
                     data,
@@ -261,7 +394,8 @@ class PytorchModel:
 
         n_intervals = self.quantiles.size // 2
         qs = self.quantiles
-        intervals = np.array([q_r - q_l for (q_l, q_r) in zip(qs, reversed(qs))])[:n_intervals]
+        intervals = np.array([q_r - q_l for (q_l, q_r)
+                              in zip(qs, reversed(qs))])[:n_intervals]
         counts = np.zeros(n_intervals)
 
         total = 0.0
@@ -316,11 +450,13 @@ class PytorchModel:
         qrnn.load_state_dict["network_state"]
         qrnn.optimizer.load_state_dict["optimizer_state"]
 
+################################################################################
+# Fully-connected network
+################################################################################
+
 class FullyConnected(PytorchModel, nn.Sequential):
     """
-    Convenience class to represent fully connected models with
-    given number of input and output features and depth and
-    width of hidden layers.
+    Pytorch implementation of a fully-connected QRNN model.
     """
     def __init__(self,
                  input_dimension,
@@ -331,11 +467,13 @@ class FullyConnected(PytorchModel, nn.Sequential):
         Create a fully-connected neural network.
 
         Args:
-            input_dimension(int): Number of input features
-            output_dimension(int): Number of output features
-            arch(tuple): Tuple (d, w) of d, the number of hidden
-                layers in the network, and w, the width of the net-
-                work.
+            input_dimension(:code:`int`): Number of input features
+            quantiles(:code:`array`): The quantiles to predict given
+                as fractions within [0, 1].
+            arch(tuple): Tuple :code:`(d, w, a)` containing :code:`d`, the
+                number of hidden layers in the network, :code:`w`, the width
+                of the network and :code:`a`, the type of activation functions
+                to be used as string.
         """
         PytorchModel.__init__(self, input_dimension, quantiles)
         output_dimension = quantiles.size
@@ -354,7 +492,3 @@ class FullyConnected(PytorchModel, nn.Sequential):
                     layers.append(act())
             layers.append(nn.Linear(w, output_dimension))
         nn.Sequential.__init__(self, *layers)
-
-    def save(self, f):
-        torch.save(self, f)
-
