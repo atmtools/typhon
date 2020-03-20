@@ -50,6 +50,34 @@ def set_backend(name):
     else:
         raise Exception("\"{}\" is not a supported backend.".format(name))
 
+def get_backend(name):
+    """
+    Get module object corresponding to the short backend name.
+
+    The currently available backend are "keras" and "pytorch".
+
+    Args:
+        name(str): The name of the backend.
+    """
+    if name == "keras":
+        try:
+            import typhon.retrieval.qrnn.models.keras as keras
+            backend = keras
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import keras: ", e)
+    elif name == "pytorch":
+        try:
+            import typhon.retrieval.qrnn.models.pytorch as pytorch
+            backend = pytorch
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import pytorch: ", e)
+    else:
+        raise Exception("\"{}\" is not a supported backend.".format(name))
+    return backend
+
+
 def create_model(input_dim,
                  output_dim,
                  arch):
@@ -119,7 +147,7 @@ class QRNN:
     """
     def __init__(self,
                  input_dimension,
-                 quantiles,
+                 quantiles=None,
                  model=(3, 128, "relu"),
                  ensemble_size=1,
                  **kwargs):
@@ -147,6 +175,19 @@ class QRNN:
             self.model = backend.FullyConnected(self.input_dimension,
                                                 self.quantiles,
                                                 model)
+            if quantiles is None:
+                raise ValueError("If model is given as architecture tuple, the"
+                                  " 'quantiles' kwarg must be provided.")
+        else:
+            if not quantiles is None:
+                if not quantiles == model.quantiles:
+                    raise ValueError("Provided quantiles do not match those of "
+                                     "the provided model.")
+
+            self.model = model
+            self.quantiles = model.quantiles
+            self.backend = model.backend
+
 
     def cross_validation(self,
                         x_train,

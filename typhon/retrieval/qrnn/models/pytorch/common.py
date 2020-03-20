@@ -1,9 +1,8 @@
 """
-models
-======
+models.pytorch.common
+=====================
 
-This module provides an implementation of quantile regression neural networks (QRNNs)
-using the pytorch deep learning framework.
+This module provides common functionality required to realize QRNNs in pytorch.
 """
 import torch
 import numpy as np
@@ -83,11 +82,14 @@ def handle_input(data, device = None):
 
 class BatchedDataset(Dataset):
     """
-    Batches an un-bactched dataset.
+    Batches an un-batched dataset.
     """
-    def __init__(self, x, y, batch_size):
-        self.x = x
-        self.y = y
+    def __init__(self,
+                 training_data,
+                 batch_size):
+        x, y = training_data
+        self.x = torch.tensor(x, dtype=torch.float)
+        self.y = torch.tensor(y, dtype=torch.float)
         self.batch_size = batch_size
 
     def __len__(self):
@@ -193,6 +195,7 @@ class PytorchModel:
         self.criterion = QuantileLoss(self.quantiles)
         self.training_errors = []
         self.validation_errors = []
+        self.backend = "typhon.retrieval.qrnn.models.typhon"
 
     def _make_adversarial_samples(self, x, y, eps):
         self.model.zero_grad()
@@ -449,46 +452,3 @@ class PytorchModel:
         qrnn = QRNN(*[state[k] for k in keys])
         qrnn.load_state_dict["network_state"]
         qrnn.optimizer.load_state_dict["optimizer_state"]
-
-################################################################################
-# Fully-connected network
-################################################################################
-
-class FullyConnected(PytorchModel, nn.Sequential):
-    """
-    Pytorch implementation of a fully-connected QRNN model.
-    """
-    def __init__(self,
-                 input_dimension,
-                 quantiles,
-                 arch):
-
-        """
-        Create a fully-connected neural network.
-
-        Args:
-            input_dimension(:code:`int`): Number of input features
-            quantiles(:code:`array`): The quantiles to predict given
-                as fractions within [0, 1].
-            arch(tuple): Tuple :code:`(d, w, a)` containing :code:`d`, the
-                number of hidden layers in the network, :code:`w`, the width
-                of the network and :code:`a`, the type of activation functions
-                to be used as string.
-        """
-        PytorchModel.__init__(self, input_dimension, quantiles)
-        output_dimension = quantiles.size
-        self.arch = arch
-
-        if len(arch) == 0:
-            layers = [nn.Linear(input_dimension, output_dimension)]
-        else:
-            d, w, act = arch
-            if type(act) == str:
-                act = activations[act]
-            layers = [nn.Linear(input_dimension, w)]
-            for i in range(d - 1):
-                layers.append(nn.Linear(w, w))
-                if not act is None:
-                    layers.append(act())
-            layers.append(nn.Linear(w, output_dimension))
-        nn.Sequential.__init__(self, *layers)

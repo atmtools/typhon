@@ -1,7 +1,8 @@
-from typhon.retrieval.qrnn import QRNN, set_backend
+from typhon.retrieval.qrnn import QRNN, set_backend, get_backend
 import numpy as np
 import os
 import tempfile
+import importlib
 
 #
 # Import available backends.
@@ -43,6 +44,21 @@ class TestQrnn:
                        maximum_epochs = 1)
             qrnn.predict(self.x_train)
 
+    def test_qrnn_datasets(self):
+        """
+        Provide data as dataset object instead of numpy arrays.
+        """
+        for backend in backends:
+            set_backend(backend)
+            backend = get_backend(backend)
+            data = backend.BatchedDataset((self.x_train, self.y_train),
+                                          256)
+            qrnn = QRNN(self.x_train.shape[1],
+                        np.linspace(0.05, 0.95, 10))
+            qrnn.train(data,
+                       maximum_epochs = 1)
+
+
     def save_qrnn(self):
         """
         Test saving and loading of QRNNs.
@@ -60,9 +76,3 @@ class TestQrnn:
             x_pred = x_pred.detach()
 
         assert(np.allclose(x_pred, x_pred_loaded))
-
-
-__file__ = "./bla.py"
-test = TestQrnn()
-test.setup_method()
-test.test_qrnn()
