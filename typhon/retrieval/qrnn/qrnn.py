@@ -598,8 +598,33 @@ class QRNN:
         f = open(path, "wb")
         pickle.dump(self, f)
         backend = importlib.import_module(self.backend)
-        backend.save_model(self.model, f)
+        backend.save_model(f, self.model)
         f.close()
+
+    def classify(self, x, threshold):
+        """
+        Classify output based on posterior PDF and given numeric threshold.
+
+        Args:
+            x: The input data as :code:`np.ndarray` or backend-specific
+               dataset object.
+            threshold: The numeric threshold to apply for classification.
+        """
+        y = self.predict(x)
+        out_shape = y.shape[:1] + (1,) + y.shape[2:]
+        c = self.quantiles[0] * np.ones(out_shape)
+
+        for i in range(self.quantiles.size - 1):
+            q_l = y[:, [i]]
+            q_r = y[:, [i+1]]
+            inds = np.logical_and(q_l < threshold,
+                                  q_r >= threshold)
+            c[inds] = self.quantiles[i] * (threshold - q_l[inds])
+            c[inds] += self.quantiles[i + 1] * (q_r[inds] - threshold)
+            c[inds] /= (q_r[inds] - q_l[inds])
+
+        c[threshold > q_r] = self.quantiles[-1]
+        return 1.0 - c
 
     @staticmethod
     def load(path):

@@ -1,6 +1,7 @@
 from torch import nn
 from torch import optim
-from typhon.retrieval.qrnn.models.pytorch.common import PytorchModel
+from typhon.retrieval.qrnn.models.pytorch.common import (PytorchModel,
+                                                         activations)
 
 ################################################################################
 # Fully-connected network

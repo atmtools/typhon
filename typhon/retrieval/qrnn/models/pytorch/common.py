@@ -195,7 +195,7 @@ class PytorchModel:
         self.criterion = QuantileLoss(self.quantiles)
         self.training_errors = []
         self.validation_errors = []
-        self.backend = "typhon.retrieval.qrnn.models.typhon"
+        self.backend = "typhon.retrieval.qrnn.models.pytorch"
 
     def _make_adversarial_samples(self, x, y, eps):
         self.model.zero_grad()
@@ -283,10 +283,9 @@ class PytorchModel:
         #
         try:
             x, y = handle_input(training_data, device)
-            training_data = BatchedDataset(x, y, batch_size)
+            training_data = BatchedDataset((x, y), batch_size)
         except:
             pass
-
 
         self.train()
         self.optimizer = optim.SGD(self.parameters(),
@@ -372,7 +371,7 @@ class PytorchModel:
             device = torch.device("cpu")
         x = handle_input(x, device)
         self.to(device)
-        return self(x).detach()
+        return self(x).detach().numpy()
 
     def calibration(self,
                     data,
