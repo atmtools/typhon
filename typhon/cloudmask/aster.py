@@ -548,6 +548,23 @@ class ASTERimage:
 
         return cloudtopheight_IR(bt, cloudmask, latitude, month, method="modis")
 
+    def dt_estimate_scanlines(self, sensor='vnir'):
+        '''Estimate the date time per scanline.
+        Based on the approximate recording time for one ASTER image a date time
+        array is constructed along the flight direction and depending on the sensor
+        resolution.
+
+        Parameters:
+            sensor (str): ASTER sensor ("vnir", "swir", or "tir").
+
+        Returns:
+            (datetime): date time information per scanline.
+        '''
+        dtdelta = datetime.timedelta(seconds=8, microseconds=849000)
+        scanlines = {'vnir': 4200, 'swir': 2100, 'tir': 700}
+
+        return  np.linspace(-.5, .5, scanlines[sensor]) * dtdelta + self.datetime
+
     def sensor_angles(self, sensor="vnir"):
         """Calculate a sun reflection angle for a given ASTER image depending on
         the sensor-sun geometry and the sensor settings.
