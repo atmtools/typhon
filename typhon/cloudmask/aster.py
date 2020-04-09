@@ -32,23 +32,15 @@ CONFIDENTLY_CLEAR = 2
 class ASTERimage:
     """ASTER L1B image object."""
 
-    channels = (
-        "1",
-        "2",
-        "3N",
-        "3B",  # VNIR
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",  # SWIR
-        "10",
-        "11",
-        "12",
-        "13",
-        "14",  # TIR
-    )
+    subsensors = {
+        "VNIR": ("1", "2", "3N", "3B"),
+        "SWIR": ("4", "5", "6", "7", "8", "9"),
+        "TIR": ("10", "11", "12", "13", "14"),
+    }
+    # list of ASTER channels
+    channels = [c for sc in subsensors.values() for c in sc]
+    # dictionary with keys=channels and values=subsensors
+    channel2sensor = {c: s for s, sc in subsensors.items() for c in sc}
 
     def __init__(self, filename):
         """Initialize ASTER image object.
