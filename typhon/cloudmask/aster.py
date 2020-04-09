@@ -471,6 +471,51 @@ class ASTERimage:
 
         return clmask
 
+    def read_coordinates(self, channel="1"):
+        """Read reduced latitude and longitude grid.
+
+        Extract geolocation table containing latitude and longitude values at
+        11 x 11 lattice points. Latitudes are provided in geocentric coordinates
+        and are maped to geodetic values.
+
+        Parameters:
+            channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                    '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
+
+        Returns:
+            ndarray, ndarray: latitude, longitude
+        """
+
+        sdsidx = {
+            "VNIR": (0, 1),
+            "SWIR": (6, 7),
+            "TIR": (14, 15)
+        }
+
+        latstr = ":".join(
+            (
+                "HDF4_SDS",
+                "UNKNOWN",
+                f"{self.filename}",
+                f"{sdsidx[self.channel2sensor[channel]][0]}",
+            )
+        )
+        lat = gdal.Open(latstr)
+        lat = geocentric2geodetic(lat.ReadAsArray().astype("float"))
+
+        lonstr = ":".join(
+            (
+                "HDF4_SDS",
+                "UNKNOWN",
+                f"{self.filename}",
+                f"{sdsidx[self.channel2sensor[channel]][1]}",
+            )
+        )
+        lon = gdal.Open(lonstr)
+        lon = lon.ReadAsArray().astype("float")
+
+        return lat, lon
+
     def get_latlon_grid(self, channel="1"):
         """Create latitude-longitude-grid for specified channel data.
 
@@ -919,3 +964,15 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method="modis"):
     bt_clear_avg = np.nanmean(bt[mask_clear])
 
     return (bt_clear_avg - bt_cloudy) / lapserate
+
+def geocentric2geodetic(latitude):
+    """Translate geocentric to geodetic latitudes.
+
+    Parameters:
+        latitude (ndarray): latitude values in degree.
+
+    Returns:
+        (ndarray): geodetic latitudes.
+    """
+
+    return np.rad2deg(np.arctan(1.0067395 * np.tan(np.deg2rad(latitude))))
