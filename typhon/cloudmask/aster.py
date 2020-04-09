@@ -519,11 +519,9 @@ class ASTERimage:
     def get_latlon_grid(self, channel="1"):
         """Create latitude-longitude-grid for specified channel data.
 
-        A latitude-logitude grid is created from the corner coordinates of the
-        ASTER image. The coordinates stated in the HDF4 meta data information
-        correspond the edge pixels shifted by one in flight direction and to
-        the left. The resolution and dimension of the image depends on the
-        specified channel.
+        A latitude-logitude grid is created from geolocation information from
+        11 x 11 boxes corresponding to the image data. The resolution and dimension
+        of the image and latitude-logitude grid depend on the specified channel.
 
         Parameters:
             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
@@ -545,29 +543,23 @@ class ASTERimage:
             ]
         )
 
-        # Image corner coordinates (file, NOT swath) according to the ASTER
-        # Users Handbook p.57.
-        LL = self._convert_metastr(
-            self.meta["LOWERLEFT"], dtype=tuple
-        )  # (latitude, longitude)
-        LR = self._convert_metastr(self.meta["LOWERRIGHT"], dtype=tuple)
-        UL = self._convert_metastr(self.meta["UPPERLEFT"], dtype=tuple)
-        UR = self._convert_metastr(self.meta["UPPERRIGHT"], dtype=tuple)
-        lat = np.array([[UL[0], UR[0]], [LL[0], LR[0]]])
-        lon = np.array([[UL[1], UR[1]], [LL[1], LR[1]]])
+        lat, lon = self.read_coordinates(channel=channel)
+
+        latidx = np.arange(11) * imagedimension.lat / 10
+        lonidx = np.arange(11) * imagedimension.lon / 10
 
         # Function for interpolation to full domain grid.
-        flat = interpolate.interp2d([0, 1], [0, 1], lat, kind="linear")
-        flon = interpolate.interp2d([0, 1], [0, 1], lon, kind="linear")
+        flat = interpolate.interp2d(lonidx, latidx, lat, kind="linear")
+        flon = interpolate.interp2d(lonidx, latidx, lon, kind="linear")
 
         # Grid matching shifted corner coordinates (see above).
-        latgrid = np.linspace(0, 1, int(imagedimension.lat) + 1)
-        longrid = np.linspace(0, 1, int(imagedimension.lon) + 1)
+        latgrid = np.arange(0, int(imagedimension.lat) + 1, 1)
+        longrid = np.arange(0, int(imagedimension.lon) + 1, 1)
 
         # Apply lat-lon-function to grid and cut off last row and column to get
         # the non-shifted grid.
-        lons = flon(longrid, latgrid)[:-1, :-1]
         lats = flat(longrid, latgrid)[:-1, :-1]
+        lons = flon(longrid, latgrid)[:-1, :-1]
 
         return lats, lons
 
