@@ -32,23 +32,15 @@ CONFIDENTLY_CLEAR = 2
 class ASTERimage:
     """ASTER L1B image object."""
 
-    channels = (
-        "1",
-        "2",
-        "3N",
-        "3B",  # VNIR
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",  # SWIR
-        "10",
-        "11",
-        "12",
-        "13",
-        "14",  # TIR
-    )
+    subsensors = {
+        "VNIR": ("1", "2", "3N", "3B"),
+        "SWIR": ("4", "5", "6", "7", "8", "9"),
+        "TIR": ("10", "11", "12", "13", "14"),
+    }
+    # list of ASTER channels
+    channels = [c for sc in subsensors.values() for c in sc]
+    # dictionary with keys=channels and values=subsensors
+    channel2sensor = {c: s for s, sc in subsensors.items() for c in sc}
 
     def __init__(self, filename):
         """Initialize ASTER image object.
@@ -479,14 +471,57 @@ class ASTERimage:
 
         return clmask
 
+    def read_coordinates(self, channel="1"):
+        """Read reduced latitude and longitude grid.
+
+        Extract geolocation table containing latitude and longitude values at
+        11 x 11 lattice points. Latitudes are provided in geocentric coordinates
+        and are maped to geodetic values.
+
+        Parameters:
+            channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                    '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
+
+        Returns:
+            ndarray, ndarray: latitude, longitude
+        """
+
+        sdsidx = {
+            "VNIR": (0, 1),
+            "SWIR": (6, 7),
+            "TIR": (14, 15)
+        }
+
+        latstr = ":".join(
+            (
+                "HDF4_SDS",
+                "UNKNOWN",
+                f"{self.filename}",
+                f"{sdsidx[self.channel2sensor[channel]][0]}",
+            )
+        )
+        lat = gdal.Open(latstr)
+        lat = geocentric2geodetic(lat.ReadAsArray().astype("float"))
+
+        lonstr = ":".join(
+            (
+                "HDF4_SDS",
+                "UNKNOWN",
+                f"{self.filename}",
+                f"{sdsidx[self.channel2sensor[channel]][1]}",
+            )
+        )
+        lon = gdal.Open(lonstr)
+        lon = lon.ReadAsArray().astype("float")
+
+        return lat, lon
+
     def get_latlon_grid(self, channel="1"):
         """Create latitude-longitude-grid for specified channel data.
 
-        A latitude-logitude grid is created from the corner coordinates of the
-        ASTER image. The coordinates stated in the HDF4 meta data information
-        correspond the edge pixels shifted by one in flight direction and to
-        the left. The resolution and dimension of the image depends on the
-        specified channel.
+        A latitude-logitude grid is created from geolocation information from
+        11 x 11 boxes corresponding to the image data. The resolution and dimension
+        of the image and latitude-logitude grid depend on the specified channel.
 
         Parameters:
             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
@@ -508,29 +543,23 @@ class ASTERimage:
             ]
         )
 
-        # Image corner coordinates (file, NOT swath) according to the ASTER
-        # Users Handbook p.57.
-        LL = self._convert_metastr(
-            self.meta["LOWERLEFT"], dtype=tuple
-        )  # (latitude, longitude)
-        LR = self._convert_metastr(self.meta["LOWERRIGHT"], dtype=tuple)
-        UL = self._convert_metastr(self.meta["UPPERLEFT"], dtype=tuple)
-        UR = self._convert_metastr(self.meta["UPPERRIGHT"], dtype=tuple)
-        lat = np.array([[UL[0], UR[0]], [LL[0], LR[0]]])
-        lon = np.array([[UL[1], UR[1]], [LL[1], LR[1]]])
+        lat, lon = self.read_coordinates(channel=channel)
+
+        latidx = np.arange(11) * imagedimension.lat / 10
+        lonidx = np.arange(11) * imagedimension.lon / 10
 
         # Function for interpolation to full domain grid.
-        flat = interpolate.interp2d([0, 1], [0, 1], lat, kind="linear")
-        flon = interpolate.interp2d([0, 1], [0, 1], lon, kind="linear")
+        flat = interpolate.interp2d(lonidx, latidx, lat, kind="linear")
+        flon = interpolate.interp2d(lonidx, latidx, lon, kind="linear")
 
         # Grid matching shifted corner coordinates (see above).
-        latgrid = np.linspace(0, 1, int(imagedimension.lat) + 1)
-        longrid = np.linspace(0, 1, int(imagedimension.lon) + 1)
+        latgrid = np.arange(0, int(imagedimension.lat) + 1, 1)
+        longrid = np.arange(0, int(imagedimension.lon) + 1, 1)
 
         # Apply lat-lon-function to grid and cut off last row and column to get
         # the non-shifted grid.
-        lons = flon(longrid, latgrid)[:-1, :-1]
         lats = flat(longrid, latgrid)[:-1, :-1]
+        lons = flon(longrid, latgrid)[:-1, :-1]
 
         return lats, lons
 
@@ -927,3 +956,15 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method="modis"):
     bt_clear_avg = np.nanmean(bt[mask_clear])
 
     return (bt_clear_avg - bt_cloudy) / lapserate
+
+def geocentric2geodetic(latitude):
+    """Translate geocentric to geodetic latitudes.
+
+    Parameters:
+        latitude (ndarray): latitude values in degree.
+
+    Returns:
+        (ndarray): geodetic latitudes.
+    """
+
+    return np.rad2deg(np.arctan(1.0067395 * np.tan(np.deg2rad(latitude))))
