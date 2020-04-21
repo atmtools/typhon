@@ -486,11 +486,7 @@ class ASTERimage:
             ndarray, ndarray: latitude, longitude
         """
 
-        sdsidx = {
-            "VNIR": (0, 1),
-            "SWIR": (6, 7),
-            "TIR": (14, 15)
-        }
+        sdsidx = {"VNIR": (0, 1), "SWIR": (6, 7), "TIR": (14, 15)}
 
         latstr = ":".join(
             (
@@ -595,19 +591,22 @@ class ASTERimage:
 
         return np.linspace(-0.5, 0.5, scanlines[sensor]) * dtdelta + self.datetime
 
-    def sensor_angles(self, sensor="vnir"):
-        """Calculate a sun reflection angle for a given ASTER image depending on
-        the sensor-sun geometry and the sensor settings.
+    def sensor_angles(self, channel="1"):
+        """Calculate sensor zenith and azimuth angles.
+        
+        Angles are derived for each pixel depending on the channel and the
+        corresponding ASTER subsensor ("VNIR", "SWIR", "TIR"), as well as on the
+        subsensor geometry and settings.
 
         Note:
-            All angular values are given in [°].
+            All angular values are given in degree.
 
         Parameters:
-            sensor (str): ASTER sensor ("vnir", "swir", or "tir").
+            channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                    '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'.
 
         Returns:
-            sensor_angle (ndarray): 2d field of size `cloudmask` of reflection
-            angles for eachannel pixel.
+            ndarray, ndarray: sensor zenith, sensor azimuth angles in degree.
 
         References:
              Kang Yang, Huaguo Zhang, Bin Fu, Gang Zheng, Weibing Guan, Aiqin Shi
@@ -617,79 +616,101 @@ class ASTERimage:
              Algorithm Theoretical Basis Document for ASTER Level-1 Data 
              Processing (Ver. 3.0).1996.
         """
+        if channel != "3B":
+            sensor = self.channel2sensor[channel]
+        else:
+            sensor = "VNIRB"
+
         # Angular data from ASTER metadata data.
         S = float(self.meta["MAPORIENTATIONANGLE"])
 
-        if sensor == "vnir":
-            P = float(self.meta["POINTINGANGLE.1"])
-            FOV = 6.09  # Field of view
-            # IFOV = np.rad2deg(21.3e-6) Instantaneous field of view
-            field = self.get_radiance(channel="1")
-        elif sensor == "swir":
-            P = float(self.meta["POINTINGANGLE.2"])
-            # IFOV = np.rad2deg(42.6e-6)
-            FOV = 4.9
-            field = self.get_radiance(channel="4")
-        elif sensor == "tir":
-            P = float(self.meta["POINTINGANGLE.3"])
-            # IFOV = np.rad2deg(127.8e-6)
-            FOV = 4.9
-            field = self.get_radiance(channel="10")
+        FOV = {"VNIR": 6.09, "VNIRB": 5.19, "SWIR": 4.9, "TIR": 4.9}
+
+        P = {
+            "VNIR": float(self.meta["POINTINGANGLE.1"]),
+            "VNIRB": float(self.meta["POINTINGANGLE.1"]),
+            "SWIR": float(self.meta["POINTINGANGLE.2"]),
+            "TIR": float(self.meta["POINTINGANGLE.3"]),
+        }
+
+        # cut overlap area of backward pointing telescope
+        if channel != "3B":
+            field = self.read_digitalnumbers(channel)
+        elif channel == "3B" and self.meta["FLYINGDIRECTION"] == "DE":
+            field = self.read_digitalnumbers(channel)[400:]
+        elif channel == "3B" and self.meta["FLYINGDIRECTION"] == "AE":
+            field = self.read_digitalnumbers(channel)[:400]
+
+        # design n field
+        sidx = np.arange(np.shape(field)[1])
+
+        mid0 = sidx[np.isfinite(field[5, :])][[0, -1]].mean()
+        mid1 = sidx[np.isfinite(field[-5, :])][[0, -1]].mean()
+
+        f = interpolate.interp1d(
+            np.array([5, np.shape(field)[0] - 5]),
+            np.array([mid0, mid1]),
+            kind="linear",
+            fill_value="extrapolate",
+        )
+
+        mids = f(np.arange(np.shape(field)[0]))
+        # costructing an n-array indexing the pixels symmetric to the center of the
+        # swath. If pointing angle is zero, the sensor zenith angle is zero in the
+        # swath center.
+        n = sidx - mids[:, np.newaxis]
+
+        # left and right side of nadir are defined such that the sign follows the
+        # roll angle sign, which is negative on the right and positive on the left
+        # side of the sensor in flying direction (!), NOT in projected image. The
+        # sides therefore depend on the ascending / decending mode defined in the
+        # meta data.
+        flyingdir = self.meta["FLYINGDIRECTION"]
+        if flyingdir is "DE":
+            n *= -1
+
+        swath_widths = np.sum(np.isfinite(field), axis=1)
+        # average swath width, but exluding possible NaN-scanlines at beginning and
+        # end of the image.
+        swath_width = np.mean(swath_widths[swath_widths > 4200])
+
+        n_angles = n * FOV[sensor] / swath_width + P[sensor]
+        azimuth = np.full_like(field, np.nan)
+
+        if channel != "3B":
+            zenith = abs(n_angles)
+
+            if flyingdir is "DE":
+                azimuth[n_angles > 0] = 90 + S
+                azimuth[n_angles <= 0] = 270 + S
+            else:
+                azimuth[n_angles < 0] = 90 + S
+                azimuth[n_angles >= 0] = 270 + S
         else:
-            raise ValueError("ASTER sensors are named: vnir, swir, tir.")
-
-        # Instantaneous FOV (IVOF)
-        # IFOV = FOV / cloudmask.shape[1]
-
-        # Construct n-array indexing pixels n=- right and n=+ left from the image
-        # center and perpendicular to flight direction.
-        n = np.zeros(np.shape(field))
-        nswath = []
-        # assign indices n to pixel, neglegting the frist and last 5 swath rows
-        for i in np.arange(start=5, stop=field.shape[0] - 5, step=1, dtype=int):
-            # for all scan rows: extract first and last not-NaN index
-            ind1 = next(x[0] for x in enumerate(field[i]) if ~np.isnan(x[1]))
-            # print('Index 1: ', ind1)
-            ind2 = field.shape[1] - next(
-                x[0] for x in enumerate(field[i, 5:-5][::-1]) if ~np.isnan(x[1])
-            )
-            ind_mid = (ind1 + ind2) / 2
-            nswath.append(ind2 - ind1 + 1)
-            # create indexing arrays for right and left side of swath
-            right_arr = np.arange(start=-round(ind_mid), stop=0, step=1, dtype=int) * -1
-            left_arr = (
-                np.arange(
-                    start=1, stop=field.shape[1] - round(ind_mid) + 1, step=1, dtype=int
+            h = 705000  # in km above the equator
+            zenith = np.rad2deg(
+                np.arctan(
+                    np.sqrt(
+                        (h * np.tan(np.deg2rad(P[sensor])) + 15 * n) ** 2
+                        + (h * np.tan(np.deg2rad(27.6)) / np.cos(np.deg2rad(P[sensor])))
+                        ** 2
+                    )
+                    / h
                 )
-                * -1
             )
-            n[i] = np.asarray(list(right_arr) + list(left_arr))
 
-        # add the first and last 5 scan lines as dupliates of the 6th and 6th-last row.
-        n[:5] = n[5]  # first
-        n[-5:] = n[-6]  # last
+            x = np.rad2deg(np.arctan(0.6 / np.tan(np.deg2rad(n_angles))))
+            if flyingdir is "DE":
+                azimuth[n_angles > 0] = np.array(90 - x + S)[n_angles > 0]
+                azimuth[n_angles <= 0] = np.array(270 - x + S)[n_angles <= 0]
+            else:
+                azimuth[n_angles < 0] = np.array(90 - x + S)[n_angles < 0]
+                azimuth[n_angles >= 0] = np.array(270 - x + S)[n_angles >= 0]
 
-        n[np.isnan(field)] = np.nan
+        zenith[np.isnan(field)] = np.nan
+        azimuth[np.isnan(field)] = np.nan
 
-        # instantaneous field of view (IFOV)
-        FOV_S = FOV / np.cos(np.deg2rad(S))  # correct for map orientation
-        IFOV = FOV_S / np.median(nswath)  # median scan line width
-
-        # Thresholding index for separating left and right from nadir in
-        # azimuth calculation.
-        n_az = n * IFOV + P
-
-        # ASTER zenith angle
-        zenith = abs(np.asarray(n) * IFOV + P)
-
-        # ASTER azimuth angle
-        azimuth = np.ones(field.shape) * np.nan
-        # swath right side
-        azimuth[np.logical_and(n_az < 0, ~np.isnan(n))] = 90 + S
-        # swath left side
-        azimuth[np.logical_and(n_az >= 0, ~np.isnan(n))] = 270 + S
-
-        return (zenith, azimuth)
+        return zenith, azimuth
 
     def reflection_angles(self):
         """Calculate the reflected sun angle, theta_r, of specular reflection
@@ -956,6 +977,7 @@ def cloudtopheight_IR(bt, cloudmask, latitude, month, method="modis"):
     bt_clear_avg = np.nanmean(bt[mask_clear])
 
     return (bt_clear_avg - bt_cloudy) / lapserate
+
 
 def geocentric2geodetic(latitude):
     """Translate geocentric to geodetic latitudes.
