@@ -301,20 +301,20 @@ class QRNN:
               maximum_epochs = 200,
               training_split = 0.9,
               gpu = True):
-        self.model.train(training_data,
-                         validation_data,
-                         batch_size,
-                         sigma_noise,
-                         adversarial_training,
-                         delta_at,
-                         initial_learning_rate,
-                         momentum,
-                         convergence_epochs,
-                         learning_rate_decay,
-                         learning_rate_minimum,
-                         maximum_epochs,
-                         training_split,
-                         gpu)
+        return self.model.train(training_data,
+                                validation_data,
+                                batch_size,
+                                sigma_noise,
+                                adversarial_training,
+                                delta_at,
+                                initial_learning_rate,
+                                momentum,
+                                convergence_epochs,
+                                learning_rate_decay,
+                                learning_rate_minimum,
+                                maximum_epochs,
+                                training_split,
+                                gpu)
 
     def predict(self, x):
         r"""
@@ -365,10 +365,15 @@ class QRNN:
             values of the posterior CDF :math: `F(x)` in `fs`.
 
         """
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
+        if len(x.shape) > 1:
+            s = x.shape[:-1] + (self.quantiles.size + 2,)
+        else:
+            s = (1, self.quantiles.size + 2)
+
+        y_pred = np.zeros(s)
+        y_pred[:, 1:-1] = self.predict(x)
+        y_pred[:, 0] = 2.0 * y_pred[:, 1] - y_pred[:, 2]
+        y_pred[:, -1] = 2.0 * y_pred[:, -2] - y_pred[:, -3]
 
         qs = np.zeros(self.quantiles.size + 2)
         qs[1:-1] = self.quantiles
@@ -502,7 +507,7 @@ class QRNN:
             Array containing the posterior means for the provided inputs.
         """
         y_pred, qs = self.cdf(x)
-        mus = y_pred[-1] - np.trapz(qs, x=y_pred)
+        mus = y_pred[:, -1] - np.trapz(qs, x=y_pred)
         return mus
 
     @staticmethod

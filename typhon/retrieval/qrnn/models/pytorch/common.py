@@ -341,7 +341,6 @@ class PytorchModel:
             val_err = 0.0
             n = 0
             if not validation_data is None:
-                print(validation_data)
                 for x, y in validation_data:
                     x = x.to(device)
                     y = y.to(device)
@@ -355,7 +354,9 @@ class PytorchModel:
 
                     val_err += c.item() * x.size()[0]
                     n += x.size()[0]
-            validation_errors.append(val_err)
+                validation_errors.append(val_err / n)
+                iterator.set_postfix({"Validation errror" : val_err / n})
+                iterator.update()
 
         self.training_errors += training_errors
         self.validation_errors += validation_errors
@@ -410,7 +411,7 @@ class PytorchModel:
             shape = (shape[0], 1) + shape[2:]
             y = y.reshape(shape)
 
-            y_pred = self.predict(x)
+            y_pred = self(x)
             y_pred = y_pred.cpu()
             y = y.cpu()
 
