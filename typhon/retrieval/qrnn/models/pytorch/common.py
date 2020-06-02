@@ -447,7 +447,7 @@ class PytorchModel:
         Arguments:
             path: Path of the file where the QRNN was stored.
         """
-        state = torch.load(path)
+        state = torch.load(path, map_location=torch.device("cpu"))
         keys = ["input_dimension", "quantiles", "depth", "width", "activation"]
         qrnn = QRNN(*[state[k] for k in keys])
         qrnn.load_state_dict["network_state"]
