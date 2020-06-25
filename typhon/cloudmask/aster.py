@@ -42,6 +42,27 @@ class ASTERimage:
     # dictionary with keys=channels and values=subsensors
     channel2sensor = {c: s for s, sc in subsensors.items() for c in sc}
 
+    wavelength_range = {
+        # VNIR
+        "1": (0.52, 0.60),
+        "2": (0.63, 0.69),
+        "3N": (0.78, 0.86),
+        "3B": (0.78, 0.86),
+        # SWIR
+        "4": (1.600, 1.700),
+        "5": (2.145, 2.185),
+        "6": (2.185, 2.225),
+        "7": (2.235, 2.285),
+        "8": (2.295, 2.365),
+        "9": (2.360, 2.430),
+        # TIR
+        "10": (8.125, 8.475),
+        "11": (8.475, 8.825),
+        "12": (8.925, 9.275),
+        "13": (10.25, 10.95),
+        "14": (10.95, 11.65)
+    }
+
     def __init__(self, filename):
         """Initialize ASTER image object.
 
