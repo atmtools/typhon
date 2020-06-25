@@ -198,11 +198,23 @@ class PytorchQRNN:
 
         self.criterion.to(dev)
 
+        def clear_output():
+            print("clreaing output")
+            try:
+                import IPython
+                from IPython.display import clear_output
+                clear_output(wait=True)
+            except:
+                print("failed loading Ipython")
+                pass
+
         for i in range(n_epochs):
+            clear_output()
 
             err = 0.0
             n = 0
             iterator = tqdm(enumerate(training_data), total = len(training_data))
+            iterator.set_description(f"Training epoch {i}/{n_epochs}, lr = {self.optimizer.lr}")
             for j, (x, y) in iterator:
                 x = x.to(dev)
                 y = y.to(dev)

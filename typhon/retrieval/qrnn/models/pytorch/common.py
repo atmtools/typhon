@@ -10,7 +10,7 @@ from torch import nn
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import Dataset
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 activations = {"elu" : nn.ELU,
                "hardshrink" : nn.Hardshrink,
@@ -300,14 +300,29 @@ class PytorchModel:
         validation_errors = []
 
         #
+        # Function to clear output if we are in a notebook.
+        #
+
+        def clear_output():
+            print("clreaing output")
+            try:
+                import IPython
+                from IPython.display import clear_output
+                clear_output(wait=True)
+            except:
+                print("failed loading Ipython")
+                pass
+
+        #
         # Training loop
         #
 
         for i in range(maximum_epochs):
             err = 0.0
             n = 0
-            iterator = tqdm(enumerate(training_data), total = len(training_data))
-            for j, (x, y) in iterator:
+            #clear_output()
+            for j, (x, y) in enumerate(training_data):
+
                 x = x.to(device)
                 y = y.to(device)
 
@@ -332,8 +347,11 @@ class PytorchModel:
                     c.backward()
                     self.optimizer.step()
 
+
                 if j % 100:
-                    iterator.set_postfix({"Training errror" : err / n})
+                    print("Epoch {} / {}: Batch {} / {}, Training error: {:.3f}"
+                          .format(i, maximum_epochs, j, len(training_data), err / n),
+                          end="\r")
 
             # Save training error
             training_errors.append(err / n)
@@ -355,8 +373,12 @@ class PytorchModel:
                     val_err += c.item() * x.size()[0]
                     n += x.size()[0]
                 validation_errors.append(val_err / n)
-                iterator.set_postfix({"Validation errror" : val_err / n})
-                iterator.update()
+                print("Epoch {} / {}: Training error: {:.3f}, Validation error: {:.3f}, Learning rate: {:.5f}"
+                      .format(i, maximum_epochs, training_errors[-1], validation_errors[-1], self.optimizer.defaults["lr"]))
+                scheduler.step(val_err / n)
+            else:
+                scheduler.step(err / n)
+
 
         self.training_errors += training_errors
         self.validation_errors += validation_errors
