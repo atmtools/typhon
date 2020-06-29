@@ -293,9 +293,9 @@ class PytorchModel:
                                    momentum = momentum)
         self.criterion.to(device)
         scheduler = ReduceLROnPlateau(self.optimizer,
-                                            factor=1.0 / learning_rate_decay,
-                                            patience=convergence_epochs,
-                                            min_lr=learning_rate_minimum)
+                                      factor=1.0 / learning_rate_decay,
+                                      patience=convergence_epochs,
+                                      min_lr=learning_rate_minimum)
         training_errors = []
         validation_errors = []
 
@@ -356,12 +356,14 @@ class PytorchModel:
             # Save training error
             training_errors.append(err / n)
 
+            lr = [group['lr'] for group in self.optimizer.param_groups][0]
+
             val_err = 0.0
             n = 0
             if not validation_data is None:
                 for x, y in validation_data:
-                    x = x.to(device)
-                    y = y.to(device)
+                    x = x.to(device).detach()
+                    y = y.to(device).detach()
 
                     shape = x.size()
                     shape = (shape[0], 1) + shape[2:]
@@ -373,11 +375,15 @@ class PytorchModel:
                     val_err += c.item() * x.size()[0]
                     n += x.size()[0]
                 validation_errors.append(val_err / n)
+
+
                 print("Epoch {} / {}: Training error: {:.3f}, Validation error: {:.3f}, Learning rate: {:.5f}"
-                      .format(i, maximum_epochs, training_errors[-1], validation_errors[-1], self.optimizer.defaults["lr"]))
+                      .format(i, maximum_epochs, training_errors[-1], validation_errors[-1], lr))
                 scheduler.step(val_err / n)
             else:
                 scheduler.step(err / n)
+                print("Epoch {} / {}: Training error: {:.3f}, Learning rate: {:.5f}"
+                      .format(i, maximum_epochs, training_errors[-1], lr))
 
 
         self.training_errors += training_errors
@@ -394,7 +400,7 @@ class PytorchModel:
             device = torch.device("cpu")
         x = handle_input(x, device)
         self.to(device)
-        return self(x).detach().numpy()
+        return self(x.detach()).detach().numpy()
 
     def calibration(self,
                     data,
@@ -427,8 +433,8 @@ class PytorchModel:
 
         iterator = tqdm(data)
         for x, y in iterator:
-            x = x.to(dev)
-            y = y.to(dev)
+            x = x.to(dev).detach()
+            y = y.to(dev).detach()
             shape = x.size()
             shape = (shape[0], 1) + shape[2:]
             y = y.reshape(shape)
