@@ -18,14 +18,14 @@ Typhon provides:
 Further information on ARTS can be found on http://www.radiativetransfer.org/.
 """
 
+import builtins
 import logging
 import subprocess
-
-from setuptools import setup, find_packages
 from codecs import open
 from os.path import dirname, join
 
-import builtins
+from setuptools import setup, find_packages
+
 
 builtins.__TYPHON_SETUP__ = True
 DOCLINES = (__doc__ or "").split("\n")
