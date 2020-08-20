@@ -75,6 +75,7 @@ class ASTERimage:
         self.filename = filename
 
         self.meta = self.get_metadata()
+        self.gain = dict(v.split(", ") for k, v in self.meta.items() if k.startswith("GAIN"))
         SolarDirection = namedtuple(
             "SolarDirection", ["azimuth", "elevation"]
         )  # SolarDirection = (0< az <360, -90< el <90)
@@ -120,6 +121,13 @@ class ASTERimage:
     def get_metadata(self):
         """Read full ASTER metadata information."""
         return gdal.Open(self.filename).GetMetadata()
+
+    def get_gain(self, channel):
+        """Get gain settings of specified channel."""
+        gain = self.gain.get(channel, None)
+        if gain == "LO1":
+            gain = "LOW"  # both refer to column 3 in ucc table.
+        return gain
 
     def read_digitalnumbers(self, channel):
         """Read ASTER L1B raw digital numbers.
@@ -213,18 +221,11 @@ class ASTERimage:
             "14": 5.225e-3,
         }
 
-        if channel in ["1", "2", "3N", "3B", "4", "5", "6", "7", "8", "8", "9"]:
-            meta = self.get_metadata()
-            gain = meta[f"GAIN.{channel[0]}"].split(",")[1].strip()
-            if gain == "LO1":
-                gain = "LOW"  # both refer to column 3 in ucc table.
-            radiance = (dn - 1) * ucc[channel][["HGH", "NOR", "LOW", "LO2"].index(gain)]
-        elif channel in ["10", "11", "12", "13", "14"]:
-            radiance = (dn - 1) * ucc[channel]
+        gain = self.get_gain(channel)
+        if gain is not None:
+            return (dn - 1) * ucc[channel][["HGH", "NOR", "LOW", "LO2"].index(gain)]
         else:
-            raise ValueError('Invalid channel "{channel}".')
-
-        return radiance
+            return (dn - 1) * ucc[channel]
 
     def get_reflectance(self, channel):
         """Get ASTER L1B reflectance values at TOA.
