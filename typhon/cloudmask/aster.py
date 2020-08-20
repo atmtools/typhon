@@ -227,6 +227,8 @@ class ASTERimage:
         dn = self.read_digitalnumbers(channel)
         return (dn - 1) * self.get_ucc(channel)
 
+    def get_possible_radiance_values(self, channel):
+        return np.arange(255) * self.get_ucc(channel)
 
     def get_radiance_to_reflectance_factor(self, channel):
         """Calculate radiance to reflectance factor.
@@ -285,6 +287,10 @@ class ASTERimage:
                 resolution of the respective channel.
         """
         return (self.get_radiance(channel)
+                * self.get_radiance_to_reflectance_factor(channel))
+
+    def get_possible_reflectance_values(self, channel):
+        return (self.get_possible_radiance_values(channel)
                 * self.get_radiance_to_reflectance_factor(channel))
 
     def get_brightnesstemperature(self, channel):
