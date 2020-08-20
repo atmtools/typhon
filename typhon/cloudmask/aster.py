@@ -228,6 +228,43 @@ class ASTERimage:
         return (dn - 1) * self.get_ucc(channel)
 
 
+    def get_radiance_to_reflectance_factor(self, channel):
+        """Calculate radiance to reflectance factor.
+
+        Parameters:
+             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9'.
+
+        Returns:
+            float: factor.
+
+        References:
+        Thome, K.; Biggar, S.; Slater, P (2001). Effects of assumed solar
+            spectral irradiance on intercomparisons of earth-observing sensors.
+            In Sensors, Systems, and Next-Generation Satellites; Proceedings of
+            SPIE; December 2001; Fujisada, H., Lurie, J., Weber, K., Eds.;
+            Vol. 4540, pp. 260–269.
+        http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectance.pdf
+        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
+        """
+        # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according
+        # to Thome et al. 2001.
+        E_sun = dict(zip(self.channels,(1848, 1549, 1114, 1114, 225.4, 86.63,
+                                        81.85, 74.85, 66.49, 59.85)
+                        )
+                    )
+
+        doy = self.datetime.timetuple().tm_yday  # day of the year (doy)
+
+        distance = (
+            0.016790956760352183
+            * np.sin(-0.017024566555637135 * doy + 4.735251041365579)
+            + 0.9999651354429786
+        )  # acc. to Landsat Handbook
+
+        return (np.pi * distance ** 2 / E_sun[channel]
+                / np.cos(np.deg2rad(self.sunzenith)))
+
     def get_reflectance(self, channel):
         """Get ASTER L1B reflectance values at TOA.
 
@@ -246,51 +283,9 @@ class ASTERimage:
         Returns:
             ndarray: Reflectance values at TOA. Shape according to data
                 resolution of the respective channel.
-
-        References:
-        Thome, K.; Biggar, S.; Slater, P (2001). Effects of assumed solar
-            spectral irradiance on intercomparisons of earth-observing sensors.
-            In Sensors, Systems, and Next-Generation Satellites; Proceedings of
-            SPIE; December 2001; Fujisada, H., Lurie, J., Weber, K., Eds.;
-            Vol. 4540, pp. 260–269.
-        http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectance.pdf
-        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
         """
-        # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according
-        # to Thome et al. 2001.
-        E_sun = (
-            1848,
-            1549,
-            1114,
-            1114,
-            225.4,
-            86.63,
-            81.85,
-            74.85,
-            66.49,
-            59.85,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        )
-
-        doy = self.datetime.timetuple().tm_yday  # day of the year (doy)
-
-        distance = (
-            0.016790956760352183
-            * np.sin(-0.017024566555637135 * doy + 4.735251041365579)
-            + 0.9999651354429786
-        )  # acc. to Landsat Handbook
-
-        return (
-            np.pi
-            * self.get_radiance(channel)
-            * distance ** 2
-            / E_sun[self.channels.index(channel)]
-            / np.cos(np.deg2rad(self.sunzenith))
-        )
+        return (self.get_radiance(channel)
+                * self.get_radiance_to_reflectance_factor(channel))
 
     def get_brightnesstemperature(self, channel):
         """Get ASTER L1B reflectances values at TOA.
