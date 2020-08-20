@@ -4,6 +4,7 @@
 import datetime
 import logging
 import os
+import warnings
 from collections import namedtuple
 
 import gdal
@@ -27,6 +28,8 @@ CONFIDENTLY_CLOUDY = 5
 PROBABLY_CLOUDY = 4
 PROBABLY_CLEAR = 3
 CONFIDENTLY_CLEAR = 2
+CLOUDY = 1
+CLEAR = 0
 
 
 class ASTERimage:
@@ -393,79 +396,45 @@ class ASTERimage:
             r5[~np.isnan(r5)] = 1
         r5 = np.repeat(np.repeat(r5, 2, axis=0), 2, axis=1)
 
-        # Read thermal (TIR) channel at 90m resolution and match VNIR
-        # resolution.
-        bt14 = self.get_brightnesstemperature(channel="14")
-        bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
-
         # Ratios for clear-cloudy-tests.
         r3N2 = r3N / r2
         r12 = r1 / r2
 
         ### TEST 1-4 ###
         # Set cloud mask to default "confidently clear".
-        clmask = np.ones(r1.shape, dtype=np.float) * 2
+        clmask = np.full_like(r1, CONFIDENTLY_CLEAR, dtype=np.float)
 
         with np.warnings.catch_warnings():
             np.warnings.filterwarnings("ignore", r"invalid value encountered")
-
-            # Set "probably clear" pixels.
-            clmask[
-                multiple_logical(
-                    r3N > 0.03,
-                    r5 > 0.01,
-                    0.7 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.45,
-                    func=np.logical_and,
-                )
-            ] = PROBABLY_CLEAR
-
-            # Set "probably cloudy" pixels.
-            clmask[
-                multiple_logical(
-                    r3N > 0.03,
-                    r5 > 0.015,
-                    0.75 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.35,
-                    func=np.logical_and,
-                )
-            ] = PROBABLY_CLOUDY
-
-            # Set "confidently cloudy" pixels
-            clmask[
-                multiple_logical(
-                    r3N > 0.065,
-                    r5 > 0.02,
-                    0.8 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.2,
-                    func=np.logical_and,
-                )
-            ] = CONFIDENTLY_CLOUDY
-
-            # Combine swath edge pixels.
-            clmask[
-                multiple_logical(
-                    np.isnan(r1),
-                    np.isnan(r2),
-                    np.isnan(r3N),
-                    np.isnan(r5),
-                    func=np.logical_or,
-                )
-            ] = np.nan
+            # NaN values at swath edge cause warnings that can be ignored
+            probably_clear = ((r3N > 0.03) & (r5 > 0.01) & (0.7 < r3N2)
+                              & (r3N2 < 1.75) & (r12 < 1.45))
+            probably_cloudy = ((r3N > 0.03) & (r5 > 0.015) & (0.75 < r3N2)
+                               & (r3N2 < 1.75) & (r12 < 1.35))
+            confidently_cloudy = ((r3N > 0.065) & (r5 > 0.02) & (0.8 < r3N2)
+                                 & (r3N2 < 1.75) & (r12 < 1.2))
+        
+        mask_swathedge = (np.isnan(r1) | np.isnan(r2) | np.isnan(r3N) | np.isnan(r5))
+        
+        clmask[probably_clear] = PROBABLY_CLEAR
+        clmask[probably_cloudy] = PROBABLY_CLOUDY
+        clmask[confidently_cloudy] = CONFIDENTLY_CLOUDY
+        clmask[mask_swathedge] = np.nan
 
         if include_thermal_test:
             ### TEST 5 ###
             # Uncertain warm ocean pixels, higher than the 5th percentile of
             # brightness temperature values from all "confidently clear"
             # labeled pixels, are overwritten with "confidently clear".
+            # Read thermal (TIR) channel at 90m resolution and match VNIR
+            # resolution.
+            bt14 = self.get_brightnesstemperature(channel="14")
+            bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
 
             # Check for available "confidently clear" pixels.
-            nc = np.sum(clmask == 2) / np.sum(~np.isnan(clmask))
+            nc = np.sum(clmask == CONFIDENTLY_CLEAR) / np.sum(~np.isnan(clmask))
             if nc > 0.03:
-                bt14_p05 = np.nanpercentile(bt14[clmask == 2], 5)
+                bt14_p05 = np.nanpercentile(bt14[clmask == CONFIDENTLY_CLEAR], 5)
             else:
                 # If less than 3% of pixels are "confidently clear", test 5
                 # cannot be applied according to Werner et al., 2016. However,
@@ -473,23 +442,30 @@ class ASTERimage:
                 # and "confidently clear" pixels in such cases leads to
                 # plausible results and we derive a threshold correspondingly.
                 bt14_p05 = np.nanpercentile(
-                    bt14[np.logical_or(clmask == 2, clmask == 3)], 5
-                )
+                    bt14[(clmask == CONFIDENTLY_CLEAR) | (clmask == PROBABLY_CLEAR)], 5)
 
             with np.warnings.catch_warnings():
                 np.warnings.filterwarnings("ignore", r"invalid value encountered")
                 # Pixels with brightness temperature values above the 5th
                 # percentile of clear ocean pixels are overwritten with
                 # "confidently clear".
-                clmask[np.logical_and(bt14 > bt14_p05, ~np.isnan(clmask))] = 2
+                clmask[(bt14 > bt14_p05) & ~np.isnan(clmask)] = CONFIDENTLY_CLEAR
 
-            # Combine swath edge pixels.
-            clmask[np.logical_or(np.isnan(clmask), np.isnan(bt14))] = np.nan
+            # Add swath edge pixels of thermal channel.
+            clmask[np.isnan(bt14)] = np.nan
 
         if output_binary:
-            clmask[np.logical_or(clmask == 2, clmask == 3)] = 0  # clear
-            clmask[np.logical_or(clmask == 4, clmask == 5)] = 1  # cloudy
+            warnings.warn("output_binary argument is deprecated. Use static method "
+                          "cloudmask_to_binary instead", DeprecationWarning)
+            return self.cloudmask_to_binary(clmask)
 
+        return clmask
+    
+    @staticmethod
+    def cloudmask_to_binary(clmask):
+        clmask = clmask.copy()
+        clmask[(clmask == CONFIDENTLY_CLEAR) | (clmask == PROBABLY_CLEAR)] = CLEAR
+        clmask[(clmask == CONFIDENTLY_CLOUDY) | (clmask == PROBABLY_CLOUDY)] = CLOUDY
         return clmask
 
     def read_coordinates(self, channel="1"):
