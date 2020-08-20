@@ -66,6 +66,28 @@ class ASTERimage:
         "14": (10.95, 11.65)
     }
 
+    # Unit conversion coefficients ucc [W m-2 sr-1 um-1] for different gain
+    # settings, high, normal, low1, and low2.
+    ucc = {
+        **{k: dict(zip(["HGH", "NOR", "LOW", "LO2"], v)) for k, v in {
+            "1": (0.676, 1.688, 2.25),
+            "2": (0.708, 1.415, 1.89),
+            "3N": (0.423, 0.862, 1.15),
+            "3B": (0.423, 0.862, 1.15),
+            "4": (0.1087, 0.2174, 0.290, 0.290),
+            "5": (0.0348, 0.0696, 0.0925, 0.409),
+            "6": (0.0313, 0.0625, 0.0830, 0.390),
+            "7": (0.0299, 0.0597, 0.0795, 0.332),
+            "8": (0.0209, 0.0417, 0.0556, 0.245),
+            "9": (0.0159, 0.0318, 0.0424, 0.265)}.items()},
+        **{k: {None: v} for k, v in {
+            "10": 6.882e-3,
+            "11": 6.780e-3,
+            "12": 6.590e-3,
+            "13": 5.693e-3,
+            "14": 5.225e-3}.items()},
+    }
+
     def __init__(self, filename):
         """Initialize ASTER image object.
 
@@ -128,6 +150,9 @@ class ASTERimage:
         if gain == "LO1":
             gain = "LOW"  # both refer to column 3 in ucc table.
         return gain
+
+    def get_ucc(self, channel):
+        return self.ucc[channel][self.get_gain(channel)]
 
     def read_digitalnumbers(self, channel):
         """Read ASTER L1B raw digital numbers.
@@ -200,32 +225,8 @@ class ASTERimage:
             aster user guide v2.pdf.
         """
         dn = self.read_digitalnumbers(channel)
+        return (dn - 1) * self.get_ucc(channel)
 
-        # Unit conversion coefficients ucc [W m-2 sr-1 um-1] for different gain
-        # settings, high, normal, low1, and low2.
-        ucc = {
-            "1": (0.676, 1.688, 2.25, np.nan),
-            "2": (0.708, 1.415, 1.89, np.nan),
-            "3N": (0.423, 0.862, 1.15, np.nan),
-            "3B": (0.423, 0.862, 1.15, np.nan),
-            "4": (0.1087, 0.2174, 0.290, 0.290),
-            "5": (0.0348, 0.0696, 0.0925, 0.409),
-            "6": (0.0313, 0.0625, 0.0830, 0.390),
-            "7": (0.0299, 0.0597, 0.0795, 0.332),
-            "8": (0.0209, 0.0417, 0.0556, 0.245),
-            "9": (0.0159, 0.0318, 0.0424, 0.265),
-            "10": 6.882e-3,
-            "11": 6.780e-3,
-            "12": 6.590e-3,
-            "13": 5.693e-3,
-            "14": 5.225e-3,
-        }
-
-        gain = self.get_gain(channel)
-        if gain is not None:
-            return (dn - 1) * ucc[channel][["HGH", "NOR", "LOW", "LO2"].index(gain)]
-        else:
-            return (dn - 1) * ucc[channel]
 
     def get_reflectance(self, channel):
         """Get ASTER L1B reflectance values at TOA.
