@@ -688,7 +688,7 @@ class ASTERimage:
         swath_widths = np.sum(np.isfinite(field), axis=1)
         # average swath width, but exluding possible NaN-scanlines at beginning and
         # end of the image.
-        swath_width = np.mean(swath_widths[swath_widths > 4200])
+        swath_width = np.mean(swath_widths[10:-10])
 
         n_angles = n * FOV[sensor] / swath_width + P[sensor]
         azimuth = np.full_like(field, np.nan)
