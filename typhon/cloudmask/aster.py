@@ -88,6 +88,12 @@ class ASTERimage:
             "14": 5.225e-3}.items()},
     }
 
+    @staticmethod
+    def normalize_channelname(channel):
+        if channel.startswith("0"):
+            return channel[1:]
+        return channel
+
     def __init__(self, filename):
         """Initialize ASTER image object.
 
@@ -97,7 +103,13 @@ class ASTERimage:
         self.filename = filename
 
         self.meta = self.get_metadata()
-        self.gain = dict(v.split(", ") for k, v in self.meta.items() if k.startswith("GAIN"))
+        def collect_gain():
+            for k, v in self.meta.items():
+                if not k.startswith("GAIN"):
+                    continue
+                channel, gain = v.split(", ")
+                yield self.normalize_channelname(channel), gain
+        self.gain = dict(collect_gain())
         SolarDirection = namedtuple(
             "SolarDirection", ["azimuth", "elevation"]
         )  # SolarDirection = (0< az <360, -90< el <90)
@@ -152,7 +164,11 @@ class ASTERimage:
         return gain
 
     def get_ucc(self, channel):
-        return self.ucc[channel][self.get_gain(channel)]
+        gain = self.get_gain(channel)
+        try:
+            return self.ucc[channel][gain]
+        except KeyError:
+            raise ValueError(f"No ucc value for channel {channel} with gain {gain}")
 
     def read_digitalnumbers(self, channel):
         """Read ASTER L1B raw digital numbers.
