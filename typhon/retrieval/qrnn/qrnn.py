@@ -24,20 +24,15 @@ from scipy.interpolate import CubicSpline
 
 try:
     import typhon.retrieval.qrnn.models.keras as keras
-
     backend = keras
 except Exception as e:
     try:
         import typhon.retrieval.qrnn.models.pytorch as pytorch
-
         backend = pytorch
     except:
-        raise Exception(
-            "Couldn't import neither Keras nor Pytorch "
-            "one of them must be available to use the QRNN"
-            " module."
-        )
-
+        raise Exception("Couldn't import neither Keras nor Pytorch "
+                        "one of them must be available to use the QRNN"
+                        " module.")
 
 def set_backend(name):
     """
@@ -52,24 +47,19 @@ def set_backend(name):
     if name == "keras":
         try:
             import typhon.retrieval.qrnn.models.keras as keras
-
             backend = keras
         except Exception as e:
-            raise Exception(
-                "The following error occurred while trying " " to import keras: ", e
-            )
+            raise Exception("The following error occurred while trying "
+                            " to import keras: ", e)
     elif name == "pytorch":
         try:
             import typhon.retrieval.qrnn.models.pytorch as pytorch
-
             backend = pytorch
         except Exception as e:
-            raise Exception(
-                "The following error occurred while trying " " to import pytorch: ", e
-            )
+            raise Exception("The following error occurred while trying "
+                            " to import pytorch: ", e)
     else:
-        raise Exception('"{}" is not a supported backend.'.format(name))
-
+        raise Exception("\"{}\" is not a supported backend.".format(name))
 
 def get_backend(name):
     """
@@ -83,27 +73,64 @@ def get_backend(name):
     if name == "keras":
         try:
             import typhon.retrieval.qrnn.models.keras as keras
-
             backend = keras
         except Exception as e:
-            raise Exception(
-                "The following error occurred while trying " " to import keras: ", e
-            )
+            raise Exception("The following error occurred while trying "
+                            " to import keras: ", e)
     elif name == "pytorch":
         try:
             import typhon.retrieval.qrnn.models.pytorch as pytorch
-
             backend = pytorch
         except Exception as e:
-            raise Exception(
-                "The following error occurred while trying " " to import pytorch: ", e
-            )
+            raise Exception("The following error occurred while trying "
+                            " to import pytorch: ", e)
     else:
-        raise Exception('"{}" is not a supported backend.'.format(name))
+        raise Exception("\"{}\" is not a supported backend.".format(name))
     return backend
 
+def fit_gaussian_to_quantiles(y_pred, taus):
+    """
+    Fits Gaussian distributions to predicted quantiles.
 
-def create_model(input_dim, output_dim, arch):
+    Fits mean and standard deviation values to quantiles by minimizing
+    the mean squared distance of the predicted quantiles and those of
+    the corresponding Gaussian distribution.
+
+    Args:
+        y_pred (``np.array``): Array of shape `(n, m)` containing the `m`
+            predicted quantiles for n different inputs.
+        taus(``np.array``): Array of shape `(m,)` containing the quantile
+            fractions corresponding to the predictions in ``y_pred``.
+
+    Returns:
+        Tuple ``(mu, sigma)`` of vectors of size `n` containing the mean and
+        standard deviations of the Gaussian distributions corresponding to
+        the predictions in ``y_pred``.
+    """
+    x = norm.ppf(taus)
+
+    d2e_00 = x.size
+    d2e_01 = x.sum(axis=-1)
+    d2e_10 = x.sum(axis=-1)
+    d2e_11 = np.sum(x ** 2, axis=-1)
+
+    d2e_det_inv = 1.0 / (d2e_00 * d2e_11 - d2e_01 * d2e_11)
+    d2e_inv_00 = d2e_det_inv * d2e_11
+    d2e_inv_01 = -d2e_det_inv * d2e_01
+    d2e_inv_10 = -d2e_det_inv * d2e_10
+    d2e_inv_11 = d2e_det_inv * d2e_00
+
+    de_0 = -np.sum(y_pred - x, axis=-1)
+    de_1 = -np.sum(x * (y_pred - x), axis=-1)
+
+    mu = -(d2e_inv_00 * de_0 + d2e_inv_01 * de_1)
+    sigma = 1.0 - (d2e_inv_10 * de_0 + d2e_inv_11 * de_1)
+
+    return mu, sigma
+
+def create_model(input_dim,
+                 output_dim,
+                 arch):
     """
     Creates a fully-connected neural network from a tuple
     describing its architecture.
@@ -126,7 +153,6 @@ def create_model(input_dim, output_dim, arch):
 ################################################################################
 # QRNN class
 ################################################################################
-
 
 class QRNN:
     r"""
@@ -175,15 +201,12 @@ class QRNN:
         model:
             The neural network regression model used to predict the quantiles.
     """
-
-    def __init__(
-        self,
-        input_dimensions,
-        quantiles=None,
-        model=(3, 128, "relu"),
-        ensemble_size=1,
-        **kwargs
-    ):
+    def __init__(self,
+                 input_dimensions,
+                 quantiles=None,
+                 model=(3, 128, "relu"),
+                 ensemble_size=1,
+                 **kwargs):
         """
         Create a QRNN model.
 
@@ -206,43 +229,37 @@ class QRNN:
         self.backend = backend.__name__
 
         if type(model) == tuple:
-            self.model = backend.FullyConnected(
-                self.input_dimensions, self.quantiles, model
-            )
+            self.model = backend.FullyConnected(self.input_dimensions,
+                                                self.quantiles,
+                                                model)
             if quantiles is None:
-                raise ValueError(
-                    "If model is given as architecture tuple, the"
-                    " 'quantiles' kwarg must be provided."
-                )
+                raise ValueError("If model is given as architecture tuple, the"
+                                  " 'quantiles' kwarg must be provided.")
         else:
             if not quantiles is None:
                 if not quantiles == model.quantiles:
-                    raise ValueError(
-                        "Provided quantiles do not match those of "
-                        "the provided model."
-                    )
+                    raise ValueError("Provided quantiles do not match those of "
+                                     "the provided model.")
 
             self.model = model
             self.quantiles = model.quantiles
             self.backend = model.backend
 
-    def train(
-        self,
-        training_data,
-        validation_data=None,
-        batch_size=256,
-        sigma_noise=None,
-        adversarial_training=False,
-        delta_at=0.01,
-        initial_learning_rate=1e-2,
-        momentum=0.0,
-        convergence_epochs=5,
-        learning_rate_decay=2.0,
-        learning_rate_minimum=1e-6,
-        maximum_epochs=200,
-        training_split=0.9,
-        gpu=False,
-    ):
+    def train(self,
+              training_data,
+              validation_data=None,
+              batch_size=256,
+              sigma_noise=None,
+              adversarial_training=False,
+              delta_at=0.01,
+              initial_learning_rate=1e-2,
+              momentum=0.0,
+              convergence_epochs=5,
+              learning_rate_decay=2.0,
+              learning_rate_minimum=1e-6,
+              maximum_epochs=200,
+              training_split=0.9,
+              gpu = False):
         """
         Train model on given training data.
 
@@ -282,22 +299,20 @@ class QRNN:
                  is the fraction of training data that is used for validation.
             gpu(``bool``): Whether or not to try to run the training on the GPU.
         """
-        return self.model.train(
-            training_data,
-            validation_data,
-            batch_size,
-            sigma_noise,
-            adversarial_training,
-            delta_at,
-            initial_learning_rate,
-            momentum,
-            convergence_epochs,
-            learning_rate_decay,
-            learning_rate_minimum,
-            maximum_epochs,
-            training_split,
-            gpu,
-        )
+        return self.model.train(training_data,
+                                validation_data,
+                                batch_size,
+                                sigma_noise,
+                                adversarial_training,
+                                delta_at,
+                                initial_learning_rate,
+                                momentum,
+                                convergence_epochs,
+                                learning_rate_decay,
+                                learning_rate_minimum,
+                                maximum_epochs,
+                                training_split,
+                                gpu)
 
     def predict(self, x):
         r"""
@@ -431,6 +446,31 @@ class QRNN:
             result[i, :] = y
         return result
 
+    def sample_posterior_gaussian_fit(self, x, n=1):
+        r"""
+        Generates :code:`n` samples from the estimated posterior
+        distribution for the input vector :code:`x`. The sampling
+        is performed by the inverse CDF method using the estimated
+        CDF obtained from the :code:`cdf` member function.
+
+        Arguments:
+
+            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
+                         to predict the conditional quantiles.
+
+            n(int): The number of samples to generate.
+
+        Returns:
+
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
+            values of the posterior CDF :math: `F(x)` in `fs`.
+        """
+        result = np.zeros((x.shape[0], n))
+        y_pred = self.predict(x)
+        mu, sigma = fit_gaussian_to_quantiles(y_pred, self.quantiles)
+        x = np.random.normal(size=(y_pred.shape[0], n))
+        return mu + sigma * x
+
     def posterior_mean(self, x):
         r"""
         Computes the posterior mean by computing the first moment of the
@@ -493,7 +533,7 @@ class QRNN:
         qs[0, 0] = 0.0
         qs[0, -1] = 1.0
 
-        return np.trapz((qs - ind) ** 2.0, y_cdf)
+        return np.trapz((qs - ind)**2.0, y_cdf)
 
     def evaluate_crps(self, x_test, y_test):
         r"""
@@ -532,11 +572,12 @@ class QRNN:
 
         for i in range(self.quantiles.size - 1):
             q_l = y[:, [i]]
-            q_r = y[:, [i + 1]]
-            inds = np.logical_and(q_l < threshold, q_r >= threshold)
+            q_r = y[:, [i+1]]
+            inds = np.logical_and(q_l < threshold,
+                                  q_r >= threshold)
             c[inds] = self.quantiles[i] * (threshold - q_l[inds])
             c[inds] += self.quantiles[i + 1] * (q_r[inds] - threshold)
-            c[inds] /= q_r[inds] - q_l[inds]
+            c[inds] /= (q_r[inds] - q_l[inds])
 
         c[threshold > q_r] = self.quantiles[-1]
         return 1.0 - c
@@ -557,7 +598,7 @@ class QRNN:
 
             The loaded QRNN object.
         """
-        with open(path, "rb") as f:
+        with open(path, 'rb') as f:
             qrnn = pickle.load(f)
             backend = importlib.import_module(qrnn.backend)
             model = backend.load_model(f, qrnn.quantiles)
@@ -583,6 +624,7 @@ class QRNN:
         backend = importlib.import_module(self.backend)
         backend.save_model(f, self.model)
         f.close()
+
 
     def __getstate__(self):
         dct = copy.copy(self.__dict__)

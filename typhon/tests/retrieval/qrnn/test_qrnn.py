@@ -63,6 +63,8 @@ class TestQrnn:
         r = qrnn.sample_posterior(self.x_train[:2, :], n=2)
         assert r.shape == (2, 2)
 
+        r = qrnn.sample_posterior_gaussian_fit(self.x_train[:2, :], n=2)
+
     @pytest.mark.parametrize("backend", backends)
     def test_qrnn_datasets(self, backend):
         """
