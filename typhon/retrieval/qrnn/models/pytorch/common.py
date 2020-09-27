@@ -12,16 +12,18 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-activations = {"elu" : nn.ELU,
-               "hardshrink" : nn.Hardshrink,
-               "hardtanh" : nn.Hardtanh,
-               "prelu" : nn.PReLU,
-               "relu" : nn.ReLU,
-               "selu" : nn.SELU,
-               "celu" : nn.CELU,
-               "sigmoid" : nn.Sigmoid,
-               "softplus" : nn.Softplus,
-               "softmin" : nn.Softmin}
+activations = {
+    "elu": nn.ELU,
+    "hardshrink": nn.Hardshrink,
+    "hardtanh": nn.Hardtanh,
+    "prelu": nn.PReLU,
+    "relu": nn.ReLU,
+    "selu": nn.SELU,
+    "celu": nn.CELU,
+    "sigmoid": nn.Sigmoid,
+    "softplus": nn.Softplus,
+    "softmin": nn.Softmin,
+}
 
 
 def save_model(f, model):
@@ -34,6 +36,7 @@ def save_model(f, model):
         model(:code:`pytorch.nn.Moduel`): The pytorch model to save
     """
     torch.save(model, f)
+
 
 def load_model(f, quantiles):
     """
@@ -51,7 +54,8 @@ def load_model(f, quantiles):
     model = torch.load(f)
     return model
 
-def handle_input(data, device = None):
+
+def handle_input(data, device=None):
     """
     Handle input data.
 
@@ -80,13 +84,13 @@ def handle_input(data, device = None):
     else:
         return data
 
+
 class BatchedDataset(Dataset):
     """
     Batches an un-batched dataset.
     """
-    def __init__(self,
-                 training_data,
-                 batch_size):
+
+    def __init__(self, training_data, batch_size):
         x, y = training_data
         self.x = torch.tensor(x, dtype=torch.float)
         self.y = torch.tensor(y, dtype=torch.float)
@@ -102,13 +106,15 @@ class BatchedDataset(Dataset):
             raise IndexError()
         i_start = i * self.batch_size
         i_end = (i + 1) * self.batch_size
-        x = self.x[i_start : i_end]
-        y = self.y[i_start : i_end]
+        x = self.x[i_start:i_end]
+        y = self.y[i_start:i_end]
         return (x, y)
+
 
 ################################################################################
 # Quantile loss
 ################################################################################
+
 
 class QuantileLoss:
     r"""
@@ -132,9 +138,8 @@ class QuantileLoss:
     corresponding to each quantiles. The loss for a batch of training samples is
     computed by taking the mean over all samples in the batch.
     """
-    def __init__(self,
-                 quantiles,
-                 mask = -1.0):
+
+    def __init__(self, quantiles, mask=-1.0):
         """
         Create an instance of the quantile loss function with the given quantiles.
 
@@ -163,17 +168,17 @@ class QuantileLoss:
         """
         dy = y_pred - y_true
         n = self.quantiles.size()[0]
-        qs = self.quantiles.reshape((n,) + (1, ) * max(len(dy.size()) - 2, 0))
-        l = torch.where(dy >= 0.0,
-                        (1.0 - qs) * dy,
-                        (-qs) * dy)
+        qs = self.quantiles.reshape((n,) + (1,) * max(len(dy.size()) - 2, 0))
+        l = torch.where(dy >= 0.0, (1.0 - qs) * dy, (-qs) * dy)
         if not self.mask is None:
             l = torch.where(y_true == self.mask, torch.zeros_like(l), l)
         return l.mean()
 
+
 ################################################################################
 # QRNN
 ################################################################################
+
 
 class PytorchModel:
     """
@@ -182,9 +187,8 @@ class PytorchModel:
     This class implements QRNNs as a fully-connected network with
     a given number of layers.
     """
-    def __init__(self,
-                 input_dimension,
-                 quantiles):
+
+    def __init__(self, input_dimension, quantiles):
         """
         Arguments:
             input_dimension(int): The number of input features.
@@ -205,6 +209,17 @@ class PytorchModel:
         c.backward()
         x_adv = x.detach() + eps * torch.sign(x.grad.detach())
         return x_adv
+
+    def reset(self):
+        """
+        Reinitializes the weights of a model.
+        """
+
+        def reset_function(module):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                m.reset_parameters()
+
+        self.apply(reset_function)
 
     def train(self, *args, **kwargs):
         """
@@ -233,19 +248,21 @@ class PytorchModel:
         #
 
         training_data = args[0]
-        arguments = {"validation_data" : None,
-                     "batch_size" : 256,
-                     "sigma_noise" : None,
-                     "adversarial_training" : False,
-                     "delta_at" : 0.01,
-                     "initial_learning_rate" : 1e-2,
-                     "momentum" : 0.0,
-                     "convergence_epochs" : 5,
-                     "learning_rate_decay" : 2.0,
-                     "learning_rate_minimum" : 1e-6,
-                     "maximum_epochs" : 1,
-                     "training_split" : 0.9,
-                     "gpu" : False}
+        arguments = {
+            "validation_data": None,
+            "batch_size": 256,
+            "sigma_noise": None,
+            "adversarial_training": False,
+            "delta_at": 0.01,
+            "initial_learning_rate": 1e-2,
+            "momentum": 0.0,
+            "convergence_epochs": 5,
+            "learning_rate_decay": 2.0,
+            "learning_rate_minimum": 1e-6,
+            "maximum_epochs": 1,
+            "training_split": 0.9,
+            "gpu": False,
+        }
         argument_names = arguments.keys()
         for a, n in zip(args[1:], argument_names):
             arguments[n] = a
@@ -288,30 +305,18 @@ class PytorchModel:
             pass
 
         self.train()
-        self.optimizer = optim.SGD(self.parameters(),
-                                   lr = initial_learning_rate,
-                                   momentum = momentum)
+        self.optimizer = optim.SGD(
+            self.parameters(), lr=initial_learning_rate, momentum=momentum
+        )
         self.criterion.to(device)
-        scheduler = ReduceLROnPlateau(self.optimizer,
-                                      factor=1.0 / learning_rate_decay,
-                                      patience=convergence_epochs,
-                                      min_lr=learning_rate_minimum)
+        scheduler = ReduceLROnPlateau(
+            self.optimizer,
+            factor=1.0 / learning_rate_decay,
+            patience=convergence_epochs,
+            min_lr=learning_rate_minimum,
+        )
         training_errors = []
         validation_errors = []
-
-        #
-        # Function to clear output if we are in a notebook.
-        #
-
-        def clear_output():
-            print("clreaing output")
-            try:
-                import IPython
-                from IPython.display import clear_output
-                clear_output(wait=True)
-            except:
-                print("failed loading Ipython")
-                pass
 
         #
         # Training loop
@@ -320,7 +325,6 @@ class PytorchModel:
         for i in range(maximum_epochs):
             err = 0.0
             n = 0
-            #clear_output()
             for j, (x, y) in enumerate(training_data):
 
                 x = x.to(device)
@@ -347,20 +351,22 @@ class PytorchModel:
                     c.backward()
                     self.optimizer.step()
 
-
                 if j % 100:
-                    print("Epoch {} / {}: Batch {} / {}, Training error: {:.3f}"
-                          .format(i, maximum_epochs, j, len(training_data), err / n),
-                          end="\r")
+                    print(
+                        "Epoch {} / {}: Batch {} / {}, Training error: {:.3f}".format(
+                            i, maximum_epochs, j, len(training_data), err / n
+                        ),
+                        end="\r",
+                    )
 
             # Save training error
             training_errors.append(err / n)
 
-            lr = [group['lr'] for group in self.optimizer.param_groups][0]
+            lr = [group["lr"] for group in self.optimizer.param_groups][0]
 
             val_err = 0.0
-            n = 0
             if not validation_data is None:
+                n = 0
                 for x, y in validation_data:
                     x = x.to(device).detach()
                     y = y.to(device).detach()
@@ -376,21 +382,31 @@ class PytorchModel:
                     n += x.size()[0]
                 validation_errors.append(val_err / n)
 
-
-                print("Epoch {} / {}: Training error: {:.3f}, Validation error: {:.3f}, Learning rate: {:.5f}"
-                      .format(i, maximum_epochs, training_errors[-1], validation_errors[-1], lr))
+                print(
+                    "Epoch {} / {}: Training error: {:.3f}, Validation error: {:.3f}, Learning rate: {:.5f}".format(
+                        i,
+                        maximum_epochs,
+                        training_errors[-1],
+                        validation_errors[-1],
+                        lr,
+                    )
+                )
                 scheduler.step(val_err / n)
             else:
                 scheduler.step(err / n)
-                print("Epoch {} / {}: Training error: {:.3f}, Learning rate: {:.5f}"
-                      .format(i, maximum_epochs, training_errors[-1], lr))
-
+                print(
+                    "Epoch {} / {}: Training error: {:.3f}, Learning rate: {:.5f}".format(
+                        i, maximum_epochs, training_errors[-1], lr
+                    )
+                )
 
         self.training_errors += training_errors
         self.validation_errors += validation_errors
         self.eval()
-        return {"training_errors" : self.training_errors,
-                "validation_errors" : self.validation_errors}
+        return {
+            "training_errors": self.training_errors,
+            "validation_errors": self.validation_errors,
+        }
 
     def predict(self, x, gpu=False):
         ""
@@ -402,9 +418,7 @@ class PytorchModel:
         self.to(device)
         return self(x.detach()).detach().numpy()
 
-    def calibration(self,
-                    data,
-                    gpu=False):
+    def calibration(self, data, gpu=False):
         """
         Computes the calibration of the predictions from the neural network.
 
@@ -425,8 +439,9 @@ class PytorchModel:
 
         n_intervals = self.quantiles.size // 2
         qs = self.quantiles
-        intervals = np.array([q_r - q_l for (q_l, q_r)
-                              in zip(qs, reversed(qs))])[:n_intervals]
+        intervals = np.array([q_r - q_l for (q_l, q_r) in zip(qs, reversed(qs))])[
+            :n_intervals
+        ]
         counts = np.zeros(n_intervals)
 
         total = 0.0
@@ -458,14 +473,18 @@ class PytorchModel:
         Arguments:
             The path in which to store the QRNN.
         """
-        torch.save({"input_dimension" : self.input_dimension,
-                    "quantiles" : self.quantiles,
-                    "width" : self.width,
-                    "depth" : self.depth,
-                    "activation" : self.activation,
-                    "network_state" : self.state_dict(),
-                    "optimizer_state" : self.optimizer.state_dict()},
-                    path)
+        torch.save(
+            {
+                "input_dimension": self.input_dimension,
+                "quantiles": self.quantiles,
+                "width": self.width,
+                "depth": self.depth,
+                "activation": self.activation,
+                "network_state": self.state_dict(),
+                "optimizer_state": self.optimizer.state_dict(),
+            },
+            path,
+        )
 
     @staticmethod
     def load(self, path):

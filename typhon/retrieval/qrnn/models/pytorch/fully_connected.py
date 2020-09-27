@@ -1,20 +1,18 @@
 from torch import nn
 from torch import optim
-from typhon.retrieval.qrnn.models.pytorch.common import (PytorchModel,
-                                                         activations)
+from typhon.retrieval.qrnn.models.pytorch.common import PytorchModel, activations
 
 ################################################################################
 # Fully-connected network
 ################################################################################
 
+
 class FullyConnected(PytorchModel, nn.Sequential):
     """
     Pytorch implementation of a fully-connected QRNN model.
     """
-    def __init__(self,
-                 input_dimension,
-                 quantiles,
-                 arch):
+
+    def __init__(self, input_dimension, quantiles, arch):
 
         """
         Create a fully-connected neural network.

@@ -1,8 +1,19 @@
+"""
+typhon.retrieval.qrnn.qrnn
+==========================
+
+This module provides the QRNN class, which implements the high-level
+functionality of quantile regression neural networks, while the neural
+network implementation is left to the model backends implemented in the
+``typhon.retrieval.qrnn.models`` submodule.
+"""
 import copy
 import logging
 import os
 import pickle
 import importlib
+import scipy
+from scipy.stats import norm
 
 import numpy as np
 from scipy.interpolate import CubicSpline
@@ -13,15 +24,20 @@ from scipy.interpolate import CubicSpline
 
 try:
     import typhon.retrieval.qrnn.models.keras as keras
+
     backend = keras
 except Exception as e:
     try:
         import typhon.retrieval.qrnn.models.pytorch as pytorch
+
         backend = pytorch
     except:
-        raise Exception("Couldn't import neither Keras nor Pytorch "
-                        "one of them must be available to use the QRNN"
-                        " module.")
+        raise Exception(
+            "Couldn't import neither Keras nor Pytorch "
+            "one of them must be available to use the QRNN"
+            " module."
+        )
+
 
 def set_backend(name):
     """
@@ -36,19 +52,24 @@ def set_backend(name):
     if name == "keras":
         try:
             import typhon.retrieval.qrnn.models.keras as keras
+
             backend = keras
         except Exception as e:
-            raise Exception("The following error occurred while trying "
-                            " to import keras: ", e)
+            raise Exception(
+                "The following error occurred while trying " " to import keras: ", e
+            )
     elif name == "pytorch":
         try:
             import typhon.retrieval.qrnn.models.pytorch as pytorch
+
             backend = pytorch
         except Exception as e:
-            raise Exception("The following error occurred while trying "
-                            " to import pytorch: ", e)
+            raise Exception(
+                "The following error occurred while trying " " to import pytorch: ", e
+            )
     else:
-        raise Exception("\"{}\" is not a supported backend.".format(name))
+        raise Exception('"{}" is not a supported backend.'.format(name))
+
 
 def get_backend(name):
     """
@@ -62,25 +83,27 @@ def get_backend(name):
     if name == "keras":
         try:
             import typhon.retrieval.qrnn.models.keras as keras
+
             backend = keras
         except Exception as e:
-            raise Exception("The following error occurred while trying "
-                            " to import keras: ", e)
+            raise Exception(
+                "The following error occurred while trying " " to import keras: ", e
+            )
     elif name == "pytorch":
         try:
             import typhon.retrieval.qrnn.models.pytorch as pytorch
+
             backend = pytorch
         except Exception as e:
-            raise Exception("The following error occurred while trying "
-                            " to import pytorch: ", e)
+            raise Exception(
+                "The following error occurred while trying " " to import pytorch: ", e
+            )
     else:
-        raise Exception("\"{}\" is not a supported backend.".format(name))
+        raise Exception('"{}" is not a supported backend.'.format(name))
     return backend
 
 
-def create_model(input_dim,
-                 output_dim,
-                 arch):
+def create_model(input_dim, output_dim, arch):
     """
     Creates a fully-connected neural network from a tuple
     describing its architecture.
@@ -99,9 +122,11 @@ def create_model(input_dim,
     """
     return backend.FullyConnected(input_dim, output_dim, arch)
 
+
 ################################################################################
 # QRNN class
 ################################################################################
+
 
 class QRNN:
     r"""
@@ -124,197 +149,155 @@ class QRNN:
     has one output neuron for each quantile to estimate.
 
     The QRNN class provides a generic QRNN implementation in the sense that it
-    does not assume a fixed neural network infrastructure. Instead, this
-    functionality is off-loaded to a model object, which can be an arbitrary
-    regression network such as a fully-connected or a convolutional network. A
-    range of different models are provided in the typhon.retrieval.qrnn.models
-    module. The :class:`QRNN`` class just implements high-level operation on
-    the QRNN output while training and prediction are delegated to the model
-    object. For details on the respective implementation refer to the
-    documentation of the corresponding model class.
+    does not assume a fixed neural network architecture or implementation.
+    Instead, this functionality is off-loaded to a model object, which can be
+    an arbitrary regression network such as a fully-connected or a
+    convolutional network. A range of different models are provided in the
+    typhon.retrieval.qrnn.models module. The :class:`QRNN`` class just
+    implements high-level operation on the QRNN output while training and
+    prediction are delegated to the model object. For details on the respective
+    implementation refer to the documentation of the corresponding model class.
 
-    .. note:: For the QRNN implementation :math:`x` is used to denote the input
-              vector and :math:`y` to denote the output. While this is opposed
-              to inverse problem notation typically used for retrievals, it is
-              in line with machine learning notation and felt more natural for
-              the implementation. If this annoys you, I am sorry.
+    .. note::
+
+      For the QRNN implementation :math:`x` is used to denote the input
+      vector and :math:`y` to denote the output. While this is opposed
+      to inverse problem notation typically used for retrievals, it is
+      in line with machine learning notation and felt more natural for
+      the implementation. If this annoys you, I am sorry.
 
     Attributes:
-        quantiles (numpy.array): The 1D-array containing the quantiles
-            :math:`\tau \in [0, 1]` that the network learns to predict.
-        model: The model object that implements the actual neural network
-            regressor.
+        backend(``str``):
+            The name of the backend used for the neural network model.
+        quantiles (numpy.array):
+            The 1D-array containing the quantiles :math:`\tau \in [0, 1]`
+            that the network learns to predict.
+        model:
+            The neural network regression model used to predict the quantiles.
     """
-    def __init__(self,
-                 input_dimension,
-                 quantiles=None,
-                 model=(3, 128, "relu"),
-                 ensemble_size=1,
-                 **kwargs):
+
+    def __init__(
+        self,
+        input_dimensions,
+        quantiles=None,
+        model=(3, 128, "relu"),
+        ensemble_size=1,
+        **kwargs
+    ):
         """
         Create a QRNN model.
 
         Arguments:
-            input_dim(int): The dimension of the measurement space, i.e. the number
-                of elements in a single measurement vector y
-            quantiles(np.array): 1D-array containing the quantiles  to estimate of
-                the posterior distribution. Given as fractions
-                within the range [0, 1].
-            model: A (possible trained) model instance or a tuple
-                :code:`(d, w, act)` describing the architecture of a
-                fully-connected neural network with :code:`d` hidden layers
-                with :code:`w` neurons and :code:`act` activation functions.
-            ensemble_size: The size of the ensemble if an ensemble model
-                should be used.
+            input_dimensions(int):
+                The dimension of the measurement space, i.e. the
+                number of elements in a single measurement vector y
+            quantiles(np.array):
+                1D-array containing the quantiles  to estimate of
+                the posterior distribution. Given as fractions within the range
+                [0, 1].
+            model:
+                A (possibly trained) model instance or a tuple
+                ``(d, w, act)`` describing the architecture of a fully-connected
+                neural network with :code:`d` hidden layers with :code:`w` neurons
+                and :code:`act` activation functions.
         """
-        self.input_dimension = input_dimension
+        self.input_dimensions = input_dimensions
         self.quantiles = np.array(quantiles)
         self.backend = backend.__name__
 
         if type(model) == tuple:
-            self.model = backend.FullyConnected(self.input_dimension,
-                                                self.quantiles,
-                                                model)
+            self.model = backend.FullyConnected(
+                self.input_dimensions, self.quantiles, model
+            )
             if quantiles is None:
-                raise ValueError("If model is given as architecture tuple, the"
-                                  " 'quantiles' kwarg must be provided.")
+                raise ValueError(
+                    "If model is given as architecture tuple, the"
+                    " 'quantiles' kwarg must be provided."
+                )
         else:
             if not quantiles is None:
                 if not quantiles == model.quantiles:
-                    raise ValueError("Provided quantiles do not match those of "
-                                     "the provided model.")
+                    raise ValueError(
+                        "Provided quantiles do not match those of "
+                        "the provided model."
+                    )
 
             self.model = model
             self.quantiles = model.quantiles
             self.backend = model.backend
 
-
-    def cross_validation(self,
-                        x_train,
-                        y_train,
-                        sigma_noise = None,
-                        n_folds=5,
-                        s=None,
-                        **kwargs):
-        r"""
-        Perform n-fold cross validation.
-
-        This function trains the network n times on different subsets of the
-        provided training data, always keeping a fraction of 1/n samples apart
-        for testing. Performance for each of the networks is evaluated and mean
-        and standard deviation for all folds are returned. This is to reduce
-        the influence of random fluctuations of the network performance during
-        hyperparameter tuning.
-
-        Arguments:
-
-            x_train(numpy.array): Array of shape :code:`(m, n)` containing the
-                                  m n-dimensional training inputs.
-
-            y_train(numpy.array): Array of shape :code:`(m, 1)` containing the
-                                  m training outputs.
-
-            sigma_noise(None, float, np.array): If not `None` this value is used
-                                                to multiply the Gaussian noise
-                                                that is added to each training
-                                                batch. If None no noise is
-                                                added.
-
-            n_folds(int): Number of folds to perform for the cross correlation.
-
-            s(callable, None): Performance metric for the fold. If not None,
-                               this should be a function object taking as
-                               arguments :code:`(y_test, y_pred)`, i.e. the
-                               expected output for the given fold :code:`y_test`
-                               and the predicted output :code:`y_pred`. The
-                               returned value is taken as performance metric.
-
-            **kwargs: Additional keyword arguments are passed on to the :code:`fit`
-                      method that is called for each fold.
+    def train(
+        self,
+        training_data,
+        validation_data=None,
+        batch_size=256,
+        sigma_noise=None,
+        adversarial_training=False,
+        delta_at=0.01,
+        initial_learning_rate=1e-2,
+        momentum=0.0,
+        convergence_epochs=5,
+        learning_rate_decay=2.0,
+        learning_rate_minimum=1e-6,
+        maximum_epochs=200,
+        training_split=0.9,
+        gpu=False,
+    ):
         """
+        Train model on given training data.
 
-        n = x_train.shape[0]
-        n_test = n // n_folds
-        inds = np.random.permutation(np.arange(0, n))
+        The training is performed on the provided training data and an
+        optionally-provided validation set. Training can use the following
+        augmentation methods:
+            - Gaussian noise added to input
+            - Adversarial training
+        The learning rate is decreased gradually when the validation or training
+        loss did not decrease for a given number of epochs.
 
-        results = []
-
-        # Nomenclature is a bit difficult here:
-        # Each cross validation fold has its own training,
-        # vaildation and test set. The size of the test set
-        # is number of provided training samples divided by the
-        # number of fold. The rest is used a traning and internal
-        # validation set according to the chose training_split
-        # ratio.
-
-
-        for i in range(n_folds):
-            for m in self.models:
-                m.reset_states()
-
-            # Indices to use for training including training data and internal
-            # validation set to monitor convergence.
-            inds_train = np.append(np.arange(0, i * n_test),
-                                       np.arange(min((i + 1) * n_test, n), n))
-            inds_train = inds[inds_train]
-            # Indices used to evaluate performance of the model.
-            inds_test = np.arange(i * n_test, (i + 1) * n_test)
-            inds_test = inds[inds_test]
-
-            x_test_fold = x_train[inds_test, :]
-            y_test_fold = y_train[inds_test]
-
-            # Splitting training and validation set.
-            x_train_fold = x_train[inds_train, :]
-            y_train_fold = y_train[inds_train]
-
-            self.fit(x_train_fold, y_train_fold,
-                     sigma_noise, **kwargs)
-
-            # Evaluation on this folds test set.
-            if s:
-                y_pred = self.predict(x_test_fold)
-                results += [s(y_pred, y_test_fold)]
-            else:
-                loss = self.models[0].evaluate(
-                    (x_test_fold - self.x_mean) / self.x_sigma,
-                    y_test_fold)
-                logger.info(loss)
-                results += [loss]
-        logger.info(results)
-        results = np.array(results)
-        logger.info(results)
-        return (np.mean(results, axis=0), np.std(results, axis=0))
-
-    def train(self,
-              training_data,
-              validation_data = None,
-              batch_size = 256,
-              sigma_noise = None,
-              adversarial_training = False,
-              delta_at = 0.01,
-              initial_learning_rate = 1e-2,
-              momentum = 0.0,
-              convergence_epochs = 5,
-              learning_rate_decay = 2.0,
-              learning_rate_minimum = 1e-6,
-              maximum_epochs = 200,
-              training_split = 0.9,
-              gpu = True):
-        return self.model.train(training_data,
-                                validation_data,
-                                batch_size,
-                                sigma_noise,
-                                adversarial_training,
-                                delta_at,
-                                initial_learning_rate,
-                                momentum,
-                                convergence_epochs,
-                                learning_rate_decay,
-                                learning_rate_minimum,
-                                maximum_epochs,
-                                training_split,
-                                gpu)
+        Args:
+            training_data: Tuple of numpy arrays of a dataset object to use to
+                train the model.
+            validation_data: Optional validation data in the same format as the
+                training data.
+            batch_size: If training data is provided as arrays, this batch size
+                will be used to for the training.
+            sigma_noise: If training data is provided as arrays, training data
+                will be augmented by adding noise with the given standard
+                deviations to each input vector before it is presented to the
+                model.
+            adversarial_training(``bool``): Whether or not to perform
+                adversarial training using the fast gradient sign method.
+            delta_at: The scaling factor to apply for adversarial training.
+            initial_learning_rate(``float``): The learning rate with which the
+                 training is started.
+            momentum(``float``): The momentum to use for training.
+            convergence_epochs(``int``): The number of epochs with
+                 non-decreasing loss before the learning rate is decreased
+            learning_rate_decay(``float``): The factor by which the learning rate
+                 is decreased.
+            learning_rate_minimum(``float``): The learning rate at which the
+                 training is aborted.
+            maximum_epochs(``int``): For how many epochs to keep training.
+            training_split(``float``): If no validation data is provided, this
+                 is the fraction of training data that is used for validation.
+            gpu(``bool``): Whether or not to try to run the training on the GPU.
+        """
+        return self.model.train(
+            training_data,
+            validation_data,
+            batch_size,
+            sigma_noise,
+            adversarial_training,
+            delta_at,
+            initial_learning_rate,
+            momentum,
+            convergence_epochs,
+            learning_rate_decay,
+            learning_rate_minimum,
+            maximum_epochs,
+            training_split,
+            gpu,
+        )
 
     def predict(self, x):
         r"""
@@ -343,16 +326,17 @@ class QRNN:
         Propagates the inputs in `x` forward through the network and
         approximates the posterior CDF by a piecewise linear function.
 
-        The piecewise linear function is given by its values at
-        approximate quantiles $x_\tau$ for
-        :math: `\tau = \{0.0, \tau_1, \ldots, \tau_k, 1.0\}` where
-        :math: `\tau_k` are the quantiles to be estimated by the network.
-        The values for :math:`x_0.0` and :math:`x_1.0` are computed using
+        The piecewise linear function is given by its values at approximate
+        quantiles :math:`x_\tau`` for :math:`\tau = \{0.0, \tau_1, \ldots,
+        \tau_k, 1.0\}` where :math:`\tau_k` are the quantiles to be estimated
+        by the network. The values for :math:`x_{0.0}` and :math:`x_{1.0}` are
+        computed using
 
         .. math::
-            x_0.0 = 2.0 x_{\tau_1} - x_{\tau_2}
 
-            x_1.0 = 2.0 x_{\tau_k} - x_{\tau_{k-1}}
+            x_{0.0} = 2.0 x_{\tau_1} - x_{\tau_2}
+
+            x_{1.0} = 2.0 x_{\tau_k} - x_{\tau_{k-1}}
 
         Arguments:
 
@@ -361,8 +345,8 @@ class QRNN:
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the posterior CDF :math: `F(x)` in `fs`.
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
+            values of the posterior CDF :math:`F(x)` in `fs`.
 
         """
         if len(x.shape) > 1:
@@ -388,86 +372,37 @@ class QRNN:
         """
         return self.model.calibration(*args, *kwargs)
 
-    def pdf(self, x, use_splines = False):
+    def pdf(self, x):
         r"""
         Approximate the posterior probability density function (PDF) for given
-        inputs `x`.
+        inputs ``x``.
 
-        By default, the PDF is approximated by computing the derivative of the
-        piece-wise linear approximation of the CDF as computed by the :code:`cdf`
-        function.
-
-        If :code:`use_splines` is set to :code:`True`, the PDF is computed from
-        a spline fit to the approximate CDF.
+        The PDF is approximated by computing the derivative of the piece-wise
+        linear approximation of the CDF as computed by the
+        :py:meth:`typhon.retrieval.qrnn.QRNN.cdf` function.
 
         Arguments:
 
             x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the conditional quantiles.
-
-            use_splines(bool): Whether or not to use a spline fit to the CDF to
-            approximate the PDF.
+               to predict PDFs.
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the approximate posterior PDF :math: `F(x)` in `fs`.
+            Tuple (x_pdf, y_pdf) containing the array with shape `(n, k)`  containing
+            the x and y coordinates describing the PDF for the inputs in ``x``.
 
         """
+        x_cdf, y_cdf = self.cdf(x)
+        n, m = x_cdf.shape
+        x_pdf = np.zeros((n, m + 1))
 
-        y_pred = np.zeros(self.quantiles.size)
-        y_pred = self.predict(x).ravel()
+        x_pdf[:, 0] = x_cdf[:, 0]
+        x_pdf[:, -1] = x_cdf[:, -1]
+        x_pdf[:, 1:-1] = 0.5 * (x_cdf[:, 1:] + x_cdf[:, :-1])
 
-        y = np.zeros(y_pred.size + 1)
-        y[1:-1] = 0.5 * (y_pred[1:] + y_pred[:-1])
-        y[0] = 2 * y_pred[0] - y_pred[1]
-        y[-1] = 2 * y_pred[-1] - y_pred[-2]
-
-        if not use_splines:
-
-            p = np.zeros(y.size)
-            p[1:-1] = np.diff(self.quantiles) / np.diff(y_pred)
-        else:
-
-            y = np.zeros(y_pred.size + 2)
-            y[1:-1] = y_pred
-            y[0] = 3 * y_pred[0] - 2 * y_pred[1]
-            y[-1] = 3 * y_pred[-1] - 2 * y_pred[-2]
-            q = np.zeros(self.quantiles.size + 2)
-            q[1:-1] = np.array(self.quantiles)
-            q[0] = 0.0
-            q[-1] = 1.0
-
-            sr = CubicSpline(y, q, bc_type = "clamped")
-            y = np.linspace(y[0], y[-1], 101)
-            p = sr(y, nu = 1)
-
-        return y, p
-
-
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
-
-        if use_splines:
-            x_t = np.zeros(x.size + 2)
-            x_t[1:-1] = x
-            x_t[0] = 2 * x[0] - x[1]
-            x_t[-1] = 2 * x[-1] - x[-2]
-            y_t = np.zeros(y.size + 2)
-            y_t[1:-1] = y
-            y_t[-1] = 1.0
-
-        else:
-            logger.info(y)
-            x_new = np.zeros(x.size - 1)
-            x_new[2:-2] = 0.5 * (x[2:-3] + x[3:-2])
-            x_new[0:2] = x[0:2]
-            x_new[-2:] = x[-2:]
-            y_new = np.zeros(y.size - 1)
-            y_new[1:-1] = np.diff(y[1:-1]) / np.diff(x[1:-1])
-        return x_new, y_new
+        y_pdf = np.zeros((n, m + 1))
+        y_pdf[:, 1:-1] = np.diff(y_cdf) / np.diff(x_cdf, axis=-1)
+        return x_pdf, y_pdf
 
     def sample_posterior(self, x, n=1):
         r"""
@@ -485,13 +420,16 @@ class QRNN:
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
             values of the posterior CDF :math: `F(x)` in `fs`.
         """
-        y_pred, qs = self.cdf(x)
-        p = np.random.rand(n)
-        y = np.interp(p, qs, y_pred)
-        return y
+        result = np.zeros((x.shape[0], n))
+        x_cdf, y_cdf = self.cdf(x)
+        for i in range(x_cdf.shape[0]):
+            p = np.random.rand(n)
+            y = np.interp(p, y_cdf, x_cdf[i, :])
+            result[i, :] = y
+        return result
 
     def posterior_mean(self, x):
         r"""
@@ -555,24 +493,21 @@ class QRNN:
         qs[0, 0] = 0.0
         qs[0, -1] = 1.0
 
-        return np.trapz((qs - ind)**2.0, y_cdf)
+        return np.trapz((qs - ind) ** 2.0, y_cdf)
 
-    def evaluate_crps(self, x, y_test):
+    def evaluate_crps(self, x_test, y_test):
         r"""
         Predict quantiles and compute the Continuous Ranked Probability Score (CRPS).
 
-        This function evaluates the networks prediction on the
-        inputs in `x` and evaluates the CRPS of the predictions
-        against the materializations in `y_test`.
+        This function evaluates the network predictions on the test data
+        ``x_test`` and ``y_test`` and and evaluates the CRPS.
 
         Arguments:
 
-            x(numpy.array): Array of shape `(n, m)` containing the `n`
-                            `m`-dimensional inputs for which to evaluate
-                            the CRPS.
+            x_test(numpy.array): Array of shape `(n, m)` input test data.
 
-            y_test(numpy.array): Array containing the `n` materializations of
-                                 the true conditional distribution.
+            y_test(numpy.array): Array of length n containing the output test
+                 data.
 
         Returns:
 
@@ -580,31 +515,7 @@ class QRNN:
             inputs in `x`.
 
         """
-        return QRNN.crps(self.predict(x), y_test, self.quantiles)
-
-    def save(self, path):
-        r"""
-        Store the QRNN model in a file.
-
-        This stores the model to a file using pickle for all
-        attributes that support pickling. The Keras model
-        is handled separately, since it can not be pickled.
-
-        .. note:: In addition to the model file with the given filename,
-                  additional files suffixed with :code:`_model_i` will be
-                  created for each neural network this model consists of.
-
-        Arguments:
-
-            path(str): The path including filename indicating where to
-                       store the model.
-
-        """
-        f = open(path, "wb")
-        pickle.dump(self, f)
-        backend = importlib.import_module(self.backend)
-        backend.save_model(f, self.model)
-        f.close()
+        return QRNN.crps(self.predict(x_test), y_test, self.quantiles)
 
     def classify(self, x, threshold):
         """
@@ -621,12 +532,11 @@ class QRNN:
 
         for i in range(self.quantiles.size - 1):
             q_l = y[:, [i]]
-            q_r = y[:, [i+1]]
-            inds = np.logical_and(q_l < threshold,
-                                  q_r >= threshold)
+            q_r = y[:, [i + 1]]
+            inds = np.logical_and(q_l < threshold, q_r >= threshold)
             c[inds] = self.quantiles[i] * (threshold - q_l[inds])
             c[inds] += self.quantiles[i + 1] * (q_r[inds] - threshold)
-            c[inds] /= (q_r[inds] - q_l[inds])
+            c[inds] /= q_r[inds] - q_l[inds]
 
         c[threshold > q_r] = self.quantiles[-1]
         return 1.0 - c
@@ -636,7 +546,8 @@ class QRNN:
         r"""
         Load a model from a file.
 
-        This loads a model that has been stored using the `save` method.
+        This loads a model that has been stored using the
+        :py:meth:`typhon.retrieval.qrnn.QRNN.save`  method.
 
         Arguments:
 
@@ -646,25 +557,32 @@ class QRNN:
 
             The loaded QRNN object.
         """
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             qrnn = pickle.load(f)
             backend = importlib.import_module(qrnn.backend)
             model = backend.load_model(f, qrnn.quantiles)
             qrnn.model = model
         return qrnn
 
-        #try:
-        #    from typhon.retrieval.qrnn.backends.keras import KerasQRNN, QuantileLoss
-        #    globals()["QuantileLoss"] = QuantileLoss
-        #    model = KerasQRNN.load(path)
-        #    print(type(model))
-        #    qrnn = QRNN(model.input_dim, model.quantiles, model.models)
-        #    qrnn.model = model
-        #    globals().pop("QuantileLoss")
-        #    return qrnn
+    def save(self, path):
+        r"""
+        Store the QRNN model in a file.
 
-        #except Exception as e:
-        #    raise e
+        This stores the model to a file using pickle for all attributes that
+        support pickling. The Keras model is handled separately, since it can
+        not be pickled.
+
+        Arguments:
+
+            path(str): The path including filename indicating where to
+                       store the model.
+
+        """
+        f = open(path, "wb")
+        pickle.dump(self, f)
+        backend = importlib.import_module(self.backend)
+        backend.save_model(f, self.model)
+        f.close()
 
     def __getstate__(self):
         dct = copy.copy(self.__dict__)

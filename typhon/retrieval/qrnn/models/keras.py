@@ -1,3 +1,10 @@
+"""
+typhon.retrieval.qrnn.models.keras
+==================================
+
+This module provides Keras neural network models that can be used as backend
+models with the :py:class:`typhon.retrieval.qrnn.QRNN` class.
+"""
 import numpy as np
 import keras
 from keras.models import Sequential
@@ -18,6 +25,7 @@ def save_model(f, model):
     """
     keras.models.save_model(model, f)
 
+
 def load_model(f, quantiles):
     """
     Load keras model.
@@ -35,18 +43,18 @@ def load_model(f, quantiles):
     # This is a bit hacky but seems required to handle
     # the custom model classes.
     #
-    def make_fully_connected(layers = None,
-                             **kwargs):
+    def make_fully_connected(layers=None, **kwargs):
         layers = list(map(deserialize, layers))
         input_dimensions = layers[0].batch_input_shape[1]
-        return FullyConnected(input_dimensions,
-                              quantiles,
-                              (),
-                              layers)
-    custom_objects = {"FullyConnected" : make_fully_connected,
-                      "QuantileLoss" : QuantileLoss}
+        return FullyConnected(input_dimensions, quantiles, (), layers)
+
+    custom_objects = {
+        "FullyConnected": make_fully_connected,
+        "QuantileLoss": QuantileLoss,
+    }
     model = keras.models.load_model(f, custom_objects=custom_objects)
     return model
+
 
 ################################################################################
 # Quantile loss
@@ -54,9 +62,8 @@ def load_model(f, quantiles):
 
 logger = logging.getLogger(__name__)
 
-def skewed_absolute_error(y_true,
-                          y_pred,
-                          tau):
+
+def skewed_absolute_error(y_true, y_pred, tau):
     """
     The quantile loss function for a given quantile tau:
 
@@ -73,12 +80,9 @@ def quantile_loss(y_true, y_pred, taus):
     The quantiles loss for a list of quantiles. Sums up the error contribution
     from the each of the quantile loss functions.
     """
-    e = skewed_absolute_error(
-        K.flatten(y_true), K.flatten(y_pred[:, 0]), taus[0])
+    e = skewed_absolute_error(K.flatten(y_true), K.flatten(y_pred[:, 0]), taus[0])
     for i, tau in enumerate(taus[1:]):
-        e += skewed_absolute_error(K.flatten(y_true),
-                                   K.flatten(y_pred[:, i + 1]),
-                                   tau)
+        e += skewed_absolute_error(K.flatten(y_true), K.flatten(y_pred[:, i + 1]), tau)
     return e
 
 
@@ -113,17 +117,18 @@ class KerasModel:
     def train(self):
         pass
 
+
 ################################################################################
 # Keras data generators
 ################################################################################
+
 
 class BatchedDataset:
     """
     Keras data loader that batches a given dataset of numpy arryas.
     """
-    def __init__(self,
-                 training_data,
-                 batch_size):
+
+    def __init__(self, training_data, batch_size):
         """
         Create batched dataset.
 
@@ -147,9 +152,9 @@ class BatchedDataset:
         return self.x.shape[0] // self.bs
 
     def __next__(self):
-        inds = self.indices[np.arange(self.i * self.bs,
-                                      (self.i + 1) * self.bs)
-                            % self.indices.size]
+        inds = self.indices[
+            np.arange(self.i * self.bs, (self.i + 1) * self.bs) % self.indices.size
+        ]
         x_batch = np.copy(self.x[inds, :])
         y_batch = self.y[inds]
         self.i = self.i + 1
@@ -158,6 +163,7 @@ class BatchedDataset:
             self.indices = np.random.permutation(self.x.shape[0])
 
         return (x_batch, y_batch)
+
 
 class TrainingGenerator:
     """
@@ -169,9 +175,8 @@ class TrainingGenerator:
         sigma_noise: A vector containing the standard deviation of each
                  component.
     """
-    def __init__(self,
-                 training_data,
-                 sigma_noise = None):
+
+    def __init__(self, training_data, sigma_noise=None):
         """
         Args:
             training_data: Data generator providing the original (noise-free)
@@ -195,6 +200,7 @@ class TrainingGenerator:
             x_batch += np.random.randn(*x_batch.shape) * self.sigma_noise
         return (x_batch, y_batch)
 
+
 class AdversarialTrainingGenerator:
     """
     This Keras sample generator takes the noise-free training data
@@ -208,10 +214,8 @@ class AdversarialTrainingGenerator:
             network
         eps: The perturbation factor.
     """
-    def __init__(self,
-                 training_data,
-                 input_gradients,
-                 eps):
+
+    def __init__(self, training_data, input_gradients, eps):
         """
         Args:
             training_data: Training generator to use to generate the input
@@ -245,6 +249,7 @@ class AdversarialTrainingGenerator:
         self.i = self.i + 1
         return x_batch, y_batch
 
+
 class ValidationGenerator:
     """
     This Keras sample generator is similar to the training generator
@@ -262,9 +267,7 @@ class ValidationGenerator:
                  component.
     """
 
-    def __init__(self,
-                 validation_data,
-                 sigma_noise):
+    def __init__(self, validation_data, sigma_noise):
         self.validation_data = validation_data
         self.sigma_noise = sigma_noise
 
@@ -277,9 +280,11 @@ class ValidationGenerator:
             x_val += np.random.randn(*self.x_val.shape) * self.sigma_noise
         return (x_val, self.y_val)
 
+
 ################################################################################
 # LRDecay
 ################################################################################
+
 
 class LRDecay(keras.callbacks.Callback):
     """
@@ -310,7 +315,7 @@ class LRDecay(keras.callbacks.Callback):
         self.min_loss = 1e30
 
     def on_epoch_end(self, epoch, logs={}):
-        loss = logs.get('val_loss')
+        loss = logs.get("val_loss")
         if loss is None:
             loss = logs.get("loss")
         self.losses += [loss]
@@ -320,8 +325,7 @@ class LRDecay(keras.callbacks.Callback):
             self.steps = 0
         if self.steps > self.convergence_steps:
             lr = keras.backend.get_value(self.model.optimizer.lr)
-            keras.backend.set_value(
-                self.model.optimizer.lr, lr / self.lr_decay)
+            keras.backend.set_value(self.model.optimizer.lr, lr / self.lr_decay)
             self.steps = 0
             logger.info("\n Reduced learning rate to " + str(lr))
 
@@ -330,9 +334,11 @@ class LRDecay(keras.callbacks.Callback):
 
         self.min_loss = min(self.min_loss, self.losses[-1])
 
+
 ################################################################################
 # QRNN
 ################################################################################
+
 
 class KerasModel:
     r"""
@@ -362,9 +368,7 @@ class KerasModel:
             neural network.
     """
 
-    def __init__(self,
-                 input_dimension,
-                 quantiles):
+    def __init__(self, input_dimension, quantiles):
         """
         Create a QRNN model.
 
@@ -379,33 +383,40 @@ class KerasModel:
         self.input_dimension = input_dimension
         self.quantiles = np.array(quantiles)
 
+    def reset(self):
+        """
+        Reinitialize the state of the model.
+        """
+        self.reset_states()
 
-    def train(self,
-              training_data,
-              validation_data = None,
-              batch_size = 256,
-              sigma_noise=None,
-              adversarial_training = False,
-              delta_at = 0.01,
-              initial_learning_rate = 1e-2,
-              momentum = 0.0,
-              convergence_epochs = 5,
-              learning_rate_decay = 2.0,
-              learning_rate_minimum = 1e-6,
-              maximum_epochs = 200,
-              training_split = 0.9,
-              gpu = False):
+    def train(
+        self,
+        training_data,
+        validation_data=None,
+        batch_size=256,
+        sigma_noise=None,
+        adversarial_training=False,
+        delta_at=0.01,
+        initial_learning_rate=1e-2,
+        momentum=0.0,
+        convergence_epochs=5,
+        learning_rate_decay=2.0,
+        learning_rate_minimum=1e-6,
+        maximum_epochs=200,
+        training_split=0.9,
+        gpu=False,
+    ):
 
         if type(training_data) == tuple:
             if not type(training_data[0]) == np.ndarray:
-                raise ValueError("When training data is provided as tuple"
-                                 " (x, y) it must contain numpy arrays.")
-            training_data = BatchedDataset(training_data,
-                                           batch_size)
+                raise ValueError(
+                    "When training data is provided as tuple"
+                    " (x, y) it must contain numpy arrays."
+                )
+            training_data = BatchedDataset(training_data, batch_size)
 
         if type(validation_data) is tuple:
-            validation_data = BatchedDataset(validation_data,
-                                             batch_size)
+            validation_data = BatchedDataset(validation_data, batch_size)
 
         loss = QuantileLoss(self.quantiles)
 
@@ -417,48 +428,44 @@ class KerasModel:
         #
         # Setup training generator
         #
-        training_generator = TrainingGenerator(training_data,
-                                               sigma_noise)
+        training_generator = TrainingGenerator(training_data, sigma_noise)
         if adversarial_training:
-            inputs = [self.input,
-                      self.targets[0],
-                      self.sample_weights[0]]
+            inputs = [self.input, self.targets[0], self.sample_weights[0]]
             input_gradients = K.function(
-                inputs, K.gradients(self.total_loss, self.input))
-            training_generator = AdversarialTrainingGenerator(training_generator,
-                                                              input_gradients,
-                                                              delta_at)
+                inputs, K.gradients(self.total_loss, self.input)
+            )
+            training_generator = AdversarialTrainingGenerator(
+                training_generator, input_gradients, delta_at
+            )
 
         if validation_data is None:
             validation_generator = None
         else:
-            validation_generator = ValidationGenerator(validation_data,
-                                                       sigma_noise)
-        lr_callback = LRDecay(self,
-                              learning_rate_decay,
-                              learning_rate_minimum,
-                              convergence_epochs)
-        self.fit_generator(training_generator,
-                           steps_per_epoch=len(training_generator),
-                           epochs=maximum_epochs,
-                           validation_data=validation_generator,
-                           validation_steps=1,
-                           callbacks=[lr_callback])
+            validation_generator = ValidationGenerator(validation_data, sigma_noise)
+        lr_callback = LRDecay(
+            self, learning_rate_decay, learning_rate_minimum, convergence_epochs
+        )
+        self.fit_generator(
+            training_generator,
+            steps_per_epoch=len(training_generator),
+            epochs=maximum_epochs,
+            validation_data=validation_generator,
+            validation_steps=1,
+            callbacks=[lr_callback],
+        )
 
 
 ################################################################################
 # Fully-connected network
 ################################################################################
 
+
 class FullyConnected(KerasModel, Sequential):
     """
     Keras implementation of fully-connected networks.
     """
-    def __init__(self,
-                 input_dimension,
-                 quantiles,
-                 arch,
-                 layers = None):
+
+    def __init__(self, input_dimension, quantiles, arch, layers=None):
         """
         Create a fully-connected neural network.
 

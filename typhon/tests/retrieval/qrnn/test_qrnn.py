@@ -1,8 +1,14 @@
+"""
+Tests for typhon.retrieval.qrnn module.
+
+Tests the QRNN implementation for all available backends.
+"""
 from typhon.retrieval.qrnn import QRNN, set_backend, get_backend
 import numpy as np
 import os
-import tempfile
 import importlib
+import pytest
+import tempfile
 
 #
 # Import available backends.
@@ -22,7 +28,6 @@ except:
     pass
 
 class TestQrnn:
-
     def setup_method(self):
         dir = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(dir, "test_data")
@@ -32,37 +37,53 @@ class TestQrnn:
         self.x_train = (x_train - x_mean) / x_sigma
         self.y_train = np.load(os.path.join(path, "y_train.npy"))
 
-    def test_qrnn(self):
+    @pytest.mark.parametrize("backend", backends)
+    def test_qrnn(self, backend):
         """
         Test training of QRNNs using numpy arrays as input.
         """
-        for backend in backends:
-            set_backend(backend)
-            qrnn = QRNN(self.x_train.shape[1],
-                        np.linspace(0.05, 0.95, 10))
-            qrnn.train((self.x_train, self.y_train),
-                       maximum_epochs = 1)
-            qrnn.predict(self.x_train)
+        set_backend(backend)
+        qrnn = QRNN(self.x_train.shape[1],
+                    np.linspace(0.05, 0.95, 10))
+        qrnn.train((self.x_train, self.y_train),
+                    maximum_epochs = 1)
 
-    def test_qrnn_datasets(self):
+        qrnn.predict(self.x_train)
+
+        x, qs = qrnn.cdf(self.x_train[:2, :])
+        assert qs[0] == 0.0
+        assert qs[-1] == 1.0
+
+        x, y = qrnn.pdf(self.x_train[:2, :])
+        assert x.shape == y.shape
+
+        mu = qrnn.posterior_mean(self.x_train[:2, :])
+        assert len(mu.shape) == 1
+
+        r = qrnn.sample_posterior(self.x_train[:2, :], n=2)
+        assert r.shape == (2, 2)
+
+    @pytest.mark.parametrize("backend", backends)
+    def test_qrnn_datasets(self, backend):
         """
         Provide data as dataset object instead of numpy arrays.
         """
-        for backend in backends:
-            set_backend(backend)
-            backend = get_backend(backend)
-            data = backend.BatchedDataset((self.x_train, self.y_train),
-                                          256)
-            qrnn = QRNN(self.x_train.shape[1],
-                        np.linspace(0.05, 0.95, 10))
-            qrnn.train(data,
-                       maximum_epochs = 1)
+        set_backend(backend)
+        backend = get_backend(backend)
+        data = backend.BatchedDataset((self.x_train, self.y_train),
+                                        256)
+        qrnn = QRNN(self.x_train.shape[1],
+                    np.linspace(0.05, 0.95, 10))
+        qrnn.train(data,
+                    maximum_epochs = 1)
 
 
-    def save_qrnn(self):
+    @pytest.mark.parametrize("backend", backends)
+    def test_save_qrnn(self, backend):
         """
         Test saving and loading of QRNNs.
         """
+        set_backend(backend)
         qrnn = QRNN(self.x_train.shape[1],
                     np.linspace(0.05, 0.95, 10))
         f = tempfile.NamedTemporaryFile()

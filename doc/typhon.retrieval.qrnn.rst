@@ -19,22 +19,12 @@ The QRNN implementation consists of two-layers:
 The QRNN class
 --------------
 
-The :py:class:`~typhon.retrieval.qrnn.QRNN` class provides the high-level interface for QRNNs. If you want
-to train a fully-connected QRNN, this is all you need. The class itself
-implments generic functionality related to the evaluation of QRNNs and the post
-processing of results such as computing the PSD or the posterior mean. For the
-rest it acts as a wrapper around its model attribute, which encapsules all
-network- and DL-framework-specific code.
-
-API documentation
-^^^^^^^^^^^^^^^^^
-
-.. automodule:: typhon.retrieval.qrnn.qrnn
-.. currentmodule:: typhon.retrieval.qrnn.qrnn
-.. autosummary::
-   :toctree: generated
-
-   QRNN
+The :py:class:`~typhon.retrieval.qrnn.QRNN` class provides the high-level
+interface for QRNNs. This is all that is required to train a plain,
+fully-connected QRNN. The class itself implments generic functionality related
+to the evaluation of QRNNs and the post processing of results such as computing
+the PSD or the posterior mean. For the rest it acts as a wrapper around its
+model attribute, which encapsules all network- and DL-framework-specific code.
 
 Backends
 --------
@@ -44,23 +34,35 @@ are supported as backends for neural network. The QRNN implementation will
 automatically use the one the is available on your system. If both are available
 you can choose a specific backend using the :py:meth:`~typhon.retrieval.qrnn.set_backend` function.
 
+Neural network models
+---------------------
+
+The :py:class:`typhon.retrieva.qrnn.QRNN` has designed to work with any generic
+regression neural network model. This aim of this was to make the implementation
+sufficiently flexible to allow special network architectures or customization of
+the training process.
+
+This gives the user the flexibility to design custom NN models in pytorch
+or Keras and use them with the ``QRNN`` class. Some predefined architectures
+are defined in the :py:mod:`typhon.retrieval.qrnn.models` submodule.
 
 API documentation
-^^^^^^^^^^^^^^^^^
+-----------------
 
 .. automodule:: typhon.retrieval.qrnn.qrnn
 .. currentmodule:: typhon.retrieval.qrnn.qrnn
 .. autosummary::
    :toctree: generated
 
-   set_backend
+   QRNN
 
-Neural network models
----------------------
+.. automodule:: typhon.retrieval.qrnn.models.pytorch
+.. currentmodule:: typhon.retrieval.qrnn.models.pytorch
+.. autosummary::
+   :toctree: generated
 
-
-Pytorch
-^^^^^^^
+   FullyConnected
+   UNet
 
 .. automodule:: typhon.retrieval.qrnn.models.pytorch
 .. currentmodule:: typhon.retrieval.qrnn.models.pytorch
