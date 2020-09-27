@@ -17,23 +17,26 @@ import tempfile
 backends = []
 try:
     import typhon.retrieval.qrnn.models.keras
+
     backends += ["keras"]
 except:
     pass
 
 try:
     import typhon.retrieval.qrnn.models.pytorch
+
     backends += ["pytorch"]
 except:
     pass
+
 
 class TestQrnn:
     def setup_method(self):
         dir = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(dir, "test_data")
         x_train = np.load(os.path.join(path, "x_train.npy"))
-        x_mean = np.mean(x_train, keepdims = True)
-        x_sigma = np.std(x_train, keepdims = True)
+        x_mean = np.mean(x_train, keepdims=True)
+        x_sigma = np.std(x_train, keepdims=True)
         self.x_train = (x_train - x_mean) / x_sigma
         self.y_train = np.load(os.path.join(path, "y_train.npy"))
 
@@ -43,10 +46,8 @@ class TestQrnn:
         Test training of QRNNs using numpy arrays as input.
         """
         set_backend(backend)
-        qrnn = QRNN(self.x_train.shape[1],
-                    np.linspace(0.05, 0.95, 10))
-        qrnn.train((self.x_train, self.y_train),
-                    maximum_epochs = 1)
+        qrnn = QRNN(self.x_train.shape[1], np.linspace(0.05, 0.95, 10))
+        qrnn.train((self.x_train, self.y_train), maximum_epochs=1)
 
         qrnn.predict(self.x_train)
 
@@ -60,10 +61,11 @@ class TestQrnn:
         mu = qrnn.posterior_mean(self.x_train[:2, :])
         assert len(mu.shape) == 1
 
-        r = qrnn.sample_posterior(self.x_train[:2, :], n=2)
-        assert r.shape == (2, 2)
+        r = qrnn.sample_posterior(self.x_train[:4, :], n=2)
+        assert r.shape == (4, 2)
 
-        r = qrnn.sample_posterior_gaussian_fit(self.x_train[:2, :], n=2)
+        r = qrnn.sample_posterior_gaussian_fit(self.x_train[:4, :], n=2)
+        assert r.shape == (4, 2)
 
     @pytest.mark.parametrize("backend", backends)
     def test_qrnn_datasets(self, backend):
@@ -72,13 +74,9 @@ class TestQrnn:
         """
         set_backend(backend)
         backend = get_backend(backend)
-        data = backend.BatchedDataset((self.x_train, self.y_train),
-                                        256)
-        qrnn = QRNN(self.x_train.shape[1],
-                    np.linspace(0.05, 0.95, 10))
-        qrnn.train(data,
-                    maximum_epochs = 1)
-
+        data = backend.BatchedDataset((self.x_train, self.y_train), 256)
+        qrnn = QRNN(self.x_train.shape[1], np.linspace(0.05, 0.95, 10))
+        qrnn.train(data, maximum_epochs=1)
 
     @pytest.mark.parametrize("backend", backends)
     def test_save_qrnn(self, backend):
@@ -86,8 +84,7 @@ class TestQrnn:
         Test saving and loading of QRNNs.
         """
         set_backend(backend)
-        qrnn = QRNN(self.x_train.shape[1],
-                    np.linspace(0.05, 0.95, 10))
+        qrnn = QRNN(self.x_train.shape[1], np.linspace(0.05, 0.95, 10))
         f = tempfile.NamedTemporaryFile()
         qrnn.save(f.name)
         qrnn_loaded = QRNN.load(f.name)
@@ -98,4 +95,4 @@ class TestQrnn:
         if not type(x_pred) == np.ndarray:
             x_pred = x_pred.detach()
 
-        assert(np.allclose(x_pred, x_pred_loaded))
+        assert np.allclose(x_pred, x_pred_loaded)

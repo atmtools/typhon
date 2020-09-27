@@ -469,7 +469,7 @@ class QRNN:
         y_pred = self.predict(x)
         mu, sigma = fit_gaussian_to_quantiles(y_pred, self.quantiles)
         x = np.random.normal(size=(y_pred.shape[0], n))
-        return mu + sigma * x
+        return mu.reshape(-1, 1) + sigma.reshape(-1, 1) * x
 
     def posterior_mean(self, x):
         r"""
