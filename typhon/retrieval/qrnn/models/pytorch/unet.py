@@ -1,3 +1,14 @@
+"""
+typhon.retrieval.qrnn.models.pytorch.unet
+=========================================
+
+This module provides an implementation of the UNet [unet]_
+architecture.
+
+.. [unet] O. Ronneberger, P. Fischer and T. Brox, "U-net: Convolutional networks
+for biomedical image segmentation", Proc. Int. Conf. Med. Image Comput.
+Comput.-Assist. Intervent. (MICCAI), pp. 234-241, 2015.
+"""
 import torch
 from torch import nn
 
@@ -26,7 +37,6 @@ class Layer(nn.Sequential):
         self,
         features_in,
         features_out,
-        batch_norm=True,
         kernel_size=3,
         activation=nn.ReLU,
         skip_connection=False,
@@ -35,7 +45,7 @@ class Layer(nn.Sequential):
         self._features_out = features_out
         self.skip_connection = skip_connection
 
-        if not activation is None:
+        if activation is not None:
             modules = [
                 nn.ConstantPad2d(1, 0.0),
                 nn.Conv2d(features_in, features_out, kernel_size),
@@ -52,12 +62,15 @@ class Layer(nn.Sequential):
 
     @property
     def features_out(self):
+        """
+        The number outgoing channels of the layer.
+        """
         if self.skip_connection:
             return self._features_in + self._features_out
-        else:
-            return self._features_out
+        return self._features_out
 
     def forward(self, x):
+        """ Forward input through layer. """
         y = nn.Sequential.forward(self, x)
         if self.skip_connection:
             y = torch.cat([x, y], dim=1)
@@ -67,16 +80,6 @@ class Layer(nn.Sequential):
 class Block(nn.Sequential):
     """
     A block bundles a set of layers.
-
-    Args:
-        features_in(:code:`int`): The number of input features of the block
-        features_out(:code:`int`): The number of output features of the block.
-        depth(:code:`int`): The number of layers of the block
-        activation(:code:`nn.Module`): Pytorch activation layer to
-          use. :code:`nn.ReLU` by default.
-        skip_connection(:code:`str`): Whether or not to insert skip
-          connections before all layers (:code:`"all"`) or just at
-          the end (:code:`"end"`).
     """
 
     def __init__(
@@ -89,7 +92,17 @@ class Block(nn.Sequential):
         kernel_size=3,
         skip_connection=None,
     ):
-
+        """
+        Args:
+            features_in(:code:`int`): The number of input features of the block
+            features_out(:code:`int`): The number of output features of the block.
+            depth(:code:`int`): The number of layers of the block
+            activation(:code:`nn.Module`): Pytorch activation layer to
+                use. :code:`nn.ReLU` by default.
+            skip_connection(:code:`str`): Whether or not to insert skip
+                connections before all layers (:code:`"all"`) or just at
+                the end (:code:`"end"`).
+        """
         self._features_in = features_in
 
         if skip_connection == "all":
@@ -122,12 +135,16 @@ class Block(nn.Sequential):
 
     @property
     def features_out(self):
+        """
+        The number outgoing channels of the layer.
+        """
         if self.skip_connection:
             return self._features_in + self._features_out
         else:
             return self._features_out
 
     def forward(self, x):
+        """ Forward input through layer. """
         y = nn.Sequential.forward(self, x)
         if self.skip_connection:
             y = torch.cat([x, y], dim=1)
@@ -135,12 +152,18 @@ class Block(nn.Sequential):
 
 
 class DownSampler(nn.Sequential):
+    """
+    A downsampling block reduces the input resolution by applying max-pooling.
+    """
     def __init__(self):
         modules = [nn.MaxPool2d(2)]
         super().__init__(*modules)
 
 
 class UpSampler(nn.Sequential):
+    """
+    An upsampling block increases the input resolution by transposed convolution.
+    """
     def __init__(self, features_in, features_out):
         modules = [
             nn.ConvTranspose2d(
@@ -151,10 +174,21 @@ class UpSampler(nn.Sequential):
 
 
 class UNet(PytorchModel, nn.Module):
+    """
+    Pytorch implementation of the UNet architecture for image segmentation.
+    """
     def __init__(
         self, input_features, quantiles, n_features=32, n_levels=4, skip_connection=None
     ):
-
+        """
+        Args:
+            input_features(``int``): The number of channels of the input image.
+            quantiles(``np.array``): Array containing the quantiles to predict.
+            n_features: The number of channels of the first convolution block.
+            n_level: The number of down-sampling steps.
+            skip_connection: Whether or not to include skip connections in
+                each block.
+        """
         nn.Module.__init__(self)
         PytorchModel.__init__(self, input_features, quantiles)
 
@@ -197,7 +231,7 @@ class UNet(PytorchModel, nn.Module):
         )
 
     def forward(self, x):
-
+        """ Propagate input through layer. """
         features = []
         for (b, s) in zip(self.down_blocks, self.down_samplers):
             x = b(x)

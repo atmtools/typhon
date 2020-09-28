@@ -1,5 +1,11 @@
+"""
+typhon.retrieval.qrnn.models.pytorch.fully_connected
+====================================================
+
+This module provides an implementation of a fully-connected feed forward
+neural network in pytorch.
+"""
 from torch import nn
-from torch import optim
 from typhon.retrieval.qrnn.models.pytorch.common import PytorchModel, activations
 
 ################################################################################
@@ -34,12 +40,12 @@ class FullyConnected(PytorchModel, nn.Sequential):
             layers = [nn.Linear(input_dimension, output_dimension)]
         else:
             d, w, act = arch
-            if type(act) == str:
+            if isinstance(act, str):
                 act = activations[act]
             layers = [nn.Linear(input_dimension, w)]
-            for i in range(d - 1):
+            for _ in range(d - 1):
                 layers.append(nn.Linear(w, w))
-                if not act is None:
+                if act is not None:
                     layers.append(act())
             layers.append(nn.Linear(w, output_dimension))
         nn.Sequential.__init__(self, *layers)

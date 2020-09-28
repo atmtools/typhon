@@ -5,13 +5,13 @@ typhon.retrieval.qrnn.models.keras
 This module provides Keras neural network models that can be used as backend
 models with the :py:class:`typhon.retrieval.qrnn.QRNN` class.
 """
+import logging
 import numpy as np
 import keras
 from keras.models import Sequential
 from keras.layers import Dense, Activation, deserialize
 from keras.optimizers import SGD
 import keras.backend as K
-import logging
 
 
 def save_model(f, model):
@@ -60,7 +60,7 @@ def load_model(f, quantiles):
 # Quantile loss
 ################################################################################
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def skewed_absolute_error(y_true, y_pred, tau):
@@ -145,7 +145,7 @@ class BatchedDataset:
         self.i = 0
 
     def __iter__(self):
-        logger.info("iter...")
+        LOGGER.info("iter...")
         return self
 
     def __len__(self):
@@ -188,7 +188,7 @@ class TrainingGenerator:
         self.sigma_noise = sigma_noise
 
     def __iter__(self):
-        logger.info("iter...")
+        LOGGER.info("iter...")
         return self
 
     def __len__(self):
@@ -229,7 +229,7 @@ class AdversarialTrainingGenerator:
         self.eps = eps
 
     def __iter__(self):
-        logger.info("iter...")
+        LOGGER.info("iter...")
         return self
 
     def __len__(self):
@@ -327,7 +327,7 @@ class LRDecay(keras.callbacks.Callback):
             lr = keras.backend.get_value(self.model.optimizer.lr)
             keras.backend.set_value(self.model.optimizer.lr, lr / self.lr_decay)
             self.steps = 0
-            logger.info("\n Reduced learning rate to " + str(lr))
+            LOGGER.info("\n Reduced learning rate to " + str(lr))
 
             if lr < self.lr_minimum:
                 self.model.stop_training = True
@@ -487,9 +487,9 @@ class FullyConnected(KerasModel, Sequential):
             else:
                 d, w, a = arch
                 layers = [Dense(w, input_shape=(input_dimension,))]
-                for i in range(d - 1):
+                for _ in range(d - 1):
                     layers.append(Dense(w, input_shape=(w,)))
-                    if not a is None:
+                    if a is not None:
                         layers.append(Activation(a))
                 layers.append(Dense(output_dimension, input_shape=(w,)))
 
