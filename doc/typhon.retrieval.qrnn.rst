@@ -30,8 +30,8 @@ Backends
 --------
 
 Currently both `keras <https://keras.io/>`_ and `pytorch <https://pytorch.org/>`_
-are supported as backends for neural network. The QRNN implementation will
-automatically use the one the is available on your system. If both are available
+are supported as backends for neural networks. The QRNN implementation will
+automatically use the one that is available on your system. If both are available
 you can choose a specific backend using the :py:meth:`~typhon.retrieval.qrnn.set_backend` function.
 
 Neural network models
@@ -64,8 +64,8 @@ API documentation
    FullyConnected
    UNet
 
-.. automodule:: typhon.retrieval.qrnn.models.pytorch
-.. currentmodule:: typhon.retrieval.qrnn.models.pytorch
+.. automodule:: typhon.retrieval.qrnn.models.keras
+.. currentmodule:: typhon.retrieval.qrnn.models.keras
 .. autosummary::
    :toctree: generated
 
