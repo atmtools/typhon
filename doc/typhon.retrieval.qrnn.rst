@@ -21,7 +21,7 @@ The QRNN class
 
 The :py:class:`~typhon.retrieval.qrnn.QRNN` class provides the high-level
 interface for QRNNs. This is all that is required to train a plain,
-fully-connected QRNN. The class itself implments generic functionality related
+fully-connected QRNN. The class itself implements generic functionality related
 to the evaluation of QRNNs and the post processing of results such as computing
 the PSD or the posterior mean. For the rest it acts as a wrapper around its
 model attribute, which encapsules all network- and DL-framework-specific code.
@@ -37,7 +37,7 @@ you can choose a specific backend using the :py:meth:`~typhon.retrieval.qrnn.set
 Neural network models
 ---------------------
 
-The :py:class:`typhon.retrieva.qrnn.QRNN` has designed to work with any generic
+The :py:class:`typhon.retrieval.qrnn.QRNN` has designed to work with any generic
 regression neural network model. This aim of this was to make the implementation
 sufficiently flexible to allow special network architectures or customization of
 the training process.
