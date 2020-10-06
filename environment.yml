@@ -3,6 +3,7 @@ dependencies:
         - python>=3.6
         - cartopy
         - cython
+        - fsspec
         - gdal
         - keras
         - matplotlib>=1.4

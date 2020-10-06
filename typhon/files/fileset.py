@@ -21,9 +21,12 @@ from sys import platform
 import threading
 import traceback
 import warnings
+import fsspec
 
 import numpy as np
 import pandas as pd
+from fsspec.implementations.local import LocalFileSystem
+
 import typhon.files
 from typhon.trees import IntervalTree
 from typhon.utils import unique
@@ -273,6 +276,7 @@ class FileSet:
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
             post_reader=None, compress=True, decompress=True, temp_dir=None,
+            fs=None
     ):
         """Initialize a FileSet object.
 
@@ -364,6 +368,10 @@ class FileSet:
             decompress: If true and `path` ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), files will be
                 decompressed before reading them. Default value is true.
+            fs: Instance of implementation of fsspec.spec.AbstractFileSystem.
+                By passing a remote filesystem implementation this allows for
+                searching for and opening files on remote file systems such as
+                Amazon S3 using s3fs.S3FileSystem.
 
         You can use regular expressions or placeholders in `path` to
         generalize the files path. Placeholders are going to be captured and
@@ -525,6 +533,9 @@ class FileSet:
 
         # Dictionary for holding links to other filesets:
         self._link = {}
+
+        # Filesystem support for searching remotely
+        self.file_system = fs or LocalFileSystem()
 
     def __iter__(self):
         return iter(self.find())
@@ -1116,7 +1127,7 @@ class FileSet:
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.path):
+            if self.file_system.isfile(self.path):
                 file_info = self.get_info(self.path)
                 if IntervalTree.interval_overlaps(
                         file_info.times, (start, end)):
@@ -1271,7 +1282,7 @@ class FileSet:
 
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
-        for new_dir in glob.iglob(os.path.join(base_dir + "*", "")):
+        for new_dir in self.file_system.glob(os.path.join(base_dir + "*", "")):
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
             basename = new_dir[len(base_dir):].rstrip(os.sep)
@@ -1312,7 +1323,7 @@ class FileSet:
             A FileInfo object with the file path and time coverage
         """
 
-        for filename in glob.iglob(os.path.join(path, "*")):
+        for filename in self.file_system.glob(os.path.join(path, "*")):
             if regex.match(filename):
                 file_info = self.get_info(filename)
 
@@ -1418,7 +1429,7 @@ class FileSet:
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.path):
+            if self.file_system.isfile(self.path):
                 # We do not have to check the time coverage since there this is
                 # automatically the closest file to the timestamp.
                 return self.path
@@ -1434,7 +1445,7 @@ class FileSet:
         try:
             # Maybe there is a file with exact this timestamp?
             path = self.get_filename(timestamp, )
-            if os.path.isfile(path):
+            if self.file_system.isfile(path):
                 return self.get_info(path)
         except (UnknownPlaceholderError, UnfilledPlaceholderError):
             pass
@@ -1712,7 +1723,7 @@ class FileSet:
                 )
 
     def make_dirs(self, filename):
-        os.makedirs(
+        self.file_system.makedirs(
             os.path.dirname(filename),
             exist_ok=True
         )
@@ -2252,12 +2263,13 @@ class FileSet:
                 os.remove(file_info.path)
         else:
             # Create the new directory if necessary.
-            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+            self.file_system.makedirs(
+                    os.path.dirname(new_filename), exist_ok=True)
 
             if copy:
-                shutil.copy(file_info.path, new_filename)
+                self.file_system.copy(file_info.path, new_filename)
             else:
-                shutil.move(file_info.path, new_filename)
+                self.file_system.move(file_info.path, new_filename)
 
     @property
     def name(self):
