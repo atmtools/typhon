@@ -1286,7 +1286,7 @@ class FileSet:
             # some/all (?) file_system implementations do not end directories
             # in a /, glob.glob does
             if not new_dir.endswith("/") and self.file_system.isdir(new_dir):
-                new_dir += "/"
+                new_dir += os.sep
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
             basename = new_dir[len(base_dir):].rstrip(os.sep)
