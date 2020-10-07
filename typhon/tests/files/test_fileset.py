@@ -77,7 +77,7 @@ class TestFileSet:
 
         def sequence_get_info(file_info, **kwargs):
             """Small helper function for sequence fileset."""
-            with open(file_info) as f:
+            with file_info.file_system.open(file_info, mode="rt") as f:
                 file_info.times[0] = datetime.datetime.strptime(
                     f.readline().rstrip(),
                     "Start: %Y-%m-%d %H:%M:%S"
@@ -273,7 +273,7 @@ class TestFileSet:
         )
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    @pytest.mark.parametrize("file_system", [None, "local"], indirect=True)
     def test_tutorial(self, file_system):
         """Test the fileset examples of the tutorial.
 

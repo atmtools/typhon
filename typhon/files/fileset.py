@@ -432,6 +432,10 @@ class FileSet:
         # Placeholders that can be changed by the user:
         self._user_placeholder = {}
 
+        # Filesystem support for searching remotely or in archives
+        self.file_system = fs or LocalFileSystem()
+        self.has_root = self.file_system.exists(os.sep)
+
         # The path parameters (will be set and documented in the path setter
         # method):
         self._path = None
@@ -533,9 +537,6 @@ class FileSet:
 
         # Dictionary for holding links to other filesets:
         self._link = {}
-
-        # Filesystem support for searching remotely
-        self.file_system = fs or LocalFileSystem()
 
     def __iter__(self):
         return iter(self.find())
@@ -1329,7 +1330,8 @@ class FileSet:
 
         for filename in self.file_system.glob(os.path.join(path, "*")):
             if regex.match(filename):
-                file_info = self.get_info(filename)
+                file_info = self.get_info(
+                        FileInfo(filename, fs=self.file_system))
 
                 # Test whether the file is overlapping the interval between
                 # start and end date.
@@ -1620,7 +1622,8 @@ class FileSet:
                 info.path, self._retrieve_time_coverage(filled_placeholder),
                 # Filter out all placeholder that are not coming from the user
                 {k: v for k, v in filled_placeholder.items()
-                 if k in self._user_placeholder}
+                 if k in self._user_placeholder},
+                self.file_system
             )
             info.update(filename_info)
 
@@ -2398,8 +2401,13 @@ class FileSet:
             A string with the path (can contain placeholders or wildcards.)
         """
 
-        # We need always the absolute path:
-        return os.path.abspath(self._path)
+        if self.has_root:
+            # We need the absolute path if it exists:
+            return os.path.abspath(self._path)
+        else:
+            # Or we don't, because on other file systems, such as s3fs or zip,
+            # there are no absolute paths
+            return self._path
 
     @path.setter
     def path(self, value):
