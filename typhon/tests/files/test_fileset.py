@@ -47,7 +47,7 @@ class TestFileSet:
             fn = fs.ls(self.refdir)[0]
             if fn[0] not in (os.sep, "/", self.refdir[0]):
                 return self.refdir[1:]
-        except (AttributeError, StopIteration, KeyError, TypeError):
+        except (IndexError, AttributeError, StopIteration, KeyError, TypeError):
             pass
         return self.refdir
 
