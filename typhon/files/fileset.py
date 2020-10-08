@@ -1283,7 +1283,7 @@ class FileSet:
         for new_dir in self.file_system.glob(os.path.join(base_dir + "*", "")):
             # some/all (?) file_system implementations do not end directories
             # in a /, glob.glob does
-            if not new_dir.endswith("/") and self.file_system.isdir(new_dir):
+            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")) and self.file_system.isdir(new_dir):
                 new_dir += os.sep
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
