@@ -5,11 +5,10 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import Counter, defaultdict, deque, OrderedDict
+from collections import Counter, deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
-import glob
 from itertools import tee
 import json
 import logging
@@ -18,10 +17,8 @@ import os.path
 import re
 import shutil
 from sys import platform
-import threading
 import traceback
 import warnings
-import fsspec
 
 import numpy as np
 import pandas as pd
@@ -1725,8 +1722,8 @@ class FileSet:
                     self.info_cache.update(info_cache)
             except Exception as err:
                 warnings.warn(
-                    f"Could not load the file information from cache file "
-                    "'{filename}':\n{err}."
+                    "Could not load the file information from cache file "
+                    f"'{filename}':\n{err}."
                 )
 
     def make_dirs(self, filename):
@@ -2232,8 +2229,7 @@ class FileSet:
 
         return destination
 
-    @staticmethod
-    def _move_single_file(
+    def _move_single_file(self,
             file_info, fileset, destination, convert, copy):
         """This is a small wrapper function for moving files. It is better to
         use :meth:`FileSet.move` directly.
