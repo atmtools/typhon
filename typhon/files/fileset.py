@@ -434,7 +434,7 @@ class FileSet:
 
         # Filesystem support for searching remotely or in archives
         self.file_system = fs or LocalFileSystem()
-        self.has_root = self.file_system.exists(os.sep)
+        self.has_root = isinstance(self.file_system, LocalFileSystem)
 
         # The path parameters (will be set and documented in the path setter
         # method):
