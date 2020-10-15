@@ -3,7 +3,6 @@ Tests for typhon.retrieval.qrnn module.
 
 Tests the QRNN implementation for all available backends.
 """
-from typhon.retrieval.qrnn import QRNN, set_backend, get_backend
 import numpy as np
 import os
 import importlib
@@ -29,6 +28,9 @@ try:
 except:
     pass
 
+
+if backends:
+    from typhon.retrieval.qrnn import QRNN, set_backend, get_backend
 
 class TestQrnn:
     def setup_method(self):
