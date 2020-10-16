@@ -306,7 +306,9 @@ class FileInfo(os.PathLike):
             self.attr = attr
 
     def __eq__(self, other):
-        return self.path == other.path and self.times == other.times
+        return (isinstance(other, type(self))
+                and self.path == other.path
+                and self.times == other.times)
 
     def __fspath__(self):
         return self.path
