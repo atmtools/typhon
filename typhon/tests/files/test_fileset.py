@@ -710,3 +710,33 @@ class TestFileSet:
         return "FileInfo(\n\t{}, \t{}, \t{}),".format(
             path, repr(file_info.times), repr(file_info.attr)
         )
+
+    def test_compare_fileinfo(self):
+        """Test comparing two FileInfo instances."""
+        f1 = FileInfo(
+                path="fake/path",
+                times=[datetime.datetime(1900, 1, 1, 0),
+                       datetime.datetime(1900, 1, 1, 2)],
+                attr={})
+        f2 = FileInfo(
+                path="fake/path",
+                times=[datetime.datetime(1900, 1, 1, 0),
+                       datetime.datetime(1900, 1, 1, 2)],
+                attr={})
+        f3 = FileInfo(
+                path="other/fake/path",
+                times=[datetime.datetime(1900, 1, 1, 0),
+                       datetime.datetime(1900, 1, 1, 2)],
+                attr={})
+        f4 = FileInfo(
+                path="fake/path",
+                times=[datetime.datetime(1910, 1, 1, 0),
+                       datetime.datetime(1910, 1, 1, 2)],
+                attr={})
+        assert f1 == f2
+        assert f1 != f3
+        assert f1 != f4
+        assert f2 != f3
+        assert f2 != f4
+        assert f3 != f4
+        assert f1 != "fake/path"
