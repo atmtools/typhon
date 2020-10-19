@@ -2403,8 +2403,9 @@ class FileSet:
         if self.has_root:
             # We need the absolute path if it exists:
             # (but still with normal path separators)
-            # even on windows posixpath.abspath will give \\ !
-            return posixpath.abspath(self._path).replace(os.sep, "/")
+            # can't use posixpath.abspath, that (1) won't recognise c: as
+            # absolute and (2) still keep \\, so explicitly replace instead
+            return os.path.abspath(self._path).replace(os.sep, "/")
         else:
             # Or we don't, because on other file systems, such as s3fs or zip,
             # there are no absolute paths
