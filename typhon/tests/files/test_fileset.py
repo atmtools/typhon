@@ -15,7 +15,8 @@ class TestFileSet:
     """Testing the fileset methods."""
 
     filesets = None
-    refdir = get_testfiles_directory("filesets")
+    # replace separator, fsspec always uses forward /
+    refdir = get_testfiles_directory("filesets").replace(os.sep, "/")
 
     @pytest.fixture
     def file_system(self, request, tmp_path):
