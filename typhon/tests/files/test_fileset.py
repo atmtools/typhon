@@ -1,5 +1,6 @@
 import os
-from os.path import dirname, join
+from os.path import dirname
+from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
 import numpy as np
