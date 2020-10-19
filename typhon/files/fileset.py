@@ -2582,6 +2582,11 @@ class FileSet:
 
         # Mask all dots and convert the asterisk to regular expression syntax:
         path = path.replace("\\", "\\\\").replace(".", r"\.").replace("*", ".*?")
+        # due to support for external file systems, file separators could be
+        # either local (os.sep) or forward / (always on s3fs, ftp, elsewhere).
+        # Therefore, let's make \ also match / on Windows.
+        if os.sep != "/":
+            path = path.replace("\\\\", "[\\\\/]")
 
         # Python's standard regex module (re) cannot handle multiple groups
         # with the same name. Hence, we need to cover duplicated placeholders
