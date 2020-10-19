@@ -46,7 +46,12 @@ class TestFileSet:
         # check if this filesystem returns absolute or relative and adapt
         # refdir accordingly
         try:
-            fn = fs.ls(self.refdir)[0]
+            cont = fs.ls(self.refdir)
+            # on windows, this appears empty (?!) if we have a zip and refdir
+            # contains a drive
+            if len(cont) == 0 and self.refdir[1] == ":":
+                return self.refdir[3:]
+            fn = cont[0]
             if fn[0] not in (os.sep, "/", self.refdir[0]):
                 return self.refdir[1:]
         except (IndexError, AttributeError, StopIteration, KeyError, TypeError):
