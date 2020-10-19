@@ -2436,7 +2436,8 @@ class FileSet:
             # Later, we iterate over all possible sub directories and find
             # those that match the regex / placeholders. Hence, we split the
             # sub directory into chunks for each hierarchy level:
-            self._sub_dir_chunks = self._sub_dir.split(os.path.sep)
+            # (with posixpath, because fsspec always uses this)
+            self._sub_dir_chunks = self._sub_dir.split(posixpath.sep)
 
             # The sub directory time resolution is needed for find_closest:
             self._sub_dir_time_resolution = self._get_time_resolution(
