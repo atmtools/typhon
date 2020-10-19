@@ -14,6 +14,7 @@ import json
 import logging
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
+import posixpath
 import re
 import shutil
 from sys import platform
@@ -1250,8 +1251,10 @@ class FileSet:
                        if ch in self._special_chars):
                 # We can add this sub directory part because it will always
                 # match to our path
+                # NB: using posixpath rather than os.path because
+                # AbstractFileSystem objects always work with / not \
                 search_dirs = [
-                    (os.path.join(old_dir, subdir_chunk), attr)
+                    (posixpath.join(old_dir, subdir_chunk), attr)
                     for old_dir, attr in search_dirs
                 ]
                 continue
@@ -1280,7 +1283,7 @@ class FileSet:
 
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
-        for new_dir in self.file_system.glob(os.path.join(base_dir + "*", "")):
+        for new_dir in self.file_system.glob(posixpath.join(base_dir + "*", "")):
             # some/all (?) file_system implementations do not end directories
             # in a /, glob.glob does
             if not (new_dir.endswith(os.sep) or new_dir.endswith("/")) and self.file_system.isdir(new_dir):
@@ -1325,7 +1328,7 @@ class FileSet:
             A FileInfo object with the file path and time coverage
         """
 
-        for filename in self.file_system.glob(os.path.join(path, "*")):
+        for filename in self.file_system.glob(posixpath.join(path, "*")):
             if regex.match(filename):
                 file_info = self.get_info(
                         FileInfo(filename, fs=self.file_system))
