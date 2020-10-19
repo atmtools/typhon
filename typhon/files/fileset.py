@@ -1731,7 +1731,7 @@ class FileSet:
 
     def make_dirs(self, filename):
         self.file_system.makedirs(
-            os.path.dirname(filename),
+            posixpath.dirname(filename),
             exist_ok=True
         )
 
@@ -2270,7 +2270,7 @@ class FileSet:
         else:
             # Create the new directory if necessary.
             self.file_system.makedirs(
-                    os.path.dirname(new_filename), exist_ok=True)
+                    posixpath.dirname(new_filename), exist_ok=True)
 
             if copy:
                 self.file_system.copy(file_info.path, new_filename)
@@ -2402,7 +2402,8 @@ class FileSet:
 
         if self.has_root:
             # We need the absolute path if it exists:
-            return os.path.abspath(self._path)
+            # (but still with normal path separators)
+            return posixpath.abspath(self._path)
         else:
             # Or we don't, because on other file systems, such as s3fs or zip,
             # there are no absolute paths
@@ -2419,7 +2420,7 @@ class FileSet:
         # directory and the filename. The sub directory and filename may
         # contain regex/placeholder, the base directory not. We need to split
         # the path into these three parts to enable file finding.
-        directory = os.path.dirname(self.path)
+        directory = posixpath.dirname(self.path)
         index_of_sub_directory = \
             next(
                 (i for i, ch in enumerate(directory)
