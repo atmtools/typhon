@@ -52,7 +52,7 @@ def e_eq_ice_mk(T):
 
     """
     if np.any(T <= 0):
-        raise Exception('Temperatures must be larger than 0 Kelvin.')
+        raise ValueError('Temperatures must be larger than 0 Kelvin.')
 
     # Give the natural log of saturation vapor pressure over ice in Pa
     e = 9.550426 - 5723.265 / T + 3.53068 * np.log(T) - 0.00728332 * T
@@ -92,7 +92,7 @@ def e_eq_water_mk(T):
 
     """
     if np.any(T <= 0):
-        raise Exception('Temperatures must be larger than 0 Kelvin.')
+        raise ValueError('Temperatures must be larger than 0 Kelvin.')
 
     # Give the natural log of saturation vapor pressure over water in Pa
 
