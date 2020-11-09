@@ -258,7 +258,7 @@ class FileHandler:
     def _ensure_local_filesystem(self, file_info):
         if not isinstance(file_info.file_system, LocalFileSystem):
             raise NotImplementedError(
-                    f"File handler {str(type(self).__name__):s} can only "
+                    f"File handler {type(self).__name__:s} can only "
                     "read from local file system, not from "
                     f"{str(type(file_info.file_system).__name__)}")
 

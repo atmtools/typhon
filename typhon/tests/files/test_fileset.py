@@ -59,9 +59,6 @@ class TestFileSet:
         return self.refdir
 
     def init_filesets(self, fs=None):
-#        if self.filesets is not None:
-#            return self.filesets
-
         self.filesets = FileSetManager()
 
         refdir = self._refdir_for_fs(fs)
