@@ -10,6 +10,7 @@ recursive-include typhon *.dat
 recursive-include typhon *.gz
 recursive-include typhon *.mplstyle
 recursive-include typhon *.nc
+recursive-include typhon *.npy
 recursive-include typhon *.jpg
 recursive-include typhon *.tex
 recursive-include typhon *.txt
