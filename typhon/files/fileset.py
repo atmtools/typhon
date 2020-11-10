@@ -5,25 +5,26 @@ Created by John Mrziglod, June 2017
 """
 
 import atexit
-from collections import Counter, defaultdict, deque, OrderedDict
+from collections import Counter, deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 import gc
-import glob
 from itertools import tee
 import json
 import logging
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
+import posixpath
 import re
 import shutil
 from sys import platform
-import threading
 import traceback
 import warnings
 
 import numpy as np
 import pandas as pd
+from fsspec.implementations.local import LocalFileSystem
+
 import typhon.files
 from typhon.trees import IntervalTree
 from typhon.utils import unique
@@ -273,6 +274,7 @@ class FileSet:
             placeholder=None, max_threads=None, max_processes=None,
             worker_type=None, read_args=None, write_args=None,
             post_reader=None, compress=True, decompress=True, temp_dir=None,
+            fs=None
     ):
         """Initialize a FileSet object.
 
@@ -364,6 +366,10 @@ class FileSet:
             decompress: If true and `path` ends with a compression
                 suffix (such as *.zip*, *.gz*, *.b2z*, etc.), files will be
                 decompressed before reading them. Default value is true.
+            fs: Instance of implementation of fsspec.spec.AbstractFileSystem.
+                By passing a remote filesystem implementation this allows for
+                searching for and opening files on remote file systems such as
+                Amazon S3 using s3fs.S3FileSystem.
 
         You can use regular expressions or placeholders in `path` to
         generalize the files path. Placeholders are going to be captured and
@@ -423,6 +429,10 @@ class FileSet:
 
         # Placeholders that can be changed by the user:
         self._user_placeholder = {}
+
+        # Filesystem support for searching remotely or in archives
+        self.file_system = fs or LocalFileSystem()
+        self.has_root = isinstance(self.file_system, LocalFileSystem)
 
         # The path parameters (will be set and documented in the path setter
         # method):
@@ -1116,7 +1126,7 @@ class FileSet:
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.path):
+            if self.file_system.isfile(self.path):
                 file_info = self.get_info(self.path)
                 if IntervalTree.interval_overlaps(
                         file_info.times, (start, end)):
@@ -1241,8 +1251,10 @@ class FileSet:
                        if ch in self._special_chars):
                 # We can add this sub directory part because it will always
                 # match to our path
+                # NB: using posixpath rather than os.path because
+                # AbstractFileSystem objects always work with / not \
                 search_dirs = [
-                    (os.path.join(old_dir, subdir_chunk), attr)
+                    (posixpath.join(old_dir, subdir_chunk), attr)
                     for old_dir, attr in search_dirs
                 ]
                 continue
@@ -1271,10 +1283,14 @@ class FileSet:
 
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
-        for new_dir in glob.iglob(os.path.join(base_dir + "*", "")):
+        for new_dir in self.file_system.glob(posixpath.join(base_dir + "*", "")):
+            # some/all (?) file_system implementations do not end directories
+            # in a /, glob.glob does
+            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")) and self.file_system.isdir(new_dir):
+                new_dir += "/"  # always / with AbstractFileSystem, not os.sep
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
-            basename = new_dir[len(base_dir):].rstrip(os.sep)
+            basename = new_dir[len(base_dir):].rstrip(os.sep + "/")
             try:
                 new_attr = {
                     **dir_attr,
@@ -1312,9 +1328,10 @@ class FileSet:
             A FileInfo object with the file path and time coverage
         """
 
-        for filename in glob.iglob(os.path.join(path, "*")):
+        for filename in self.file_system.glob(posixpath.join(path, "*")):
             if regex.match(filename):
-                file_info = self.get_info(filename)
+                file_info = self.get_info(
+                        FileInfo(filename, fs=self.file_system))
 
                 # Test whether the file is overlapping the interval between
                 # start and end date.
@@ -1418,7 +1435,7 @@ class FileSet:
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
-            if os.path.isfile(self.path):
+            if self.file_system.isfile(self.path):
                 # We do not have to check the time coverage since there this is
                 # automatically the closest file to the timestamp.
                 return self.path
@@ -1434,7 +1451,7 @@ class FileSet:
         try:
             # Maybe there is a file with exact this timestamp?
             path = self.get_filename(timestamp, )
-            if os.path.isfile(path):
+            if self.file_system.isfile(path):
                 return self.get_info(path)
         except (UnknownPlaceholderError, UnfilledPlaceholderError):
             pass
@@ -1605,7 +1622,8 @@ class FileSet:
                 info.path, self._retrieve_time_coverage(filled_placeholder),
                 # Filter out all placeholder that are not coming from the user
                 {k: v for k, v in filled_placeholder.items()
-                 if k in self._user_placeholder}
+                 if k in self._user_placeholder},
+                self.file_system
             )
             info.update(filename_info)
 
@@ -1707,13 +1725,13 @@ class FileSet:
                     self.info_cache.update(info_cache)
             except Exception as err:
                 warnings.warn(
-                    f"Could not load the file information from cache file "
-                    "'{filename}':\n{err}."
+                    "Could not load the file information from cache file "
+                    f"'{filename}':\n{err}."
                 )
 
     def make_dirs(self, filename):
-        os.makedirs(
-            os.path.dirname(filename),
+        self.file_system.makedirs(
+            posixpath.dirname(filename),
             exist_ok=True
         )
 
@@ -2214,8 +2232,7 @@ class FileSet:
 
         return destination
 
-    @staticmethod
-    def _move_single_file(
+    def _move_single_file(self,
             file_info, fileset, destination, convert, copy):
         """This is a small wrapper function for moving files. It is better to
         use :meth:`FileSet.move` directly.
@@ -2252,12 +2269,13 @@ class FileSet:
                 os.remove(file_info.path)
         else:
             # Create the new directory if necessary.
-            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+            self.file_system.makedirs(
+                    posixpath.dirname(new_filename), exist_ok=True)
 
             if copy:
-                shutil.copy(file_info.path, new_filename)
+                self.file_system.copy(file_info.path, new_filename)
             else:
-                shutil.move(file_info.path, new_filename)
+                self.file_system.move(file_info.path, new_filename)
 
     @property
     def name(self):
@@ -2382,8 +2400,16 @@ class FileSet:
             A string with the path (can contain placeholders or wildcards.)
         """
 
-        # We need always the absolute path:
-        return os.path.abspath(self._path)
+        if self.has_root:
+            # We need the absolute path if it exists:
+            # (but still with normal path separators)
+            # can't use posixpath.abspath, that (1) won't recognise c: as
+            # absolute and (2) still keep \\, so explicitly replace instead
+            return os.path.abspath(self._path).replace(os.sep, "/")
+        else:
+            # Or we don't, because on other file systems, such as s3fs or zip,
+            # there are no absolute paths
+            return self._path
 
     @path.setter
     def path(self, value):
@@ -2396,7 +2422,7 @@ class FileSet:
         # directory and the filename. The sub directory and filename may
         # contain regex/placeholder, the base directory not. We need to split
         # the path into these three parts to enable file finding.
-        directory = os.path.dirname(self.path)
+        directory = posixpath.dirname(self.path)
         index_of_sub_directory = \
             next(
                 (i for i, ch in enumerate(directory)
@@ -2413,7 +2439,8 @@ class FileSet:
             # Later, we iterate over all possible sub directories and find
             # those that match the regex / placeholders. Hence, we split the
             # sub directory into chunks for each hierarchy level:
-            self._sub_dir_chunks = self._sub_dir.split(os.path.sep)
+            # (with posixpath, because fsspec always uses this)
+            self._sub_dir_chunks = self._sub_dir.split(posixpath.sep)
 
             # The sub directory time resolution is needed for find_closest:
             self._sub_dir_time_resolution = self._get_time_resolution(
@@ -2562,6 +2589,11 @@ class FileSet:
 
         # Mask all dots and convert the asterisk to regular expression syntax:
         path = path.replace("\\", "\\\\").replace(".", r"\.").replace("*", ".*?")
+        # due to support for external file systems, file separators could be
+        # either local (os.sep) or forward / (always on s3fs, ftp, elsewhere).
+        # Therefore, let's make \ also match / on Windows.
+        if os.sep != "/":
+            path = path.replace("\\\\", "[\\\\/]")
 
         # Python's standard regex module (re) cannot handle multiple groups
         # with the same name. Hence, we need to cover duplicated placeholders

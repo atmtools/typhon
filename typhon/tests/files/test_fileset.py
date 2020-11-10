@@ -1,8 +1,11 @@
-from os.path import dirname, join
+import os
+from os.path import dirname
+from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
 import numpy as np
 import pytest
+import shutil
 
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
 from typhon.files.utils import get_testfiles_directory
@@ -12,32 +15,73 @@ class TestFileSet:
     """Testing the fileset methods."""
 
     filesets = None
-    refdir = get_testfiles_directory("filesets")
+    # replace separator, fsspec always uses forward /
+    refdir = get_testfiles_directory("filesets").replace(os.sep, "/")
 
-    def init_filesets(self):
-        if self.filesets is not None:
-            return self.filesets
+    @pytest.fixture
+    def file_system(self, request, tmp_path):
+        """Prepare filesystem.
 
+        Prepare a filesystem to test if the filesystem spec works with it.
+        """
+        if request.param == "zip":
+            from fsspec.implementations.zip import ZipFileSystem
+            from shutil import make_archive
+            # prepare archive to test on
+            archive = tmp_path / "test"
+            shutil.make_archive(
+                    archive, "zip", os.curdir, self.refdir)
+            return ZipFileSystem(archive.with_suffix(".zip"))
+        elif request.param == "local":
+            from fsspec.implementations.local import LocalFileSystem
+            return LocalFileSystem()
+
+    def _refdir_for_fs(self, fs):
+        """Get appropriate reference dir for fs.
+
+        Some fs, such as ZipFileSystem or S3FS, don't return leading /, then
+        our refdir shouldn't contain this either.
+        """
+
+        # check if this filesystem returns absolute or relative and adapt
+        # refdir accordingly
+        try:
+            cont = fs.ls(self.refdir)
+            # on windows, this appears empty (?!) if we have a zip and refdir
+            # contains a drive
+            if len(cont) == 0 and self.refdir[1] == ":":
+                return self.refdir[3:]
+            fn = cont[0]
+            if fn[0] not in (os.sep, "/", self.refdir[0]):
+                return self.refdir[1:]
+        except (IndexError, AttributeError, StopIteration, KeyError, TypeError):
+            pass
+        return self.refdir
+
+    def init_filesets(self, fs=None):
         self.filesets = FileSetManager()
 
+        refdir = self._refdir_for_fs(fs)
         self.filesets += FileSet(
             join(
-                self.refdir,
+                refdir,
                 "tutorial", "{satellite}", "{year}-{month}-{day}",
                 "{hour}{minute}{second}-{end_hour}{end_minute}{end_second}.nc"
             ),
             name="tutorial",
+            fs=fs
         )
 
         self.filesets += FileSet(
-            join(self.refdir, "single_file.nc",),
+            join(refdir, "single_file.nc",),
             name="single",
             time_coverage=["2018-01-01", "2018-01-03"],
+            fs=fs
         )
 
         def sequence_get_info(file_info, **kwargs):
             """Small helper function for sequence fileset."""
-            with open(file_info) as f:
+            with file_info.file_system.open(file_info, mode="rt") as f:
                 file_info.times[0] = datetime.datetime.strptime(
                     f.readline().rstrip(),
                     "Start: %Y-%m-%d %H:%M:%S"
@@ -49,16 +93,17 @@ class TestFileSet:
             return file_info
 
         self.filesets += FileSet(
-            join(self.refdir, "sequence",
+            join(refdir, "sequence",
                  "{year}", "{doy}", "sequence*.txt",),
             name="sequence-wildcard",
             handler=FileHandler(
                 info=sequence_get_info,
             ),
             info_via="handler",
+            fs=fs
         )
         self.filesets += FileSet(
-            join(self.refdir, "sequence",
+            join(refdir, "sequence",
                  "{year}", "{doy}", "sequence{id}.txt",
             ),
             handler=FileHandler(
@@ -66,16 +111,18 @@ class TestFileSet:
             ),
             name="sequence-placeholder",
             info_via="both",
-            placeholder={"id": r"\d{4}"}
+            placeholder={"id": r"\d{4}"},
+            fs=fs
         )
 
         self.filesets += FileSet(
-            join(self.refdir,
+            join(refdir,
                  # NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz
                  "regex", "NSS.HIR[XS].{satcode}.D{year2}{doy}.S{hour}"
                  "{minute}.E{end_hour}{end_minute}.B{B}.{station}.gz"
             ),
             name="regex-HIRS",
+            fs=fs
         )
         self.filesets["regex-HIRS"].set_placeholders(
             satcode=".{2}", B=r"\d{7}", station=".{2}",
@@ -84,13 +131,14 @@ class TestFileSet:
         return self.filesets
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_contains(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_contains(self, file_system):
         """Test whether all filesets cover the testing timestamps.
 
         Returns:
             None
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
         tests = [
             # [Timestamp(s), Should it be covered by the filesets?]
             ["2016-01-01", False],
@@ -110,86 +158,89 @@ class TestFileSet:
                 assert (timestamp in fileset) == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_glob(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_glob(self, file_system):
+        refdir = self._refdir_for_fs(file_system)
         files = FileSet(
             join(
-                self.refdir,
+                refdir,
                 "tutorial", "{satellite}", "*", "*.nc"
             ),
             placeholder={"satellite": 'SatelliteA'},
+            fs=file_system
         )
 
         # Sort this after paths rather than times (because the times are all
         # equal)
         check = list(sorted([
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '000000-040000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '080000-120000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '200000-000000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '040000-080000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '120000-160000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-02', '160000-200000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '000000-040000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '080000-120000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '200000-000000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '040000-080000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '120000-160000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
                 {'satellite': 'SatelliteA'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteA', '2018-01-01', '160000-200000.nc'),
                 [datetime.datetime(1, 1, 1, 0, 0),
                  datetime.datetime(9999, 12, 31, 23, 59, 59, 999999)],
@@ -200,13 +251,13 @@ class TestFileSet:
 
     @pytest.mark.skip
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_magic_methods(self):
+    def test_magic_methods(self, file_system):
         """Test magic methods on the fileset examples of the tutorial.
 
         Returns:
 
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
         filters = {"satellite": "SatelliteB"}
         result = filesets["tutorial"]["2018-01-01 03:00", filters]
 
@@ -226,13 +277,15 @@ class TestFileSet:
         )
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_tutorial(self):
+    @pytest.mark.parametrize("file_system", [None, "local"], indirect=True)
+    def test_tutorial(self, file_system):
         """Test the fileset examples of the tutorial.
 
         Returns:
             None
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
+        refdir = self._refdir_for_fs(file_system)
 
         # STANDARD DATASET
         # Should not find anything:
@@ -253,7 +306,7 @@ class TestFileSet:
         #print("closest check", self._repr_file_info(found_file))
 
         check = FileInfo(
-            join(self.refdir, 'tutorial',
+            join(refdir, 'tutorial',
                  'SatelliteB', '2018-01-01', '000000-050000.nc'),
             [datetime.datetime(2018, 1, 1, 0, 0),
              datetime.datetime(2018, 1, 1, 5, 0)], {'satellite': 'SatelliteB'})
@@ -276,31 +329,31 @@ class TestFileSet:
 
         check = [
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteB', '2018-01-01', '000000-050000.nc'),
                 [datetime.datetime(2018, 1, 1, 0, 0),
                  datetime.datetime(2018, 1, 1, 5, 0)],
                 {'satellite': 'SatelliteB'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteB', '2018-01-01', '050000-100000.nc'),
                 [datetime.datetime(2018, 1, 1, 5, 0),
                  datetime.datetime(2018, 1, 1, 10, 0)],
                 {'satellite': 'SatelliteB'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteB', '2018-01-01', '100000-150000.nc'),
                 [datetime.datetime(2018, 1, 1, 10, 0),
                  datetime.datetime(2018, 1, 1, 15, 0)],
                 {'satellite': 'SatelliteB'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteB', '2018-01-01', '150000-200000.nc'),
                 [datetime.datetime(2018, 1, 1, 15, 0),
                  datetime.datetime(2018, 1, 1, 20, 0)],
                 {'satellite': 'SatelliteB'}),
             FileInfo(
-                join(self.refdir, 'tutorial',
+                join(refdir, 'tutorial',
                      'SatelliteB', '2018-01-01', '200000-010000.nc'),
                 [datetime.datetime(2018, 1, 1, 20, 0),
                  datetime.datetime(2018, 1, 2, 1, 0)],
@@ -321,19 +374,19 @@ class TestFileSet:
         check = [
             [
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '000000-050000.nc'),
                     [datetime.datetime(2018, 1, 1, 0, 0),
                      datetime.datetime(2018, 1, 1, 5, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '050000-100000.nc'),
                     [datetime.datetime(2018, 1, 1, 5, 0),
                      datetime.datetime(2018, 1, 1, 10, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '100000-150000.nc'),
                     [datetime.datetime(2018, 1, 1, 10, 0),
                      datetime.datetime(2018, 1, 1, 15, 0)],
@@ -341,13 +394,13 @@ class TestFileSet:
             ],
             [
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '150000-200000.nc'),
                     [datetime.datetime(2018, 1, 1, 15, 0),
                      datetime.datetime(2018, 1, 1, 20, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '200000-010000.nc'),
                     [datetime.datetime(2018, 1, 1, 20, 0),
                      datetime.datetime(2018, 1, 2, 1, 0)],
@@ -369,19 +422,19 @@ class TestFileSet:
         check = [
             [
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '000000-050000.nc'),
                     [datetime.datetime(2018, 1, 1, 0, 0),
                      datetime.datetime(2018, 1, 1, 5, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '050000-100000.nc'),
                     [datetime.datetime(2018, 1, 1, 5, 0),
                      datetime.datetime(2018, 1, 1, 10, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '100000-150000.nc'),
                     [datetime.datetime(2018, 1, 1, 10, 0),
                      datetime.datetime(2018, 1, 1, 15, 0)],
@@ -389,13 +442,13 @@ class TestFileSet:
             ],
             [
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '150000-200000.nc'),
                     [datetime.datetime(2018, 1, 1, 15, 0),
                      datetime.datetime(2018, 1, 1, 20, 0)],
                     {'satellite': 'SatelliteB'}),
                 FileInfo(
-                    join(self.refdir, 'tutorial',
+                    join(refdir, 'tutorial',
                          'SatelliteB', '2018-01-01', '200000-010000.nc'),
                     [datetime.datetime(2018, 1, 1, 20, 0),
                      datetime.datetime(2018, 1, 2, 1, 0)],
@@ -437,17 +490,18 @@ class TestFileSet:
         return data["data"].mean().item(0)
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_files_overlap_subdirectory(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_files_overlap_subdirectory(self, file_system):
         """A file covers a time period longer than its sub directory.
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
         filesets["tutorial"].set_placeholders(
             satellite="SatelliteA"
         )
         found_file = filesets["tutorial"].find_closest("2018-01-03")
 
         check = FileInfo(
-            join(self.refdir, 'tutorial',
+            join(self._refdir_for_fs(file_system), 'tutorial',
                  'SatelliteA', '2018-01-02', '200000-000000.nc'),
             [datetime.datetime(2018, 1, 2, 20, 0),
              datetime.datetime(2018, 1, 3, 0, 0)],
@@ -457,13 +511,14 @@ class TestFileSet:
         assert found_file == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_single(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_single(self, file_system):
         """Test find on the single fileset.
 
         Returns:
             None
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
 
         # STANDARD DATASET
         # Should not find anything:
@@ -474,7 +529,7 @@ class TestFileSet:
         assert not empty
 
         check = [
-            FileInfo(join(self.refdir, 'single_file.nc'),
+            FileInfo(join(self._refdir_for_fs(file_system), 'single_file.nc'),
                      [datetime.datetime(2018, 1, 1, 0, 0),
                       datetime.datetime(2018, 1, 3, 0, 0)], {}),
         ]
@@ -501,13 +556,15 @@ class TestFileSet:
         assert found_files == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_sequence(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_sequence(self, file_system):
         """Test find on the sequence filesets.
 
         Returns:
             None
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
+        refdir = self._refdir_for_fs(file_system)
 
         # STANDARD DATASET
         # Should not find anything:
@@ -524,11 +581,11 @@ class TestFileSet:
             ))
 
         check = [
-            FileInfo(join(self.refdir, 'sequence',
+            FileInfo(join(refdir, 'sequence',
                           '2018', '001', 'sequence0001.txt'),
                      [datetime.datetime(2018, 1, 1, 0, 0),
                       datetime.datetime(2018, 1, 1, 12, 0)], {'id': 1}),
-            FileInfo(join(self.refdir, 'sequence',
+            FileInfo(join(refdir, 'sequence',
                           '2018', '001', 'sequence0002.txt'),
                      [datetime.datetime(2018, 1, 1, 12, 0),
                       datetime.datetime(2018, 1, 2, 0, 0)], {'id': 2}),
@@ -544,13 +601,13 @@ class TestFileSet:
 
         check = [
             [
-                FileInfo(join(self.refdir, 'sequence',
+                FileInfo(join(refdir, 'sequence',
                               '2018', '001', 'sequence0001.txt'),
                          [datetime.datetime(2018, 1, 1, 0, 0),
                           datetime.datetime(2018, 1, 1, 12, 0)], {'id': 1}),
             ],
             [
-                FileInfo(join(self.refdir, 'sequence',
+                FileInfo(join(refdir, 'sequence',
                               '2018', '001', 'sequence0002.txt'),
                          [datetime.datetime(2018, 1, 1, 12, 0),
                           datetime.datetime(2018, 1, 2, 0, 0)], {'id': 2}),
@@ -559,13 +616,15 @@ class TestFileSet:
         assert found_files == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_sequence_placeholder(self):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_sequence_placeholder(self, file_system):
         """Test find on all standard filesets.
 
         Returns:
             None
         """
-        filesets = self.init_filesets()
+        filesets = self.init_filesets(file_system)
+        refdir = self._refdir_for_fs(file_system)
 
         # STANDARD DATASET
         # Should not find anything:
@@ -582,11 +641,11 @@ class TestFileSet:
             ))
 
         check = [
-            FileInfo(join(self.refdir, 'sequence',
+            FileInfo(join(refdir, 'sequence',
                           '2018', '001', 'sequence0001.txt'),
                      [datetime.datetime(2018, 1, 1, 0, 0),
                       datetime.datetime(2018, 1, 1, 12, 0)], {'id': 1}),
-            FileInfo(join(self.refdir, 'sequence',
+            FileInfo(join(refdir, 'sequence',
                           '2018', '001', 'sequence0002.txt'),
                      [datetime.datetime(2018, 1, 1, 12, 0),
                       datetime.datetime(2018, 1, 2, 0, 0)], {'id': 2}),
@@ -602,13 +661,13 @@ class TestFileSet:
 
         check = [
             [
-                FileInfo(join(self.refdir, 'sequence',
+                FileInfo(join(refdir, 'sequence',
                               '2018', '001', 'sequence0001.txt'),
                          [datetime.datetime(2018, 1, 1, 0, 0),
                           datetime.datetime(2018, 1, 1, 12, 0)], {'id': 1}),
             ],
             [
-                FileInfo(join(self.refdir, 'sequence',
+                FileInfo(join(refdir, 'sequence',
                               '2018', '001', 'sequence0002.txt'),
                          [datetime.datetime(2018, 1, 1, 12, 0),
                           datetime.datetime(2018, 1, 2, 0, 0)], {'id': 2}),
@@ -617,11 +676,12 @@ class TestFileSet:
         assert found_files == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_regex(self):
-        filesets = self.init_filesets()
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_regex(self, file_system):
+        filesets = self.init_filesets(file_system)
 
         check = [
-            FileInfo(join(self.refdir, 'regex',
+            FileInfo(join(self._refdir_for_fs(file_system), 'regex',
                           'NSS.HIRX.NJ.D99127.S0632.E0820.B2241718.WI.gz'),
                      [datetime.datetime(1999, 5, 7, 6, 32),
                       datetime.datetime(1999, 5, 7, 8, 20)],
@@ -640,17 +700,20 @@ class TestFileSet:
         assert found_files == check
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
-    def test_complicated_subdirs(self, ):
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_complicated_subdirs(self, file_system):
         """Check whether FileSet can find files in subdirectories that contain
         text and placeholders.
         """
+        refdir = self._refdir_for_fs(file_system)
         # The Pinocchio fileset from the cloud toolbox: a folder name contains
         # normal text and a placeholder:
         pinocchio = FileSet(
-            join(self.refdir, "pinocchio",
+            join(refdir, "pinocchio",
                  "t{year2}{month}{day}",
                  "tm{year2}{month}{day}{hour}{minute}{second}{millisecond}.jpg",
                  ),
+            fs=file_system
         )
 
         # Find all files:
@@ -658,7 +721,7 @@ class TestFileSet:
 
         check = [
             FileInfo(
-                join(self.refdir,
+                join(refdir,
                      'pinocchio', 't171102', 'tm171102132855573.jpg'),
                 [datetime.datetime(2017, 11, 2, 13, 28, 55, 573000),
                  datetime.datetime(2017, 11, 2, 13, 28, 55, 573000)], {}),
