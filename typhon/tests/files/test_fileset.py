@@ -6,6 +6,7 @@ import datetime
 import numpy as np
 import pytest
 import shutil
+import logging
 
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
 from typhon.files.utils import get_testfiles_directory
@@ -614,6 +615,25 @@ class TestFileSet:
             ],
         ]
         assert found_files == check
+
+
+    @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
+    @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
+    def test_logs(self, file_system, caplog):
+        """Test that searching logs as expected."""
+        filesets = self.init_filesets(file_system)
+        refdir = self._refdir_for_fs(file_system)
+        # should log
+        with caplog.at_level(logging.DEBUG):
+            found_files = list(
+                filesets["sequence-placeholder"].find(
+                    "2018-01-01", "2018-01-02",
+                ))
+        assert ("Find files for sequence-placeholder "
+                "between 2018-01-01 00:00:00 and "
+                "2018-01-01 23:59:59") in caplog.text
+        assert f"via file system" in caplog.text
+
 
     @pytest.mark.skipif(refdir is None, reason="typhon-testfiles not found.")
     @pytest.mark.parametrize("file_system", [None, "local", "zip"], indirect=True)
