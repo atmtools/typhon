@@ -1122,7 +1122,13 @@ class FileSet:
             raise ValueError(
                 "The start must be smaller than the end parameter!")
 
-        logger.info("Find files between %s and %s!" % (start, end))
+        logger.info(
+                f"Find files for {self.name:s} "
+                f"between {start:%Y-%m-%d %H:%M:%S} "
+                f"and {end:%Y-%m-%d %H:%M:%S}")
+        logger.debug(
+                f"Searching {self.path:s} via "
+                f"file system {self.file_system!s}")
 
         # Special case: the whole fileset consists of one file only.
         if self.single_file:
