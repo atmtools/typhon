@@ -2,7 +2,6 @@ import functools
 import logging
 from os.path import dirname, join
 
-from . import arts  # noqa
 from . import cloudmask  # noqa
 from . import config  # noqa
 from . import constants  # noqa

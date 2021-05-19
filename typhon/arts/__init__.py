@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-
-"""This module contains functions to interact with ARTS.
-"""
-
-from typhon.arts import sensor  # noqa
-from typhon.arts import xml  # noqa
-from typhon.arts.common import *  # noqa
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+raise ModuleNotFoundError(
+    "The ARTS submodule has been migrated to PyARTS in Typhon version >0.8.0\n"
+    "Either install Typhon version 0.8.0 or switch to the PyARTS package")

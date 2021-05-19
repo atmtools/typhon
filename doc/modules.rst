@@ -4,20 +4,10 @@ Reference
 ARTS
 ----
 
-Data types and File I/O
-```````````````````````
 .. toctree::
    :maxdepth: 1
 
    typhon.arts
-
-ARTS Interface
-``````````````
-
-.. toctree::
-   :maxdepth: 1
-
-   typhon.arts.workspace
 
 Cloud mask
 ----------

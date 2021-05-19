@@ -47,15 +47,8 @@ configuration is handled by the ``typhon.config`` module. The default file
 location is ``~/.typhonrc`` but can be changed using the ``TYPHONRC``
 environment variable.
 
-It is also possible to set environment variables in the same-named
-section of the configuration file, e.g.:
-```
-[environment]
-ARTS_BUILD_PATH: /path/to/arts/build/
-```
-
 ## Documentation
-A daily build of the documentation is accessible
+A recent build of the documentation is accessible
 [online](http://radiativetransfer.org/misc/typhon/doc-trunk).
 Kindly note that bleeding edge features might not be covered.
 
