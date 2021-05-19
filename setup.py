@@ -95,6 +95,6 @@ setup(
     ],
     extras_require={
         "docs": ["cartopy", "pint", "sphinx_rtd_theme"],
-        "tests": ["pytest", "pint", "gdal"],
+        "tests": ["pytest", "pint"],
     },
 )
