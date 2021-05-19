@@ -87,22 +87,24 @@ class TestColors:
 
     def test_cmap_from_txt(self):
         """Import colormap from txt file."""
-        viridis = plt.get_cmap('viridis')
-        cmap = colors.cmap_from_txt(os.path.join(self.ref_dir, 'viridis.txt'))
-
-        plt.register_cmap(cmap=viridis)  # Register original viridis.
-
         idx = np.linspace(0, 1, 256)
+
+        viridis = plt.get_cmap('viridis')
+
+        cmap = colors.cmap_from_txt(os.path.join(
+            self.ref_dir, 'viridis.txt'), name="viridis_read")
+
         assert np.allclose(viridis(idx), cmap(idx), atol=0.001)
 
     def test_cmap_from_act(self):
         """Import colormap from act file."""
-        viridis = plt.get_cmap('viridis')
-        cmap = colors.cmap_from_act(os.path.join(self.ref_dir, 'viridis.act'))
-
-        plt.register_cmap(cmap=viridis)  # Register original viridis.
-
         idx = np.linspace(0, 1, 256)
+
+        viridis = plt.get_cmap('viridis')
+
+        cmap = colors.cmap_from_act(
+            os.path.join(self.ref_dir, 'viridis.act'), name="viridis_read")
+
         assert np.allclose(viridis(idx), cmap(idx), atol=0.004)
 
     def test_get_material_design(self):

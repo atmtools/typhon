@@ -526,7 +526,7 @@ def profile_p(p, x, ax=None, **kwargs):
 
     # Label and format for yaxis.
     formatter.set_yaxis_formatter(formatter.HectoPascalFormatter(), ax=ax)
-    if ax.is_first_col():
+    if ax.get_subplotspec().is_first_col():
         ax.set_ylabel('Pressure [hPa]')
 
     # Actual plot.
