@@ -30,21 +30,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo add-apt-repository -y ppa:nextgis/ppa
-          sudo apt update
-          sudo apt-get install libgdal-dev
-
       - name: Install (Linux)
         if: runner.os == 'Linux'
         run: |
           python -m pip install --upgrade pip
-          pip install Cython
-          pip install GDAL==$(gdal-config --version) \
-              --global-option=build_ext \
-              --global-option="-I/usr/include/gdal -L/usr/local/lib -lgdal"
           pip install .[tests]
       - name: Install (macOS / Windows)
         if: runner.os == 'macOS' || runner.os == 'Windows'
