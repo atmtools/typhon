@@ -18,14 +18,14 @@ Typhon provides:
 Further information on ARTS can be found on http://www.radiativetransfer.org/.
 """
 
+import builtins
 import logging
 import subprocess
-
-from setuptools import setup, find_packages
 from codecs import open
 from os.path import dirname, join
 
-import builtins
+from setuptools import setup, find_packages
+
 
 builtins.__TYPHON_SETUP__ = True
 DOCLINES = (__doc__ or "").split("\n")
@@ -74,11 +74,13 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     python_requires="~=3.6",
     include_package_data=True,
     install_requires=[
         "docutils",
+        "fsspec",
         "imageio",
         "matplotlib>=1.4",
         "netCDF4>=1.1.1",
@@ -94,6 +96,6 @@ setup(
     ],
     extras_require={
         "docs": ["cartopy", "pint", "sphinx_rtd_theme"],
-        "tests": ["pytest", "pint", "gdal"],
+        "tests": ["pytest", "pint"],
     },
 )

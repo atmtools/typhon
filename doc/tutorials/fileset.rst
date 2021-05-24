@@ -587,6 +587,31 @@ for-loop or simply :meth:`~typhon.files.fileset.FileSet.collect` alone:
    # Read the second line of all files at once:
    data_list = our_dataset.collect(read_args={"lineno": 2})
 
+Handling remote files
++++++++++++++++++++++
+
+The FileSet class works not only for files on your local file system,
+but also for remote filesystems such as Amazon S3, or files in an
+archive such as a zip file.  Please note that this functionality is still
+experimental and most FileHandlers only support local reading and writing,
+so functionality is currently limited to searching for files.
+
+.. code-block:: python
+
+	import s3fs
+	from typhon.files.fileset import FileSet
+	abi_fileset = FileSet(
+			path="noaa-goes16/ABI-L1b-RadF/{year}/{doy}/{hour}/OR_ABI-L1b-RadF-M6C*_G16_s{year}{doy}{hour}{minute}{second}*_e{end_year}{end_doy}{end_hour}{end_minute}{end_second}*_c*.nc",        name="abi",
+			fs=s3fs.S3FileSystem(anon=True))
+	for f in abi_fileset.find("2019-11-18T05:30", "2019-11-18T07:00"):
+		print(f)
+
+This will return all full-disk ABI L1B granules between the indicated
+times, for all channels.  The resulting files can then be downloaded or
+read using the s3 interface or directly with typhon if a FileHandler is
+file system aware (not implemented yet).  Note that unlike searching on
+a local file system, one should not include a leading / with the search
+path when searching on an s3 file system.
 
 Get information from a file
 ===========================

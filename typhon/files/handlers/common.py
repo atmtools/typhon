@@ -13,6 +13,8 @@ import pandas as pd
 import xarray as xr
 import numpy as np
 
+from fsspec.implementations.local import LocalFileSystem
+
 # The HDF4 file handler needs pyhdf, this might be very tricky to install if
 # you cannot use anaconda. Hence, I do not want it to be a hard dependency:
 pyhdf_is_installed = False
@@ -253,6 +255,12 @@ class FileHandler:
             "This file handler does not support writing data to a file. You "
             "should use a different file handler.")
 
+    def _ensure_local_filesystem(self, file_info):
+        if not isinstance(file_info.file_system, LocalFileSystem):
+            raise NotImplementedError(
+                    f"File handler {type(self).__name__:s} can only "
+                    "read from local file system, not from "
+                    f"{str(type(file_info.file_system).__name__)}")
 
 class FileInfo(os.PathLike):
     """Container of information about a file (time coverage, etc.)
@@ -283,7 +291,7 @@ class FileInfo(os.PathLike):
         file_info.times  # [datetime(2018, 1, 1), datetime(2018, 1, 10)]
         file_info.attr   # {}
     """
-    def __init__(self, path=None, times=None, attr=None):
+    def __init__(self, path=None, times=None, attr=None, fs=None):
         """Initialise a FileInfo object.
 
         Args:
@@ -291,6 +299,7 @@ class FileInfo(os.PathLike):
             times: A list or tuple of two datetime objects indicating start and
                 end time of the file.
             attr: A dictionary with further attributes.
+            fs: Implementation of fsspec file system
         """
         super(FileInfo, self).__init__()
 
@@ -305,8 +314,12 @@ class FileInfo(os.PathLike):
         else:
             self.attr = attr
 
+        self.file_system = fs or LocalFileSystem()
+
     def __eq__(self, other):
-        return self.path == other.path and self.times == other.times
+        return (isinstance(other, type(self))
+                and self.path == other.path
+                and self.times == other.times)
 
     def __fspath__(self):
         return self.path
@@ -319,7 +332,8 @@ class FileInfo(os.PathLike):
     def __repr__(self):
         return f"FileInfo(\n  '{self.path}',\n" \
                f"  times={self.times},\n" \
-               f"  attr={self.attr}\n)"
+               f"  attr={self.attr},\n" \
+               f"  fs={self.file_system})"
 
     def __str__(self):
         return self.path
@@ -427,7 +441,8 @@ class CSV(FileHandler):
             A xarray.Dataset object.
         """
 
-        data = pd.read_csv(file_info.path, **kwargs).to_xarray()
+        with file_info.file_system.open(file_info.path, "rt") as fp:
+            data = pd.read_csv(fp, **kwargs).to_xarray()
 
         if fields is None:
             return data
@@ -483,6 +498,7 @@ class HDF4(FileHandler):
             A xarray.Dataset object.
         """
 
+        self._ensure_local_filesystem(file_info)
         if fields is None:
             raise NotImplementedError(
                 "You have to set field names. Loading the complete file is not"
@@ -561,6 +577,7 @@ class HDF5(FileHandler):
             A xrarray.Dataset object.
         """
 
+        self._ensure_local_filesystem(file_info)
         # Here, the user fields overwrite the standard fields:
         if fields is None:
             raise NotImplementedError(
@@ -650,6 +667,7 @@ class NetCDF4(FileHandler):
                 data = fh.read("filename.nc", fields=["temp", "lat", "lon"])
 
         """
+        self._ensure_local_filesystem(file_info)
         # xr.open_dataset does still not support loading all groups from a
         # file except a very cumbersome (and expensive) way by using the
         # parameter `group`. To avoid this, we load all groups and their

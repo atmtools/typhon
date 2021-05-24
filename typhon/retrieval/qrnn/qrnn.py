@@ -1,701 +1,318 @@
+"""
+typhon.retrieval.qrnn.qrnn
+==========================
+
+This module provides the QRNN class, which implements the high-level
+functionality of quantile regression neural networks, while the neural
+network implementation is left to the model backends implemented in the
+``typhon.retrieval.qrnn.models`` submodule.
+"""
 import copy
 import logging
 import os
 import pickle
+import importlib
+import scipy
+from scipy.stats import norm
 
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-# Keras Imports
+################################################################################
+# Set the backend
+################################################################################
+
 try:
-    import keras
-    from keras.models import Sequential, clone_model
-    from keras.layers import Dense, Activation, Dropout
-    from keras.optimizers import SGD
-except ImportError:
-    raise ImportError(
-        "Could not import the required Keras modules. The QRNN "
-        "implementation was developed for use with Keras version 2.0.9.")
+    import typhon.retrieval.qrnn.models.keras as keras
+    backend = keras
+except Exception as e:
+    try:
+        import typhon.retrieval.qrnn.models.pytorch as pytorch
+        backend = pytorch
+    except:
+        raise Exception("Couldn't import neither Keras nor Pytorch "
+                        "one of them must be available to use the QRNN"
+                        " module.")
+
+def set_backend(name):
+    """
+    Set the neural network package to use as backend.
+
+    The currently available backend are "keras" and "pytorch".
+
+    Args:
+        name(str): The name of the backend.
+    """
+    global backend
+    if name == "keras":
+        try:
+            import typhon.retrieval.qrnn.models.keras as keras
+            backend = keras
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import keras: ", e)
+    elif name == "pytorch":
+        try:
+            import typhon.retrieval.qrnn.models.pytorch as pytorch
+            backend = pytorch
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import pytorch: ", e)
+    else:
+        raise Exception("\"{}\" is not a supported backend.".format(name))
+
+def get_backend(name):
+    """
+    Get module object corresponding to the short backend name.
+
+    The currently available backend are "keras" and "pytorch".
+
+    Args:
+        name(str): The name of the backend.
+    """
+    if name == "keras":
+        try:
+            import typhon.retrieval.qrnn.models.keras as keras
+            backend = keras
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import keras: ", e)
+    elif name == "pytorch":
+        try:
+            import typhon.retrieval.qrnn.models.pytorch as pytorch
+            backend = pytorch
+        except Exception as e:
+            raise Exception("The following error occurred while trying "
+                            " to import pytorch: ", e)
+    else:
+        raise Exception("\"{}\" is not a supported backend.".format(name))
+    return backend
+
+def fit_gaussian_to_quantiles(y_pred, taus):
+    """
+    Fits Gaussian distributions to predicted quantiles.
+
+    Fits mean and standard deviation values to quantiles by minimizing
+    the mean squared distance of the predicted quantiles and those of
+    the corresponding Gaussian distribution.
+
+    Args:
+        y_pred (``np.array``): Array of shape `(n, m)` containing the `m`
+            predicted quantiles for n different inputs.
+        taus(``np.array``): Array of shape `(m,)` containing the quantile
+            fractions corresponding to the predictions in ``y_pred``.
+
+    Returns:
+        Tuple ``(mu, sigma)`` of vectors of size `n` containing the mean and
+        standard deviations of the Gaussian distributions corresponding to
+        the predictions in ``y_pred``.
+    """
+    x = norm.ppf(taus)
+
+    d2e_00 = x.size
+    d2e_01 = x.sum(axis=-1)
+    d2e_10 = x.sum(axis=-1)
+    d2e_11 = np.sum(x ** 2, axis=-1)
+
+    d2e_det_inv = 1.0 / (d2e_00 * d2e_11 - d2e_01 * d2e_11)
+    d2e_inv_00 = d2e_det_inv * d2e_11
+    d2e_inv_01 = -d2e_det_inv * d2e_01
+    d2e_inv_10 = -d2e_det_inv * d2e_10
+    d2e_inv_11 = d2e_det_inv * d2e_00
+
+    de_0 = -np.sum(y_pred - x, axis=-1)
+    de_1 = -np.sum(x * (y_pred - x), axis=-1)
+
+    mu = -(d2e_inv_00 * de_0 + d2e_inv_01 * de_1)
+    sigma = 1.0 - (d2e_inv_10 * de_0 + d2e_inv_11 * de_1)
+
+    return mu, sigma
+
+def create_model(input_dim,
+                 output_dim,
+                 arch):
+    """
+    Creates a fully-connected neural network from a tuple
+    describing its architecture.
+
+    Args:
+        input_dim(int): Number of input features.
+        output_dim(int): Number of output features.
+        arch: Tuple (d, w, a) containing the depth, i.e. number of
+            hidden layers width of the hidden layers, i. e.
+            the number of neurons in them, and the name of the
+            activation function as string.
+    Return:
+        Depending on the available backends, a fully-connected
+        keras or pytorch model, with the requested number of hidden
+        layers and neurons in them.
+    """
+    return backend.FullyConnected(input_dim, output_dim, arch)
+
 
 ################################################################################
-# Loss Functions
+# QRNN class
 ################################################################################
-
-import keras.backend as K
-
-
-logger = logging.getLogger(__name__)
-
-
-def skewed_absolute_error(y_true, y_pred, tau):
-    """
-    The quantile loss function for a given quantile tau:
-
-    L(y_true, y_pred) = (tau - I(y_pred < y_true)) * (y_pred - y_true)
-
-    Where I is the indicator function.
-    """
-    dy = y_pred - y_true
-    return K.mean((1.0 - tau) * K.relu(dy) + tau * K.relu(-dy), axis=-1)
-
-
-def quantile_loss(y_true, y_pred, taus):
-    """
-    The quantiles loss for a list of quantiles. Sums up the error contribution
-    from the each of the quantile loss functions.
-    """
-    e = skewed_absolute_error(
-        K.flatten(y_true), K.flatten(y_pred[:, 0]), taus[0])
-    for i, tau in enumerate(taus[1:]):
-        e += skewed_absolute_error(K.flatten(y_true),
-                                   K.flatten(y_pred[:, i + 1]),
-                                   tau)
-    return e
-
-
-class QuantileLoss:
-    """
-    Wrapper class for the quantile error loss function. A class is used here
-    to allow the implementation of a custom `__repr` function, so that the
-    loss function object can be easily loaded using `keras.model.load`.
-
-    Attributes:
-
-        quantiles: List of quantiles that should be estimated with
-                   this loss function.
-
-    """
-
-    def __init__(self, quantiles):
-        self.__name__ = "QuantileLoss"
-        self.quantiles = quantiles
-
-    def __call__(self, y_true, y_pred):
-        return quantile_loss(y_true, y_pred, self.quantiles)
-
-    def __repr__(self):
-        return "QuantileLoss(" + repr(self.quantiles) + ")"
-
-################################################################################
-# Keras Interface Classes
-################################################################################
-
-
-class TrainingGenerator:
-    """
-    This Keras sample generator takes the noise-free training data
-    and adds independent Gaussian noise to each of the components
-    of the input.
-
-    Attributes:
-
-        x_train: The training input, i.e. the brightness temperatures
-                 measured by the satellite.
-        y_train: The training output, i.e. the value of the retrieval
-                 quantity.
-        x_mean: A vector containing the mean of each input component.
-        x_sigma: A vector containing the standard deviation of each
-                 component.
-        batch_size: The size of a training batch.
-    """
-
-    def __init__(self, x_train, x_mean, x_sigma, y_train, sigma_noise, batch_size):
-        self.bs = batch_size
-
-        self.x_train = x_train
-        self.x_mean = x_mean
-        self.x_sigma = x_sigma
-        self.y_train = y_train
-        self.sigma_noise = sigma_noise
-
-        self.indices = np.random.permutation(x_train.shape[0])
-        self.i = 0
-
-    def __iter__(self):
-        logger.info("iter...")
-        return self
-
-    def __next__(self):
-        inds = self.indices[np.arange(self.i * self.bs,
-                                      (self.i + 1) * self.bs)
-                            % self.indices.size]
-        x_batch = np.copy(self.x_train[inds, :])
-        if not self.sigma_noise is None:
-            x_batch += np.random.randn(*x_batch.shape) * self.sigma_noise
-        x_batch = (x_batch - self.x_mean) / self.x_sigma
-        y_batch = self.y_train[inds]
-
-        self.i = self.i + 1
-
-        # Shuffle training set after each epoch.
-        if self.i % (self.x_train.shape[0] // self.bs) == 0:
-            self.indices = np.random.permutation(self.x_train.shape[0])
-
-        return (x_batch, y_batch)
-
-# TODO: Make y-noise argument optional
-
-
-class AdversarialTrainingGenerator:
-    """
-    This Keras sample generator takes the noise-free training data
-    and adds independent Gaussian noise to each of the components
-    of the input.
-
-    Attributes:
-
-        x_train: The training input, i.e. the brightness temperatures
-                 measured by the satellite.
-        y_train: The training output, i.e. the value of the retrieval
-                 quantity.
-        x_mean: A vector containing the mean of each input component.
-        x_sigma: A vector containing the standard deviation of each
-                 component.
-        batch_size: The size of a training batch.
-    """
-
-    def __init__(self,
-                 x_train,
-                 x_mean,
-                 x_sigma,
-                 y_train,
-                 sigma_noise,
-                 batch_size,
-                 input_gradients,
-                 eps):
-        self.bs = batch_size
-
-        self.x_train = x_train
-        self.x_mean = x_mean
-        self.x_sigma = x_sigma
-        self.y_train = y_train
-        self.sigma_noise = sigma_noise
-
-        self.indices = np.random.permutation(x_train.shape[0])
-        self.i = 0
-
-        # compile gradient function
-        bs2 = self.bs // 2
-
-        self.input_gradients = input_gradients
-        self.eps = eps
-
-    def __iter__(self):
-        logger.info("iter...")
-        return self
-
-    def __next__(self):
-
-        if self.i == 0:
-            inds = np.random.randint(0, self.x_train.shape[0], self.bs)
-
-            x_batch = np.copy(self.x_train[inds, :])
-            if (self.sigma_noise):
-                x_batch += np.random.randn(*x_batch.shape) * self.sigma_noise
-
-            x_batch = (x_batch - self.x_mean) / self.x_sigma
-            y_batch = self.y_train[inds]
-
-        else:
-
-            bs2 = self.bs // 2
-            inds = np.random.randint(0, self.x_train.shape[0], bs2)
-
-            x_batch = np.zeros((self.bs, self.x_train.shape[1]))
-            y_batch = np.zeros((self.bs, 1))
-
-            x_batch[:bs2, :] = np.copy(self.x_train[inds, :])
-            if (self.sigma_noise):
-                x_batch[:bs2, :] += np.random.randn(bs2, self.x_train.shape[1]) \
-                    * self.sigma_noise
-            x_batch[:bs2, :] = (x_batch[:bs2, :] - self.x_mean) / self.x_sigma
-            y_batch[:bs2, :] = self.y_train[inds].reshape(-1, 1)
-            x_batch[bs2:, :] = x_batch[:bs2, :]
-            y_batch[bs2:, :] = y_batch[:bs2, :]
-
-            if (self.i > 10):
-                grads = self.input_gradients(
-                    [x_batch[:bs2, :], y_batch[:bs2, :], [1.0]])[0]
-                x_batch[bs2:, :] += self.eps * np.sign(grads)
-
-        self.i = self.i + 1
-        return (x_batch, y_batch)
-
-
-# TODO: Make y-noise argument optional
-class ValidationGenerator:
-    """
-    This Keras sample generator is similar to the training generator
-    only that it returns the whole validation set and doesn't perform
-    any randomization.
-
-    Attributes:
-
-        x_val: The validation input, i.e. the brightness temperatures
-                 measured by the satellite.
-        y_val: The validation output, i.e. the value of the retrieval
-                 quantity.
-        x_mean: A vector containing the mean of each input component.
-        x_sigma: A vector containing the standard deviation of each
-                 component.
-    """
-
-    def __init__(self, x_val, x_mean, x_sigma, y_val, sigma_noise):
-        self.x_val = x_val
-        self.x_mean = x_mean
-        self.x_sigma = x_sigma
-
-        self.y_val = y_val
-
-        self.sigma_noise = sigma_noise
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        x_val = np.copy(self.x_val)
-        if not self.sigma_noise is None:
-            x_val += np.random.randn(*self.x_val.shape) * self.sigma_noise
-        x_val = (x_val - self.x_mean) / self.x_sigma
-        return (x_val, self.y_val)
-
-
-class LRDecay(keras.callbacks.Callback):
-    """
-    The LRDecay class implements the Keras callback interface and reduces
-    the learning rate according to validation loss reduction.
-
-    Attributes:
-
-        lr_decay: The factor c > 1.0 by which the learning rate is
-                  reduced.
-        lr_minimum: The training is stopped when this learning rate
-                    is reached.
-        convergence_steps: The number of epochs without validation loss
-                           reduction required to reduce the learning rate.
-
-    """
-
-    def __init__(self, model, lr_decay, lr_minimum, convergence_steps):
-        self.model = model
-        self.lr_decay = lr_decay
-        self.lr_minimum = lr_minimum
-        self.convergence_steps = convergence_steps
-        self.steps = 0
-
-    def on_train_begin(self, logs={}):
-        self.losses = []
-        self.steps = 0
-        self.min_loss = 1e30
-
-    def on_epoch_end(self, epoch, logs={}):
-        self.losses += [logs.get('val_loss')]
-        if not self.losses[-1] < self.min_loss:
-            self.steps = self.steps + 1
-        else:
-            self.steps = 0
-        if self.steps > self.convergence_steps:
-            lr = keras.backend.get_value(self.model.optimizer.lr)
-            keras.backend.set_value(
-                self.model.optimizer.lr, lr / self.lr_decay)
-            self.steps = 0
-            logger.info("\n Reduced learning rate to " + str(lr))
-
-            if lr < self.lr_minimum:
-                self.model.stop_training = True
-
-        self.min_loss = min(self.min_loss, self.losses[-1])
-
-################################################################################
-# QRNN
-################################################################################
-
 
 class QRNN:
     r"""
     Quantile Regression Neural Network (QRNN)
 
-    This class implements quantile regression neural networks and can be used
-    to estimate quantiles of the posterior distribution of remote sensing
-    retrievals.
+    This class provides a high-level implementation of  quantile regression
+    neural networks. It can be used to estimate quantiles of the posterior
+    distribution of remote sensing retrievals.
 
-    Internally, the QRNN uses a feed-forward neural network that is trained
-    to minimize the quantile loss function
+    The :class:`QRNN`` class uses an arbitrary neural network model, that is
+    trained to minimize the quantile loss function
 
     .. math::
             \mathcal{L}_\tau(y_\tau, y_{true}) =
             \begin{cases} (1 - \tau)|y_\tau - y_{true}| & \text{ if } y_\tau < y_\text{true} \\
             \tau |y_\tau - y_\text{true}| & \text{ otherwise, }\end{cases}
 
-    where :math:`x_\text{true}` is the expected value of the retrieval quantity
+    where :math:`x_\text{true}` is the true value of the retrieval quantity
     and and :math:`x_\tau` is the predicted quantile. The neural network
     has one output neuron for each quantile to estimate.
 
-    For the training, this implementation provides custom data generators that
-    can be used to add Gaussian noise to the training data as well as adversarial
-    training using the fast gradient sign method.
+    The QRNN class provides a generic QRNN implementation in the sense that it
+    does not assume a fixed neural network architecture or implementation.
+    Instead, this functionality is off-loaded to a model object, which can be
+    an arbitrary regression network such as a fully-connected or a
+    convolutional network. A range of different models are provided in the
+    typhon.retrieval.qrnn.models module. The :class:`QRNN`` class just
+    implements high-level operation on the QRNN output while training and
+    prediction are delegated to the model object. For details on the respective
+    implementation refer to the documentation of the corresponding model class.
 
-    This implementation also provides functionality to use an ensemble of networks
-    instead of just a single network to predict the quantiles.
+    .. note::
 
-    .. note:: For the QRNN I am using :math:`x` to denote the input vector and
-              :math:`y` to denote the output. While this is opposed to typical
-              inverse problem notation, it is inline with machine learning
-              notation and felt more natural for the implementation. If this
-              annoys you, I am sorry. But the other way round it would have
-              annoyed other people and in particular me.
+      For the QRNN implementation :math:`x` is used to denote the input
+      vector and :math:`y` to denote the output. While this is opposed
+      to inverse problem notation typically used for retrievals, it is
+      in line with machine learning notation and felt more natural for
+      the implementation. If this annoys you, I am sorry.
 
     Attributes:
-
-        input_dim (int):
-            The input dimension of the neural network, i.e. the dimension of the
-            measurement vector.
-
+        backend(``str``):
+            The name of the backend used for the neural network model.
         quantiles (numpy.array):
-            The 1D-array containing the quantiles :math:`\tau \in [0, 1]` that the
-            network learns to predict.
-
-        depth (int):
-            The number layers in the network excluding the input layer.
-
-        width (int):
-            The width of the hidden layers in the network.
-
-        activation (str):
-            The name of the activation functions to use in the hidden layers
-            of the network.
-
-        models (list of keras.models.Sequential):
-            The ensemble of Keras neural networks used for the quantile regression
-            neural network.
+            The 1D-array containing the quantiles :math:`\tau \in [0, 1]`
+            that the network learns to predict.
+        model:
+            The neural network regression model used to predict the quantiles.
     """
-
     def __init__(self,
-                 input_dim,
-                 quantiles,
-                 depth=3,
-                 width=128,
-                 activation="relu",
+                 input_dimensions,
+                 quantiles=None,
+                 model=(3, 128, "relu"),
                  ensemble_size=1,
                  **kwargs):
         """
         Create a QRNN model.
 
         Arguments:
-
-            input_dim(int): The dimension of the measurement space, i.e. the number
-                            of elements in a single measurement vector y
-
-            quantiles(np.array): 1D-array containing the quantiles  to estimate of
-                                 the posterior distribution. Given as fractions
-                                 within the range [0, 1].
-
-            depth(int): The number of hidden layers  in the neural network to
-                        use for the regression. Default is 3, i.e. three hidden
-                        plus input and output layer.
-
-            width(int): The number of neurons in each hidden layer.
-
-            activation(str): The name of the activation functions to use. Default
-                             is "relu", for rectified linear unit. See 
-                             `this <https://keras.io/activations>`_ link for
-                             available functions.
-
-            **kwargs: Additional keyword arguments are passed to the constructor
-                      call `keras.layers.Dense` of the hidden layers, which can
-                      for example be used to add regularization. For more info consult
-                      `Keras documentation. <https://keras.io/layers/core/#dense>`_
+            input_dimensions(int):
+                The dimension of the measurement space, i.e. the
+                number of elements in a single measurement vector y
+            quantiles(np.array):
+                1D-array containing the quantiles  to estimate of
+                the posterior distribution. Given as fractions within the range
+                [0, 1].
+            model:
+                A (possibly trained) model instance or a tuple
+                ``(d, w, act)`` describing the architecture of a fully-connected
+                neural network with :code:`d` hidden layers with :code:`w` neurons
+                and :code:`act` activation functions.
         """
-        self.input_dim = input_dim
+        self.input_dimensions = input_dimensions
         self.quantiles = np.array(quantiles)
-        self.depth = depth
-        self.width = width
-        self.activation = activation
+        self.backend = backend.__name__
 
-        model = Sequential()
-        if depth == 0:
-            model.add(Dense(input_dim=input_dim,
-                            units=len(quantiles),
-                            activation=None))
+        if type(model) == tuple:
+            self.model = backend.FullyConnected(self.input_dimensions,
+                                                self.quantiles,
+                                                model)
+            if quantiles is None:
+                raise ValueError("If model is given as architecture tuple, the"
+                                  " 'quantiles' kwarg must be provided.")
         else:
-            model.add(Dense(input_dim=input_dim,
-                            units=width,
-                            activation=activation))
-            for i in range(depth - 2):
-                model.add(Dense(units=width,
-                                activation=activation,
-                                **kwargs))
-            model.add(Dense(units=len(quantiles), activation=None))
-        self.models = [clone_model(model) for i in range(ensemble_size)]
+            if not quantiles is None:
+                if not quantiles == model.quantiles:
+                    raise ValueError("Provided quantiles do not match those of "
+                                     "the provided model.")
 
-    def __fit_params__(self, kwargs):
-        at = kwargs.pop("adversarial_training", False)
-        dat = kwargs.pop("delta_at", 0.01)
-        batch_size = kwargs.pop("batch_size", 512)
-        convergence_epochs = kwargs.pop("convergence_epochs", 10)
-        initial_learning_rate = kwargs.pop('initial_learning_rate', 0.01)
-        learning_rate_decay = kwargs.pop('learning_rate_decay', 2.0)
-        learning_rate_minimum = kwargs.pop('learning_rate_minimum', 1e-6)
-        maximum_epochs = kwargs.pop("maximum_epochs", 200)
-        training_split = kwargs.pop("training_split", 0.9)
-        return at, dat, batch_size, convergence_epochs, initial_learning_rate, \
-            learning_rate_decay, learning_rate_minimum, maximum_epochs, \
-            training_split, kwargs
+            self.model = model
+            self.quantiles = model.quantiles
+            self.backend = model.backend
 
-    def cross_validation(self,
-                        x_train,
-                        y_train,
-                        sigma_noise = None,
-                        n_folds=5,
-                        s=None,
-                        **kwargs):
-        r"""
-        Perform n-fold cross validation.
-
-        This function trains the network n times on different subsets of the
-        provided training data, always keeping a fraction of 1/n samples apart
-        for testing. Performance for each of the networks is evaluated and mean
-        and standard deviation for all folds are returned. This is to reduce
-        the influence of random fluctuations of the network performance during
-        hyperparameter tuning.
-
-        Arguments:
-
-            x_train(numpy.array): Array of shape :code:`(m, n)` containing the
-                                  m n-dimensional training inputs.
-
-            y_train(numpy.array): Array of shape :code:`(m, 1)` containing the
-                                  m training outputs.
-
-            sigma_noise(None, float, np.array): If not `None` this value is used
-                                                to multiply the Gaussian noise
-                                                that is added to each training
-                                                batch. If None no noise is
-                                                added.
-
-            n_folds(int): Number of folds to perform for the cross correlation.
-
-            s(callable, None): Performance metric for the fold. If not None,
-                               this should be a function object taking as
-                               arguments :code:`(y_test, y_pred)`, i.e. the
-                               expected output for the given fold :code:`y_test`
-                               and the predicted output :code:`y_pred`. The
-                               returned value is taken as performance metric.
-
-            **kwargs: Additional keyword arguments are passed on to the :code:`fit`
-                      method that is called for each fold.
+    def train(self,
+              training_data,
+              validation_data=None,
+              batch_size=256,
+              sigma_noise=None,
+              adversarial_training=False,
+              delta_at=0.01,
+              initial_learning_rate=1e-2,
+              momentum=0.0,
+              convergence_epochs=5,
+              learning_rate_decay=2.0,
+              learning_rate_minimum=1e-6,
+              maximum_epochs=200,
+              training_split=0.9,
+              gpu = False):
         """
+        Train model on given training data.
 
-        n = x_train.shape[0]
-        n_test = n // n_folds
-        inds = np.random.permutation(np.arange(0, n))
+        The training is performed on the provided training data and an
+        optionally-provided validation set. Training can use the following
+        augmentation methods:
+            - Gaussian noise added to input
+            - Adversarial training
+        The learning rate is decreased gradually when the validation or training
+        loss did not decrease for a given number of epochs.
 
-        results = []
-
-        # Nomenclature is a bit difficult here:
-        # Each cross validation fold has its own training,
-        # vaildation and test set. The size of the test set
-        # is number of provided training samples divided by the
-        # number of fold. The rest is used a traning and internal
-        # validation set according to the chose training_split
-        # ratio.
-
-
-        for i in range(n_folds):
-            for m in self.models:
-                m.reset_states()
-
-            # Indices to use for training including training data and internal
-            # validation set to monitor convergence.
-            inds_train = np.append(np.arange(0, i * n_test),
-                                       np.arange(min((i + 1) * n_test, n), n))
-            inds_train = inds[inds_train]
-            # Indices used to evaluate performance of the model.
-            inds_test = np.arange(i * n_test, (i + 1) * n_test)
-            inds_test = inds[inds_test]
-
-            x_test_fold = x_train[inds_test, :]
-            y_test_fold = y_train[inds_test]
-
-            # Splitting training and validation set.
-            x_train_fold = x_train[inds_train, :]
-            y_train_fold = y_train[inds_train]
-
-            self.fit(x_train_fold, y_train_fold,
-                     sigma_noise, **kwargs)
-
-            # Evaluation on this folds test set.
-            if s:
-                y_pred = self.predict(x_test_fold)
-                results += [s(y_pred, y_test_fold)]
-            else:
-                loss = self.models[0].evaluate(
-                    (x_test_fold - self.x_mean) / self.x_sigma,
-                    y_test_fold)
-                logger.info(loss)
-                results += [loss]
-        logger.info(results)
-        results = np.array(results)
-        logger.info(results)
-        return (np.mean(results, axis=0), np.std(results, axis=0))
-
-    def fit(self,
-            x_train,
-            y_train,
-            sigma_noise=None,
-            x_val=None,
-            y_val=None,
-            **kwargs):
-        r"""
-        Train the QRNN on given training data.
-
-        The training uses an internal validation set to monitor training
-        progress. This can be either split at random from the training
-        data (see `training_fraction` argument) or provided explicitly
-        using the `x_val` and `y_val` parameters
-
-        Training of the QRNN is performed using stochastic gradient descent
-        (SGD). The learning rate is adaptively reduced during training when
-        the loss on the internal validation set has not been reduced for a
-        certain number of epochs.
-
-        Two data augmentation techniques can be used to improve the
-        calibration of the QRNNs predictions. The first one adds Gaussian
-        noise to training batches before they are passed to the network.
-        The noise statistics are defined using the `sigma_noise` argument.
-        The second one is adversarial training. If adversarial training is
-        used, half of each training batch consists of adversarial samples
-        generated using the fast gradient sign method. The strength of the
-        perturbation is controlled using the `delta_at` parameter.
-
-        During one epoch, each training sample is passed once to the network.
-        Their order is randomzied between epochs.
-
-        Arguments:
-
-            x_train(np.array): Array of shape `(n, m)` containing n training
-                               samples of dimension m.
-
-            y_train(np.array): Array of shape `(n, )` containing the training
-                               output corresponding to the training data in
-                               `x_train`.
-
-            sigma_noise(None, float, np.array): If not `None` this value is used
-                                                to multiply the Gaussian noise
-                                                that is added to each training
-                                                batch. If None no noise is
-                                                added.
-            x_val(np.array): Array of shape :code:`(n', m)` containing n' validation
-                             inputs that will be used to monitor training loss. Must
-                             be provided in unison with :code:`y_val` or otherwise
-                             will be ignored.
-
-            y_val(np.array): Array of shape :code:`(n')` containing n'  validation
-                             outputs corresponding to the inputs in :code:`x_val`.
-                             Must be provided in unison with :code:`x_val` or
-                             otherwise will be ignored.
-
-            adversarial_training(Bool): Whether or not to use adversarial training.
-                                        `False` by default.
-
-            delta_at(flaot): Perturbation factor for the fast gradient sign method
-                             determining the strength of the adversarial training
-                             perturbation. `0.01` by default.
-
-            batch_size(float): The batch size to use during training. Defaults to `512`.
-
-            convergence_epochs(int): The number of epochs without decrease in
-                                     validation loss before the learning rate
-                                     is reduced. Defaults to `10`.
-
-            initial_learning_rate(float): The inital value for the learning
-                                          rate.
-
-            learning_rate_decay(float): The factor by which to reduce the
-                                        learning rate after no improvement
-                                        on the internal validation set was
-                                        observed for `convergence_epochs`
-                                        epochs. Defaults to `2.0`.
-
-            learning_rate_minimum(float): The minimum learning rate at which
-                                          the training is terminated. Defaults
-                                          to `1e-6`.
-
-            maximum_epochs(int): The maximum number of epochs to perform if
-                                 training does not terminate before.
-
-            training_split(float): The ratio `0 < ts < 1.0` of the samples in
-                                   to be used as internal validation set. Defaults
-                                   to 0.9.
-
+        Args:
+            training_data: Tuple of numpy arrays of a dataset object to use to
+                train the model.
+            validation_data: Optional validation data in the same format as the
+                training data.
+            batch_size: If training data is provided as arrays, this batch size
+                will be used to for the training.
+            sigma_noise: If training data is provided as arrays, training data
+                will be augmented by adding noise with the given standard
+                deviations to each input vector before it is presented to the
+                model.
+            adversarial_training(``bool``): Whether or not to perform
+                adversarial training using the fast gradient sign method.
+            delta_at: The scaling factor to apply for adversarial training.
+            initial_learning_rate(``float``): The learning rate with which the
+                 training is started.
+            momentum(``float``): The momentum to use for training.
+            convergence_epochs(``int``): The number of epochs with
+                 non-decreasing loss before the learning rate is decreased
+            learning_rate_decay(``float``): The factor by which the learning rate
+                 is decreased.
+            learning_rate_minimum(``float``): The learning rate at which the
+                 training is aborted.
+            maximum_epochs(``int``): For how many epochs to keep training.
+            training_split(``float``): If no validation data is provided, this
+                 is the fraction of training data that is used for validation.
+            gpu(``bool``): Whether or not to try to run the training on the GPU.
         """
-        if not (x_train.shape[1] == self.input_dim):
-            raise Exception("Training input must have the same extent along"    /
-                            "dimension 1 as input_dim (" + str(self.input_dim)  /
-                            + ")")
-
-        if not (y_train.shape[1] == 1):
-            raise Exception("Currently only scalar retrieval targets are"       /
-                            " supported.")
-
-        x_mean = np.mean(x_train, axis=0, keepdims=True)
-        x_sigma = np.std(x_train, axis=0, keepdims=True)
-        self.x_mean = x_mean
-        self.x_sigma = x_sigma
-
-        # Handle parameters
-        # at:  adversarial training
-        # bs:  batch size
-        # ce:  convergence epochs
-        # ilr: initial learning rate
-        # lrd: learning rate decay
-        # lrm: learning rate minimum
-        # me:  maximum number of epochs
-        # ts:  split ratio of training set
-        at, dat, bs, ce, ilr, lrd, lrm, me, ts, kwargs = self.__fit_params__(
-            kwargs)
-
-        # Split training and validation set if x_val or y_val
-        # are not provided.
-        n = x_train.shape[0]
-        n_train = n
-        if x_val is None and y_val is None:
-            n_train = round(ts * n)
-            n_val = n - n_train
-            inds = np.random.permutation(n)
-            x_val = x_train[inds[n_train:], :]
-            y_val = y_train[inds[n_train:]]
-            x_train = x_train[inds[:n_train], :]
-            y_train = y_train[inds[:n_train]]
-        loss = QuantileLoss(self.quantiles)
-
-        self.custom_objects = {loss.__name__: loss}
-        for model in self.models:
-            optimizer = SGD(lr=ilr)
-            model.compile(loss=loss, optimizer=optimizer)
-
-            if at:
-                inputs = [model.input, model.targets[0],
-                          model.sample_weights[0]]
-                input_gradients = K.function(
-                    inputs, K.gradients(model.total_loss, model.input))
-                training_generator = AdversarialTrainingGenerator(x_train,
-                                                                  self.x_mean,
-                                                                  self.x_sigma,
-                                                                  y_train,
-                                                                  sigma_noise,
-                                                                  bs,
-                                                                  input_gradients,
-                                                                  dat)
-            else:
-                training_generator = TrainingGenerator(x_train, self.x_mean, self.x_sigma,
-                                                       y_train, sigma_noise, bs)
-            validation_generator = ValidationGenerator(x_val, self.x_mean, self.x_sigma,
-                                                       y_val, sigma_noise)
-            lr_callback = LRDecay(model, lrd, lrm, ce)
-            model.fit_generator(training_generator, steps_per_epoch=n_train // bs,
-                                epochs=me, validation_data=validation_generator,
-                                validation_steps=1, callbacks=[lr_callback])
+        return self.model.train(training_data,
+                                validation_data,
+                                batch_size,
+                                sigma_noise,
+                                adversarial_training,
+                                delta_at,
+                                initial_learning_rate,
+                                momentum,
+                                convergence_epochs,
+                                learning_rate_decay,
+                                learning_rate_minimum,
+                                maximum_epochs,
+                                training_split,
+                                gpu)
 
     def predict(self, x):
         r"""
@@ -715,9 +332,7 @@ class QRNN:
              quantiles of the network.
 
         """
-        predictions = np.stack(
-            [m.predict((x - self.x_mean) / self.x_sigma) for m in self.models])
-        return np.mean(predictions, axis=0)
+        return self.model.predict(x)
 
     def cdf(self, x):
         r"""
@@ -726,16 +341,17 @@ class QRNN:
         Propagates the inputs in `x` forward through the network and
         approximates the posterior CDF by a piecewise linear function.
 
-        The piecewise linear function is given by its values at
-        approximate quantiles $x_\tau$ for
-        :math: `\tau = \{0.0, \tau_1, \ldots, \tau_k, 1.0\}` where
-        :math: `\tau_k` are the quantiles to be estimated by the network.
-        The values for :math:`x_0.0` and :math:`x_1.0` are computed using
+        The piecewise linear function is given by its values at approximate
+        quantiles :math:`x_\tau`` for :math:`\tau = \{0.0, \tau_1, \ldots,
+        \tau_k, 1.0\}` where :math:`\tau_k` are the quantiles to be estimated
+        by the network. The values for :math:`x_{0.0}` and :math:`x_{1.0}` are
+        computed using
 
         .. math::
-            x_0.0 = 2.0 x_{\tau_1} - x_{\tau_2}
 
-            x_1.0 = 2.0 x_{\tau_k} - x_{\tau_{k-1}}
+            x_{0.0} = 2.0 x_{\tau_1} - x_{\tau_2}
+
+            x_{1.0} = 2.0 x_{\tau_k} - x_{\tau_{k-1}}
 
         Arguments:
 
@@ -744,14 +360,19 @@ class QRNN:
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the posterior CDF :math: `F(x)` in `fs`.
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
+            values of the posterior CDF :math:`F(x)` in `fs`.
 
         """
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
+        if len(x.shape) > 1:
+            s = x.shape[:-1] + (self.quantiles.size + 2,)
+        else:
+            s = (1, self.quantiles.size + 2)
+
+        y_pred = np.zeros(s)
+        y_pred[:, 1:-1] = self.predict(x)
+        y_pred[:, 0] = 2.0 * y_pred[:, 1] - y_pred[:, 2]
+        y_pred[:, -1] = 2.0 * y_pred[:, -2] - y_pred[:, -3]
 
         qs = np.zeros(self.quantiles.size + 2)
         qs[1:-1] = self.quantiles
@@ -760,86 +381,43 @@ class QRNN:
 
         return y_pred, qs
 
-    def pdf(self, x, use_splines = False):
+    def calibration(self, *args, **kwargs):
+        """
+        Compute calibration curve for the given dataset.
+        """
+        return self.model.calibration(*args, *kwargs)
+
+    def pdf(self, x):
         r"""
         Approximate the posterior probability density function (PDF) for given
-        inputs `x`.
+        inputs ``x``.
 
-        By default, the PDF is approximated by computing the derivative of the
-        piece-wise linear approximation of the CDF as computed by the :code:`cdf`
-        function.
-
-        If :code:`use_splines` is set to :code:`True`, the PDF is computed from
-        a spline fit to the approximate CDF.
+        The PDF is approximated by computing the derivative of the piece-wise
+        linear approximation of the CDF as computed by the
+        :py:meth:`typhon.retrieval.qrnn.QRNN.cdf` function.
 
         Arguments:
 
             x(np.array): Array of shape `(n, m)` containing `n` inputs for which
-                         to predict the conditional quantiles.
-
-            use_splines(bool): Whether or not to use a spline fit to the CDF to
-            approximate the PDF.
+               to predict PDFs.
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
-            values of the approximate posterior PDF :math: `F(x)` in `fs`.
+            Tuple (x_pdf, y_pdf) containing the array with shape `(n, k)`  containing
+            the x and y coordinates describing the PDF for the inputs in ``x``.
 
         """
+        x_cdf, y_cdf = self.cdf(x)
+        n, m = x_cdf.shape
+        x_pdf = np.zeros((n, m + 1))
 
-        y_pred = np.zeros(self.quantiles.size)
-        y_pred = self.predict(x).ravel()
+        x_pdf[:, 0] = x_cdf[:, 0]
+        x_pdf[:, -1] = x_cdf[:, -1]
+        x_pdf[:, 1:-1] = 0.5 * (x_cdf[:, 1:] + x_cdf[:, :-1])
 
-        y = np.zeros(y_pred.size + 1)
-        y[1:-1] = 0.5 * (y_pred[1:] + y_pred[:-1])
-        y[0] = 2 * y_pred[0] - y_pred[1]
-        y[-1] = 2 * y_pred[-1] - y_pred[-2]
-
-        if not use_splines:
-
-            p = np.zeros(y.size)
-            p[1:-1] = np.diff(self.quantiles) / np.diff(y_pred)
-        else:
-
-            y = np.zeros(y_pred.size + 2)
-            y[1:-1] = y_pred
-            y[0] = 3 * y_pred[0] - 2 * y_pred[1]
-            y[-1] = 3 * y_pred[-1] - 2 * y_pred[-2]
-            q = np.zeros(self.quantiles.size + 2)
-            q[1:-1] = np.array(self.quantiles)
-            q[0] = 0.0
-            q[-1] = 1.0
-
-            sr = CubicSpline(y, q, bc_type = "clamped")
-            y = np.linspace(y[0], y[-1], 101)
-            p = sr(y, nu = 1)
-
-        return y, p
-
-
-        y_pred = np.zeros(self.quantiles.size + 2)
-        y_pred[1:-1] = self.predict(x)
-        y_pred[0] = 2.0 * y_pred[1] - y_pred[2]
-        y_pred[-1] = 2.0 * y_pred[-2] - y_pred[-3]
-
-        if use_splines:
-            x_t = np.zeros(x.size + 2)
-            x_t[1:-1] = x
-            x_t[0] = 2 * x[0] - x[1]
-            x_t[-1] = 2 * x[-1] - x[-2]
-            y_t = np.zeros(y.size + 2)
-            y_t[1:-1] = y
-            y_t[-1] = 1.0
-
-        else:
-            logger.info(y)
-            x_new = np.zeros(x.size - 1)
-            x_new[2:-2] = 0.5 * (x[2:-3] + x[3:-2])
-            x_new[0:2] = x[0:2]
-            x_new[-2:] = x[-2:]
-            y_new = np.zeros(y.size - 1)
-            y_new[1:-1] = np.diff(y[1:-1]) / np.diff(x[1:-1])
-        return x_new, y_new
+        y_pdf = np.zeros((n, m + 1))
+        y_pdf[:, 1:-1] = np.diff(y_cdf) / np.diff(x_cdf, axis=-1)
+        return x_pdf, y_pdf
 
     def sample_posterior(self, x, n=1):
         r"""
@@ -857,13 +435,41 @@ class QRNN:
 
         Returns:
 
-            Tuple (xs, fs) containing the :math: `x`-values in `xs` and corresponding
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
             values of the posterior CDF :math: `F(x)` in `fs`.
         """
-        y_pred, qs = self.cdf(x)
-        p = np.random.rand(n)
-        y = np.interp(p, qs, y_pred)
-        return y
+        result = np.zeros((x.shape[0], n))
+        x_cdf, y_cdf = self.cdf(x)
+        for i in range(x_cdf.shape[0]):
+            p = np.random.rand(n)
+            y = np.interp(p, y_cdf, x_cdf[i, :])
+            result[i, :] = y
+        return result
+
+    def sample_posterior_gaussian_fit(self, x, n=1):
+        r"""
+        Generates :code:`n` samples from the estimated posterior
+        distribution for the input vector :code:`x`. The sampling
+        is performed by the inverse CDF method using the estimated
+        CDF obtained from the :code:`cdf` member function.
+
+        Arguments:
+
+            x(np.array): Array of shape `(n, m)` containing `n` inputs for which
+                         to predict the conditional quantiles.
+
+            n(int): The number of samples to generate.
+
+        Returns:
+
+            Tuple (xs, fs) containing the :math:`x`-values in `xs` and corresponding
+            values of the posterior CDF :math: `F(x)` in `fs`.
+        """
+        result = np.zeros((x.shape[0], n))
+        y_pred = self.predict(x)
+        mu, sigma = fit_gaussian_to_quantiles(y_pred, self.quantiles)
+        x = np.random.normal(size=(y_pred.shape[0], n))
+        return mu.reshape(-1, 1) + sigma.reshape(-1, 1) * x
 
     def posterior_mean(self, x):
         r"""
@@ -879,7 +485,7 @@ class QRNN:
             Array containing the posterior means for the provided inputs.
         """
         y_pred, qs = self.cdf(x)
-        mus = y_pred[-1] - np.trapz(qs, x=y_pred)
+        mus = y_pred[:, -1] - np.trapz(qs, x=y_pred)
         return mus
 
     @staticmethod
@@ -929,22 +535,19 @@ class QRNN:
 
         return np.trapz((qs - ind)**2.0, y_cdf)
 
-    def evaluate_crps(self, x, y_test):
+    def evaluate_crps(self, x_test, y_test):
         r"""
         Predict quantiles and compute the Continuous Ranked Probability Score (CRPS).
 
-        This function evaluates the networks prediction on the
-        inputs in `x` and evaluates the CRPS of the predictions
-        against the materializations in `y_test`.
+        This function evaluates the network predictions on the test data
+        ``x_test`` and ``y_test`` and and evaluates the CRPS.
 
         Arguments:
 
-            x(numpy.array): Array of shape `(n, m)` containing the `n`
-                            `m`-dimensional inputs for which to evaluate
-                            the CRPS.
+            x_test(numpy.array): Array of shape `(n, m)` input test data.
 
-            y_test(numpy.array): Array containing the `n` materializations of
-                                 the true conditional distribution.
+            y_test(numpy.array): Array of length n containing the output test
+                 data.
 
         Returns:
 
@@ -952,45 +555,40 @@ class QRNN:
             inputs in `x`.
 
         """
-        return QRNN.crps(self.predict(x), y_test, self.quantiles)
+        return QRNN.crps(self.predict(x_test), y_test, self.quantiles)
 
-    def save(self, path):
-        r"""
-        Store the QRNN model in a file.
-
-        This stores the model to a file using pickle for all
-        attributes that support pickling. The Keras model
-        is handled separately, since it can not be pickled.
-
-        .. note:: In addition to the model file with the given filename,
-                  additional files suffixed with :code:`_model_i` will be
-                  created for each neural network this model consists of.
-
-        Arguments:
-
-            path(str): The path including filename indicating where to
-                       store the model.
-
+    def classify(self, x, threshold):
         """
+        Classify output based on posterior PDF and given numeric threshold.
 
-        f = open(path, "wb")
-        filename = os.path.basename(path)
-        name = os.path.splitext(filename)[0]
-        dirname = os.path.dirname(path)
+        Args:
+            x: The input data as :code:`np.ndarray` or backend-specific
+               dataset object.
+            threshold: The numeric threshold to apply for classification.
+        """
+        y = self.predict(x)
+        out_shape = y.shape[:1] + (1,) + y.shape[2:]
+        c = self.quantiles[0] * np.ones(out_shape)
 
-        self.model_files = []
-        for i, m in enumerate(self.models):
-            self.model_files += [name + "_model_" + str(i)]
-            m.save(os.path.join(dirname, self.model_files[i]))
-        pickle.dump(self, f)
-        f.close()
+        for i in range(self.quantiles.size - 1):
+            q_l = y[:, [i]]
+            q_r = y[:, [i+1]]
+            inds = np.logical_and(q_l < threshold,
+                                  q_r >= threshold)
+            c[inds] = self.quantiles[i] * (threshold - q_l[inds])
+            c[inds] += self.quantiles[i + 1] * (q_r[inds] - threshold)
+            c[inds] /= (q_r[inds] - q_l[inds])
+
+        c[threshold > q_r] = self.quantiles[-1]
+        return 1.0 - c
 
     @staticmethod
     def load(path):
         r"""
         Load a model from a file.
 
-        This loads a model that has been stored using the `save` method.
+        This loads a model that has been stored using the
+        :py:meth:`typhon.retrieval.qrnn.QRNN.save`  method.
 
         Arguments:
 
@@ -1000,27 +598,37 @@ class QRNN:
 
             The loaded QRNN object.
         """
-        filename = os.path.basename(path)
-        dirname = os.path.dirname(path)
-
-        f = open(path, "rb")
-        qrnn = pickle.load(f)
-        qrnn.models = []
-        for mf in qrnn.model_files:
-            mf = os.path.basename(mf)
-            try:
-                mp = os.path.join(dirname, os.path.basename(mf))
-                qrnn.models += [keras.models.load_model(mp, qrnn.custom_objects)]
-            except:
-                raise Exception("Error loading the neural network models. " \
-                                "Please make sure all files created during the"\
-                                " saving are in this folder.")
-        f.close()
+        with open(path, 'rb') as f:
+            qrnn = pickle.load(f)
+            backend = importlib.import_module(qrnn.backend)
+            model = backend.load_model(f, qrnn.quantiles)
+            qrnn.model = model
         return qrnn
+
+    def save(self, path):
+        r"""
+        Store the QRNN model in a file.
+
+        This stores the model to a file using pickle for all attributes that
+        support pickling. The Keras model is handled separately, since it can
+        not be pickled.
+
+        Arguments:
+
+            path(str): The path including filename indicating where to
+                       store the model.
+
+        """
+        f = open(path, "wb")
+        pickle.dump(self, f)
+        backend = importlib.import_module(self.backend)
+        backend.save_model(f, self.model)
+        f.close()
+
 
     def __getstate__(self):
         dct = copy.copy(self.__dict__)
-        dct.pop("models")
+        dct.pop("model")
         return dct
 
     def __setstate__(self, state):

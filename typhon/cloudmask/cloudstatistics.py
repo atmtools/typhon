@@ -35,7 +35,7 @@ def filter_cloudmask(cloudmask, threshold=1, connectivity=1):
     props = measure.regionprops(labels)
     area = [prop.area for prop in props]
 
-    # Find objects < threshold pixle number, get their labels, set them to 0-clear.
+    # Find objects < threshold pixel number, get their labels, set them to 0-clear.
     smallclouds = [t[0] for t in filter(lambda a: a[1] < threshold, enumerate(area, 1))]
     for label in smallclouds:
         cloudmask[labels == label] = 0
