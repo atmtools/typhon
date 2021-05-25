@@ -470,7 +470,7 @@ class ASTERimage:
                 # "confidently clear".
                 clmask[(bt14 > bt14_p05) & ~np.isnan(clmask)] = CONFIDENTLY_CLEAR
 
-            # Add swath edge pixels of thermal channel.
+            # Apply swath edge pixels of thermal channel.
             clmask[np.isnan(bt14)] = np.nan
 
         if output_binary:
