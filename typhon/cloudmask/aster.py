@@ -4,6 +4,7 @@
 import datetime
 import logging
 import os
+import warnings
 from collections import namedtuple
 
 import gdal
@@ -27,6 +28,8 @@ CONFIDENTLY_CLOUDY = 5
 PROBABLY_CLOUDY = 4
 PROBABLY_CLEAR = 3
 CONFIDENTLY_CLEAR = 2
+CLOUDY = 1
+CLEAR = 0
 
 
 class ASTERimage:
@@ -63,6 +66,34 @@ class ASTERimage:
         "14": (10.95, 11.65)
     }
 
+    # Unit conversion coefficients ucc [W m-2 sr-1 um-1] for different gain
+    # settings, high, normal, low1, and low2.
+    ucc = {
+        **{k: dict(zip(["HGH", "NOR", "LOW", "LO2"], v)) for k, v in {
+            "1": (0.676, 1.688, 2.25),
+            "2": (0.708, 1.415, 1.89),
+            "3N": (0.423, 0.862, 1.15),
+            "3B": (0.423, 0.862, 1.15),
+            "4": (0.1087, 0.2174, 0.290, 0.290),
+            "5": (0.0348, 0.0696, 0.0925, 0.409),
+            "6": (0.0313, 0.0625, 0.0830, 0.390),
+            "7": (0.0299, 0.0597, 0.0795, 0.332),
+            "8": (0.0209, 0.0417, 0.0556, 0.245),
+            "9": (0.0159, 0.0318, 0.0424, 0.265)}.items()},
+        **{k: {None: v} for k, v in {
+            "10": 6.882e-3,
+            "11": 6.780e-3,
+            "12": 6.590e-3,
+            "13": 5.693e-3,
+            "14": 5.225e-3}.items()},
+    }
+
+    @staticmethod
+    def normalize_channelname(channel):
+        if channel.startswith("0"):
+            return channel[1:]
+        return channel
+
     def __init__(self, filename):
         """Initialize ASTER image object.
 
@@ -72,6 +103,13 @@ class ASTERimage:
         self.filename = filename
 
         self.meta = self.get_metadata()
+        def collect_gain():
+            for k, v in self.meta.items():
+                if not k.startswith("GAIN"):
+                    continue
+                channel, gain = v.split(", ")
+                yield self.normalize_channelname(channel), gain
+        self.gain = dict(collect_gain())
         SolarDirection = namedtuple(
             "SolarDirection", ["azimuth", "elevation"]
         )  # SolarDirection = (0< az <360, -90< el <90)
@@ -117,6 +155,20 @@ class ASTERimage:
     def get_metadata(self):
         """Read full ASTER metadata information."""
         return gdal.Open(self.filename).GetMetadata()
+
+    def get_gain(self, channel):
+        """Get gain settings of specified channel."""
+        gain = self.gain.get(channel, None)
+        if gain == "LO1":
+            gain = "LOW"  # both refer to column 3 in ucc table.
+        return gain
+
+    def get_ucc(self, channel):
+        gain = self.get_gain(channel)
+        try:
+            return self.ucc[channel][gain]
+        except KeyError:
+            raise ValueError(f"No ucc value for channel {channel} with gain {gain}")
 
     def read_digitalnumbers(self, channel):
         """Read ASTER L1B raw digital numbers.
@@ -189,39 +241,47 @@ class ASTERimage:
             aster user guide v2.pdf.
         """
         dn = self.read_digitalnumbers(channel)
+        return (dn - 1) * self.get_ucc(channel)
 
-        # Unit conversion coefficients ucc [W m-2 sr-1 um-1] for different gain
-        # settings, high, normal, low1, and low2.
-        ucc = {
-            "1": (0.676, 1.688, 2.25, np.nan),
-            "2": (0.708, 1.415, 1.89, np.nan),
-            "3N": (0.423, 0.862, 1.15, np.nan),
-            "3B": (0.423, 0.862, 1.15, np.nan),
-            "4": (0.1087, 0.2174, 0.290, 0.290),
-            "5": (0.0348, 0.0696, 0.0925, 0.409),
-            "6": (0.0313, 0.0625, 0.0830, 0.390),
-            "7": (0.0299, 0.0597, 0.0795, 0.332),
-            "8": (0.0209, 0.0417, 0.0556, 0.245),
-            "9": (0.0159, 0.0318, 0.0424, 0.265),
-            "10": 6.882e-3,
-            "11": 6.780e-3,
-            "12": 6.590e-3,
-            "13": 5.693e-3,
-            "14": 5.225e-3,
-        }
+    def get_possible_radiance_values(self, channel):
+        return np.arange(255) * self.get_ucc(channel)
 
-        if channel in ["1", "2", "3N", "3B", "4", "5", "6", "7", "8", "8", "9"]:
-            meta = self.get_metadata()
-            gain = meta[f"GAIN.{channel[0]}"].split(",")[1].strip()
-            if gain == "LO1":
-                gain = "LOW"  # both refer to column 3 in ucc table.
-            radiance = (dn - 1) * ucc[channel][["HGH", "NOR", "LOW", "LO2"].index(gain)]
-        elif channel in ["10", "11", "12", "13", "14"]:
-            radiance = (dn - 1) * ucc[channel]
-        else:
-            raise ValueError('Invalid channel "{channel}".')
+    def get_radiance_to_reflectance_factor(self, channel):
+        """Calculate radiance to reflectance factor.
 
-        return radiance
+        Parameters:
+             channel (str): ASTER channel number. '1', '2', '3N', '3B', '4',
+                '5', '6', '7', '8', '9'.
+
+        Returns:
+            float: factor.
+
+        References:
+        Thome, K.; Biggar, S.; Slater, P (2001). Effects of assumed solar
+            spectral irradiance on intercomparisons of earth-observing sensors.
+            In Sensors, Systems, and Next-Generation Satellites; Proceedings of
+            SPIE; December 2001; Fujisada, H., Lurie, J., Weber, K., Eds.;
+            Vol. 4540, pp. 260–269.
+        http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectance.pdf
+        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
+        """
+        # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according
+        # to Thome et al. 2001.
+        E_sun = dict(zip(self.channels,(1848, 1549, 1114, 1114, 225.4, 86.63,
+                                        81.85, 74.85, 66.49, 59.85)
+                        )
+                    )
+
+        doy = self.datetime.timetuple().tm_yday  # day of the year (doy)
+
+        distance = (
+            0.016790956760352183
+            * np.sin(-0.017024566555637135 * doy + 4.735251041365579)
+            + 0.9999651354429786
+        )  # acc. to Landsat Handbook
+
+        return (np.pi * distance ** 2 / E_sun[channel]
+                / np.cos(np.deg2rad(self.sunzenith)))
 
     def get_reflectance(self, channel):
         """Get ASTER L1B reflectance values at TOA.
@@ -241,51 +301,13 @@ class ASTERimage:
         Returns:
             ndarray: Reflectance values at TOA. Shape according to data
                 resolution of the respective channel.
-
-        References:
-        Thome, K.; Biggar, S.; Slater, P (2001). Effects of assumed solar
-            spectral irradiance on intercomparisons of earth-observing sensors.
-            In Sensors, Systems, and Next-Generation Satellites; Proceedings of
-            SPIE; December 2001; Fujisada, H., Lurie, J., Weber, K., Eds.;
-            Vol. 4540, pp. 260–269.
-        http://www.pancroma.com/downloads/ASTER%20Temperature%20and%20Reflectance.pdf
-        http://landsathandbook.gsfc.nasa.gov/data_prod/prog_sect11_3.html
         """
-        # Mean solar exo-atmospheric irradiances [W m-2 um-1] at TOA according
-        # to Thome et al. 2001.
-        E_sun = (
-            1848,
-            1549,
-            1114,
-            1114,
-            225.4,
-            86.63,
-            81.85,
-            74.85,
-            66.49,
-            59.85,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        )
+        return (self.get_radiance(channel)
+                * self.get_radiance_to_reflectance_factor(channel))
 
-        doy = self.datetime.timetuple().tm_yday  # day of the year (doy)
-
-        distance = (
-            0.016790956760352183
-            * np.sin(-0.017024566555637135 * doy + 4.735251041365579)
-            + 0.9999651354429786
-        )  # acc. to Landsat Handbook
-
-        return (
-            np.pi
-            * self.get_radiance(channel)
-            * distance ** 2
-            / E_sun[self.channels.index(channel)]
-            / np.cos(np.deg2rad(self.sunzenith))
-        )
+    def get_possible_reflectance_values(self, channel):
+        return (self.get_possible_radiance_values(channel)
+                * self.get_radiance_to_reflectance_factor(channel))
 
     def get_brightnesstemperature(self, channel):
         """Get ASTER L1B reflectances values at TOA.
@@ -393,79 +415,45 @@ class ASTERimage:
             r5[~np.isnan(r5)] = 1
         r5 = np.repeat(np.repeat(r5, 2, axis=0), 2, axis=1)
 
-        # Read thermal (TIR) channel at 90m resolution and match VNIR
-        # resolution.
-        bt14 = self.get_brightnesstemperature(channel="14")
-        bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
-
         # Ratios for clear-cloudy-tests.
         r3N2 = r3N / r2
         r12 = r1 / r2
 
         ### TEST 1-4 ###
         # Set cloud mask to default "confidently clear".
-        clmask = np.ones(r1.shape, dtype=np.float) * 2
+        clmask = np.full_like(r1, CONFIDENTLY_CLEAR, dtype=np.float)
 
         with np.warnings.catch_warnings():
             np.warnings.filterwarnings("ignore", r"invalid value encountered")
-
-            # Set "probably clear" pixels.
-            clmask[
-                multiple_logical(
-                    r3N > 0.03,
-                    r5 > 0.01,
-                    0.7 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.45,
-                    func=np.logical_and,
-                )
-            ] = PROBABLY_CLEAR
-
-            # Set "probably cloudy" pixels.
-            clmask[
-                multiple_logical(
-                    r3N > 0.03,
-                    r5 > 0.015,
-                    0.75 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.35,
-                    func=np.logical_and,
-                )
-            ] = PROBABLY_CLOUDY
-
-            # Set "confidently cloudy" pixels
-            clmask[
-                multiple_logical(
-                    r3N > 0.065,
-                    r5 > 0.02,
-                    0.8 < r3N2,
-                    r3N2 < 1.75,
-                    r12 < 1.2,
-                    func=np.logical_and,
-                )
-            ] = CONFIDENTLY_CLOUDY
-
-            # Combine swath edge pixels.
-            clmask[
-                multiple_logical(
-                    np.isnan(r1),
-                    np.isnan(r2),
-                    np.isnan(r3N),
-                    np.isnan(r5),
-                    func=np.logical_or,
-                )
-            ] = np.nan
+            # NaN values at swath edge cause warnings that can be ignored
+            probably_clear = ((r3N > 0.03) & (r5 > 0.01) & (0.7 < r3N2)
+                              & (r3N2 < 1.75) & (r12 < 1.45))
+            probably_cloudy = ((r3N > 0.03) & (r5 > 0.015) & (0.75 < r3N2)
+                               & (r3N2 < 1.75) & (r12 < 1.35))
+            confidently_cloudy = ((r3N > 0.065) & (r5 > 0.02) & (0.8 < r3N2)
+                                 & (r3N2 < 1.75) & (r12 < 1.2))
+        
+        mask_swathedge = (np.isnan(r1) | np.isnan(r2) | np.isnan(r3N) | np.isnan(r5))
+        
+        clmask[probably_clear] = PROBABLY_CLEAR
+        clmask[probably_cloudy] = PROBABLY_CLOUDY
+        clmask[confidently_cloudy] = CONFIDENTLY_CLOUDY
+        clmask[mask_swathedge] = np.nan
 
         if include_thermal_test:
             ### TEST 5 ###
             # Uncertain warm ocean pixels, higher than the 5th percentile of
             # brightness temperature values from all "confidently clear"
             # labeled pixels, are overwritten with "confidently clear".
+            # Read thermal (TIR) channel at 90m resolution and match VNIR
+            # resolution.
+            bt14 = self.get_brightnesstemperature(channel="14")
+            bt14 = np.repeat(np.repeat(bt14, 6, axis=0), 6, axis=1)
 
             # Check for available "confidently clear" pixels.
-            nc = np.sum(clmask == 2) / np.sum(~np.isnan(clmask))
+            nc = np.sum(clmask == CONFIDENTLY_CLEAR) / np.sum(~np.isnan(clmask))
             if nc > 0.03:
-                bt14_p05 = np.nanpercentile(bt14[clmask == 2], 5)
+                bt14_p05 = np.nanpercentile(bt14[clmask == CONFIDENTLY_CLEAR], 5)
             else:
                 # If less than 3% of pixels are "confidently clear", test 5
                 # cannot be applied according to Werner et al., 2016. However,
@@ -473,23 +461,30 @@ class ASTERimage:
                 # and "confidently clear" pixels in such cases leads to
                 # plausible results and we derive a threshold correspondingly.
                 bt14_p05 = np.nanpercentile(
-                    bt14[np.logical_or(clmask == 2, clmask == 3)], 5
-                )
+                    bt14[(clmask == CONFIDENTLY_CLEAR) | (clmask == PROBABLY_CLEAR)], 5)
 
             with np.warnings.catch_warnings():
                 np.warnings.filterwarnings("ignore", r"invalid value encountered")
                 # Pixels with brightness temperature values above the 5th
                 # percentile of clear ocean pixels are overwritten with
                 # "confidently clear".
-                clmask[np.logical_and(bt14 > bt14_p05, ~np.isnan(clmask))] = 2
+                clmask[(bt14 > bt14_p05) & ~np.isnan(clmask)] = CONFIDENTLY_CLEAR
 
-            # Combine swath edge pixels.
-            clmask[np.logical_or(np.isnan(clmask), np.isnan(bt14))] = np.nan
+            # Apply swath edge pixels of thermal channel.
+            clmask[np.isnan(bt14)] = np.nan
 
         if output_binary:
-            clmask[np.logical_or(clmask == 2, clmask == 3)] = 0  # clear
-            clmask[np.logical_or(clmask == 4, clmask == 5)] = 1  # cloudy
+            warnings.warn("output_binary argument is deprecated. Use static method "
+                          "cloudmask_to_binary instead", DeprecationWarning)
+            return self.cloudmask_to_binary(clmask)
 
+        return clmask
+    
+    @staticmethod
+    def cloudmask_to_binary(clmask):
+        clmask = clmask.copy()
+        clmask[(clmask == CONFIDENTLY_CLEAR) | (clmask == PROBABLY_CLEAR)] = CLEAR
+        clmask[(clmask == CONFIDENTLY_CLOUDY) | (clmask == PROBABLY_CLOUDY)] = CLOUDY
         return clmask
 
     def read_coordinates(self, channel="1"):
@@ -693,7 +688,7 @@ class ASTERimage:
         swath_widths = np.sum(np.isfinite(field), axis=1)
         # average swath width, but exluding possible NaN-scanlines at beginning and
         # end of the image.
-        swath_width = np.mean(swath_widths[swath_widths > 4200])
+        swath_width = np.mean(swath_widths[10:-10])
 
         n_angles = n * FOV[sensor] / swath_width + P[sensor]
         azimuth = np.full_like(field, np.nan)
