@@ -26,7 +26,6 @@ import xarray
 
 
 from typhon import config
-from typhon.arts import xml
 from typhon.constants import (h, k, c)
 from typhon.physics.units.common import (ureg, radiance_units)
 from typhon.physics.units.tools import UnitsAwareDataArray as UADA
@@ -200,6 +199,8 @@ class SRF(FwmuMixin):
 
                 Channel number (start counting at 1).
         """
+        from pyarts import xml
+
         cf = config.conf[instr]
         centres = xml.load(
             cf["srf_backend_f"].format(sat=sat))

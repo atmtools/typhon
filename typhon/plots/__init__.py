@@ -5,7 +5,6 @@ from typhon.plots.colors import *  # noqa
 from typhon.plots.common import *  # noqa
 from typhon.plots.formatter import *  # noqa
 from typhon.plots.plots import *  # noqa
-from typhon.plots.arts_lookup import *  # noqa
 from typhon.plots.ppath import *  # noqa
 from typhon.plots.maps import *  # noqa
 
