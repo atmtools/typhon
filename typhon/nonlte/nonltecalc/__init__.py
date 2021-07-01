@@ -290,7 +290,7 @@ def Calc(Ite_pop, Abs_ite,
          continuum_surface_temperature_unit='Planck',
          back_ground_radiation='CMB',
          iteration='MUGA'):
-#    if iteration is 'MUGA1SC':
+#    if iteration == 'MUGA1SC':
 #        from ..rtc import SOSCdamy as SOSC
 #        print('Hey using FOSC in SOSC')
 #        iteration = 'MUGA'
@@ -460,12 +460,12 @@ def Calc(Ite_pop, Abs_ite,
             # Up_pop = Ite_pop[i, 0, up_tag, 0]
             # Low_pop = Ite_pop[i, 0, low_tag, 0]
             if i == 0:  # Lower Boundary(u>0) outgoing
-                if continuum_surface_temperature_unit is 'Planck':
+                if continuum_surface_temperature_unit == 'Planck':
 #                    ji_out_all[xx, i, :, :] = planck(Fre_range, Temp[i])
                     ji_out_all[xx, i, :, :] = Bv_T(Fre_range, Temp[i])
-                elif continuum_surface_temperature_unit is 'RJ':
+                elif continuum_surface_temperature_unit == 'RJ':
                     ji_out_all[xx, i, :, :] = rayleighjeans(Fre_range, Temp[i])
-                elif continuum_surface_temperature_unit is 'RJ_obs':
+                elif continuum_surface_temperature_unit == 'RJ_obs':
                     _t_phys = h * Freq_array[xx] * 1.e9 / \
                               (k * np.log(h * Freq_array[xx] * 1.e9
                                           /k/Temp[i] + 1))
@@ -476,13 +476,13 @@ def Calc(Ite_pop, Abs_ite,
             elif i < Alt_ref.size-1:  # SOSC
                 tl_1 = Abs_coeff[i] * F_vl_i[xx][i]
                 # GS-iteration
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     tl_2 = basic(new_pop[i-1, 0, low_tag, 0],
                                  new_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
                                  Bul[up_tag, low_tag],
                                  Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                elif iteration is 'LI' or iteration is 'MALI':
+                elif iteration == 'LI' or iteration == 'MALI':
                     tl_2 = basic(Ite_pop[i-1, 0, low_tag, 0],
                                  Ite_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -497,7 +497,7 @@ def Calc(Ite_pop, Abs_ite,
                 """===Doppler=========="""
                 tl_1 = Abs_coeff[i] * \
                 DopplerWind(Temp[i], Fre_range_i[xx], Para, wind_v[:,i], shift_direction='Blue')
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     tl_2 = basic(new_pop[i-1, 0, low_tag, 0],
                                  new_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -505,7 +505,7 @@ def Calc(Ite_pop, Abs_ite,
                                  Freq_array[xx]*1.e9)*\
                            DopplerWind(Temp[i-1], Fre_range_i[xx], Para, wind_v[:,i-1], 
                                        shift_direction='Blue')  # F_vl_i[xx][i-1]
-                elif iteration is 'LI' or iteration is 'MALI':
+                elif iteration == 'LI' or iteration == 'MALI':
                     tl_2 = basic(Ite_pop[i-1, 0, low_tag, 0],
                                  Ite_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -526,13 +526,13 @@ def Calc(Ite_pop, Abs_ite,
                                     Bul[up_tag, low_tag],
                                     Blu[up_tag, low_tag])  # * F_vl_i[xx][i]
                 SF[xx] = Sl2
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     Sl1 = PopuSource_AB(new_pop[i-1, 0, low_tag, 0],
                                         new_pop[i-1, 0, up_tag, 0],
                                         Aul[up_tag, low_tag],
                                         Bul[up_tag, low_tag],
                                         Blu[up_tag, low_tag])  # * F_vl_i[xx][i]
-                elif iteration is 'LI' or iteration is 'MALI':
+                elif iteration == 'LI' or iteration == 'MALI':
                     Sl1 = PopuSource_AB(Ite_pop[i-1, 0, low_tag, 0],
                                         Ite_pop[i-1, 0, up_tag, 0],
                                         Aul[up_tag, low_tag],
@@ -575,13 +575,13 @@ def Calc(Ite_pop, Abs_ite,
             elif i == Alt_ref.size-1:  # FOSC
                 tl_1 = Abs_coeff[i] * F_vl_i[xx][i]
                 # GS-iteration
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     tl_2 = basic(new_pop[i-1, 0, low_tag, 0],
                                  new_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
                                  Bul[up_tag, low_tag],
                                  Freq_array[xx]*1.e9)*F_vl_i[xx][i-1]
-                elif iteration is 'MALI' or iteration is 'LI':
+                elif iteration == 'MALI' or iteration == 'LI':
                     tl_2 = basic(new_pop[i-1, 0, low_tag, 0],
                                  new_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -596,7 +596,7 @@ def Calc(Ite_pop, Abs_ite,
                 tl_1 = (Abs_coeff[i] *
                         DopplerWind(Temp[i], Fre_range_i[xx], Para,
                                     wind_v[:, i], shift_direction='Blue'))
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     tl_2 = basic(new_pop[i-1, 0, low_tag, 0],
                                  new_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -604,7 +604,7 @@ def Calc(Ite_pop, Abs_ite,
                                  Freq_array[xx]*1.e9)*\
                            DopplerWind(Temp[i-1], Fre_range_i[xx], Para, wind_v[:,i-1], 
                                        shift_direction='Blue')  # F_vl_i[xx][i-1]
-                elif iteration is 'LI' or iteration is 'MALI':
+                elif iteration == 'LI' or iteration == 'MALI':
                     tl_2 = basic(Ite_pop[i-1, 0, low_tag, 0],
                                  Ite_pop[i-1, 0, up_tag, 0],
                                  Blu[up_tag, low_tag],
@@ -621,13 +621,13 @@ def Calc(Ite_pop, Abs_ite,
                                    Aul[up_tag, low_tag],
                                    Bul[up_tag, low_tag],
                                    Blu[up_tag, low_tag])  # * F_vl_i[xx][i]
-                if iteration is 'MUGA':
+                if iteration == 'MUGA':
                     Sl1 = PopuSource_AB(new_pop[i-1, 0, low_tag, 0],
                                         new_pop[i-1, 0, up_tag, 0],
                                         Aul[up_tag, low_tag],
                                         Bul[up_tag, low_tag],
                                         Blu[up_tag, low_tag])  # * F_vl_i[xx][i]
-                elif iteration is 'LI' or iteration is 'MALI':
+                elif iteration == 'LI' or iteration == 'MALI':
                     Sl1 = PopuSource_AB(Ite_pop[i-1, 0, low_tag, 0],
                                         Ite_pop[i-1, 0, up_tag, 0],
                                         Aul[up_tag, low_tag],
@@ -706,13 +706,13 @@ def Calc(Ite_pop, Abs_ite,
                 Fre_weight = trapz_inte_edge(F_vl_i[xx][i], Fre_range_i[xx])
                 J_mean = (Bv_T(Fre_range_i[xx], Temp[i]) * Fre_weight).sum()
                 B_int_lamda[B_place == xx] = J_mean*1.
-            elif (i>0) & (i<Alt_ref.size-1) & (iteration is 'MUGA' or iteration is 'MALI'):
+            elif (i>0) & (i<Alt_ref.size-1) & (iteration == 'MUGA' or iteration == 'MALI'):
                 B_int_lamda[B_place == xx] = J_mean*1. - l_ap*SF[xx]
                 #print(l_ap*SF[xx])
                 #B_int_lamda[B_place == xx] = SF[xx]+(J_mean*1. - SF[xx])/(1.-l_ap)
                 A_int_lamda[(B_place == xx)&(RaRaA>0)] = l_ap
                 #j_eff_corr[xx,i] = J_mean*1. - l_ap*SF[xx]
-            elif (i>0) & (i<Alt_ref.size-1) & (iteration is 'LI'):
+            elif (i>0) & (i<Alt_ref.size-1) & (iteration == 'LI'):
                 B_int_lamda[B_place == xx] = J_mean*1.
                 #print(l_ap*SF[xx])
                 #B_int_lamda[B_place == xx] = SF[xx]+(J_mean*1. - SF[xx])/(1.-l_ap)
@@ -721,14 +721,14 @@ def Calc(Ite_pop, Abs_ite,
         RaRij = (RaRaB_absorption+RaRaB_induced) * B_int
         RaRii = np.eye(Ni)*(RaRij.sum(axis=0))*-1.
         A_m = (RaRaA+RaRaAd+RaRij+RaRii+CoRa_block[i])*-1.
-        if (i>0) & (i<Alt_ref.size-1) & (iteration is 'MUGA' or iteration is 'MALI'):  # preconditioning part
+        if (i>0) & (i<Alt_ref.size-1) & (iteration == 'MUGA' or iteration == 'MALI'):  # preconditioning part
             RaRij_lambda = (RaRaB_absorption+RaRaB_induced) * B_int_lamda
             RaRii_lambda = np.eye(Ni)*(RaRij_lambda.sum(axis=0))*-1.
             P_m = (RaRaA*(1-A_int_lamda)+(-RaRaA*(1-A_int_lamda)).sum(axis=0)*np.eye(Ni)+RaRij_lambda+RaRii_lambda+CoRa_block[i])*-1.
             #P_m = ((-RaRaA*(1-A_int_lamda)).sum(axis=0)+RaRii_lambda+CoRa_block[i])*-1.
             #P_m = P_m.diagonal()*np.eye(Ni)
             P_m[-1, :] = 1.
-        elif (i>0) & (i<Alt_ref.size-1) & (iteration is 'LI'):  # preconditioning part
+        elif (i>0) & (i<Alt_ref.size-1) & (iteration == 'LI'):  # preconditioning part
             RaRij_lambda = (RaRaB_absorption+RaRaB_induced) * B_int_lamda
             RaRii_lambda = np.eye(Ni)*(RaRij_lambda.sum(axis=0))*-1.
             P_m = (RaRaA+(-RaRaA).sum(axis=0)*np.eye(Ni)+RaRij_lambda+RaRii_lambda+CoRa_block[i])*-1.
@@ -770,7 +770,7 @@ def Calc(Ite_pop, Abs_ite,
             new_pop[i, 0, :] = n_new #this is for no update
 #        print(n_new)
         max_true_error[i] = np.abs((n_delta/n_new)*100).max()
-        if (i > 0) and (i < Alt_ref.size-1) and (iteration is 'MUGA'):
+        if (i > 0) and (i < Alt_ref.size-1) and (iteration == 'MUGA'):
             for xx in range(Nt):  # transitions
                 Para=[Freq_array[xx]*1.e9, 18.0153]
                 Fre_range = Fre_range_i[xx]
