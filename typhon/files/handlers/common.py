@@ -812,6 +812,11 @@ class NetCDF4(FileHandler):
             }
             ds = ds.rename(mapping)
             mapping = {
+                full: NetCDF4._split_path(full)[1]
+                for full in ds.coords
+            }
+            ds = ds.rename(mapping)
+            mapping = {
                 dim: NetCDF4._split_path(dim)[1]
                 for dim in ds.dims
             }

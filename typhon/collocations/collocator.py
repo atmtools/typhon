@@ -321,9 +321,10 @@ class Collocator:
         elapsed_time -= timedelta(microseconds=elapsed_time.microseconds)
         if len(process_progress) == 0:
             msg = "-"*79 + "\n"
-            msg += f"100% | {elapsed_time} hours elapsed | " \
-                   f"{errors} processes failed\n"
-            msg += "-"*79 + "\n"
+            msg += f"100% | {elapsed_time} hours elapsed"
+            if errors != "unknown":
+                msg += f" | {errors} failed"
+            msg += "\n" + "-"*79 + "\n"
             logger.error(msg)
             return
 
@@ -338,9 +339,10 @@ class Collocator:
 
         msg = "-"*79 + "\n"
         msg += f"{progress:.0f}% | {elapsed_time} hours elapsed, " \
-               f"{expected_time} hours left | {processes} proc running, " \
-               f"{errors} failed\n"
-        msg += "-"*79 + "\n"
+               f"{expected_time} hours left | {processes} proc running"
+        if errors != "unknown":
+            msg += f", {errors} failed"
+        msg += "\n" + "-"*79 + "\n"
         logger.error(msg)
 
     @staticmethod
