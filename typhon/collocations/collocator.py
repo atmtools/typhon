@@ -136,8 +136,8 @@ class Collocator:
                 performance significantly. Pass here the number of processes to
                 use.
             output: Fileset object where the collocated data should be stored.
-            bundle: Set this to *primary* if you want to bundle the output 
-                files by their collocated primaries, i.e. there will be only 
+            bundle: Set this to *primary* if you want to bundle the output
+                files by their collocated primaries, i.e. there will be only
                 one output file per primary. *daily* is also possible, then all
                 files from one day are bundled together. Per default, all
                 collocations for each file match will be saved separately.
@@ -145,8 +145,8 @@ class Collocator:
                 Note: *daily* means one process bundles all collocations from
                 one day into one output file. If using multiple processes, this
                 could still produce several daily output files per day.
-            skip_file_errors: If this is *True* and a file could not be read, 
-                the file and its match will be skipped and a warning will be 
+            skip_file_errors: If this is *True* and a file could not be read,
+                the file and its match will be skipped and a warning will be
                 printed. Otheriwse the program will stop (default).
             post_processor: A function for post-processing the collocated data
                 before saving it to `output`. Must accept two parameters: a
@@ -161,7 +161,7 @@ class Collocator:
             A xarray.Dataset with the collocated data if `output` is not set.
             If `output` is set to a FileSet-like object, only the filename of
             the stored collocations is yielded. The results are not ordered if
-            you use more than one process. For more information about the 
+            you use more than one process. For more information about the
             yielded xarray.Dataset have a look at :meth:`collocate`.
 
         Examples:
@@ -210,7 +210,7 @@ class Collocator:
         # Each process gets a list with matches. Important: the matches should
         # be continuous to guarantee a good performance. After finishing one
         # match, the process pushes its results to the result queue. If errors
-        # are raised during collocating, the raised errors are pushed to the 
+        # are raised during collocating, the raised errors are pushed to the
         # error queue,
         matches_chunks = np.array_split(matches, processes)
 
@@ -263,7 +263,7 @@ class Collocator:
         processed_matches = 0
 
         # The main process has two tasks during its child processes are
-        # collocating. 
+        # collocating.
         # 1) Collect their results and yield them to the user
         # 2) Display the progress and estimate the remaining processing time
         while running:
@@ -440,7 +440,7 @@ class Collocator:
                 results.put([name, progress, result])
 
         except Exception as exception:
-            # Tell the main process to stop considering this process for the 
+            # Tell the main process to stop considering this process for the
             # remaining processing time:
             results.put(
                 [name, 100., ProcessCrashed]
@@ -700,7 +700,7 @@ class Collocator:
         Examples:
 
             .. code-block: python
-                
+
                 # TODO: Update this example!
 
                 import numpy as np
@@ -767,7 +767,7 @@ class Collocator:
         self.leaf_size = leaf_size
 
         timer = Timer().start()
-        
+
         # We cannot allow NaNs in the time, lat or lon fields
         not_nans1 = self._get_not_nans(primary)
         not_nans2 = self._get_not_nans(secondary)
@@ -887,7 +887,7 @@ class Collocator:
 
     def _prepare_data(self, primary, secondary, max_interval, start, end):
         """Prepare the data for the collocation search
-        
+
         This method selects the time period which should be searched for
         collocations and flats the input datasets if they have gridded
         variables.
@@ -953,13 +953,13 @@ class Collocator:
         # little bit cumbersome:
         common_start = max(
             start,
-            pd.Timestamp(primary.time.min().item(0)) - max_interval,
-            pd.Timestamp(secondary.time.min().item(0)) - max_interval
+            pd.Timestamp(primary.time.values.min().item(0)).tz_localize(None) - max_interval,
+            pd.Timestamp(secondary.time.values.min().item(0)).tz_localize(None) - max_interval
         )
         common_end = min(
             end,
-            pd.Timestamp(primary.time.max().item(0)) + max_interval,
-            pd.Timestamp(secondary.time.max().item(0)) + max_interval
+            pd.Timestamp(primary.time.values.max().item(0)).tz_localize(None) + max_interval,
+            pd.Timestamp(secondary.time.values.max().item(0)).tz_localize(None) + max_interval
         )
 
         primary_period = primary.time.where(
@@ -1042,7 +1042,7 @@ class Collocator:
 
         # We assume that coordinates must be unique! Otherwise, we would have
         # to use this ugly work-around:
-        # Replace the former coordinates with new coordinates that have unique 
+        # Replace the former coordinates with new coordinates that have unique
         # values.
         # new_dims = []
         # for dim in dims:
