@@ -21,23 +21,23 @@ class TROPOMI(FileHandler):
     }
 
     # Map the standard fields to standard names:
-    mapping = { 
+    mapping = {
         "latitude": "lat",
         "longitude": "lon",
         "time_utc": "time",
-    }   
+    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.satpy_reader = 'tropomi_l2'
+        self.user_fields = kwargs.pop("fields", {})
 
     @expects_file_info()
     def read(self, filename, **kwargs):
         scene = Scene(reader=self.satpy_reader, filenames=[filename.path])
 
         # We need to import at least the standard fields
-        user_fields = kwargs.pop("fields", {}) 
-        fields = self.standard_fields | set(user_fields)
+        fields = self.standard_fields | set(self.user_fields)
 
         # If the user has not passed any fields to us, we load all per default.
         if fields is None:
