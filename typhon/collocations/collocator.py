@@ -1182,10 +1182,10 @@ class Collocator:
         )
 
         start = pd.Timestamp(
-            output[primary_name+"/time"].min().item(0)
+            output[primary_name+"/time"].values.min().item(0)
         )
         end = pd.Timestamp(
-            output[primary_name+"/time"].max().item(0)
+            output[primary_name+"/time"].values.max().item(0)
         )
 
         output.attrs = {
