@@ -4,6 +4,7 @@ fsspec
 gdal
 keras
 matplotlib>=1.4
+nbsphinx
 netCDF4>=1.1.1
 numba
 numexpr
