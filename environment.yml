@@ -8,6 +8,7 @@ dependencies:
         - keras
         - matplotlib>=1.4
         - netCDF4>=1.1.1
+        - nbsphinx
         - numba
         - numexpr
         - numpy>=1.13
