@@ -129,7 +129,7 @@ def radiance2planckTb(f, r):
 
     Parameters:
         f (float or ndarray): Frequency [Hz].
-        r (float or ndarray): Spectral radiance [W/m**-2/sr].
+        r (float or ndarray): Spectral radiance [W/(m2*Hz*sr)].
 
     Returns:
         float or ndarray: Planck brightness temperature [K].
@@ -146,7 +146,7 @@ def radiance2rayleighjeansTb(f, r):
 
     Parameters:
         f (float or ndarray): Frequency [Hz].
-        r (float or ndarray): Spectral radiance [W/m**-2/sr].
+        r (float or ndarray): Spectral radiance [W/(m2*Hz*sr)].
 
     Returns:
         float or ndarray: Rayleigh-Jeans brightness temperature [K].
