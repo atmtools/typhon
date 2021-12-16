@@ -18,7 +18,7 @@ activations = {"elu" : nn.ELU,
                "selu" : nn.SELU,
                "celu" : nn.CELU,
                "sigmoid" : nn.Sigmoid,
-               "softplus" : nn.Softplus
+               "softplus" : nn.Softplus,
                "softmin" : nn.Softmin}
 
 class QuantileLoss:
