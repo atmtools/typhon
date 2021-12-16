@@ -12,16 +12,15 @@ source:
   #url: https://github.com/atmtools/typhon/releases/download/{{ version }}/typhon-{{ version }}.tar.gz
 
 build:
+  noarch: python
   number: 0
   script: "{{ PYTHON }} -m pip install . -vv"
 
 requirements:
-  build:
-    - python {{ python }}
-    - pip
-    - setuptools >=0.7.2
   host:
-    - python
+    - python >=3.7
+    - pip
+    - setuptools >=3.4
   run:
     - python
     {% for dep in data['install_requires'] %}
@@ -29,10 +28,8 @@ requirements:
     {% endfor %}
 
 test:
-  requires:
-    - pytest
-  commands:
-    - pytest --pyargs typhon
+  imports:
+    - typhon
 
 about:
   home: {{ data['url'] }}
