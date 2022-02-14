@@ -638,7 +638,7 @@ def profile_z(z, x, ax=None, **kwargs):
     ax.set_ylim(zmin, zmax)
 
     # Label and format for yaxis.
-    if ax.is_first_col():
+    if ax.get_subplotspec().is_first_col():
         ax.set_ylabel('Height [km]')
 
     # Actual plot.
