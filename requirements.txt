@@ -2,6 +2,7 @@ cartopy
 cython
 fsspec
 gdal
+h5netcdf
 keras
 matplotlib>=1.4
 nbsphinx
