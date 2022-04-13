@@ -1,7 +1,9 @@
+import datetime
 import os
 import tempfile
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from typhon.files import NetCDF4
@@ -71,7 +73,7 @@ class TestNetCDF4:
             before["a"].encoding = {"_FillValue": 42}
             fh.write(before, tfile)
             after = fh.read(tfile)
-            assert np.isnan(after["a"]) # fill value should become nan
+            assert np.isnan(after["a"])  # fill value should become nan
 
     def test_times(self):
         """Test if times are read correctly
@@ -113,3 +115,33 @@ class TestNetCDF4:
             fh.write(before, tfile)
             after = fh.read(tfile)
             assert np.allclose(before["a"], after["a"])
+
+
+class TestFSNetCDF:
+    """Test filesystem-NetCDF file handler."""
+
+    @pytest.fixture
+    def fake_info(self, tmp_path):
+        """Create a fake NetCDF file and return associated file info."""
+        from typhon.files.handlers.common import FileInfo
+        from fsspec.implementations.local import LocalFileSystem
+        lfs = LocalFileSystem()
+        ds = xr.Dataset(
+                {"soy": xr.DataArray(
+                    np.arange(25).reshape(5, 5),
+                    dims=("y", "x"))})
+        ds.to_netcdf(tmp_path / "test.nc")
+        return FileInfo(
+            os.fspath(tmp_path / "test.nc"),
+            times=[datetime.datetime.now()]*2,
+            fs=lfs)
+
+    def test_fsnetcdf_handler(self, fake_info):
+        """Test that the filehandler reads and closes."""
+        from typhon.files.handlers.common import FSNetCDF
+        handler = FSNetCDF()
+        ds = handler.read(fake_info)
+        np.testing.assert_array_equal(
+                ds["soy"].data,
+                np.arange(25).reshape(5, 5))
+        handler.close_all()
