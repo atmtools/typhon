@@ -850,6 +850,19 @@ class FSNetCDF(FileHandler):
     Alternative to the NetCDF file handler for reading files from
     alternative file systems, such as remote file systemss.  Does not
     support writing or multi-group files.
+
+    Usage example with fileset::
+
+        fs = FileSet(
+                path=(
+                    "noaa-goes16/GLM-L2-LCFA/{year}/{doy}/{hour}/"
+                    "OR_GLM-L2-LCFA_G16_s{year}{doy}{hour}{minute}{second}*_"
+                    "e{end_year}{end_doy}{end_hour}{end_minute}{end_second}*_c*.nc"),
+                fs=s3fs.S3FileSystem(anon=True),
+                handler=FSNetCDF())
+
+        finf = fs.find_closest(datetime.datetime(2021, 11, 10, 10))
+        fs.read(finf)
     """
 
     def __init__(self, *args, **kwargs):
