@@ -8,6 +8,8 @@ import pytest
 import shutil
 import logging
 
+import pandas as pd
+
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
 from typhon.files.utils import get_testfiles_directory
 
@@ -823,3 +825,33 @@ class TestFileSet:
         assert f2 != f4
         assert f3 != f4
         assert f1 != "fake/path"
+
+    def test_coverage_gaps(self, tmp_path):
+        """Test that coverage gaps are correctly found."""
+
+        (tmp_path / "abisko").mkdir(parents=True)
+        fs = FileSet(
+                tmp_path / "abisko" /
+                "y{year}-m{month}-d{day}-h{hour}-m{minute}-he{end_hour}-me{end_minute}")
+
+        pI = pd.Interval
+        pT = pd.Timestamp
+        gaps = list(fs.find_coverage_gaps(
+                datetime.datetime(1900, 1, 1, 0, 0),
+                datetime.datetime(1900, 1, 1, 0, 10)))
+        assert gaps == [
+                pI(pT("1900-01-01T00:00:00"), pT("1900-01-01T00:10:00"))]
+        (tmp_path / "abisko" / "y1900-m01-d01-h00-m02-he00-me04").touch()
+        (tmp_path / "abisko" / "y1900-m01-d01-h00-m06-he00-me07").touch()
+        gaps = list(fs.find_coverage_gaps(
+                datetime.datetime(1900, 1, 1, 0, 0),
+                datetime.datetime(1900, 1, 1, 0, 15)))
+        assert gaps == [
+                pI(pT("1900-01-01T00:00:00"), pT("1900-01-01T00:02:00")),
+                pI(pT("1900-01-01T00:04:00"), pT("1900-01-01T00:06:00")),
+                pI(pT("1900-01-01T00:07:00"), pT("1900-01-01T00:15:00"))]
+        (tmp_path / "abisko" / "y1900-m01-d01-h00-m07-he00-me12").touch()
+        gaps = list(fs.find_coverage_gaps(
+                datetime.datetime(1900, 1, 1, 0, 7),
+                datetime.datetime(1900, 1, 1, 0, 12)))
+        assert gaps == []
