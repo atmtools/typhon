@@ -835,6 +835,56 @@ class NetCDF4(FileHandler):
             return None, path
         return path.rsplit("/", 1)
 
+    def _ensure_local_filesystem(self, file_info):
+        if not isinstance(file_info.file_system, LocalFileSystem):
+            raise NotImplementedError(
+                    f"File handler {type(self).__name__:s} can only "
+                    "read from local file system, not from "
+                    f"{str(type(file_info.file_system).__name__)}. "
+                    "Use FSNetCDF instead.")
+
+
+class FSNetCDF(FileHandler):
+    """File handler for reading NetCDF files via alternate file systems.
+
+    Alternative to the NetCDF file handler for reading files from
+    alternative file systems, such as remote file systemss.  Does not
+    support writing or multi-group files.
+
+    Usage example with fileset::
+
+        fs = FileSet(
+                path=(
+                    "noaa-goes16/GLM-L2-LCFA/{year}/{doy}/{hour}/"
+                    "OR_GLM-L2-LCFA_G16_s{year}{doy}{hour}{minute}{second}*_"
+                    "e{end_year}{end_doy}{end_hour}{end_minute}{end_second}*_c*.nc"),
+                fs=s3fs.S3FileSystem(anon=True),
+                handler=FSNetCDF())
+
+        finf = fs.find_closest(datetime.datetime(2021, 11, 10, 10))
+        fs.read(finf)
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._open = []
+
+    @expects_file_info()
+    def read(self, file_info, fields=None, mapping=None, **kwargs):
+        """Read possibly remote NetCDF file."""
+        fp = file_info.file_system.open(file_info.path)
+        ds = xr.open_dataset(fp, engine="h5netcdf")
+        self._open.append(ds)
+        return ds
+
+    def close_all(self):
+        """Close all open files."""
+        while self._open:
+            self._open.pop(0).close()
+
+    def __del__(self):
+        self.close_all()
+
 
 class Plotter(FileHandler):
     """File handler that can save matplotlib.figure objects to a file.

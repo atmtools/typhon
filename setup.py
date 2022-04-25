@@ -80,6 +80,7 @@ setup(
     install_requires=[
         "docutils",
         "fsspec",
+        "h5netcdf",
         "imageio",
         "matplotlib>=1.4",
         "netCDF4>=1.1.1",
