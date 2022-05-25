@@ -23,6 +23,8 @@ __all__ = [
     'wavelength2wavenumber',
     'wavenumber2frequency',
     'wavenumber2wavelength',
+    'perfrequency2perwavelength',
+    'perwavelength2perfrequency',
     'stefan_boltzmann_law',
     'zeeman_splitting',
     'zeeman_strength',
@@ -347,6 +349,44 @@ def wavenumber2wavelength(wavenumber):
 
     """
     return np.divide(1, wavenumber)
+
+
+def perfrequency2perwavelength(perhz, f_grid):
+    """Conversion between Frequency- and Wavelength-related Spectral Quantities.
+
+    Note that the array is still sorted by frequency, and therefore by decreasing wavelength.
+
+    Parameters:
+        perhz (ndarray)[nf_grid, ...]: Quantity per frequency [?/Hz].
+        f_grid (1darray)[nf_grid]: Frequency [Hz].
+    Returns:
+        ndarray[nf_grid, ...]: Quantity per wavelength [?/m].
+
+    """
+    c = constants.speed_of_light
+    ndim = len(perhz.shape) - 1
+    shape = (perhz.shape[0], ) + ndim * (1, )
+    perm = perhz * f_grid.reshape(shape)**2 / c
+    return perm
+
+
+def perwavelength2perfrequency(perm, lam_grid):
+    """Conversion between Wavelength- and Frequency-related Spectral Quantities.
+
+    Note that the array is still sorted by wavelength, and therefore by decreasing frequency.
+
+    Parameters:
+        pernm (ndarray)[nlam_grid, ...]: Quantity per wavelength [?/m].
+        f_grid (1darray)[nlam_grid]: Wavelength [m].
+    Returns:
+        ndarray[nlam_grid, ...]: Quantity per frequency [?/Hz].
+
+    """
+    c = constants.speed_of_light
+    ndim = len(perm.shape) - 1
+    shape = (perm.shape[0], ) + ndim * (1, )
+    perhz = perm * lam_grid.reshape(shape)**2 / c
+    return perhz
 
 
 def stefan_boltzmann_law(T):

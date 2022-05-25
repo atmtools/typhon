@@ -92,6 +92,22 @@ class TestEM:
         x = physics.wavelength2wavenumber(100)
         assert x == 0.01
 
+    def test_perfrequency2perwavelength(self):
+        """Test conversion from a spectral quantities from per hz to per m."""
+        f_grid = np.array([4e14, 6e14, 8e14])
+        I = np.array([1e-12, 2e-12, 3e-12])
+        x = physics.perfrequency2perwavelength(I, f_grid)
+        ref = np.array([5.33702552e8, 2.40166149e9, 6.40443063e9])
+        assert np.allclose(x, ref)
+
+    def test_perwavelength2perfrequency(self):
+        """Test conversion from a spectral quantities from per m to per hz."""
+        lam_grid = np.array([4e-7, 5e-7, 6e-7])
+        I = np.array([1e9, 2e9, 3e9])
+        x = physics.perwavelength2perfrequency(I, lam_grid)
+        ref = np.array([[5.33702552e-13, 1.66782048e-12, 3.60249223e-12]])
+        assert np.allclose(x, ref)
+
 
 class TestThermodynamics:
     """Testing the typhon.physics.thermodynamics functions."""

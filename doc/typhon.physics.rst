@@ -19,6 +19,8 @@ physics
    mixing_ratio2specific_humidity
    mixing_ratio2vmr
    moist_lapse_rate
+   perfrequency2perwavelength
+   perwavelength2perfrequency
    planck
    planck_wavelength
    planck_wavenumber
