@@ -95,18 +95,27 @@ class TestEM:
     def test_perfrequency2perwavelength(self):
         """Test conversion from a spectral quantities from per hz to per m."""
         f_grid = np.array([4e14, 6e14, 8e14])
-        I = np.array([1e-12, 2e-12, 3e-12])
-        x = physics.perfrequency2perwavelength(I, f_grid)
-        ref = np.array([5.33702552e8, 2.40166149e9, 6.40443063e9])
+        irrad = np.array([1e-12, 2e-12, 3e-12])
+        x, _ = physics.perfrequency2perwavelength(irrad, f_grid)
+        ref = np.array([6.40443063e9, 2.40166149e9, 5.33702552e8])
         assert np.allclose(x, ref)
 
     def test_perwavelength2perfrequency(self):
         """Test conversion from a spectral quantities from per m to per hz."""
         lam_grid = np.array([4e-7, 5e-7, 6e-7])
-        I = np.array([1e9, 2e9, 3e9])
-        x = physics.perwavelength2perfrequency(I, lam_grid)
-        ref = np.array([[5.33702552e-13, 1.66782048e-12, 3.60249223e-12]])
+        irrad = np.array([1e9, 2e9, 3e9])
+        x, _ = physics.perwavelength2perfrequency(irrad, lam_grid)
+        ref = np.array([[3.60249223e-12, 1.66782048e-12, 5.33702552e-13]])
         assert np.allclose(x, ref)
+
+    def test_perfreq_perlam_conversion(self):
+        """Test conversion from a spectral quantities from per hz to per m and vice versa."""
+        f_grid = np.array([4e14, 6e14, 8e14])
+        irrad = np.array([1e-12, 2e-12, 3e-12])
+        i_perm, lam_grid = physics.perfrequency2perwavelength(irrad, f_grid)
+        i_perf, f_out = physics.perwavelength2perfrequency(i_perm, lam_grid)
+        assert np.allclose(i_perf, irrad)
+        assert np.allclose(f_out, f_grid)
 
 
 class TestThermodynamics:
