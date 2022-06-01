@@ -375,7 +375,7 @@ def perwavelength2perfrequency(perm, lam_grid):
 
     Parameters:
         perm (ndarray)[nlam_grid, ...]: Quantity per wavelength [?/m].
-        f_grid (1darray)[nlam_grid]: Wavelength grid [m].
+        lam_grid (1darray)[nlam_grid]: Wavelength grid [m].
     Returns:
         ndarray[nlam_grid, ...]: Quantity per frequency [?/Hz].
         1darray[nlam_grid]: Frequency grid [Hz].
