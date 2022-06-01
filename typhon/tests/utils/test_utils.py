@@ -60,7 +60,7 @@ class TestUtils:
         sleep(0.05)
         dt = t.stop()
 
-        assert timedelta(seconds=0.05) <= dt
+        assert dt.microseconds > 49_000
 
     def test_Timer_block(self):
         """Test usage of a `Timer` object in a with-block."""
