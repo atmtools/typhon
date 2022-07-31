@@ -5,7 +5,7 @@ Physical constants
 ==================
 
 =============================== ==============================================
-``g``                           Earth standard gravity in :math:`\sf ms^{-1}`
+``g``                           Earth standard gravity in :math:`\sf ms^{-2}`
 ``h``                           Planck constant in :math:`\sf Js`
 ``k``                           Boltzmann constant in :math:`\sf JK^{-1}`
 ``c``                           Speed of light in :math:`\sf ms^{-1}`
