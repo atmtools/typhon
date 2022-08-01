@@ -117,6 +117,30 @@ class TestEM:
         assert np.allclose(i_perf, irrad)
         assert np.allclose(f_out, f_grid)
 
+    def test_perfrequency2perwavenumber(self):
+        """Test conversion from a spectral quantities from per hz to per 1/m."""
+        f_grid = np.array([4e14, 6e14, 8e14])
+        irrad = np.array([1e-12, 2e-12, 3e-12])
+        x, _ = physics.perfrequency2perwavenumber(irrad, f_grid)
+        ref = np.array([0.00029979, 0.00059958, 0.00089938])
+        assert np.allclose(x, ref)
+
+    def test_perwavenumber2perfrequency(self):
+        """Test conversion from a spectral quantities from per 1/m to per hz."""
+        wn_grid = np.array([500, 1000, 1500])
+        irrad = np.array([0.003, 0.004, 0.005])
+        x, _ = physics.perwavenumber2perfrequency(irrad, wn_grid)
+        ref = np.array([1.00069229e-11, 1.33425638e-11, 1.66782048e-11])
+        assert np.allclose(x, ref) 
+
+    def test_perfreq_perwn_conversion(self):
+        """Test conversion from a spectral quantities from per hz to per 1/m and vice versa."""
+        f_grid = np.array([4e14, 6e14, 8e14])
+        irrad = np.array([1e-12, 2e-12, 3e-12])
+        i_perwn, wn_grid = physics.perfrequency2perwavenumber(irrad, f_grid)
+        i_perf, f_out = physics.perwavenumber2perfrequency(i_perwn, wn_grid)
+        assert np.allclose(i_perf, irrad)
+        assert np.allclose(f_out, f_grid)
 
 class TestThermodynamics:
     """Testing the typhon.physics.thermodynamics functions."""
