@@ -8,6 +8,8 @@ physics
 .. autosummary::
    :toctree: generated
 
+   cie_color_matching_kernels
+   convert_xyz2rgb
    density
    e_eq_ice_mk
    e_eq_water_mk
@@ -16,6 +18,7 @@ physics
    frequency2wavenumber
    fresnel
    integrate_water_vapor
+   match_color
    mixing_ratio2specific_humidity
    mixing_ratio2vmr
    moist_lapse_rate
@@ -44,6 +47,8 @@ physics
    wavelength2wavenumber
    wavenumber2frequency
    wavenumber2wavelength
+   xyz2rgb_cv2
+   xyz2rgb_walker_hdtv
    zeeman_splitting
    zeeman_strength
    zeeman_transitions
