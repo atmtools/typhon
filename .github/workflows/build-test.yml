@@ -15,7 +15,7 @@ jobs:
 
         include:
           - name: ubuntu
-            os: ubuntu-18.04
+            os: ubuntu-latest
 
           - name: windows
             os: windows-latest
