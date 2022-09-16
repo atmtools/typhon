@@ -1,11 +1,9 @@
 import os
-from os.path import dirname
 from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
 import numpy as np
 import pytest
-import shutil
 import logging
 
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
@@ -30,8 +28,10 @@ class TestFileSet:
             from shutil import make_archive
             # prepare archive to test on
             archive = tmp_path / "test"
-            shutil.make_archive(
-                    archive, "zip", os.curdir, self.refdir)
+            make_archive(
+                archive, "zip", "/" if os.path.isabs(self.refdir) else os.curdir,
+                self.refdir)
+
             return ZipFileSystem(archive.with_suffix(".zip"))
         elif request.param == "local":
             from fsspec.implementations.local import LocalFileSystem

@@ -15,7 +15,7 @@ jobs:
 
         include:
           - name: ubuntu
-            os: ubuntu-18.04
+            os: ubuntu-latest
 
           - name: windows
             os: windows-latest
@@ -62,5 +62,6 @@ jobs:
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: |
+          $Env:HDF5_DISABLE_VERSION_CHECK = 1
           $Env:TYPHONTESTFILES = Join-Path $pwd "typhon-testfiles"
           pytest --pyargs typhon
