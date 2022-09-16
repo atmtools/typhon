@@ -92,7 +92,7 @@ class TestColors:
         viridis = plt.get_cmap('viridis')
 
         cmap = colors.cmap_from_txt(os.path.join(
-            self.ref_dir, 'viridis.txt'), name="viridis_read")
+            self.ref_dir, 'viridis.txt'), name="viridis_read_txt")
 
         assert np.allclose(viridis(idx), cmap(idx), atol=0.001)
 
@@ -103,7 +103,7 @@ class TestColors:
         viridis = plt.get_cmap('viridis')
 
         cmap = colors.cmap_from_act(
-            os.path.join(self.ref_dir, 'viridis.act'), name="viridis_read")
+            os.path.join(self.ref_dir, 'viridis.act'), name="viridis_read_act")
 
         assert np.allclose(viridis(idx), cmap(idx), atol=0.004)
 
