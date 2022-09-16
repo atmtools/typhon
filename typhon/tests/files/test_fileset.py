@@ -1,11 +1,9 @@
 import os
-from os.path import dirname
 from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
 import numpy as np
 import pytest
-import shutil
 import logging
 
 from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
