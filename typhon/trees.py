@@ -8,7 +8,7 @@ performing query requests on them significantly.
 from collections.abc import Iterable
 
 import pandas as pd
-import numba
+# import numba
 import numpy as np
 
 from sklearn.neighbors import BallTree, KDTree
