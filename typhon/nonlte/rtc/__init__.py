@@ -1,11 +1,14 @@
 
-import numba
+try:
+    import numba
+    _has_numba = True
+except ImportError:
+    _has_numba = False
 
 import numpy as np
 from ..spectra.source_function import Bv_T, PopuSource_AB
 from ..spectra.abscoeff import basic
 
-@numba.jit
 def FOSC(tau, Sb, Sm, Ib):
     """ First Order Short Characteristics 
 
@@ -32,6 +35,10 @@ def FOSC(tau, Sb, Sm, Ib):
     Im = Ib * np.exp(-tau) + lambda_m * Sm + lambda_b * Sb  # (12.114)
     Im[tau == 0] = Ib[tau == 0]
     return Im, lambda_m
+
+
+if _has_numba:
+    FOSC = numba.jit(FOSC)
 
 
 def SOSC(tau1, tau3, S1, S2, S3, I1):
