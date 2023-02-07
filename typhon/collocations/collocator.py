@@ -212,7 +212,7 @@ class Collocator:
         # match, the process pushes its results to the result queue. If errors
         # are raised during collocating, the raised errors are pushed to the
         # error queue,
-        matches_chunks = np.array_split(matches, processes)
+        matches_chunks = np.array_split(np.array(matches, dtype=object), processes)
 
         # This queue collects all results:
         results = Queue(maxsize=processes)
