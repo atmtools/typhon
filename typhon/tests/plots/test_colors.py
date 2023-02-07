@@ -26,6 +26,15 @@ class TestColors:
         """Delete temporary file."""
         os.remove(self.f)
 
+    def test_colors2cmap(self):
+        """Check colors to colormap conversion."""
+        color_list = ["#0000ff", "#ff0000"]
+
+        cmap = colors.colors2cmap(*color_list, name="test_colors2cmap")
+
+        assert mcolors.rgb2hex(cmap(0.0)) == color_list[0]
+        assert mcolors.rgb2hex(cmap(1.0)) == color_list[-1]
+
     def test_cmap2rgba(self):
         """Check colormap to RGB conversion."""
         ref = np.loadtxt(os.path.join(self.ref_dir, 'viridis.txt'),
