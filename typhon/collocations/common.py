@@ -7,8 +7,13 @@ Created by John Mrziglod, June 2017
 """
 
 import logging
+from warnings import warn
 
-import numba
+try:
+    import numba
+    _has_numba = True
+except ImportError:
+    _has_numba = False
 import numpy as np
 from typhon.files import FileSet
 from typhon.utils.timeutils import Timer
@@ -213,19 +218,6 @@ class Collocations(FileSet):
         logger.info(f"{timer} for finding all collocations")
 
 
-@numba.jit
-def _rows_for_secondaries_numba(primary):
-    """Helper function for collapse - numba optimized"""
-    current_row = np.zeros(primary.size, dtype=int)
-    rows = np.zeros(primary.size, dtype=int)
-    i = 0
-    for p in primary:
-        rows[i] = current_row[p]
-        i += 1
-        current_row[p] += 1
-    return rows
-
-
 def _rows_for_secondaries(primary):
     """Helper function for collapse"""
     current_row = np.zeros(primary.size, dtype=int)
@@ -236,6 +228,10 @@ def _rows_for_secondaries(primary):
         i += 1
         current_row[p] += 1
     return rows
+
+
+if _has_numba:
+    _rows_for_secondaries_numba = numba.jit(_rows_for_secondaries)
 
 
 def collapse(data, reference=None, collapser=None):
@@ -329,7 +325,11 @@ def collapse(data, reference=None, collapser=None):
         rows_in_bins = _rows_for_secondaries(primary_indices)
     #    print(f"{time.time()-timer:.2f} seconds for pure-python")
     else:
-        rows_in_bins = _rows_for_secondaries_numba(primary_indices)
+        if _has_numba:
+            rows_in_bins = _rows_for_secondaries_numba(primary_indices)
+        else:
+            warn("Consider installing numba for better performance", UserWarning, stacklevel=2)
+            rows_in_bins = _rows_for_secondaries(primary_indices)
     #    print(f"{time.time()-timer:.2f} seconds for numba")
 
     # The user may give his own collapser functions:
