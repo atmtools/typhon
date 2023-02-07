@@ -328,7 +328,7 @@ def collapse(data, reference=None, collapser=None):
         if _has_numba:
             rows_in_bins = _rows_for_secondaries_numba(primary_indices)
         else:
-            warn("Consider installing numba for better performance", UserWarning, stacklevel=2)
+            warn("Consider installing numba for better performance", UserWarning)
             rows_in_bins = _rows_for_secondaries(primary_indices)
     #    print(f"{time.time()-timer:.2f} seconds for numba")
 
