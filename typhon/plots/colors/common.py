@@ -5,9 +5,8 @@ import re
 from functools import lru_cache
 from warnings import warn
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib import colors
-from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 
 from typhon.utils import deprecated
@@ -57,9 +56,9 @@ def cmap2rgba(cmap=None, N=None, interpolate=True):
 
     nlut = N if interpolate else None
 
-    if interpolate and isinstance(cmap, colors.ListedColormap):
+    if interpolate and isinstance(cmap, mpl.colors.ListedColormap):
         # `ListedColormap` does not support lookup table interpolation.
-        cmap = colors.LinearSegmentedColormap.from_list('', cmap.colors)
+        cmap = mpl.colors.LinearSegmentedColormap.from_list('', cmap.colors)
         return cmap(np.linspace(0, 1, N))
 
     return plt.get_cmap(cmap.name, lut=nlut)(np.linspace(0, 1, N))
@@ -71,7 +70,7 @@ def _to_hex(c):
 
     # Convert rgb to hex.
     if ctype is tuple or ctype is np.ndarray or ctype is list:
-        return colors.rgb2hex(c)
+        return mpl.colors.rgb2hex(c)
 
     if ctype is str:
         # If color is already hex, simply return it.
@@ -80,7 +79,7 @@ def _to_hex(c):
             return c
 
         # Convert named color to hex.
-        return colors.cnames[c]
+        return mpl.colors.cnames[c]
 
     raise Exception("Can't handle color of type: {}".format(ctype))
 
@@ -102,8 +101,8 @@ def colors2cmap(*args, name=None):
         raise Exception("Give at least two colors.")
 
     cmap_data = [_to_hex(c) for c in args]
-    cmap = colors.LinearSegmentedColormap.from_list(name, cmap_data)
-    plt.register_cmap(name, cmap)
+    cmap = mpl.colors.LinearSegmentedColormap.from_list(name, cmap_data)
+    mpl.colormaps.register(cmap=cmap, name=name)
 
     return cmap
 
@@ -289,13 +288,13 @@ def cmap_from_act(file, name=None):
     colors = rgb[:ncolors*3].reshape(ncolors, 3) / 255
 
     # Create and register colormap...
-    cmap = LinearSegmentedColormap.from_list(name, colors, N=ncolors)
-    plt.register_cmap(cmap=cmap)  # Register colormap.
+    cmap = mpl.colors.LinearSegmentedColormap.from_list(name, colors, N=ncolors)
+    mpl.colormaps.register(cmap=cmap)  # Register colormap.
 
     # ... and the reversed colormap.
-    cmap_r = LinearSegmentedColormap.from_list(
+    cmap_r = mpl.colors.LinearSegmentedColormap.from_list(
             name + '_r', np.flipud(colors), N=ncolors)
-    plt.register_cmap(cmap=cmap_r)
+    mpl.colormaps.register(cmap=cmap_r)
 
     return cmap
 
@@ -329,13 +328,13 @@ def cmap_from_txt(file, name=None, N=-1, comments='%'):
         raise Exception('RGB value out of range: [0, 1].')
 
     # Create and register colormap...
-    cmap = LinearSegmentedColormap.from_list(name, rgb, N=N)
-    plt.register_cmap(cmap=cmap)
+    cmap = mpl.colors.LinearSegmentedColormap.from_list(name, rgb, N=N)
+    mpl.colormaps.register(cmap=cmap)
 
     # ... and the reversed colormap.
-    cmap_r = LinearSegmentedColormap.from_list(
+    cmap_r = mpl.colors.LinearSegmentedColormap.from_list(
             name + '_r', np.flipud(rgb), N=N)
-    plt.register_cmap(cmap=cmap_r)
+    mpl.colormaps.register(cmap=cmap_r)
 
     return cmap
 
