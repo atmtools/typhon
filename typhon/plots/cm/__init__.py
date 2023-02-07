@@ -12,8 +12,7 @@ The colormaps are registered in matplotlib after importing typhon:
 
 .. _cmocean: http://matplotlib.org/cmocean/
 """
-from matplotlib.colors import (LinearSegmentedColormap, ListedColormap)
-from matplotlib.cm import register_cmap
+import matplotlib as mpl
 
 from ._cmocean import datad as _cmocean_datad
 from ._cm import datad as _cm_datad
@@ -33,16 +32,16 @@ def _rev_cdict(cdict):
 cmaps = {}
 for (name, data) in datad.items():
     if isinstance(data, dict):
-        cmaps[name] = LinearSegmentedColormap(name, data)
-        cmaps[name + '_r'] = LinearSegmentedColormap(
+        cmaps[name] = mpl.colors.LinearSegmentedColormap(name, data)
+        cmaps[name + '_r'] = mpl.colorsLinearSegmentedColormap(
             name + '_r', _rev_cdict(data))
     elif isinstance(data, list):
-        cmaps[name] = ListedColormap(data, name)
-        cmaps[name + '_r'] = ListedColormap(data[::-1], name + '_r')
+        cmaps[name] = mpl.colors.ListedColormap(data, name)
+        cmaps[name + '_r'] = mpl.colors.ListedColormap(data[::-1], name + '_r')
 
 locals().update(cmaps)
 
 for name, cm in cmaps.items():
-    register_cmap(name, cm)
+    mpl.colormaps.register(cmap=cm, name=name)
 
 __all__ = list(cmaps.keys())
