@@ -1,6 +1,6 @@
 name: typhon
 dependencies:
-        - python>=3.8
+        - python>=3.9
         - cartopy
         - cython
         - fsspec
@@ -25,5 +25,4 @@ dependencies:
         - sphinx_rtd_theme
         - xarray>=0.10.2
 channels:
-        - defaults
         - conda-forge
