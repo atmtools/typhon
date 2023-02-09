@@ -8,7 +8,6 @@ performing query requests on them significantly.
 from collections.abc import Iterable
 
 import pandas as pd
-# import numba
 import numpy as np
 
 from sklearn.neighbors import BallTree, KDTree
@@ -79,7 +78,6 @@ class IntervalTree:
         else:
             return bool(self._query_point(item, self.root, check_extreme=True))
 
-    # @numba.jit
     def _build_tree(self, intervals):
         if not intervals.any():
             return None
@@ -130,7 +128,6 @@ class IntervalTree:
         """
         return interval[0] <= point <= interval[1]
 
-    # @numba.jit
     def query(self, intervals):
         """Find all overlaps between this tree and a list of intervals.
 
@@ -145,7 +142,6 @@ class IntervalTree:
         return [self._query(interval, self.root, check_extreme=True)
                 for interval in intervals]
 
-    # @numba.jit
     def _query(self, query_interval, node, check_extreme=False):
         # Check this special case: the bounds of the query interval lie outside
         # of the bounds of this tree:
@@ -166,7 +162,6 @@ class IntervalTree:
 
         return intervals
 
-    # @numba.jit
     def query_points(self, points):
         """Find all intervals of this tree which contain one of those points.
 
@@ -180,7 +175,6 @@ class IntervalTree:
         return [self._query_point(point, self.root, check_extreme=True)
                 for point in points]
 
-    # @numba.jit
     def _query_point(self, point, node, check_extreme=False):
         # Check this special case: the query point lies outside of the bounds
         # of this tree:
