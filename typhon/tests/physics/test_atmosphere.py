@@ -46,6 +46,16 @@ class TestAtmosphere:
 
         assert np.allclose(iwv, np.repeat(43.8845, 5))
 
+    def test_column_relative_humidity(self):
+        """Test column relative humidity calculation"""
+        t = np.linspace(240, 320, 10)
+        q = np.linspace(0.0025, 0.02, 10) 
+        p = np.linspace(1000e2, 250e2, 10)
+        
+        crh = atmosphere.column_relative_humidity(q, p, t, axis=0)
+
+        assert np.allclose(crh, 0.24819527788224138)
+
     def test_vmr2relative_humidity(self):
         """Test conversion from VMR into relative humidity."""
         rh = atmosphere.vmr2relative_humidity(0.025, 1013e2, 300)
