@@ -106,6 +106,63 @@ def vmr2relative_humidity(vmr, p, T, e_eq=None):
     return vmr * p / e_eq(T)
 
 
+
+def column_relative_humidity(q, p, t, axis=0):
+        r"""Convert specific humidity, pressure and temperature into column relative humidity.
+
+    .. math::
+        \mathrm{CRH} = \frac{IVW}{IVW_{saturated}}
+
+    The integrated water vapour (IVW) is caluculated using ty.physics.integrate_water_vapor(vmr, p).
+    vmr is calulated via ty.physics.specific_humidity2vmr(q).
+    To calculate the saturated intergrated water vapour (IVWS) the saturated mixing (qs) ratio is needed which is calculated
+    using ty.physics.specific_humidity(es,p). Doing that the saturated water vapour pressure (es) needs to be determined
+    via ty.physics.e_eq_mixed_mk(t).
+
+    Parameters:
+        q (float or ndarray): Specific humidity,
+        p (float or ndarray): Pressure [Pa],
+        t (float or ndarray): Temperature [K].
+        
+
+    Returns:
+        float or ndarray: Column relative humidity.
+    """
+        # ivw
+        dim = list(q.shape)
+        # q to vmr
+        vmr = thermodynamics.specific_humidity2vmr(q)
+
+        # vmr to integrated water vapour content
+        ivw = integrate_water_vapor(vmr, p, axis=axis)
+
+        # ivws
+        # t to es
+        es = thermodynamics.e_eq_mixed_mk(t)
+        es.shape = (dim)
+        # es to qs 
+        if len(dim) == 1:
+            l = len(es)
+        else:
+            l = len(es[axis])
+        l = len(es[axis])
+        # qs = specific_humidity(es, ps)
+        qs = np.zeros(dim)
+        es = es.swapaxes(0,axis)
+        qs = qs.swapaxes(0,axis)
+        for i in range(0,l):
+            qs[i] = thermodynamics.water_vapor_pressure2specific_humidity(es[i], p[i])
+        es = es.swapaxes(axis,0)
+        qs = qs.swapaxes(axis,0)
+        # qs to vmrs
+        vmrs = thermodynamics.specific_humidity2vmr(qs)
+
+        # vmrs to integrated saturated water vapour content
+        ivws = integrate_water_vapor(vmrs, p, axis=axis)
+
+        crh = ivw/ivws
+        return crh
+
 def integrate_water_vapor(vmr, p, T=None, z=None, axis=0):
     r"""Calculate the integrated water vapor (IWV).
 
