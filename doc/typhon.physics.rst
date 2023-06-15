@@ -9,6 +9,7 @@ physics
    :toctree: generated
 
    cie_color_matching_kernels
+   column_relative_humidity
    convert_xyz2rgb
    density
    e_eq_ice_mk
@@ -43,6 +44,7 @@ physics
    vmr2mixing_ratio
    vmr2relative_humidity
    vmr2specific_humidity
+   water_vapor_pressure2specific_humidity
    wavelength2frequency
    wavelength2wavenumber
    wavenumber2frequency
