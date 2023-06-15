@@ -146,7 +146,6 @@ def column_relative_humidity(q, p, t, axis=0):
             l = len(es)
         else:
             l = len(es[axis])
-        l = len(es[axis])
         # qs = specific_humidity(es, ps)
         qs = np.zeros(dim)
         es = es.swapaxes(0,axis)
