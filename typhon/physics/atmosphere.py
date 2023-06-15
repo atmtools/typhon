@@ -13,6 +13,7 @@ from typhon.physics import thermodynamics
 __all__ = [
     'relative_humidity2vmr',
     'vmr2relative_humidity',
+    'column_relative_humidity',
     'integrate_water_vapor',
     'moist_lapse_rate',
     'standard_atmosphere',

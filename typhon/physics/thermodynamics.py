@@ -20,6 +20,7 @@ __all__ = [
     'specific_humidity2vmr',
     'vmr2mixing_ratio',
     'vmr2specific_humidity',
+    'water_vapor_pressure2specific_humidity',
 ]
 
 
