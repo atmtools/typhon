@@ -20,6 +20,7 @@ __all__ = [
     'specific_humidity2vmr',
     'vmr2mixing_ratio',
     'vmr2specific_humidity',
+    'water_vapor_pressure2specific_humidity',
 ]
 
 
@@ -334,3 +335,24 @@ def vmr2specific_humidity(x):
     Mw = constants.molar_mass_water
 
     return x / ((1 - x) * Md / Mw + x)
+
+def water_vapor_pressure2specific_humidity(e, p):
+        r"""Convert water vapor pressure into specific humidity.
+
+    .. math::
+        \mathrm{q} = \frac{0.622 \cdot e}{p - 0.378 \cdot e}
+
+    Parameters:
+        e (float or ndarray): Water vapour pressure [Pa],
+        p (float or ndarray): Pressure [Pa].
+        
+
+    Returns:
+        float or ndarray: specific humidity.
+
+
+    Examples:
+        >>> water_vapor_pressure2specific_humidity(2338, 101300)
+        0.01448208036795962
+    """
+        return 0.622*e/(p-0.378*e)

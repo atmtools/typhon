@@ -200,3 +200,8 @@ class TestThermodynamics:
         """Test conversion of VMR to specific humidity."""
         q = physics.vmr2specific_humidity(0.04)
         assert np.isclose(q, 0.025261087474946833)
+
+    def test_water_vapor_pressure2specific_humidity(self):
+        """Test conversion of wvp to specific humidity."""
+        q = physics.water_vapor_pressure2specific_humidity(2338, 101300)
+        assert np.isclose(q, 0.01448208036795962)
