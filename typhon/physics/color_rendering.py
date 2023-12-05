@@ -325,12 +325,15 @@ def convert_xyz2rgb(xyz, xyz2rgb="opencv"):
 
     Parameters:
         xyz (3darray): Image in xyz color system [height,width, xyz]
-        xyz2rgb (str, optional): Selects the transformation matrix. There
-                                 are two possible matrices.
-                                 - "opencv": according to the open cv package    .
-                                 - "hdtv": according to John Walker "Colour Rendering of Spectra "
-                                           for HDTV. Defaults to 'opencv'.
+        xyz2rgb (str, optional):
+            Selects the transformation matrix. There
+            are two possible matrices.
 
+            - "opencv": according to the open cv package.
+            - "hdtv": according to John Walker "Colour
+              Rendering of Spectra" for HDTV.
+
+            Defaults to "opencv".
     Returns:
         rgb (3darray): Image in rgb color system [height,width, rgb].
 

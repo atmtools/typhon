@@ -266,8 +266,10 @@ class QRNN:
         The training is performed on the provided training data and an
         optionally-provided validation set. Training can use the following
         augmentation methods:
-            - Gaussian noise added to input
-            - Adversarial training
+
+        - Gaussian noise added to input
+        - Adversarial training
+
         The learning rate is decreased gradually when the validation or training
         loss did not decrease for a given number of epochs.
 
