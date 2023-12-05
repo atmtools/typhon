@@ -18,7 +18,7 @@ __all__ = [
 
 
 def density(p, T, R=None):
-    """Wrapper around :func:`typhon.physics.thermodynamics.density`.
+    """Wrapper around :func:`typhon.physics.atmosphere.density`.
 
     Parameters:
         p (Quantity): Pressure.
@@ -38,7 +38,7 @@ def density(p, T, R=None):
     T = T.to('kelvin')
     R = R.to('joule / kelvin / kilogram')
 
-    ret = physics.thermodynamics.density(
+    ret = physics.atmosphere.density(
               p.magnitude, T.magnitude, R.magnitude)
 
     return ret * ureg('kilogram / meter**3')
