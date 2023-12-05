@@ -10,7 +10,7 @@ dependency.
 from typhon.physics.units import constants
 from typhon.physics.units.common import *
 from typhon.physics.units.em import *
-from typhon.physics.units.thermodynamics import *
+from typhon.physics.units.atmosphere import *
 
 
 __all__ = [s for s in dir() if not s.startswith('_')]
