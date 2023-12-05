@@ -3,7 +3,7 @@ dependencies:
         - python>=3.9
         - cartopy
         - cython
-        - fsspec
+        - fsspec<2023.12.0
         - gdal
         - h5netcdf
         - keras

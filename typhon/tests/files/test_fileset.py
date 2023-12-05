@@ -47,7 +47,7 @@ class TestFileSet:
         # check if this filesystem returns absolute or relative and adapt
         # refdir accordingly
         try:
-            cont = fs.ls(self.refdir)
+            cont = fs.ls(self.refdir, detail=False)
             # on windows, this appears empty (?!) if we have a zip and refdir
             # contains a drive
             if len(cont) == 0 and self.refdir[1] == ":":
