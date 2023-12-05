@@ -512,7 +512,7 @@ def e_eq_mixed_mk(T):
     e_eq[is_ice] = e_eq_ice[is_ice]
     e_eq[is_water] = e_eq_water[is_water]
 
-    return float(e_eq) if is_float_input else e_eq
+    return e_eq[0] if is_float_input else e_eq
 
 
 def density(p, T, R=constants.gas_constant_dry_air):
