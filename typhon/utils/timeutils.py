@@ -98,7 +98,7 @@ def to_timedelta(obj, numbers_as=None):
             numpy.timedelta64 or a pandas.Timedelta object.
         numbers_as: A string that indicates how numbers should be
             interpreted. Allowed values are *weeks*, *days*, *hours*,
-            *minutes*, *seconds*, *milliseconds* and *microseconds.
+            *minutes*, *seconds*, *milliseconds* and *microseconds*.
 
     Returns:
         A python datetime object.

@@ -2861,6 +2861,7 @@ class FileSet:
             placeholders as columns.
 
         Examples:
+
         .. code-block:: python
 
             # Example directory:
