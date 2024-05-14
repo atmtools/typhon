@@ -79,7 +79,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "docutils",
-        "fsspec!=2023.12.0,!=2023.12.1",
+        "fsspec!=2023.12.0,!=2023.12.1,!=2024.3.1",
         "h5netcdf",
         "imageio",
         "matplotlib>=1.4",

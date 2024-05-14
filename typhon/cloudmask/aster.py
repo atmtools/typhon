@@ -7,7 +7,7 @@ import os
 import warnings
 from collections import namedtuple
 
-import gdal
+from osgeo import gdal
 import numpy as np
 from scipy import interpolate
 from skimage.measure import block_reduce
@@ -682,7 +682,7 @@ class ASTERimage:
         # sides therefore depend on the ascending / decending mode defined in the
         # meta data.
         flyingdir = self.meta["FLYINGDIRECTION"]
-        if flyingdir is "DE":
+        if flyingdir == "DE":
             n *= -1
 
         swath_widths = np.sum(np.isfinite(field), axis=1)
@@ -696,7 +696,7 @@ class ASTERimage:
         if channel != "3B":
             zenith = abs(n_angles)
 
-            if flyingdir is "DE":
+            if flyingdir == "DE":
                 azimuth[n_angles > 0] = 90 + S
                 azimuth[n_angles <= 0] = 270 + S
             else:
@@ -716,7 +716,7 @@ class ASTERimage:
             )
 
             x = np.rad2deg(np.arctan(0.6 / np.tan(np.deg2rad(n_angles))))
-            if flyingdir is "DE":
+            if flyingdir == "DE":
                 azimuth[n_angles > 0] = np.array(90 - x + S)[n_angles > 0]
                 azimuth[n_angles <= 0] = np.array(270 - x + S)[n_angles <= 0]
             else:
