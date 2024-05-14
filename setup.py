@@ -71,11 +71,11 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Atmospheric Science",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
-    python_requires="~=3.9",
+    python_requires="~=3.10",
     include_package_data=True,
     install_requires=[
         "docutils",
