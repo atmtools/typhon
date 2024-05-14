@@ -6,8 +6,8 @@
 # typhon - Tools for atmospheric research
 
 ## Installation
-Typhon requires Python version 3.6 or higher. The recommended way to get Python
-is through [Anaconda]. But of course, any other Python distribution is also
+Typhon requires Python version 3.10 or higher. The recommended way to get Python
+is through [Miniforge3]. But of course, any other Python distribution is also
 working.
 
 ### Stable release
@@ -53,5 +53,5 @@ A recent build of the documentation is accessible
 Kindly note that bleeding edge features might not be covered.
 
 [Sphinx]: http://www.sphinx-doc.org
-[Anaconda]: https://www.continuum.io/downloads
+[Miniforge3]: https://github.com/conda-forge/miniforge#miniforge
 [pytest]: https://docs.pytest.org/
