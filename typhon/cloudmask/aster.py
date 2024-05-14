@@ -7,7 +7,7 @@ import os
 import warnings
 from collections import namedtuple
 
-import gdal
+from osgeo import gdal
 import numpy as np
 from scipy import interpolate
 from skimage.measure import block_reduce
