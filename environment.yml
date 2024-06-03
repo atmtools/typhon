@@ -7,7 +7,7 @@ dependencies:
         - gdal
         - h5netcdf
         - keras
-        - matplotlib>=1.4
+        - matplotlib>=1.4,<3.9
         - netCDF4>=1.1.1
         - nbsphinx
         - numba
