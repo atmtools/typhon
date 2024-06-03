@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FuncFormatter
-from matplotlib.cm import get_cmap
+from matplotlib.pyplot import get_cmap
 import scipy.stats as stats
 
 from typhon.plots import formatter
