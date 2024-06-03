@@ -82,7 +82,7 @@ setup(
         "fsspec!=2023.12.0,!=2023.12.1,!=2024.3.1",
         "h5netcdf",
         "imageio",
-        "matplotlib>=1.4",
+        "matplotlib>=1.4,<3.9",
         "netCDF4>=1.1.1",
         "numexpr",
         "numpy>=1.13",
