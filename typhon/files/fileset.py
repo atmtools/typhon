@@ -2999,6 +2999,35 @@ class FileSet:
         else:
             self.handler.write(data, file_info, **write_args)
 
+    def find_coverage_gaps(self, start_time, end_time):
+        """Find coverage gaps between timestamps.
+
+        Between ``start_time`` and ``end_time``, yield pairs of times for which
+        the fileset does _not_ have data.
+
+        Args:
+            start_time: Start time in any form understood by
+                :class:`~pandas.Timestamp`.
+            end_time: Ending time in the same form.
+
+        Yields:
+            Yields zero or more instances of :class:`~pandas.Interval`
+            corresponding to each time segment in the overall interval that is
+            _not_ covered by data files.
+        """
+
+        last = pd.Timestamp(start_time)
+        for fi in self.find(start_time, end_time, no_files_error=False):
+            if fi.times[0] > last:
+                yield pd.Interval(
+                    pd.Timestamp(last),
+                    pd.Timestamp(fi.times[0]))
+            last = fi.times[1]
+        if last < end_time:
+            yield pd.Interval(
+                    pd.Timestamp(last),
+                    pd.Timestamp(end_time))
+
 
 class FileSetManager(dict):
     def __init__(self, *args, **kwargs):
