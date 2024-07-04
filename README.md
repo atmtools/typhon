@@ -1,7 +1,7 @@
 [![PyPI version](https://badge.fury.io/py/typhon.svg)](https://badge.fury.io/py/typhon)
 [![Conda version](https://anaconda.org/rttools/typhon/badges/version.svg)](https://anaconda.org/rttools/typhon)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1300318.svg)](https://doi.org/10.5281/zenodo.1300318)
-[![Test](https://github.com/atmtools/typhon/workflows/Test/badge.svg?branch=master)](https://github.com/atmtools/typhon/commits/master)
+![Test](https://github.com/atmtools/typhon/actions/workflows/build-test.yml/badge.svg)
 
 # typhon - Tools for atmospheric research
 
