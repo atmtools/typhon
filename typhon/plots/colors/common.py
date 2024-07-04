@@ -281,7 +281,7 @@ def cmap_from_act(file, name=None):
     # Read binary file and determine number of colors
     rgb = np.fromfile(file, dtype=np.uint8)
     if rgb.shape[0] >= 770:
-        ncolors = rgb[768] * 2**8 + rgb[769]
+        ncolors = rgb[768].astype(int) * 2**8 + rgb[769]
     else:
         ncolors = 256
 
