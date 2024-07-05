@@ -1,7 +1,7 @@
 {% set data = load_setup_py_data(setup_file='../../setup.py', from_recipe_dir=True) %}
 {% set name = "typhon" %}
 #{% set version = data['version'] %}
-{% set version = "0.10.0" %}
+{% set version = "0.11.0dev" %}
 {% set dev_url = "https://github.com/atmtools/typhon" %}
 
 package:
@@ -9,11 +9,11 @@ package:
   version:  {{ version }}
 
 source:
-  url: "https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  # url: "https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
   # url: "https://test.pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
   # url: https://github.com/atmtools/typhon/releases/download/{{ version }}/typhon-{{ version }}.tar.gz
-  # git_url: {{ dev_url }}.git
-  # git_depth: 1
+  git_url: {{ dev_url }}.git
+  git_depth: 1
 
 build:
   noarch: python
