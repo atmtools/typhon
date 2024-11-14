@@ -18,6 +18,8 @@ try:
     from keras.models import Sequential, clone_model, Model
     from keras.layers import Dense, Activation, Dropout
     from keras.optimizers import SGD
+    if int(keras.__version__.split('.')[0]) != 2:
+        raise ImportError()
 except ImportError:
     raise ImportError(
         "Could not import the required Keras modules. The QRNN "

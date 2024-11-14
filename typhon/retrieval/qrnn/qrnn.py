@@ -23,12 +23,12 @@ from scipy.interpolate import CubicSpline
 ################################################################################
 
 try:
-    import typhon.retrieval.qrnn.models.keras as keras
-    backend = keras
+    import typhon.retrieval.qrnn.models.pytorch as pytorch
+    backend = pytorch
 except Exception as e:
     try:
-        import typhon.retrieval.qrnn.models.pytorch as pytorch
-        backend = pytorch
+        import typhon.retrieval.qrnn.models.keras as keras
+        backend = keras
     except:
         raise Exception("Couldn't import neither Keras nor Pytorch "
                         "one of them must be available to use the QRNN"
@@ -600,11 +600,14 @@ class QRNN:
 
             The loaded QRNN object.
         """
-        with open(path, 'rb') as f:
+        with open(path + ".pkl", 'rb') as f:
             qrnn = pickle.load(f)
+
+        with open(path + ".model", 'rb') as f:
             backend = importlib.import_module(qrnn.backend)
             model = backend.load_model(f, qrnn.quantiles)
             qrnn.model = model
+
         return qrnn
 
     def save(self, path):
@@ -621,11 +624,12 @@ class QRNN:
                        store the model.
 
         """
-        f = open(path, "wb")
-        pickle.dump(self, f)
-        backend = importlib.import_module(self.backend)
-        backend.save_model(f, self.model)
-        f.close()
+        with open(path + ".pkl", 'wb') as f:
+            pickle.dump(self, f)
+
+        with open(path + ".model", 'wb') as f:
+            backend = importlib.import_module(self.backend)
+            backend.save_model(f, self.model)
 
 
     def __getstate__(self):

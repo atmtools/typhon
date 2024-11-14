@@ -7,11 +7,18 @@ models with the :py:class:`typhon.retrieval.qrnn.QRNN` class.
 """
 import logging
 import numpy as np
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Activation, deserialize
-from keras.optimizers import SGD
-import keras.backend as K
+try:
+    import keras
+    from keras.models import Sequential
+    from keras.layers import Dense, Activation, deserialize
+    from keras.optimizers import SGD
+    import keras.backend as K
+    if int(keras.__version__.split('.')[0]) != 2:
+        raise ImportError()
+except ImportError:
+    raise ImportError(
+        "Could not import the required Keras modules. The QRNN "
+        "implementation was developed for use with Keras version 2.0.9.")
 
 
 def save_model(f, model):
