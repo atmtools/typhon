@@ -87,9 +87,10 @@ class TestQrnn:
         """
         set_backend(backend)
         qrnn = QRNN(self.x_train.shape[1], np.linspace(0.05, 0.95, 10))
-        f = tempfile.NamedTemporaryFile()
-        qrnn.save(f.name)
-        qrnn_loaded = QRNN.load(f.name)
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "qrnn")
+            qrnn.save(f)
+            qrnn_loaded = QRNN.load(f)
 
         x_pred = qrnn.predict(self.x_train)
         x_pred_loaded = qrnn.predict(self.x_train)
