@@ -51,7 +51,7 @@ def load_model(f, quantiles):
     Returns:
         The loaded pytorch model.
     """
-    model = torch.load(f)
+    model = torch.load(f, weights_only=False)
     return model
 
 
@@ -92,8 +92,8 @@ class BatchedDataset(Dataset):
 
     def __init__(self, training_data, batch_size):
         x, y = training_data
-        self.x = torch.tensor(x, dtype=torch.float)
-        self.y = torch.tensor(y, dtype=torch.float)
+        self.x = x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.float)
+        self.y = y if isinstance(y, torch.Tensor) else torch.tensor(y, dtype=torch.float)
         self.batch_size = batch_size
 
     def __len__(self):
