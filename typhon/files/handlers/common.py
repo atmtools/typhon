@@ -703,7 +703,7 @@ class NetCDF4(FileHandler):
                 ancestor_dim = "/".join(
                     ancestor_groups[1:len(ancestor_groups) - i] + [dim])
 
-            ancestor_size = ds.dims.get(ancestor_dim, None)
+            ancestor_size = ds.sizes.get(ancestor_dim, None)
 
             if ancestor_size is not None \
                     and group.dimensions[dim].size == ancestor_size:
