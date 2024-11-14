@@ -23,12 +23,12 @@ from scipy.interpolate import CubicSpline
 ################################################################################
 
 try:
-    import typhon.retrieval.qrnn.models.keras as keras
-    backend = keras
+    import typhon.retrieval.qrnn.models.pytorch as pytorch
+    backend = pytorch
 except Exception as e:
     try:
-        import typhon.retrieval.qrnn.models.pytorch as pytorch
-        backend = pytorch
+        import typhon.retrieval.qrnn.models.keras as keras
+        backend = keras
     except:
         raise Exception("Couldn't import neither Keras nor Pytorch "
                         "one of them must be available to use the QRNN"
