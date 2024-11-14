@@ -38,7 +38,7 @@ class TestUtils:
             {"a": (["x"], np.array([1, 2, 3], dtype="f4")),
              "b": (["x"], np.array([2.0, 3.0, 4.0])),
              "c": (["x"], np.array(["2010-01-01", "2010-01-02",
-                                       "2010-01-03"], dtype="M8"))})
+                                       "2010-01-03"], dtype="M8[ns]"))})
         ds["a"].encoding = {"dtype": np.dtype("i4"),
                             "_FillValue": 1234}
         # c should NOT be converted because it's a time

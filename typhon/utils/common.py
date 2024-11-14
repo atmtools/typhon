@@ -389,7 +389,7 @@ def undo_xarray_floatification(ds, fields=None):
 
     to_correct = {k for (k, v) in ds.data_vars.items()
         if v.encoding.get("dtype", np.dtype("O")).kind[0] in "ui" and
-        not v.dtype.kind in "uiMm"} # don't convert datetime/deltas
+        v.dtype.kind not in "uiMm"} # don't convert datetime/deltas
 
     if fields is not None:
         to_correct &= fields

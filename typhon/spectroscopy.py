@@ -34,7 +34,7 @@ def linewidth(f, a):
         1.571048056449009
     """
     s = interpolate.UnivariateSpline(f, a - np.max(a)/2, s=0)
-    return float(np.diff(s.roots()))
+    return float(np.diff(s.roots())[0])
 
 
 def doppler_broadening(t, f0, m):
