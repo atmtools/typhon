@@ -14,12 +14,12 @@ import tempfile
 #
 
 backends = []
-try:
-    import typhon.retrieval.qrnn.models.keras
-
-    backends += ["keras"]
-except:
-    pass
+# try:
+#     import typhon.retrieval.qrnn.models.keras
+#
+#     backends += ["keras"]
+# except:
+#     pass
 
 try:
     import typhon.retrieval.qrnn.models.pytorch
