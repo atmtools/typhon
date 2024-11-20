@@ -276,7 +276,10 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         # All geolocation fields are packed in the AVHRR GAC files:
         if interpolate_packed_pixels:
-            self._interpolate_packed_pixels(dataset, max_nans_interpolation)
+            try:
+                self._interpolate_packed_pixels(dataset, max_nans_interpolation, file_info)
+            except:
+                return None # try-except added on 24.04.23
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos'}
         else:
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos',
@@ -294,7 +297,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         return dataset
 
     @staticmethod
-    def _interpolate_packed_pixels(dataset, max_nans_interpolation):
+    def _interpolate_packed_pixels(dataset, max_nans_interpolation, file_info):
         given_pos = np.arange(5, 409, 8)
         new_pos = np.arange(1, 410)
 
@@ -310,8 +313,9 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         if valid_pos.sum() < 52 - max_nans_interpolation:
             raise ValueError(
-                "Too many NaNs in latitude and longitude of this AVHRR file. "
-                "Cannot guarantee a good interpolation!"
+                f"Too many NaNs in latitude and longitude of this AVHRR file. "
+                f"Cannot guarantee a good interpolation! "
+                f"File affected: {file_info}"
             )
 
         # Filter NaNs because CubicSpline cannot handle it:

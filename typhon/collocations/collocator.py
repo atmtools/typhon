@@ -192,11 +192,14 @@ class Collocator:
 
         self._info(f"Collocate from {start} to {end}")
 
-        # Find the files from both filesets which overlap tempoerally.
+        # Find the files from both filesets which overlap temporally.
         matches = list(filesets[0].match(
             filesets[1], start=start, end=end, max_interval=max_interval,
+            skip_file_errors=skip_file_errors
         ))
-
+        if len(matches) == 0:
+            return
+        
         if processes is None:
             processes = 1
 
@@ -540,59 +543,73 @@ class Collocator:
             skip_errors=skip_file_errors,
         )
 
+        for iprimary in range(len(matches)):
+            nfound_secondaries=len(matches[iprimary][1])
+            got_matches=[next(loaded_matches) for isecondary in range(nfound_secondaries)]
 
-        for loaded_match in loaded_matches:
-            # The FileInfo objects of the matched files:
-            files = loaded_match[0][0], loaded_match[1][0]
+            # Get FileInfos
+            primary_infos=got_matches[0][0][0]
+            secondaries_infos = [nmatch[1][0] for nmatch in got_matches]
+            files = primary_infos, secondaries_infos
+            # Get datasets
+            primary = got_matches[0][0][1].copy()
+            secondaries = [nmatch[1][1].copy() for nmatch in got_matches]
 
-            # We copy the data from the matches since they might be used for
-            # other matches as well:
-            primary, secondary = \
-                loaded_match[0][1].copy(), loaded_match[1][1].copy()
+            # Combine secondary files
+            secondary = xr.concat(secondaries, dim=secondaries[0].time.dims[0])
 
-            self._debug(f"Collocate {files[0].path}\nwith {files[1].path}")
+            # Update dimension numbering
+            secondary[secondary.time.dims[0]] = np.arange(len(secondary.time))
 
+            self._debug(f"Collocate {files[0].path}\nwith {[file.path for file in files[1]]}")
+            
             collocations = self.collocate(
-                (filesets[0].name, primary),
-                (filesets[1].name, secondary), **kwargs,
-            )
+                    (filesets[0].name, primary),
+                    (filesets[1].name, secondary), **kwargs,
+                )
 
             if collocations is None:
                 self._debug("Found no collocations!")
                 # At least, give the process caller a progress update:
-                yield None, None
-                continue
+                yield None, None 
 
-            # Check whether the collocation data is compatible and was build
-            # correctly
-            check_collocation_data(collocations)
+            else: # after yield the code continues at the next line
 
-            found = [
-                collocations[f"{filesets[0].name}/time"].size,
-                collocations[f"{filesets[1].name}/time"].size
-            ]
+                # Check whether the collocation data is compatible and was build
+                # correctly
+                check_collocation_data(collocations)
 
-            self._debug(
-                f"Found {found[0]} ({filesets[0].name}) and "
-                f"{found[1]} ({filesets[1].name}) collocations"
-            )
+                found = [
+                    collocations[f"{filesets[0].name}/time"].size,
+                    collocations[f"{filesets[1].name}/time"].size
+                ]
 
-            # Add the names of the processed files:
-            for f in range(2):
-                if f"{filesets[f].name}/__file" in collocations.variables:
-                    continue
+                self._debug(
+                    f"Found {found[0]} ({filesets[0].name}) and "
+                    f"{found[1]} ({filesets[1].name}) collocations"
+                )
 
-                collocations[f"{filesets[f].name}/__file"] = files[f].path
+                # Add the names of the processed files:
+                for f in range(2):
+                    if f"{filesets[f].name}/__file" in collocations.variables:
+                        continue
+                    if f == 0:
+                        collocations[f"{filesets[f].name}/__file"] = files[f].path
+                    else: 
+                        collocations[f"{filesets[f].name}/__file"] = \
+                            '::'.join([file.path for file in files[1]])
 
-            # Collect the attributes of the input files. The attributes get a
-            # prefix, primary or secondary, to allow not-unique names.
-            attributes = {
-                f"primary.{p}" if f == 0 else f"secondary.{p}": v
-                for f, file in enumerate(files)
-                for p, v in file.attr.items()
-            }
+                # Collect the attributes of the input files. The attributes get a
+                # prefix, primary or secondary, to allow not-unique names.
+                # As representative for the combined secondary files, the file attributes
+                # from the first secondary file are taken.
+                attributes = {
+                    f"primary.{p}" if f == 0 else f"secondary.{p}": v
+                    for f, file in enumerate([files[0], files[1][0]])
+                    for p, v in file.attr.items()
+                }
 
-            yield collocations, attributes
+                yield collocations, attributes
 
 
     def collocate(
@@ -735,6 +752,12 @@ class Collocator:
 
 
         """
+        # the datasets must be sorted first by time in case an input file is unsorted
+        if isinstance(primary, tuple):
+            primary = (primary[0], primary[1].sortby("time"))
+        if isinstance(primary, tuple):
+            secondary = (secondary[0], secondary[1].sortby("time"))
+        
         if max_distance is None and max_interval is None:
             raise ValueError(
                 "Either max_distance or max_interval must be given!"
@@ -910,7 +933,7 @@ class Collocator:
             if not primary_period.size or not secondary_period.size:
                 return None, None
 
-            # We need everything sorted by the time, otherwise xarray's stack
+            # We need everything sorted by the time, otherwise xarray's stack (typo?: sel)
             # method makes problems:
             primary_period = primary_period.sortby(primary_period)
             primary_dim = primary_period.dims[0]
@@ -951,15 +974,18 @@ class Collocator:
         # very annoying bug in time retrieving
         # (https://github.com/pydata/xarray/issues/1240), this is a
         # little bit cumbersome:
+
+        # Approach which can handle NaT values:
+        # added after concatenate was introduced
         common_start = max(
             start,
-            pd.Timestamp(primary.time.values.min().item(0)).tz_localize(None) - max_interval,
-            pd.Timestamp(secondary.time.values.min().item(0)).tz_localize(None) - max_interval
+            pd.to_datetime(primary.time.values).min().tz_localize(None) - max_interval,
+            pd.to_datetime(secondary.time.values).min().tz_localize(None) - max_interval
         )
         common_end = min(
             end,
-            pd.Timestamp(primary.time.values.max().item(0)).tz_localize(None) + max_interval,
-            pd.Timestamp(secondary.time.values.max().item(0)).tz_localize(None) + max_interval
+            pd.to_datetime(primary.time.values).max().tz_localize(None) + max_interval,
+            pd.to_datetime(secondary.time.values).max().tz_localize(None) + max_interval
         )
 
         primary_period = primary.time.where(
@@ -1151,7 +1177,7 @@ class Collocator:
             }
         )
         metadata["interval"] = xr.DataArray(
-            intervals, dims=("collocation", ),
+            intervals.astype('timedelta64[ns]'), dims=("collocation", ),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",

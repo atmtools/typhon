@@ -706,6 +706,7 @@ class NetCDF4(FileHandler):
         # parameter `group`. To avoid this, we load all groups and their
         # variables by using the netCDF4 directly and load them later into a
         # xarray dataset.
+        # May 2022: xr.open_dataset still not support loading all groups at once
 
         with netCDF4.Dataset(file_info.path, "r") as root:
             # xarray decode_cf scales, don't do it twice!
@@ -716,6 +717,16 @@ class NetCDF4(FileHandler):
             dataset = xr.decode_cf(dataset, **kwargs)
 
         return _xarray_rename_fields(dataset, mapping)
+
+
+    def read_from_list(self, file_info, fields=None, mapping=None, common_dimension=None, **kwargs): #added
+        if common_dimension is None:
+            raise ValueError("If file_info is given as a list, you have to provide common_dimension as additional parameter.")
+
+        dataset=[]
+        for entry in file_info:
+            dataset.append(self.read(entry, fields, mapping, **kwargs))
+        return xr.concat(dataset,dim=common_dimension)
 
     @staticmethod
     def _get_dimension_name(ds, group, path, dim, group_dims):

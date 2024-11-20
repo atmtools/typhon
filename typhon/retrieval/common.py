@@ -157,6 +157,7 @@ class RetrievalProduct:
                 attr: copy.deepcopy(getattr(model, attr))
                 for attr in model.__dir__()
                 if not attr.startswith("__") and attr.endswith("_")
+                if not attr.startswith("_repr_")
             }
         }
 

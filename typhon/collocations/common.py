@@ -118,6 +118,8 @@ class Collocations(FileSet):
             return data
         elif self.read_mode == "collapse" or self.read_mode is None:
             # Collapse the data (default)
+            if self.read_mode is None:
+                print('default read_mode is collapse')
             return collapse(data, self.reference, self.collapser)
         elif self.read_mode == "expand":
             # Expand the data
@@ -220,8 +222,8 @@ class Collocations(FileSet):
 
 def _rows_for_secondaries(primary):
     """Helper function for collapse"""
-    current_row = np.zeros(primary.size, dtype=int)
-    rows = np.zeros(primary.size, dtype=int)
+    current_row = np.zeros(primary.size, dtype=np.int64)
+    rows = np.zeros(primary.size, dtype=np.int64)
     i = 0
     for p in primary:
         rows[i] = current_row[p]
@@ -336,8 +338,9 @@ def collapse(data, reference=None, collapser=None):
     if collapser is None:
         collapser = {}
     collapser = {
-        "mean": lambda m, a: np.nanmean(m, axis=a),
-        "std": lambda m, a: np.nanstd(m, axis=a),
+        "mean": lambda m, a: np.nanmean(m, axis=a),  # if slice consists solely of
+        "std": lambda m, a: np.nanstd(m, axis=a),    # nans, prints RuntimeWarning,
+                                                     # but returns nan as desired
         "number": lambda m, a: np.count_nonzero(~np.isnan(m), axis=a),
         **collapser,
     }
