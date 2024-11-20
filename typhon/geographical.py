@@ -324,7 +324,11 @@ def gridded_mean(lat, lon, data, grid):
     grid_sum, _, _ = np.histogram2d(lat, lon, grid, weights=data)
     grid_number, _, _ = np.histogram2d(lat, lon, grid)
 
-    return grid_sum / grid_number, grid_number
+    grid_number_nozeros = np.where(grid_number == 0, -9999, grid_number)
+    gridded_mean = np.where(
+        grid_number_nozeros == -9999, 0, grid_sum / grid_number_nozeros
+    )
+    return gridded_mean, grid_number
 
 
 def sea_mask(lat, lon, mask):
@@ -387,5 +391,3 @@ def sea_mask(lat, lon, mask):
     lon_cell = lon / mask_lon_step
 
     return mask[lat_cell.astype(int), lon_cell.astype(int)]
-
-
