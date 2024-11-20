@@ -302,7 +302,7 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["tutorial"].find(
-                "2017-12-31", "2018-01-01", no_files_error=False
+                "2017-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
@@ -535,7 +535,7 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["single"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
@@ -581,14 +581,14 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["sequence-placeholder"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02",
+                "2018-01-01", "2018-01-01 23:59",
             ))
 
         check = [
@@ -607,7 +607,7 @@ class TestFileSet:
         # Should find two files and should return them in two bins:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02", bundle="6h",
+                "2018-01-01", "2018-01-01 23:59", bundle="6h",
             ))
 
         check = [
@@ -641,7 +641,7 @@ class TestFileSet:
                 ))
         assert ("Find files for sequence-placeholder "
                 "between 2018-01-01 00:00:00 and "
-                "2018-01-01 23:59:59") in caplog.text
+                "2018-01-02 00:00:00") in caplog.text
         assert f"via file system" in caplog.text
 
 
@@ -660,14 +660,14 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["sequence-placeholder"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02",
+                "2018-01-01", "2018-01-01 23:59",
             ))
 
         check = [
@@ -686,7 +686,7 @@ class TestFileSet:
         # Should find two files and should return them in two bins:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02", bundle="6h",
+                "2018-01-01", "2018-01-01 23:59", bundle="6h",
             ))
 
         check = [
