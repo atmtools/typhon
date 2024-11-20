@@ -87,7 +87,7 @@ class TestCollocations:
         collocator = Collocator()
 
         test = xr.Dataset({
-            "time": ("time", np.arange("2000", "2010", dtype="M8[Y]")),
+            "time": ("time", np.arange("2000", "2010", dtype="M8[Y]").astype('datetime64[ns]')),
             "lat": ("time", np.arange(10)),
             "lon": ("time", np.arange(10)),
         })
