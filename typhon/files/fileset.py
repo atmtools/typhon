@@ -16,6 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
 import posixpath
 import re
+import secrets
 import shutil
 from sys import platform
 import traceback
@@ -1644,7 +1645,7 @@ class FileSet:
             with typhon.files.decompress(
                 info.path,
                 tmpdir=self.temp_dir,
-                target=Path(info.path).name + next(tempfile._get_candidate_names()),
+                target=Path(info.path).name + secrets.token_hex(8),
             ) as decompressed_path:
                 decompressed_file = info.copy()
                 decompressed_file.path = decompressed_path
@@ -2717,8 +2718,8 @@ class FileSet:
         read_args = {**self.read_args, **read_args}
 
         if self.decompress:
-            with typhon.files.decompress(file_info.path, tmpdir=self.temp_dir, target=Path(file_info.path).name+next(tempfile._get_candidate_names()))\
-                    as decompressed_path: # modified 14.02.2023
+            with typhon.files.decompress(file_info.path, tmpdir=self.temp_dir, target=Path(file_info.path).name + secrets.token_hex(8))\
+                    as decompressed_path:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
                 data = self.handler.read(decompressed_file, **read_args)
