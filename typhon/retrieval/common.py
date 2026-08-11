@@ -5,7 +5,6 @@ from importlib import import_module
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from typhon.utils import to_array
 
 __all__ = [
     'RetrievalProduct',
@@ -139,9 +138,9 @@ class RetrievalProduct:
             dictionary["module"], dictionary["class"]
         )
         tree = instance(
-            to_array(coefs["n_features_in_"]),
-            to_array(coefs["n_classes_"]),
-            to_array(coefs["n_outputs_"])
+            coefs["n_features_in_"],
+            np.atleast_1d(np.asarray(coefs["n_classes_"], dtype=np.intp)),
+            coefs["n_outputs_"],
         )
         tree.__setstate__(dictionary["coefs"])
         return tree
