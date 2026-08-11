@@ -139,7 +139,7 @@ class RetrievalProduct:
             dictionary["module"], dictionary["class"]
         )
         tree = instance(
-            to_array(coefs["n_features_"]),
+            to_array(coefs["n_features_in_"]),
             to_array(coefs["n_classes_"]),
             to_array(coefs["n_outputs_"])
         )
