@@ -2028,7 +2028,6 @@ class FileSet:
             try:
                 # file_info could be a bundle of files
                 if isinstance(file_info, FileInfo):
-                    print(file_info)
                     file_content = fileset.read(file_info, **read_args)
                 else:
                     file_content = \

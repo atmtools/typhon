@@ -965,7 +965,6 @@ class SPAREICE:
 
         # ice-cloud feature importannce'
         fig, ax = plt.subplots(figsize=(12, 10))
-        print(self.ice_cloud.estimator.feature_importances_)
         ax.barh(
             np.arange(len(self.ice_cloud.inputs)),
             self.ice_cloud.estimator.feature_importances_

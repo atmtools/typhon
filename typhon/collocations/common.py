@@ -118,8 +118,6 @@ class Collocations(FileSet):
             return data
         elif self.read_mode == "collapse" or self.read_mode is None:
             # Collapse the data (default)
-            if self.read_mode is None:
-                print('default read_mode is collapse')
             return collapse(data, self.reference, self.collapser)
         elif self.read_mode == "expand":
             # Expand the data
