@@ -142,7 +142,20 @@ class RetrievalProduct:
             np.atleast_1d(np.asarray(coefs["n_classes_"], dtype=np.intp)),
             coefs["n_outputs_"],
         )
-        tree.__setstate__(dictionary["coefs"])
+
+        state = dictionary["coefs"]
+        nodes = state.get("nodes")
+        if nodes is not None and "missing_go_to_left" not in nodes.dtype.names:
+            new_dtype = np.dtype(
+                [*nodes.dtype.descr, ("missing_go_to_left", "u1")],
+                align=True,
+            )
+            new_nodes = np.zeros(nodes.shape, dtype=new_dtype)
+            for name in nodes.dtype.names:
+                new_nodes[name] = nodes[name]
+            state["nodes"] = new_nodes
+
+        tree.__setstate__(state)
         return tree
 
     @staticmethod
