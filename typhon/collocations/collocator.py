@@ -748,14 +748,12 @@ class Collocator:
                     max_distance="300km", max_interval="1h"
                 )
 
-                print(collocated)
-
 
         """
         # the datasets must be sorted first by time in case an input file is unsorted
         if isinstance(primary, tuple):
             primary = (primary[0], primary[1].sortby("time"))
-        if isinstance(primary, tuple):
+        if isinstance(secondary, tuple):
             secondary = (secondary[0], secondary[1].sortby("time"))
         
         if max_distance is None and max_interval is None:
