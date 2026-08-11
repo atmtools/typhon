@@ -119,7 +119,7 @@ def _xarray_rename_fields(dataset, mapping):
     if mapping is not None:
         # Maybe some variables should be renamed that are not in the
         # dataset any longer?
-        names = set(dataset.dims.keys()) | set(dataset.variables.keys())
+        names = set(dataset.sizes.keys()) | set(dataset.variables.keys())
 
         mapping = {
             old_name: new_name

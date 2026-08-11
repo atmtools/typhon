@@ -102,7 +102,7 @@ class AAPP_HDF(NetCDF4):
         # Maximal these dimensions (or less) should be in the dataset:
         if wanted is None:
             wanted = {'channel', 'scnline', 'scnpos'}
-        reality = set(dataset.dims.keys())
+        reality = set(dataset.sizes.keys())
 
         if reality - wanted:
             raise ValueError(
