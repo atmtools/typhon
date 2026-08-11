@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import logging
 import numpy as np
 import numexpr as ne
 from netCDF4 import Dataset
@@ -14,6 +15,8 @@ __all__ = [
     'AVHRR_GAC_HDF',
     'MHS_HDF',
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class AAPP_HDF(NetCDF4):
@@ -278,8 +281,9 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         if interpolate_packed_pixels:
             try:
                 self._interpolate_packed_pixels(dataset, max_nans_interpolation, file_info)
-            except:
-                return None # try-except added on 24.04.23
+            except ValueError as e:
+                logger.warning(f"Skipping interpolation for {file_info}: {e}")
+                return None
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos'}
         else:
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos',
