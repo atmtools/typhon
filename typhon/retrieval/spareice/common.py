@@ -454,8 +454,8 @@ class SPAREICE:
                 grid_lat_step = 180 / (grid.shape[0] - 1)
                 grid_lon_step = 360 / (grid.shape[1] - 1)
 
-                lat_cell = (90 - lat) / grid_lat_step
-                lon_cell = lon / grid_lon_step
+                lat_cell = (lat + 90) / grid_lat_step
+                lon_cell = (lon + 180) / grid_lon_step
 
                 return grid[lat_cell.astype(int), lon_cell.astype(int)]
 
