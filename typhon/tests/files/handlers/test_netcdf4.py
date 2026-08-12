@@ -116,6 +116,31 @@ class TestNetCDF4:
             after = fh.read(tfile)
             assert np.allclose(before["a"], after["a"])
 
+    def test_int_coordinate_dtype(self):
+        """Unmasked integer data must keep its dtype after a roundtrip
+
+        netCDF4 returns unmasked variables as MaskedArrays. When these are
+        passed to xarray they get promoted to float (NaN fill). This used to
+        turn e.g. int64 coordinates of collocation files into float64.
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"var": ("scnline", np.arange(5, dtype=np.int64))},
+                    coords={
+                        "scnline": ("scnline", np.arange(1, 6, dtype=np.int64)),
+                        "scnpos": ("scnpos", np.arange(1, 91, dtype=np.int64)),
+                        "channel": ("channel", np.arange(1, 6, dtype=np.int64)),
+                    })
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+
+            for name in ["scnline", "scnpos", "channel", "var"]:
+                assert after[name].dtype == np.int64
+            assert after.equals(before)
+
 
 class TestFSNetCDF:
     """Test filesystem-NetCDF file handler."""

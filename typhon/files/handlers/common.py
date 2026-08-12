@@ -786,10 +786,17 @@ class NetCDF4(FileHandler):
             for var_name, var in group.variables.items():
                 if fields is None or path + var_name in fields:
                     dims = [dim_map[dim] for dim in var.dimensions]
-                    if len(dims) == 0 and var[:] is np.ma.masked:
+                    values = var[:]
+                    if len(dims) == 0 and values is np.ma.masked:
                         ds[path + var_name] = dims, np.nan, dict(var.__dict__)
                     else:
-                        ds[path + var_name] = dims, var[:], dict(var.__dict__)
+                        # A fully unmasked array is returned as a MaskedArray
+                        # by netCDF4. Passing it directly to xarray promotes
+                        # int types to float (NaN fill), so unwrap it to keep
+                        # the original dtype (e.g. int64 coordinates).
+                        if np.ma.isMaskedArray(values) and not values.mask.any():
+                            values = np.asarray(values)
+                        ds[path + var_name] = dims, values, dict(var.__dict__)
         except RuntimeError:
             raise KeyError(f"Could not load the variable {path + var_name}!")
 
