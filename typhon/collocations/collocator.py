@@ -1131,11 +1131,18 @@ class Collocator:
                     )
                     for dim in output[name].get_index("collocation").names
                 ])
+                # We have to get rid of the MultiIndex, because we cannot
+                # store it to a file otherwise. To avoid corrupting the index,
+                # we drop the coordinates it was built from together, before
+                # we can assign a plain integer coordinate below.
+                output[name] = output[name].drop_vars([
+                    *output[name].get_index("collocation").names,
+                    "collocation",
+                ])
 
             # Okay, actually we want to get rid of the main coordinate. It
             # should stay as a dimension name but without own labels. I.e. we
-            # want to drop it. Because it still may a MultiIndex, we cannot
-            # drop it directly but we have to set it to something different.
+            # want to drop it.
             output[name]["collocation"] = \
                 np.arange(output[name]["collocation"].size)
 
