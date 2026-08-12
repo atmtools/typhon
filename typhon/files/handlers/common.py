@@ -850,7 +850,17 @@ class NetCDF4(FileHandler):
         # the last file:
         user_mode = kwargs.pop("mode", "w")
         already_opened = False
-        for group, variables in group_vars.items():
+        # Write subgroups before their parent groups. Otherwise, the parent
+        # group declares the dimensions first and the subgroups only inherit
+        # them. Older readers that only look at locally-defined dimensions
+        # (group.dimensions) then fail to map variables in the subgroups.
+        for group, variables in sorted(
+            group_vars.items(),
+            key=lambda item: (
+                -(item[0].count("/") if item[0] else 0),
+                item[0] or "",
+            ),
+        ):
             ds = data[variables]
 
             # We do not want to store global coordinates in each subgroup.

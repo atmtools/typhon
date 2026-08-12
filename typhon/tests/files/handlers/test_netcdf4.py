@@ -116,6 +116,45 @@ class TestNetCDF4:
             after = fh.read(tfile)
             assert np.allclose(before["a"], after["a"])
 
+    def test_subgroup_dimensions_declared_locally(self):
+        """Subgroups must declare their dimensions locally
+
+        When a parent group and its subgroups share dimensions, the subgroups
+        have to be written before the parent group. Otherwise, the parent
+        declares the dimensions first and the subgroups only inherit them.
+        Older readers that only look at locally-defined dimensions
+        (group.dimensions) then fail to map variables in the subgroups.
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset({
+                "MHS/channel": ("MHS/channel", np.arange(5, dtype=np.int64)),
+                "MHS/collocation":
+                    ("MHS/collocation", np.arange(10, dtype=np.int64)),
+                "MHS/lat": ("MHS/collocation", np.arange(10)),
+                "MHS/Data/btemps":
+                    (("MHS/channel", "MHS/collocation"),
+                     np.arange(50).reshape(5, 10)),
+                "MHS/Geolocation/Satellite_azimuth_angle":
+                    ("MHS/collocation", np.arange(10)),
+            })
+            fh.write(before, tfile)
+
+            import netCDF4
+            with netCDF4.Dataset(tfile, "r") as root:
+                mhs = root.groups["MHS"]
+                # The dimensions must be declared in the subgroups, not only
+                # inherited from the parent group:
+                assert "channel" in mhs.groups["Data"].dimensions
+                assert "collocation" in mhs.groups["Data"].dimensions
+                assert "collocation" in \
+                    mhs.groups["Geolocation"].dimensions
+
+            after = fh.read(tfile)
+            assert after.equals(before)
+
     def test_int_coordinate_dtype(self):
         """Unmasked integer data must keep its dtype after a roundtrip
 
