@@ -427,8 +427,8 @@ class SPAREICE:
                 return_data["iwp"] = np.log10(
                     data["MHS_2C-ICE/2C-ICE/ice_water_path_mean"]
                 )
-                return_data["iwp"].replace(
-                    [-np.inf, np.inf], np.nan, inplace=True
+                return_data["iwp"] = return_data["iwp"].replace(
+                    [-np.inf, np.inf], np.nan
                 )
         if "ice_cloud" in fields \
                 and "MHS_2C-ICE/2C-ICE/ice_water_path_mean" in data:
