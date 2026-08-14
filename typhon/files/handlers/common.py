@@ -875,19 +875,22 @@ class NetCDF4(FileHandler):
             # Remove the group name from all variables (incl. dimensions):
             mapping = {
                 full: NetCDF4._split_path(full)[1]
-                for full in ds.data_vars
+                for full in ds.data_vars if full != NetCDF4._split_path(full)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename(mapping)
             mapping = {
                 full: NetCDF4._split_path(full)[1]
-                for full in ds.coords
+                for full in ds.coords if full != NetCDF4._split_path(full)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename(mapping)
             mapping = {
                 dim: NetCDF4._split_path(dim)[1]
-                for dim in ds.dims
+                for dim in ds.dims if dim != NetCDF4._split_path(dim)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename_dims(mapping)
 
             ds.to_netcdf(
                 filename.path, group=group,
