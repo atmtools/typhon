@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import logging
 
-from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
+from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager, MHS_HDF
 from typhon.files.utils import get_testfiles_directory
 
 
@@ -833,3 +833,78 @@ class TestFileSet:
         assert f2 != f4
         assert f3 != f4
         assert f1 != "fake/path"
+
+    def test_symlinked_directories(self, tmp_path):
+        """Files must be findable and readable through symlinked directories.
+
+        fsspec's LocalFileSystem reports symlinks to directories as type
+        "other" rather than "directory", so glob patterns with a trailing
+        slash (i.e. "directories only") used to skip them completely. This
+        affected any placeholder directory level of the path that was a
+        symlink.
+        """
+        base = tmp_path / "base"
+        real = tmp_path / "real"
+        year_dir = real / "noaa18_mhs_2008" / "01" / "01"
+        year_dir.mkdir(parents=True)
+        base.mkdir()
+
+        # Access the year-level directory through a symlink:
+        os.symlink(str(real / "noaa18_mhs_2008"),
+                   str(base / "noaa18_mhs_2008"))
+
+        # Create a minimal MHS-like AAPP file so that reading works:
+        import netCDF4
+        tfile = year_dir / "NSS.MHSX.NN.D08001.S0000.E0155.B1347475.SV.h5"
+        with netCDF4.Dataset(str(tfile), "w") as ds:
+            data = ds.createGroup("Data")
+            data.createDimension("phony_dim_0", 3)
+            data.createDimension("phony_dim_1", 90)
+            data.createDimension("phony_dim_2", 5)
+            scnlin = data.createVariable(
+                "scnlin", "i4", ("phony_dim_0",))
+            scnlin[:] = [1, 2, 3]
+            scnlinyr = data.createVariable(
+                "scnlinyr", "i2", ("phony_dim_0",))
+            scnlinyr[:] = [2008, 2008, 2008]
+            scnlindy = data.createVariable(
+                "scnlindy", "i2", ("phony_dim_0",))
+            scnlindy[:] = [1, 1, 1]
+            scnlintime = data.createVariable(
+                "scnlintime", "i4", ("phony_dim_0",))
+            scnlintime[:] = [0, 60000, 120000]
+            btemps = data.createVariable(
+                "btemps", "i2",
+                ("phony_dim_0", "phony_dim_1", "phony_dim_2"))
+            btemps[:] = np.random.randint(0, 30000, (3, 90, 5))
+
+            geolocation = ds.createGroup("Geolocation")
+            geolocation.createDimension("phony_dim_3", 3)
+            geolocation.createDimension("phony_dim_4", 90)
+            lat = geolocation.createVariable(
+                "Latitude", "f4", ("phony_dim_3", "phony_dim_4"))
+            lat[:] = np.random.rand(3, 90) * 10 - 5
+            lon = geolocation.createVariable(
+                "Longitude", "f4", ("phony_dim_3", "phony_dim_4"))
+            lon[:] = np.random.rand(3, 90) * 10 - 5
+
+            ds.startdatayr = np.int16(2008)
+            ds.startdatady = np.int16(1)
+            ds.startdatatime_ms = np.int32(62900)
+            ds.enddatayr = np.int16(2008)
+            ds.enddatady = np.int16(1)
+            ds.enddatatime_ms = np.int32(6924233)
+
+        fileset = FileSet(
+            path=join(
+                str(base), "{satname}_mhs_{year}", "{month}", "{day}",
+                "*NSS.MHSX.*.h5"),
+            handler=MHS_HDF(),
+        )
+
+        found = list(fileset.find("2008", "2008"))
+        assert len(found) == 1
+        assert str(found[0].path).startswith(str(base))
+
+        data = fileset.read(found[0])
+        assert data["Data/btemps"].size == 3 * 90 * 5

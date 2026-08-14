@@ -1296,10 +1296,17 @@ class FileSet:
 
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
-        for new_dir in self.file_system.glob(posixpath.join(base_dir + "*", "")):
+        # NB: We do not add a trailing slash to the glob pattern. Otherwise,
+        # fsspec would only match entries that are reported as type
+        # "directory". Symlinks to directories are reported as type "other"
+        # and would never be found. Instead, we filter with isdir(), which
+        # also follows symlinks.
+        for new_dir in self.file_system.glob(base_dir + "*"):
+            if not self.file_system.isdir(new_dir):
+                continue
             # some/all (?) file_system implementations do not end directories
             # in a /, glob.glob does
-            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")) and self.file_system.isdir(new_dir):
+            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")):
                 new_dir += "/"  # always / with AbstractFileSystem, not os.sep
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
