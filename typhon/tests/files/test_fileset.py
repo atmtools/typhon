@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
@@ -904,7 +905,8 @@ class TestFileSet:
 
         found = list(fileset.find("2008", "2008"))
         assert len(found) == 1
-        assert str(found[0].path).startswith(str(base))
+        # FileSet paths always use forward slashes, even on Windows:
+        assert Path(found[0].path).is_relative_to(base)
 
         data = fileset.read(found[0])
         assert data["Data/btemps"].size == 3 * 90 * 5
