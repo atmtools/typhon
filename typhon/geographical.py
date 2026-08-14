@@ -319,16 +319,20 @@ def gridded_mean(lat, lon, data, grid):
             longitude grid points.
 
     Returns:
-        Two matrices in grid form: the mean and the number of points of `data`.
+        Three matrices in grid form: the mean, the mean of the squared and the number of points of `data`.
     """
     grid_sum, _, _ = np.histogram2d(lat, lon, grid, weights=data)
+    grid_sum_sqr, _, _ = np.histogram2d(lat, lon, grid, weights=data**2)
     grid_number, _, _ = np.histogram2d(lat, lon, grid)
 
     grid_number_nozeros = np.where(grid_number == 0, -9999, grid_number)
     gridded_mean = np.where(
         grid_number_nozeros == -9999, 0, grid_sum / grid_number_nozeros
     )
-    return gridded_mean, grid_number
+    gridded_mean_sqr = np.where(
+        grid_number_nozeros == -9999, 0, grid_sum_sqr / grid_number_nozeros
+    )
+    return gridded_mean, gridded_mean_sqr, grid_number
 
 
 def sea_mask(lat, lon, mask):
