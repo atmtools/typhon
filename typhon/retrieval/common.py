@@ -1,6 +1,7 @@
 from ast import literal_eval
 import copy
 from importlib import import_module
+import inspect
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,17 @@ from sklearn.pipeline import Pipeline
 __all__ = [
     'RetrievalProduct',
 ]
+
+# Scikit-learn <1.0 used un-prefixed module names (e.g. sklearn.tree.tree).
+# Models saved with such versions must be remapped to the current module
+# names when they are deserialized:
+_SKLEARN_MODULE_MAP = {
+    'sklearn.preprocessing.data':
+        'sklearn.preprocessing._data',
+    'sklearn.neural_network.multilayer_perceptron':
+        'sklearn.neural_network._multilayer_perceptron',
+    'sklearn.tree.tree': 'sklearn.tree._classes',
+}
 
 
 class NotTrainedError(Exception):
@@ -54,6 +66,7 @@ class RetrievalProduct:
     @staticmethod
     def _import_class(module_name, class_name):
         """Import a class dynamically to the namespace"""
+        module_name = _SKLEARN_MODULE_MAP.get(module_name, module_name)
         mod = import_module(module_name)
         klass = getattr(mod, class_name)
         return klass
@@ -93,16 +106,24 @@ class RetrievalProduct:
     @staticmethod
     def _decode_numpy(obj):
         def _from_dict(item):
+            dtype = item["__dtype__"]
+            if isinstance(dtype, str) and dtype.startswith("{"):
+                # A structured dtype in its dictionary representation, as
+                # produced by str(dtype) of an aligned dtype (numpy >= 2):
+                dtype = literal_eval(dtype)
             try:
                 return np.array(
                     item["__ndarray__"],
-                    dtype=item["__dtype__"],
+                    dtype=dtype,
                 )
             except TypeError:
-                return np.array(
-                    item["__ndarray__"],
-                    dtype=literal_eval(item["__dtype__"]),
-                )
+                if isinstance(dtype, str):
+                    dtype = literal_eval(dtype)
+                    return np.array(
+                        item["__ndarray__"],
+                        dtype=dtype,
+                    )
+                raise
 
         def _is_numpy(item):
             return isinstance(item, dict) and "__ndarray__" in item
@@ -137,8 +158,14 @@ class RetrievalProduct:
         instance = RetrievalProduct._import_class(
             dictionary["module"], dictionary["class"]
         )
+        # Newer sklearn versions store the feature count as n_features_in_
+        # which may be None for unfitted attributes. Old versions use
+        # n_features_ instead.
+        n_features = coefs.get("n_features_in_")
+        if n_features is None:
+            n_features = coefs["n_features_"]
         tree = instance(
-            coefs["n_features_in_"],
+            n_features,
             np.atleast_1d(np.asarray(coefs["n_classes_"], dtype=np.intp)),
             coefs["n_outputs_"],
         )
@@ -189,7 +216,13 @@ class RetrievalProduct:
         instance = RetrievalProduct._import_class(
             dictionary["module"], dictionary["class"]
         )
-        model = instance(**dictionary["params"])
+        params = dictionary["params"]
+        parameters = inspect.signature(instance.__init__).parameters
+        params = {
+            key: value for key, value in params.items()
+            if key in parameters
+        }
+        model = instance(**params)
         for attr, value in dictionary["coefs"].items():
             if attr == "tree_":
                 # We must treat a tree specially:
