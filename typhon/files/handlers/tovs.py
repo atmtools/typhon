@@ -165,6 +165,11 @@ class MHS_HDF(AAPP_HDF):
             mask_and_scale=mask_and_scale, **kwargs
         )
 
+        # Skip broken files
+        if "scnline" not in dataset.dims:
+            logger.warning(f"Skipping broken file: {file_info}")
+            return None
+
         scnlines = dataset["scnline"].values
         dataset = dataset.assign_coords(
              scnline=dataset["scnline"]
