@@ -198,6 +198,37 @@ class TestNetCDF4:
             with pytest.raises(OSError):
                 fh.read(tfile)
 
+    def test_parallel_read(self):
+        """Concurrent reads must not crash the interpreter.
+
+        FileSet.align reads files from multiple threads. netCDF4-python is
+        often built against a non-thread-safe HDF5 library, and concurrent
+        netCDF4.Dataset calls can then segfault the process. The NetCDF4
+        handler serializes access with a lock so parallel reads stay safe.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            files = []
+            for i in range(3):
+                tfile = os.path.join(tdir, f"testfile{i}.nc")
+                before = xr.Dataset({"a": ("time", [0.0, 1.0])},
+                                    coords={"time": [0, 1]})
+                fh.write(before, tfile)
+                files.append(tfile)
+
+            def read(path):
+                return fh.read(path)
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for _ in range(5):
+                    results = list(pool.map(read, files * 2))
+
+            for i, result in enumerate(results):
+                assert result["a"].size == 2
+
 
 class TestFSNetCDF:
     """Test filesystem-NetCDF file handler."""

@@ -1,5 +1,6 @@
 from collections import defaultdict, OrderedDict
 from copy import copy
+import threading
 from datetime import datetime
 from functools import wraps
 import glob
@@ -120,6 +121,13 @@ def expects_file_info(method, pos=None, key=None):
 # open a file with an unknown format, so we validate the signature before
 # passing the file to netCDF4.
 _NETCDF_MAGIC = (b"CDF\x01", b"CDF\x02", b"CDF\x05", b"\x89HDF\r\n\x1a\n")
+
+
+# netCDF4-python is often built against a non-thread-safe HDF5 library.
+# FileSet.align reads files from a pool of threads, and concurrent
+# netCDF4.Dataset calls can then segfault the interpreter. This lock
+# serializes all netCDF4 access.
+_netcdf4_lock = threading.Lock()
 
 
 def _is_netcdf_file(path):
@@ -732,8 +740,11 @@ class NetCDF4(FileHandler):
         # variables by using the netCDF4 directly and load them later into a
         # xarray dataset.
         # May 2022: xr.open_dataset still not support loading all groups at once
-
-        with netCDF4.Dataset(file_info.path, "r") as root:
+        #
+        # netCDF4 is often not built with a thread-safe HDF5 library, so
+        # opening files concurrently from multiple threads (as done by
+        # FileSet.align) can crash the interpreter. Serialize all access:
+        with _netcdf4_lock, netCDF4.Dataset(file_info.path, "r") as root:
             # xarray decode_cf scales, don't do it twice!
             root.set_auto_scale(False)
             dataset = xr.Dataset()
