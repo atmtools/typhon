@@ -547,6 +547,18 @@ class Collocator:
             nfound_secondaries=len(matches[iprimary][1])
             got_matches=[next(loaded_matches) for isecondary in range(nfound_secondaries)]
 
+            # A file could not be read (e.g. due to a transient file system
+            # error) and skip_file_errors is True. In this case, align yields
+            # None for the affected (primary, secondary) pairs. Skip the whole
+            # match to avoid crashing on the missing data.
+            if any(nmatch is None for nmatch in got_matches):
+                self._error(
+                    f"Skipping match for {matches[iprimary][0].path} because "
+                    f"one or more files could not be read."
+                )
+                yield None, None
+                continue
+
             # Get FileInfos
             primary_infos=got_matches[0][0][0]
             secondaries_infos = [nmatch[1][0] for nmatch in got_matches]

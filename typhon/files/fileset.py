@@ -762,10 +762,23 @@ class FileSet:
                     gc.collect()
 
                 # Check whether something went wrong:
-                if primary_data is None or secondary_data is None \
-                        and skip_errors:
+                if skip_errors and (primary_data is None or secondary_data is None):
                     # There was an exception during reading the primary or
-                    # secondary file, therefore we skip this match:
+                    # secondary file, therefore we skip this match. We still
+                    # yield a placeholder so that the number of yielded items
+                    # stays in sync with the number of (primary, secondary)
+                    # pairs that the caller expects.
+                    if primary_data is None:
+                        logger.warning(
+                            f"Skipping match because the primary file could "
+                            f"not be read: {primaries[match_id].path}"
+                        )
+                    if secondary_data is None:
+                        logger.warning(
+                            f"Skipping match because the secondary file could "
+                            f"not be read: {secondary_file.path}"
+                        )
+                    yield None
                     continue
 
                 if return_info:
@@ -2123,6 +2136,9 @@ class FileSet:
             max_interval = to_timedelta(max_interval, numbers_as="seconds")
             start_extended=start-max_interval
             end_extended=end+max_interval
+        else:
+            start_extended=start
+            end_extended=end
 
         files1 = list(
             self.find(start, end, filters=filters, no_files_error=not(skip_file_errors)) #skip_file_errors added 22.02.2023
