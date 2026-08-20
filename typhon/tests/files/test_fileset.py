@@ -6,8 +6,9 @@ import datetime
 import numpy as np
 import pytest
 import logging
+import xarray as xr
 
-from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager, MHS_HDF
+from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager, MHS_HDF, NetCDF4
 from typhon.files.utils import get_testfiles_directory
 
 
@@ -794,6 +795,93 @@ class TestFileSet:
 
         assert a_reference == a_retrieved
         assert b_reference == b_retrieved
+
+    @staticmethod
+    def _write_test_nc_fileset(dirpath, name, nfiles):
+        """Create a fileset of nfiles small NetCDF files (one per hour)."""
+        fileset = FileSet(
+            join(
+                str(dirpath), name + ".{year}{month}{day}{hour}{minute}{second}.nc"
+            ),
+            name=name,
+            handler=NetCDF4(),
+        )
+        for hour in range(nfiles):
+            ds = xr.Dataset(
+                {
+                    "lat": ("time", [0.0, 1.0]),
+                    "lon": ("time", [0.0, 1.0]),
+                },
+                coords={
+                    "time": np.array(
+                        [f"2020-01-01T{hour:02d}:00:00",
+                         f"2020-01-01T{hour:02d}:30:00"],
+                        dtype="datetime64[ns]",
+                    )
+                },
+            )
+            fileset.write(
+                ds,
+                join(
+                    str(dirpath),
+                    f"{name}.20200101{hour:02d}0000.nc",
+                ),
+            )
+        return fileset
+
+    def test_align_skips_corrupt_files(self, tmp_path, caplog):
+        """align with skip_errors yields None for corrupt files only.
+
+        A file that cannot be read must be skipped without desynchronising
+        the generator, i.e. the other matches must still be yielded with the
+        correct files. Regression test for the 'AlignError' caused by a
+        corrupt secondary file on a flaky filesystem.
+        """
+        prim = self._write_test_nc_fileset(tmp_path, "primary", 3)
+        sec = self._write_test_nc_fileset(tmp_path, "secondary", 3)
+
+        # Corrupt the secondary file for the second hour:
+        corrupt = Path(tmp_path) / "secondary.20200101010000.nc"
+        corrupt.write_text("this is not a netcdf file")
+
+        # The read failure is reported as a RuntimeWarning (via
+        # error_to_warning); capture it so it does not clutter the output:
+        with caplog.at_level("WARNING"), pytest.warns(RuntimeWarning):
+            results = list(
+                prim.align(
+                    sec,
+                    start="2020-01-01 00:00:00",
+                    end="2020-01-01 03:00:00",
+                    skip_errors=True,
+                )
+            )
+
+        # 3 matches: the corrupt one yields None, the other two are valid:
+        assert len(results) == 3
+        assert results[1] is None
+        assert results[0] is not None and results[2] is not None
+        # The failed file is reported in the log:
+        assert "secondary.20200101010000.nc" in caplog.text
+
+    def test_align_without_max_interval(self, tmp_path):
+        """align must not raise UnboundLocalError without max_interval.
+
+        Regression test for the missing start_extended/end_extended
+        initialization in match() when max_interval is None.
+        """
+        prim = self._write_test_nc_fileset(tmp_path, "primary", 2)
+        sec = self._write_test_nc_fileset(tmp_path, "secondary", 2)
+
+        results = list(
+            prim.align(
+                sec,
+                start="2020-01-01 00:00:00",
+                end="2020-01-01 02:00:00",
+                skip_errors=False,
+            )
+        )
+        assert len(results) == 2
+        assert all(r is not None for r in results)
 
     def _repr_file_info(self, file_info):
 
