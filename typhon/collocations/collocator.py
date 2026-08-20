@@ -169,6 +169,13 @@ class Collocator:
         .. code-block:: python
 
         """
+        # Files that could not be read and were therefore skipped (only
+        # populated if skip_file_errors is True). They are collected from the
+        # worker processes via a queue and are available here after the
+        # generator has been fully consumed.
+        self.skipped_files = []
+        skipped_files_queue = Queue()
+
         timer = Timer().start()
 
         if len(filesets) != 2:
@@ -234,6 +241,7 @@ class Collocator:
             "skip_file_errors": skip_file_errors,
             "post_processor": post_processor,
             "post_processor_kwargs": post_processor_kwargs,
+            "skipped_files_queue": skipped_files_queue,
         })
 
         # This list contains all running processes
@@ -305,6 +313,18 @@ class Collocator:
         for process in process_list:
             process.join()
 
+        # Collect all files that were skipped due to read errors (if any).
+        # The worker processes put them into the queue when skip_file_errors
+        # is True. Note that multiprocessing.Queue.empty() is unreliable, so
+        # we keep polling until no more items arrive.
+        while True:
+            try:
+                self.skipped_files.append(
+                    skipped_files_queue.get(timeout=1)
+                )
+            except Exception:
+                break
+
         if not errors.empty():
             self._error("Some processes terminated due to errors:")
 
@@ -364,8 +384,15 @@ class Collocator:
         Error Queue:
             If an error is raised, the name of this proces and the error
             messages is put to this queue.
+
+        Skipped Files Queue:
+            If skip_file_errors is True and a file could not be read, its path
+            is put to this queue so that the caller can detect that data was
+            silently skipped.
         """
         self.name = name
+
+        skipped_files_queue = kwargs.get("skipped_files_queue")
 
         # We keep track of how many file pairs we have already processed to
         # make the error debugging easier. We need the match in flat form:
@@ -526,9 +553,15 @@ class Collocator:
         return False
 
     def _collocate_matches(
-        self, filesets, matches, skip_file_errors, **kwargs
+        self, filesets, matches, skip_file_errors, skipped_files_queue=None,
+        **kwargs
     ):
         """Load file matches and collocate their content
+
+        Args:
+            skipped_files_queue: If given, paths of files that could not be
+                read and were therefore skipped (only when skip_file_errors
+                is True) are put to this queue.
 
         Yields:
             A tuple of two items: the first is always the current percentage
@@ -550,12 +583,17 @@ class Collocator:
             # A file could not be read (e.g. due to a transient file system
             # error) and skip_file_errors is True. In this case, align yields
             # None for the affected (primary, secondary) pairs. Skip the whole
-            # match to avoid crashing on the missing data.
+            # match to avoid crashing on the missing data and record the
+            # files of this match so the caller can detect the data loss.
             if any(nmatch is None for nmatch in got_matches):
                 self._error(
                     f"Skipping match for {matches[iprimary][0].path} because "
                     f"one or more files could not be read."
                 )
+                if skipped_files_queue is not None:
+                    skipped_files_queue.put(matches[iprimary][0].path)
+                    for secondary in matches[iprimary][1]:
+                        skipped_files_queue.put(secondary.path)
                 yield None, None
                 continue
 

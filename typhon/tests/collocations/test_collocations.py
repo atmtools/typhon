@@ -1,11 +1,12 @@
 from os.path import dirname, join
 import sys
+import warnings
 from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
 from typhon.collocations import collapse, Collocator, Collocations, expand
-from typhon.files import FileSet, MHS_HDF
+from typhon.files import FileSet, MHS_HDF, NetCDF4
 from typhon.files.utils import get_testfiles_directory
 import xarray as xr
 
@@ -161,10 +162,14 @@ class TestCollocations:
         collocator.collocate = fake_collocate
         collocator._debug = lambda msg: None
 
+        from multiprocessing import Queue
+        skipped_files_queue = Queue()
+
         results = list(collocator._collocate_matches(
             filesets=[FakePrimary(), FakeSecondary()],
             matches=matches,
             skip_file_errors=True,
+            skipped_files_queue=skipped_files_queue,
             max_interval="30 min",
             max_distance="7.5 km",
         ))
@@ -174,5 +179,86 @@ class TestCollocations:
         assert results[1][0] is None
         assert results[0][0] is not None
         assert results[2][0] is not None
+
+        # The files of the skipped match are reported on the queue:
+        skipped = []
+        while True:
+            try:
+                skipped.append(skipped_files_queue.get(timeout=1))
+            except Exception:
+                break
+        assert "/tmp/p1.nc" in skipped
+        assert "/tmp/s1.nc" in skipped
+
+    def test_collocate_filesets_reports_skipped_files(self, tmp_path):
+        """collocate_filesets reports skipped files via skipped_files.
+
+        When skip_file_errors is True and a file cannot be read, the file
+        paths must be collected in collocator.skipped_files so that the
+        caller can detect the data loss and, e.g., retry.
+        """
+        def make_ds():
+            # 'time' is a variable on dimension 'scnline' (as for MHS/AVHRR),
+            # so the dimension and coordinate names do not clash.
+            return xr.Dataset({
+                "time": ("scnline", np.array(
+                    ["2020-01-01T00:00:00", "2020-01-01T00:30:00"],
+                    dtype="datetime64[ns]")),
+                "lat": ("scnline", [0.0, 1.0]),
+                "lon": ("scnline", [0.0, 1.0]),
+                "val": ("scnline", [1.0, 2.0]),
+            })
+
+        prim_dir = str(tmp_path / "primary")
+        sec_dir = str(tmp_path / "secondary")
+        import os
+        os.makedirs(prim_dir)
+        os.makedirs(sec_dir)
+
+        prim = FileSet(
+            name="primary",
+            path=prim_dir + "/p.{year}{month}{day}{hour}{minute}{second}.nc",
+            handler=NetCDF4(),
+        )
+        sec = FileSet(
+            name="secondary",
+            path=sec_dir + "/s.{year}{month}{day}{hour}{minute}{second}.nc",
+            handler=NetCDF4(),
+        )
+
+        for hour in range(3):
+            prim.write(
+                make_ds(),
+                os.path.join(prim_dir, f"p.20200101{hour:02d}0000.nc"),
+            )
+            sec.write(
+                make_ds(),
+                os.path.join(sec_dir, f"s.20200101{hour:02d}0000.nc"),
+            )
+
+        # Corrupt the secondary file for the second hour:
+        with open(os.path.join(sec_dir, "s.20200101010000.nc"), "w") as f:
+            f.write("this is not a netcdf file")
+
+        collocator = Collocator()
+        with warnings.catch_warnings():
+            # The read failure warning is emitted in a worker process, so it
+            # cannot be captured with pytest.warns:
+            warnings.simplefilter("ignore", RuntimeWarning)
+            list(collocator.collocate_filesets(
+                [prim, sec],
+                start="2020-01-01 00:00:00",
+                end="2020-01-01 03:00:00",
+                processes=2,
+                max_interval="30 min",
+                max_distance="7.5 km",
+                skip_file_errors=True,
+            ))
+
+        # Both files of the skipped match are reported:
+        skipped = collocator.skipped_files
+        assert len(skipped) >= 2
+        assert any("p.20200101010000.nc" in p for p in skipped), skipped
+        assert any("s.20200101010000.nc" in p for p in skipped), skipped
 
 
