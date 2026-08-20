@@ -180,6 +180,24 @@ class TestNetCDF4:
                 assert after[name].dtype == np.int64
             assert after.equals(before)
 
+    def test_read_non_netcdf_file_raises(self):
+        """Reading a non-NetCDF file must raise instead of segfaulting.
+
+        Some netCDF4-python builds (e.g. the pip wheel on Ubuntu) segfault
+        instead of raising an exception when asked to open a file with an
+        unknown format. This test guards the magic-byte validation that keeps
+        such errors catchable (e.g. by align's skip_file_errors).
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "corrupt.nc")
+            with open(tfile, "w") as file:
+                file.write("this is not a netcdf file")
+
+            with pytest.raises(OSError):
+                fh.read(tfile)
+
 
 class TestFSNetCDF:
     """Test filesystem-NetCDF file handler."""

@@ -115,6 +115,22 @@ def expects_file_info(method, pos=None, key=None):
     return wrapper
 
 
+# Magic bytes of all valid NetCDF file formats. netCDF4-python's C library
+# may crash (segfault) instead of raising an exception when it is asked to
+# open a file with an unknown format, so we validate the signature before
+# passing the file to netCDF4.
+_NETCDF_MAGIC = (b"CDF\x01", b"CDF\x02", b"CDF\x05", b"\x89HDF\r\n\x1a\n")
+
+
+def _is_netcdf_file(path):
+    """Return True if the file starts with a NetCDF magic signature."""
+    try:
+        with open(path, "rb") as file:
+            return file.read(8) in _NETCDF_MAGIC
+    except OSError:
+        return False
+
+
 def _xarray_rename_fields(dataset, mapping):
     if mapping is not None:
         # Maybe some variables should be renamed that are not in the
@@ -701,6 +717,15 @@ class NetCDF4(FileHandler):
 
         """
         self._ensure_local_filesystem(file_info)
+        # Opening a non-NetCDF file via netCDF4.Dataset can segfault the
+        # interpreter (e.g. the pip-built netCDF4 library on Ubuntu) instead
+        # of raising a catchable exception. Reject files without a valid
+        # NetCDF magic signature beforehand so that errors remain catchable
+        # (e.g. by `skip_file_errors` during alignment).
+        if not _is_netcdf_file(file_info.path):
+            raise OSError(
+                f"NetCDF: Unknown file format: '{file_info.path}'"
+            )
         # xr.open_dataset does still not support loading all groups from a
         # file except a very cumbersome (and expensive) way by using the
         # parameter `group`. To avoid this, we load all groups and their
