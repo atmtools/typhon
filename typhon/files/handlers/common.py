@@ -1,5 +1,6 @@
 from collections import defaultdict, OrderedDict
 from copy import copy
+import threading
 from datetime import datetime
 from functools import wraps
 import glob
@@ -115,11 +116,34 @@ def expects_file_info(method, pos=None, key=None):
     return wrapper
 
 
+# Magic bytes of all valid NetCDF file formats. netCDF4-python's C library
+# may crash (segfault) instead of raising an exception when it is asked to
+# open a file with an unknown format, so we validate the signature before
+# passing the file to netCDF4.
+_NETCDF_MAGIC = (b"CDF\x01", b"CDF\x02", b"CDF\x05", b"\x89HDF\r\n\x1a\n")
+
+
+# netCDF4-python is often built against a non-thread-safe HDF5 library.
+# FileSet.align reads files from a pool of threads, and concurrent
+# netCDF4.Dataset calls can then segfault the interpreter. This lock
+# serializes all netCDF4 access.
+_netcdf4_lock = threading.Lock()
+
+
+def _is_netcdf_file(path):
+    """Return True if the file starts with a NetCDF magic signature."""
+    try:
+        with open(path, "rb") as file:
+            return file.read(8) in _NETCDF_MAGIC
+    except OSError:
+        return False
+
+
 def _xarray_rename_fields(dataset, mapping):
     if mapping is not None:
         # Maybe some variables should be renamed that are not in the
         # dataset any longer?
-        names = set(dataset.dims.keys()) | set(dataset.variables.keys())
+        names = set(dataset.sizes.keys()) | set(dataset.variables.keys())
 
         mapping = {
             old_name: new_name
@@ -701,13 +725,26 @@ class NetCDF4(FileHandler):
 
         """
         self._ensure_local_filesystem(file_info)
+        # Opening a non-NetCDF file via netCDF4.Dataset can segfault the
+        # interpreter (e.g. the pip-built netCDF4 library on Ubuntu) instead
+        # of raising a catchable exception. Reject files without a valid
+        # NetCDF magic signature beforehand so that errors remain catchable
+        # (e.g. by `skip_file_errors` during alignment).
+        if not _is_netcdf_file(file_info.path):
+            raise OSError(
+                f"NetCDF: Unknown file format: '{file_info.path}'"
+            )
         # xr.open_dataset does still not support loading all groups from a
         # file except a very cumbersome (and expensive) way by using the
         # parameter `group`. To avoid this, we load all groups and their
         # variables by using the netCDF4 directly and load them later into a
         # xarray dataset.
-
-        with netCDF4.Dataset(file_info.path, "r") as root:
+        # May 2022: xr.open_dataset still not support loading all groups at once
+        #
+        # netCDF4 is often not built with a thread-safe HDF5 library, so
+        # opening files concurrently from multiple threads (as done by
+        # FileSet.align) can crash the interpreter. Serialize all access:
+        with _netcdf4_lock, netCDF4.Dataset(file_info.path, "r") as root:
             # xarray decode_cf scales, don't do it twice!
             root.set_auto_scale(False)
             dataset = xr.Dataset()
@@ -716,6 +753,16 @@ class NetCDF4(FileHandler):
             dataset = xr.decode_cf(dataset, **kwargs)
 
         return _xarray_rename_fields(dataset, mapping)
+
+
+    def read_from_list(self, file_info, fields=None, mapping=None, common_dimension=None, **kwargs): #added
+        if common_dimension is None:
+            raise ValueError("If file_info is given as a list, you have to provide common_dimension as additional parameter.")
+
+        dataset=[]
+        for entry in file_info:
+            dataset.append(self.read(entry, fields, mapping, **kwargs))
+        return xr.concat(dataset,dim=common_dimension)
 
     @staticmethod
     def _get_dimension_name(ds, group, path, dim, group_dims):
@@ -775,10 +822,17 @@ class NetCDF4(FileHandler):
             for var_name, var in group.variables.items():
                 if fields is None or path + var_name in fields:
                     dims = [dim_map[dim] for dim in var.dimensions]
-                    if len(dims) == 0 and var[:] is np.ma.masked:
+                    values = var[:]
+                    if len(dims) == 0 and values is np.ma.masked:
                         ds[path + var_name] = dims, np.nan, dict(var.__dict__)
                     else:
-                        ds[path + var_name] = dims, var[:], dict(var.__dict__)
+                        # A fully unmasked array is returned as a MaskedArray
+                        # by netCDF4. Passing it directly to xarray promotes
+                        # int types to float (NaN fill), so unwrap it to keep
+                        # the original dtype (e.g. int64 coordinates).
+                        if np.ma.isMaskedArray(values) and not values.mask.any():
+                            values = np.asarray(values)
+                        ds[path + var_name] = dims, values, dict(var.__dict__)
         except RuntimeError:
             raise KeyError(f"Could not load the variable {path + var_name}!")
 
@@ -832,7 +886,17 @@ class NetCDF4(FileHandler):
         # the last file:
         user_mode = kwargs.pop("mode", "w")
         already_opened = False
-        for group, variables in group_vars.items():
+        # Write subgroups before their parent groups. Otherwise, the parent
+        # group declares the dimensions first and the subgroups only inherit
+        # them. Older readers that only look at locally-defined dimensions
+        # (group.dimensions) then fail to map variables in the subgroups.
+        for group, variables in sorted(
+            group_vars.items(),
+            key=lambda item: (
+                -(item[0].count("/") if item[0] else 0),
+                item[0] or "",
+            ),
+        ):
             ds = data[variables]
 
             # We do not want to store global coordinates in each subgroup.
@@ -847,19 +911,22 @@ class NetCDF4(FileHandler):
             # Remove the group name from all variables (incl. dimensions):
             mapping = {
                 full: NetCDF4._split_path(full)[1]
-                for full in ds.data_vars
+                for full in ds.data_vars if full != NetCDF4._split_path(full)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename(mapping)
             mapping = {
                 full: NetCDF4._split_path(full)[1]
-                for full in ds.coords
+                for full in ds.coords if full != NetCDF4._split_path(full)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename(mapping)
             mapping = {
                 dim: NetCDF4._split_path(dim)[1]
-                for dim in ds.dims
+                for dim in ds.dims if dim != NetCDF4._split_path(dim)[1]
             }
-            ds = ds.rename(mapping)
+            if mapping:
+                ds = ds.rename_dims(mapping)
 
             ds.to_netcdf(
                 filename.path, group=group,

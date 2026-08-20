@@ -1,10 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import warnings
+import re
 
 import numpy as np
 import xarray as xr
 
 from .common import HDF4, expects_file_info
+from pathlib import Path
 
 pyhdf_is_installed = False
 try:
@@ -45,6 +47,7 @@ class CloudSat(HDF4):
         super().__init__(**kwargs)
 
     @expects_file_info()
+    # new version - works for R04 and R05 data
     def get_info(self, file_info, **kwargs):
         """Return a :class:`FileInfo` object with parameters about the
         file content.
@@ -58,11 +61,18 @@ class CloudSat(HDF4):
             A FileInfo object.
         """
 
-        file = SD(file_info.path, SDC.READ)
-        file_info.times[0] = \
-            datetime.strptime(getattr(file, 'start_time'), "%Y%m%d%H%M%S")
-        file_info.times[1] = \
-            datetime.strptime(getattr(file, 'end_time'), "%Y%m%d%H%M%S")
+        fname = Path(file_info.path).name
+        regex = re.compile(r"(?P<year>\d{4})(?P<doy>\d{3})")
+        m = regex.search(fname)
+        year = int(m["year"])
+        doy = int(m["doy"])
+
+        ftimes = super().read(file_info, ["UTC_start", "Profile_time"])
+        utc_start = ftimes["UTC_start"].item(0)
+        duration = ftimes["Profile_time"].item(-1)
+
+        file_info.times[0] = datetime(year, 1, 1) + timedelta(doy - 1, utc_start)
+        file_info.times[1] = file_info.times[0] + timedelta(seconds=duration)
 
         return file_info
 
@@ -71,7 +81,7 @@ class CloudSat(HDF4):
         """Read and parse HDF4 files and load them to a xarray.Dataset
 
         A description about all variables in CloudSat dataset can be found in
-        http://www.cloudsat.cira.colostate.edu/data-products/level-2c/2c-ice?term=53.
+        https://www.cloudsat.cira.colostate.edu/data-products/2c-ice (new link: 16.02.2023)
 
         Args:
             file_info: Path and name of the file as string or FileInfo object.
@@ -97,6 +107,9 @@ class CloudSat(HDF4):
         )
 
         dataset["time"] = self._get_time_field(dataset, file_info)
+        # scnline is only returned as a dimension. Set it to a coordinate (added 16.02.2023)
+        # scnline numbering usually starts with 1
+        dataset=dataset.assign_coords({'scnline':dataset['scnline']+1})
 
         # Remove fields that we do not need any longer (expect the user asked
         # for them explicitly)
@@ -123,10 +136,10 @@ class CloudSat(HDF4):
         profile_times = profile_times.astype("int")
 
         try:
-            date = file_info.times[0].date()
+            date = file_info.times[0].date() # das haette funktionieren muessen..
         except AttributeError:
             # We have to load the info by ourselves:
-            date = self.get_info(file_info).times[0].date()
+            date = self.get_info(file_info).times[0].date() 
 
         # Put all times together so we obtain one full timestamp
         # (date + time) for each data point. We are using the

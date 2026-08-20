@@ -169,6 +169,13 @@ class Collocator:
         .. code-block:: python
 
         """
+        # Files that could not be read and were therefore skipped (only
+        # populated if skip_file_errors is True). They are collected from the
+        # worker processes via a queue and are available here after the
+        # generator has been fully consumed.
+        self.skipped_files = []
+        skipped_files_queue = Queue()
+
         timer = Timer().start()
 
         if len(filesets) != 2:
@@ -192,11 +199,14 @@ class Collocator:
 
         self._info(f"Collocate from {start} to {end}")
 
-        # Find the files from both filesets which overlap tempoerally.
+        # Find the files from both filesets which overlap temporally.
         matches = list(filesets[0].match(
             filesets[1], start=start, end=end, max_interval=max_interval,
+            skip_file_errors=skip_file_errors
         ))
-
+        if len(matches) == 0:
+            return
+        
         if processes is None:
             processes = 1
 
@@ -231,6 +241,7 @@ class Collocator:
             "skip_file_errors": skip_file_errors,
             "post_processor": post_processor,
             "post_processor_kwargs": post_processor_kwargs,
+            "skipped_files_queue": skipped_files_queue,
         })
 
         # This list contains all running processes
@@ -302,6 +313,18 @@ class Collocator:
         for process in process_list:
             process.join()
 
+        # Collect all files that were skipped due to read errors (if any).
+        # The worker processes put them into the queue when skip_file_errors
+        # is True. Note that multiprocessing.Queue.empty() is unreliable, so
+        # we keep polling until no more items arrive.
+        while True:
+            try:
+                self.skipped_files.append(
+                    skipped_files_queue.get(timeout=1)
+                )
+            except Exception:
+                break
+
         if not errors.empty():
             self._error("Some processes terminated due to errors:")
 
@@ -361,8 +384,15 @@ class Collocator:
         Error Queue:
             If an error is raised, the name of this proces and the error
             messages is put to this queue.
+
+        Skipped Files Queue:
+            If skip_file_errors is True and a file could not be read, its path
+            is put to this queue so that the caller can detect that data was
+            silently skipped.
         """
         self.name = name
+
+        skipped_files_queue = kwargs.get("skipped_files_queue")
 
         # We keep track of how many file pairs we have already processed to
         # make the error debugging easier. We need the match in flat form:
@@ -523,9 +553,15 @@ class Collocator:
         return False
 
     def _collocate_matches(
-        self, filesets, matches, skip_file_errors, **kwargs
+        self, filesets, matches, skip_file_errors, skipped_files_queue=None,
+        **kwargs
     ):
         """Load file matches and collocate their content
+
+        Args:
+            skipped_files_queue: If given, paths of files that could not be
+                read and were therefore skipped (only when skip_file_errors
+                is True) are put to this queue.
 
         Yields:
             A tuple of two items: the first is always the current percentage
@@ -540,59 +576,90 @@ class Collocator:
             skip_errors=skip_file_errors,
         )
 
+        for iprimary in range(len(matches)):
+            nfound_secondaries=len(matches[iprimary][1])
+            got_matches=[next(loaded_matches) for isecondary in range(nfound_secondaries)]
 
-        for loaded_match in loaded_matches:
-            # The FileInfo objects of the matched files:
-            files = loaded_match[0][0], loaded_match[1][0]
+            # A file could not be read (e.g. due to a transient file system
+            # error) and skip_file_errors is True. In this case, align yields
+            # None for the affected (primary, secondary) pairs. Skip the whole
+            # match to avoid crashing on the missing data and record the
+            # files of this match so the caller can detect the data loss.
+            if any(nmatch is None for nmatch in got_matches):
+                self._error(
+                    f"Skipping match for {matches[iprimary][0].path} because "
+                    f"one or more files could not be read."
+                )
+                if skipped_files_queue is not None:
+                    skipped_files_queue.put(matches[iprimary][0].path)
+                    for secondary in matches[iprimary][1]:
+                        skipped_files_queue.put(secondary.path)
+                yield None, None
+                continue
 
-            # We copy the data from the matches since they might be used for
-            # other matches as well:
-            primary, secondary = \
-                loaded_match[0][1].copy(), loaded_match[1][1].copy()
+            # Get FileInfos
+            primary_infos=got_matches[0][0][0]
+            secondaries_infos = [nmatch[1][0] for nmatch in got_matches]
+            files = primary_infos, secondaries_infos
+            # Get datasets
+            primary = got_matches[0][0][1].copy()
+            secondaries = [nmatch[1][1].copy() for nmatch in got_matches]
 
-            self._debug(f"Collocate {files[0].path}\nwith {files[1].path}")
+            # Combine secondary files
+            secondary = xr.concat(secondaries, dim=secondaries[0].time.dims[0])
 
+            # Update dimension numbering
+            secondary[secondary.time.dims[0]] = np.arange(len(secondary.time))
+
+            self._debug(f"Collocate {files[0].path}\nwith {[file.path for file in files[1]]}")
+            
             collocations = self.collocate(
-                (filesets[0].name, primary),
-                (filesets[1].name, secondary), **kwargs,
-            )
+                    (filesets[0].name, primary),
+                    (filesets[1].name, secondary), **kwargs,
+                )
 
             if collocations is None:
                 self._debug("Found no collocations!")
                 # At least, give the process caller a progress update:
-                yield None, None
-                continue
+                yield None, None 
 
-            # Check whether the collocation data is compatible and was build
-            # correctly
-            check_collocation_data(collocations)
+            else: # after yield the code continues at the next line
 
-            found = [
-                collocations[f"{filesets[0].name}/time"].size,
-                collocations[f"{filesets[1].name}/time"].size
-            ]
+                # Check whether the collocation data is compatible and was build
+                # correctly
+                check_collocation_data(collocations)
 
-            self._debug(
-                f"Found {found[0]} ({filesets[0].name}) and "
-                f"{found[1]} ({filesets[1].name}) collocations"
-            )
+                found = [
+                    collocations[f"{filesets[0].name}/time"].size,
+                    collocations[f"{filesets[1].name}/time"].size
+                ]
 
-            # Add the names of the processed files:
-            for f in range(2):
-                if f"{filesets[f].name}/__file" in collocations.variables:
-                    continue
+                self._debug(
+                    f"Found {found[0]} ({filesets[0].name}) and "
+                    f"{found[1]} ({filesets[1].name}) collocations"
+                )
 
-                collocations[f"{filesets[f].name}/__file"] = files[f].path
+                # Add the names of the processed files:
+                for f in range(2):
+                    if f"{filesets[f].name}/__file" in collocations.variables:
+                        continue
+                    if f == 0:
+                        collocations[f"{filesets[f].name}/__file"] = files[f].path
+                    else: 
+                        collocations[f"{filesets[f].name}/__file"] = \
+                            '::'.join([file.path for file in files[1]])
 
-            # Collect the attributes of the input files. The attributes get a
-            # prefix, primary or secondary, to allow not-unique names.
-            attributes = {
-                f"primary.{p}" if f == 0 else f"secondary.{p}": v
-                for f, file in enumerate(files)
-                for p, v in file.attr.items()
-            }
+                # Collect the attributes of the input files. The attributes get a
+                # prefix, primary or secondary, to allow not-unique names.
+                # As representative for the combined secondary files, the file attributes
+                # from the first secondary file are taken.
+                attributes = {
+                    f"primary.{p}" if f == 0 else f"secondary.{p}": v
+                    for f, file in enumerate([files[0], files[1][0]])
+                    for p, v in file.attr.items()
+                }
 
-            yield collocations, attributes
+                yield collocations, attributes
 
 
     def collocate(
@@ -731,10 +798,14 @@ class Collocator:
                     max_distance="300km", max_interval="1h"
                 )
 
-                print(collocated)
-
 
         """
+        # the datasets must be sorted first by time in case an input file is unsorted
+        if isinstance(primary, tuple):
+            primary = (primary[0], primary[1].sortby("time"))
+        if isinstance(secondary, tuple):
+            secondary = (secondary[0], secondary[1].sortby("time"))
+        
         if max_distance is None and max_interval is None:
             raise ValueError(
                 "Either max_distance or max_interval must be given!"
@@ -910,7 +981,7 @@ class Collocator:
             if not primary_period.size or not secondary_period.size:
                 return None, None
 
-            # We need everything sorted by the time, otherwise xarray's stack
+            # We need everything sorted by the time, otherwise xarray's stack (typo?: sel)
             # method makes problems:
             primary_period = primary_period.sortby(primary_period)
             primary_dim = primary_period.dims[0]
@@ -951,15 +1022,18 @@ class Collocator:
         # very annoying bug in time retrieving
         # (https://github.com/pydata/xarray/issues/1240), this is a
         # little bit cumbersome:
+
+        # Approach which can handle NaT values:
+        # added after concatenate was introduced
         common_start = max(
             start,
-            pd.Timestamp(primary.time.values.min().item(0)).tz_localize(None) - max_interval,
-            pd.Timestamp(secondary.time.values.min().item(0)).tz_localize(None) - max_interval
+            pd.to_datetime(primary.time.values).min().tz_localize(None) - max_interval,
+            pd.to_datetime(secondary.time.values).min().tz_localize(None) - max_interval
         )
         common_end = min(
             end,
-            pd.Timestamp(primary.time.values.max().item(0)).tz_localize(None) + max_interval,
-            pd.Timestamp(secondary.time.values.max().item(0)).tz_localize(None) + max_interval
+            pd.to_datetime(primary.time.values).max().tz_localize(None) + max_interval,
+            pd.to_datetime(secondary.time.values).max().tz_localize(None) + max_interval
         )
 
         primary_period = primary.time.where(
@@ -1107,11 +1181,18 @@ class Collocator:
                     )
                     for dim in output[name].get_index("collocation").names
                 ])
+                # We have to get rid of the MultiIndex, because we cannot
+                # store it to a file otherwise. To avoid corrupting the index,
+                # we drop the coordinates it was built from together, before
+                # we can assign a plain integer coordinate below.
+                output[name] = output[name].drop_vars([
+                    *output[name].get_index("collocation").names,
+                    "collocation",
+                ])
 
             # Okay, actually we want to get rid of the main coordinate. It
             # should stay as a dimension name but without own labels. I.e. we
-            # want to drop it. Because it still may a MultiIndex, we cannot
-            # drop it directly but we have to set it to something different.
+            # want to drop it.
             output[name]["collocation"] = \
                 np.arange(output[name]["collocation"].size)
 
@@ -1151,7 +1232,7 @@ class Collocator:
             }
         )
         metadata["interval"] = xr.DataArray(
-            intervals, dims=("collocation", ),
+            intervals.astype('timedelta64[ns]'), dims=("collocation", ),
             attrs={
                 "max_interval": f"Max. interval in secs: {max_interval}",
                 "max_distance": f"Max. distance in kilometers: {max_distance}",
