@@ -1,12 +1,14 @@
 import os
+from pathlib import Path
 from posixpath import join  # LocalFileSystem always uses /
 
 import datetime
 import numpy as np
 import pytest
 import logging
+import xarray as xr
 
-from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager
+from typhon.files import FileHandler, FileInfo, FileSet, FileSetManager, MHS_HDF, NetCDF4
 from typhon.files.utils import get_testfiles_directory
 
 
@@ -302,7 +304,7 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["tutorial"].find(
-                "2017-12-31", "2018-01-01", no_files_error=False
+                "2017-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
@@ -535,7 +537,7 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["single"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
@@ -581,14 +583,14 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["sequence-placeholder"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02",
+                "2018-01-01", "2018-01-01 23:59",
             ))
 
         check = [
@@ -607,7 +609,7 @@ class TestFileSet:
         # Should find two files and should return them in two bins:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02", bundle="6h",
+                "2018-01-01", "2018-01-01 23:59", bundle="6h",
             ))
 
         check = [
@@ -641,7 +643,7 @@ class TestFileSet:
                 ))
         assert ("Find files for sequence-placeholder "
                 "between 2018-01-01 00:00:00 and "
-                "2018-01-01 23:59:59") in caplog.text
+                "2018-01-02 00:00:00") in caplog.text
         assert f"via file system" in caplog.text
 
 
@@ -660,14 +662,14 @@ class TestFileSet:
         # Should not find anything:
         empty = list(
             filesets["sequence-placeholder"].find(
-                "2016-12-31", "2018-01-01", no_files_error=False
+                "2016-12-31", "2017-12-31 23:59", no_files_error=False
             ))
         assert not empty
 
         # Should find two files:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02",
+                "2018-01-01", "2018-01-01 23:59",
             ))
 
         check = [
@@ -686,7 +688,7 @@ class TestFileSet:
         # Should find two files and should return them in two bins:
         found_files = list(
             filesets["sequence-placeholder"].find(
-                "2018-01-01", "2018-01-02", bundle="6h",
+                "2018-01-01", "2018-01-01 23:59", bundle="6h",
             ))
 
         check = [
@@ -794,6 +796,93 @@ class TestFileSet:
         assert a_reference == a_retrieved
         assert b_reference == b_retrieved
 
+    @staticmethod
+    def _write_test_nc_fileset(dirpath, name, nfiles):
+        """Create a fileset of nfiles small NetCDF files (one per hour)."""
+        fileset = FileSet(
+            join(
+                str(dirpath), name + ".{year}{month}{day}{hour}{minute}{second}.nc"
+            ),
+            name=name,
+            handler=NetCDF4(),
+        )
+        for hour in range(nfiles):
+            ds = xr.Dataset(
+                {
+                    "lat": ("time", [0.0, 1.0]),
+                    "lon": ("time", [0.0, 1.0]),
+                },
+                coords={
+                    "time": np.array(
+                        [f"2020-01-01T{hour:02d}:00:00",
+                         f"2020-01-01T{hour:02d}:30:00"],
+                        dtype="datetime64[ns]",
+                    )
+                },
+            )
+            fileset.write(
+                ds,
+                join(
+                    str(dirpath),
+                    f"{name}.20200101{hour:02d}0000.nc",
+                ),
+            )
+        return fileset
+
+    def test_align_skips_corrupt_files(self, tmp_path, caplog):
+        """align with skip_errors yields None for corrupt files only.
+
+        A file that cannot be read must be skipped without desynchronising
+        the generator, i.e. the other matches must still be yielded with the
+        correct files. Regression test for the 'AlignError' caused by a
+        corrupt secondary file on a flaky filesystem.
+        """
+        prim = self._write_test_nc_fileset(tmp_path, "primary", 3)
+        sec = self._write_test_nc_fileset(tmp_path, "secondary", 3)
+
+        # Corrupt the secondary file for the second hour:
+        corrupt = Path(tmp_path) / "secondary.20200101010000.nc"
+        corrupt.write_text("this is not a netcdf file")
+
+        # The read failure is reported as a RuntimeWarning (via
+        # error_to_warning); capture it so it does not clutter the output:
+        with caplog.at_level("WARNING"), pytest.warns(RuntimeWarning):
+            results = list(
+                prim.align(
+                    sec,
+                    start="2020-01-01 00:00:00",
+                    end="2020-01-01 03:00:00",
+                    skip_errors=True,
+                )
+            )
+
+        # 3 matches: the corrupt one yields None, the other two are valid:
+        assert len(results) == 3
+        assert results[1] is None
+        assert results[0] is not None and results[2] is not None
+        # The failed file is reported in the log:
+        assert "secondary.20200101010000.nc" in caplog.text
+
+    def test_align_without_max_interval(self, tmp_path):
+        """align must not raise UnboundLocalError without max_interval.
+
+        Regression test for the missing start_extended/end_extended
+        initialization in match() when max_interval is None.
+        """
+        prim = self._write_test_nc_fileset(tmp_path, "primary", 2)
+        sec = self._write_test_nc_fileset(tmp_path, "secondary", 2)
+
+        results = list(
+            prim.align(
+                sec,
+                start="2020-01-01 00:00:00",
+                end="2020-01-01 02:00:00",
+                skip_errors=False,
+            )
+        )
+        assert len(results) == 2
+        assert all(r is not None for r in results)
+
     def _repr_file_info(self, file_info):
 
         path = "join(self.refdir, '%s')" % (
@@ -833,3 +922,79 @@ class TestFileSet:
         assert f2 != f4
         assert f3 != f4
         assert f1 != "fake/path"
+
+    def test_symlinked_directories(self, tmp_path):
+        """Files must be findable and readable through symlinked directories.
+
+        fsspec's LocalFileSystem reports symlinks to directories as type
+        "other" rather than "directory", so glob patterns with a trailing
+        slash (i.e. "directories only") used to skip them completely. This
+        affected any placeholder directory level of the path that was a
+        symlink.
+        """
+        base = tmp_path / "base"
+        real = tmp_path / "real"
+        year_dir = real / "noaa18_mhs_2008" / "01" / "01"
+        year_dir.mkdir(parents=True)
+        base.mkdir()
+
+        # Access the year-level directory through a symlink:
+        os.symlink(str(real / "noaa18_mhs_2008"),
+                   str(base / "noaa18_mhs_2008"))
+
+        # Create a minimal MHS-like AAPP file so that reading works:
+        import netCDF4
+        tfile = year_dir / "NSS.MHSX.NN.D08001.S0000.E0155.B1347475.SV.h5"
+        with netCDF4.Dataset(str(tfile), "w") as ds:
+            data = ds.createGroup("Data")
+            data.createDimension("phony_dim_0", 3)
+            data.createDimension("phony_dim_1", 90)
+            data.createDimension("phony_dim_2", 5)
+            scnlin = data.createVariable(
+                "scnlin", "i4", ("phony_dim_0",))
+            scnlin[:] = [1, 2, 3]
+            scnlinyr = data.createVariable(
+                "scnlinyr", "i2", ("phony_dim_0",))
+            scnlinyr[:] = [2008, 2008, 2008]
+            scnlindy = data.createVariable(
+                "scnlindy", "i2", ("phony_dim_0",))
+            scnlindy[:] = [1, 1, 1]
+            scnlintime = data.createVariable(
+                "scnlintime", "i4", ("phony_dim_0",))
+            scnlintime[:] = [0, 60000, 120000]
+            btemps = data.createVariable(
+                "btemps", "i2",
+                ("phony_dim_0", "phony_dim_1", "phony_dim_2"))
+            btemps[:] = np.random.randint(0, 30000, (3, 90, 5))
+
+            geolocation = ds.createGroup("Geolocation")
+            geolocation.createDimension("phony_dim_3", 3)
+            geolocation.createDimension("phony_dim_4", 90)
+            lat = geolocation.createVariable(
+                "Latitude", "f4", ("phony_dim_3", "phony_dim_4"))
+            lat[:] = np.random.rand(3, 90) * 10 - 5
+            lon = geolocation.createVariable(
+                "Longitude", "f4", ("phony_dim_3", "phony_dim_4"))
+            lon[:] = np.random.rand(3, 90) * 10 - 5
+
+            ds.startdatayr = np.int16(2008)
+            ds.startdatady = np.int16(1)
+            ds.startdatatime_ms = np.int32(62900)
+            ds.enddatayr = np.int16(2008)
+            ds.enddatady = np.int16(1)
+            ds.enddatatime_ms = np.int32(6924233)
+
+        fileset = FileSet(
+            path=join(
+                str(base), "{satname}_mhs_{year}", "{month}", "{day}",
+                "*NSS.MHSX.*.h5"),
+            handler=MHS_HDF(),
+        )
+
+        found = list(fileset.find("2008", "2008"))
+        assert len(found) == 1
+        # FileSet paths always use forward slashes, even on Windows:
+        assert Path(found[0].path).is_relative_to(base)
+
+        data = fileset.read(found[0])
+        assert data["Data/btemps"].size == 3 * 90 * 5

@@ -1,15 +1,26 @@
 from ast import literal_eval
 import copy
 from importlib import import_module
+import inspect
 
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from typhon.utils import to_array
 
 __all__ = [
     'RetrievalProduct',
 ]
+
+# Scikit-learn <1.0 used un-prefixed module names (e.g. sklearn.tree.tree).
+# Models saved with such versions must be remapped to the current module
+# names when they are deserialized:
+_SKLEARN_MODULE_MAP = {
+    'sklearn.preprocessing.data':
+        'sklearn.preprocessing._data',
+    'sklearn.neural_network.multilayer_perceptron':
+        'sklearn.neural_network._multilayer_perceptron',
+    'sklearn.tree.tree': 'sklearn.tree._classes',
+}
 
 
 class NotTrainedError(Exception):
@@ -55,6 +66,7 @@ class RetrievalProduct:
     @staticmethod
     def _import_class(module_name, class_name):
         """Import a class dynamically to the namespace"""
+        module_name = _SKLEARN_MODULE_MAP.get(module_name, module_name)
         mod = import_module(module_name)
         klass = getattr(mod, class_name)
         return klass
@@ -94,16 +106,24 @@ class RetrievalProduct:
     @staticmethod
     def _decode_numpy(obj):
         def _from_dict(item):
+            dtype = item["__dtype__"]
+            if isinstance(dtype, str) and dtype.startswith("{"):
+                # A structured dtype in its dictionary representation, as
+                # produced by str(dtype) of an aligned dtype (numpy >= 2):
+                dtype = literal_eval(dtype)
             try:
                 return np.array(
                     item["__ndarray__"],
-                    dtype=item["__dtype__"],
+                    dtype=dtype,
                 )
             except TypeError:
-                return np.array(
-                    item["__ndarray__"],
-                    dtype=literal_eval(item["__dtype__"]),
-                )
+                if isinstance(dtype, str):
+                    dtype = literal_eval(dtype)
+                    return np.array(
+                        item["__ndarray__"],
+                        dtype=dtype,
+                    )
+                raise
 
         def _is_numpy(item):
             return isinstance(item, dict) and "__ndarray__" in item
@@ -138,12 +158,31 @@ class RetrievalProduct:
         instance = RetrievalProduct._import_class(
             dictionary["module"], dictionary["class"]
         )
+        # Newer sklearn versions store the feature count as n_features_in_
+        # which may be None for unfitted attributes. Old versions use
+        # n_features_ instead.
+        n_features = coefs.get("n_features_in_")
+        if n_features is None:
+            n_features = coefs["n_features_"]
         tree = instance(
-            to_array(coefs["n_features_"]),
-            to_array(coefs["n_classes_"]),
-            to_array(coefs["n_outputs_"])
+            n_features,
+            np.atleast_1d(np.asarray(coefs["n_classes_"], dtype=np.intp)),
+            coefs["n_outputs_"],
         )
-        tree.__setstate__(dictionary["coefs"])
+
+        state = dictionary["coefs"]
+        nodes = state.get("nodes")
+        if nodes is not None and "missing_go_to_left" not in nodes.dtype.names:
+            new_dtype = np.dtype(
+                [*nodes.dtype.descr, ("missing_go_to_left", "u1")],
+                align=True,
+            )
+            new_nodes = np.zeros(nodes.shape, dtype=new_dtype)
+            for name in nodes.dtype.names:
+                new_nodes[name] = nodes[name]
+            state["nodes"] = new_nodes
+
+        tree.__setstate__(state)
         return tree
 
     @staticmethod
@@ -157,6 +196,7 @@ class RetrievalProduct:
                 attr: copy.deepcopy(getattr(model, attr))
                 for attr in model.__dir__()
                 if not attr.startswith("__") and attr.endswith("_")
+                if not attr.startswith("_repr_")
             }
         }
 
@@ -176,7 +216,13 @@ class RetrievalProduct:
         instance = RetrievalProduct._import_class(
             dictionary["module"], dictionary["class"]
         )
-        model = instance(**dictionary["params"])
+        params = dictionary["params"]
+        parameters = inspect.signature(instance.__init__).parameters
+        params = {
+            key: value for key, value in params.items()
+            if key in parameters
+        }
+        model = instance(**params)
         for attr, value in dictionary["coefs"].items():
             if attr == "tree_":
                 # We must treat a tree specially:

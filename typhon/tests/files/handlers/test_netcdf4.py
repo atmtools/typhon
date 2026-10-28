@@ -116,6 +116,119 @@ class TestNetCDF4:
             after = fh.read(tfile)
             assert np.allclose(before["a"], after["a"])
 
+    def test_subgroup_dimensions_declared_locally(self):
+        """Subgroups must declare their dimensions locally
+
+        When a parent group and its subgroups share dimensions, the subgroups
+        have to be written before the parent group. Otherwise, the parent
+        declares the dimensions first and the subgroups only inherit them.
+        Older readers that only look at locally-defined dimensions
+        (group.dimensions) then fail to map variables in the subgroups.
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset({
+                "MHS/channel": ("MHS/channel", np.arange(5, dtype=np.int64)),
+                "MHS/collocation":
+                    ("MHS/collocation", np.arange(10, dtype=np.int64)),
+                "MHS/lat": ("MHS/collocation", np.arange(10)),
+                "MHS/Data/btemps":
+                    (("MHS/channel", "MHS/collocation"),
+                     np.arange(50).reshape(5, 10)),
+                "MHS/Geolocation/Satellite_azimuth_angle":
+                    ("MHS/collocation", np.arange(10)),
+            })
+            fh.write(before, tfile)
+
+            import netCDF4
+            with netCDF4.Dataset(tfile, "r") as root:
+                mhs = root.groups["MHS"]
+                # The dimensions must be declared in the subgroups, not only
+                # inherited from the parent group:
+                assert "channel" in mhs.groups["Data"].dimensions
+                assert "collocation" in mhs.groups["Data"].dimensions
+                assert "collocation" in \
+                    mhs.groups["Geolocation"].dimensions
+
+            after = fh.read(tfile)
+            assert after.equals(before)
+
+    def test_int_coordinate_dtype(self):
+        """Unmasked integer data must keep its dtype after a roundtrip
+
+        netCDF4 returns unmasked variables as MaskedArrays. When these are
+        passed to xarray they get promoted to float (NaN fill). This used to
+        turn e.g. int64 coordinates of collocation files into float64.
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "testfile.nc")
+            before = xr.Dataset(
+                    {"var": ("scnline", np.arange(5, dtype=np.int64))},
+                    coords={
+                        "scnline": ("scnline", np.arange(1, 6, dtype=np.int64)),
+                        "scnpos": ("scnpos", np.arange(1, 91, dtype=np.int64)),
+                        "channel": ("channel", np.arange(1, 6, dtype=np.int64)),
+                    })
+            fh.write(before, tfile)
+            after = fh.read(tfile)
+
+            for name in ["scnline", "scnpos", "channel", "var"]:
+                assert after[name].dtype == np.int64
+            assert after.equals(before)
+
+    def test_read_non_netcdf_file_raises(self):
+        """Reading a non-NetCDF file must raise instead of segfaulting.
+
+        Some netCDF4-python builds (e.g. the pip wheel on Ubuntu) segfault
+        instead of raising an exception when asked to open a file with an
+        unknown format. This test guards the magic-byte validation that keeps
+        such errors catchable (e.g. by align's skip_file_errors).
+        """
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            tfile = os.path.join(tdir, "corrupt.nc")
+            with open(tfile, "w") as file:
+                file.write("this is not a netcdf file")
+
+            with pytest.raises(OSError):
+                fh.read(tfile)
+
+    def test_parallel_read(self):
+        """Concurrent reads must not crash the interpreter.
+
+        FileSet.align reads files from multiple threads. netCDF4-python is
+        often built against a non-thread-safe HDF5 library, and concurrent
+        netCDF4.Dataset calls can then segfault the process. The NetCDF4
+        handler serializes access with a lock so parallel reads stay safe.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        fh = NetCDF4()
+
+        with tempfile.TemporaryDirectory() as tdir:
+            files = []
+            for i in range(3):
+                tfile = os.path.join(tdir, f"testfile{i}.nc")
+                before = xr.Dataset({"a": ("time", [0.0, 1.0])},
+                                    coords={"time": [0, 1]})
+                fh.write(before, tfile)
+                files.append(tfile)
+
+            def read(path):
+                return fh.read(path)
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for _ in range(5):
+                    results = list(pool.map(read, files * 2))
+
+            for i, result in enumerate(results):
+                assert result["a"].size == 2
+
 
 class TestFSNetCDF:
     """Test filesystem-NetCDF file handler."""

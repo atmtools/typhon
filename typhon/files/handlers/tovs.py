@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import logging
 import numpy as np
 import numexpr as ne
 from netCDF4 import Dataset
@@ -14,6 +15,8 @@ __all__ = [
     'AVHRR_GAC_HDF',
     'MHS_HDF',
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class AAPP_HDF(NetCDF4):
@@ -99,7 +102,7 @@ class AAPP_HDF(NetCDF4):
         # Maximal these dimensions (or less) should be in the dataset:
         if wanted is None:
             wanted = {'channel', 'scnline', 'scnpos'}
-        reality = set(dataset.dims.keys())
+        reality = set(dataset.sizes.keys())
 
         if reality - wanted:
             raise ValueError(
@@ -161,6 +164,11 @@ class MHS_HDF(AAPP_HDF):
             file_info, fields=fields, mapping=self.mapping,
             mask_and_scale=mask_and_scale, **kwargs
         )
+
+        # Skip broken files
+        if "scnline" not in dataset.dims:
+            logger.warning(f"Skipping broken file: {file_info}")
+            return None
 
         scnlines = dataset["scnline"].values
         dataset = dataset.assign_coords(
@@ -276,7 +284,11 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         # All geolocation fields are packed in the AVHRR GAC files:
         if interpolate_packed_pixels:
-            self._interpolate_packed_pixels(dataset, max_nans_interpolation)
+            try:
+                self._interpolate_packed_pixels(dataset, max_nans_interpolation, file_info)
+            except ValueError as e:
+                logger.warning(f"Skipping interpolation for {file_info}: {e}")
+                return None
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos'}
         else:
             allowed_coords = {'channel', 'calib', 'scnline', 'scnpos',
@@ -294,7 +306,7 @@ class AVHRR_GAC_HDF(AAPP_HDF):
         return dataset
 
     @staticmethod
-    def _interpolate_packed_pixels(dataset, max_nans_interpolation):
+    def _interpolate_packed_pixels(dataset, max_nans_interpolation, file_info):
         given_pos = np.arange(5, 409, 8)
         new_pos = np.arange(1, 410)
 
@@ -310,8 +322,9 @@ class AVHRR_GAC_HDF(AAPP_HDF):
 
         if valid_pos.sum() < 52 - max_nans_interpolation:
             raise ValueError(
-                "Too many NaNs in latitude and longitude of this AVHRR file. "
-                "Cannot guarantee a good interpolation!"
+                f"Too many NaNs in latitude and longitude of this AVHRR file. "
+                f"Cannot guarantee a good interpolation! "
+                f"File affected: {file_info}"
             )
 
         # Filter NaNs because CubicSpline cannot handle it:

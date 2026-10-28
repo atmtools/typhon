@@ -16,14 +16,17 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import os.path
 import posixpath
 import re
+import secrets
 import shutil
 from sys import platform
 import traceback
 import warnings
+import tempfile
 
 import numpy as np
 import pandas as pd
 from fsspec.implementations.local import LocalFileSystem
+from pathlib import Path
 
 import typhon.files
 from typhon.trees import IntervalTree
@@ -759,10 +762,23 @@ class FileSet:
                     gc.collect()
 
                 # Check whether something went wrong:
-                if primary_data is None or secondary_data is None \
-                        and skip_errors:
+                if skip_errors and (primary_data is None or secondary_data is None):
                     # There was an exception during reading the primary or
-                    # secondary file, therefore we skip this match:
+                    # secondary file, therefore we skip this match. We still
+                    # yield a placeholder so that the number of yielded items
+                    # stays in sync with the number of (primary, secondary)
+                    # pairs that the caller expects.
+                    if primary_data is None:
+                        logger.warning(
+                            f"Skipping match because the primary file could "
+                            f"not be read: {primaries[match_id].path}"
+                        )
+                    if secondary_data is None:
+                        logger.warning(
+                            f"Skipping match because the secondary file could "
+                            f"not be read: {secondary_file.path}"
+                        )
+                    yield None
                     continue
 
                 if return_info:
@@ -1050,8 +1066,8 @@ class FileSet:
     ):
         """ Find all files of this fileset in a given time period.
 
-        The *start* and *end* parameters build a semi-open interval: only the
-        files that are equal or newer than *start* and older than *end* are
+        The *start* and *end* parameters build a closed interval: only the
+        files that are equal or newer than *start* and equal or older than *end* are
         going to be found.
 
         While searching this method checks whether the file lies in the time
@@ -1114,9 +1130,13 @@ class FileSet:
         # The user can give strings instead of datetime objects:
         start = datetime.min if start is None else to_datetime(start)
         end = datetime.max if end is None else to_datetime(end)
-
+        '''
         # We want to have a semi-open interval as explained in the doc string.
+        # Update 09.03.2023: We want a closed interval just like in collocate() -> _get_common_time_period
+        # to be consistent
         end -= timedelta(microseconds=1)
+        '''
+
 
         if end < start:
             raise ValueError(
@@ -1289,10 +1309,17 @@ class FileSet:
 
     def _get_matching_dirs(self, dir_with_attrs, regex):
         base_dir, dir_attr = dir_with_attrs
-        for new_dir in self.file_system.glob(posixpath.join(base_dir + "*", "")):
+        # NB: We do not add a trailing slash to the glob pattern. Otherwise,
+        # fsspec would only match entries that are reported as type
+        # "directory". Symlinks to directories are reported as type "other"
+        # and would never be found. Instead, we filter with isdir(), which
+        # also follows symlinks.
+        for new_dir in self.file_system.glob(base_dir + "*"):
+            if not self.file_system.isdir(new_dir):
+                continue
             # some/all (?) file_system implementations do not end directories
             # in a /, glob.glob does
-            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")) and self.file_system.isdir(new_dir):
+            if not (new_dir.endswith(os.sep) or new_dir.endswith("/")):
                 new_dir += "/"  # always / with AbstractFileSystem, not os.sep
             # The glob function yields full paths, but we want only to check
             # the new pattern that was added:
@@ -1635,8 +1662,11 @@ class FileSet:
 
         # Using the handler for getting more information
         if retrieve_via in ("handler", "both"):
-            with typhon.files.decompress(info.path, tmpdir=self.temp_dir) as \
-                    decompressed_path:
+            with typhon.files.decompress(
+                info.path,
+                tmpdir=self.temp_dir,
+                target=Path(info.path).name + secrets.token_hex(8),
+            ) as decompressed_path:
                 decompressed_file = info.copy()
                 decompressed_file.path = decompressed_path
                 handler_info = self.handler.get_info(decompressed_file)
@@ -2071,7 +2101,7 @@ class FileSet:
 
     def match(
             self, other, start=None, end=None, max_interval=None,
-            filters=None, other_filters=None):
+            filters=None, other_filters=None, skip_file_errors=False):
         """Find matching files between two filesets
 
         Matching files are files that overlap each in their time coverage.
@@ -2097,16 +2127,25 @@ class FileSet:
         Examples:
             TODO: Add example
         """
+
+        # files1 are only searched for within start and end
+        # without considering max_interval
+        start=to_datetime(start)
+        end=to_datetime(end)
         if max_interval is not None:
             max_interval = to_timedelta(max_interval, numbers_as="seconds")
-            start = to_datetime(start) - max_interval
-            end = to_datetime(end) + max_interval
+            start_extended=start-max_interval
+            end_extended=end+max_interval
+        else:
+            start_extended=start
+            end_extended=end
 
         files1 = list(
-            self.find(start, end, filters=filters)
+            self.find(start, end, filters=filters, no_files_error=not(skip_file_errors)) #skip_file_errors added 22.02.2023
         )
+
         files2 = list(
-            other.find(start, end, filters=other_filters)
+            other.find(start_extended, end_extended, filters=other_filters, no_files_error=not(skip_file_errors)) #skip_file_errors added 22.02.2023
         )
 
         # Convert the times (datetime objects) to seconds (integer)
@@ -2119,6 +2158,8 @@ class FileSet:
             for file in files2
         ]).astype("M8[s]").astype(int)
 
+        if len(times1)==0 or len(times2)==0:
+            return
         if max_interval is not None:
             # Expand the intervals of the secondary fileset to close-in-time
             # intervals.
@@ -2700,7 +2741,7 @@ class FileSet:
         read_args = {**self.read_args, **read_args}
 
         if self.decompress:
-            with typhon.files.decompress(file_info.path, tmpdir=self.temp_dir)\
+            with typhon.files.decompress(file_info.path, tmpdir=self.temp_dir, target=Path(file_info.path).name + secrets.token_hex(8))\
                     as decompressed_path:
                 decompressed_file = file_info.copy()
                 decompressed_file.path = decompressed_path
