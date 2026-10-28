@@ -33,7 +33,7 @@ cmaps = {}
 for (name, data) in datad.items():
     if isinstance(data, dict):
         cmaps[name] = mpl.colors.LinearSegmentedColormap(name, data)
-        cmaps[name + '_r'] = mpl.colorsLinearSegmentedColormap(
+        cmaps[name + '_r'] = mpl.colors.LinearSegmentedColormap(
             name + '_r', _rev_cdict(data))
     elif isinstance(data, list):
         cmaps[name] = mpl.colors.ListedColormap(data, name)
@@ -42,6 +42,9 @@ for (name, data) in datad.items():
 locals().update(cmaps)
 
 for name, cm in cmaps.items():
-    mpl.colormaps.register(cmap=cm, name=name)
+    # Guard against re-registration, which happens e.g. when a module
+    # reloader (such as Spyder's) reloads this module in the same kernel.
+    if name not in mpl.colormaps:
+        mpl.colormaps.register(cmap=cm, name=name)
 
 __all__ = list(cmaps.keys())
