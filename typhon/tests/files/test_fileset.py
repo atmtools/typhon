@@ -48,15 +48,25 @@ class TestFileSet:
         # refdir accordingly
         try:
             cont = fs.ls(self.refdir, detail=False)
-            # on windows, this appears empty (?!) if we have a zip and refdir
-            # contains a drive
-            if len(cont) == 0 and self.refdir[1] == ":":
-                return self.refdir[3:]
-            fn = cont[0]
-            if fn[0] not in (os.sep, "/", self.refdir[0]):
-                return self.refdir[1:]
+        except FileNotFoundError:
+            # Since fsspec 2026.9.0, archive filesystems raise an error for
+            # paths that are not in the archive instead of returning an empty
+            # listing. Zip entries are created relative to the archive root
+            # and never contain a Windows drive prefix (see below).
+            cont = []
         except (IndexError, AttributeError, StopIteration, KeyError, TypeError):
-            pass
+            return self.refdir
+
+        # on windows, zip entries do not contain the drive of the directory
+        # the archive was created from
+        if len(cont) == 0:
+            if len(self.refdir) > 2 and self.refdir[1] == ":":
+                return self.refdir[3:]
+            return self.refdir
+
+        fn = cont[0]
+        if fn[0] not in (os.sep, "/", self.refdir[0]):
+            return self.refdir[1:]
         return self.refdir
 
     def init_filesets(self, fs=None):
